@@ -7,7 +7,7 @@ use       utilities_mod, only: error_mesg, FATAL, open_file,  &
                                check_nml_error, get_root_pe
 use   monin_obukhov_mod, only: mo_drag, mo_profile
 use  sat_vapor_pres_mod, only: escomp, descomp
-use       constants_mod, only: cp, hlv, stefan, rdgas, rvgas, grav
+use       constants_mod, only: cp_air, hlv, stefan, rdgas, rvgas, grav
 
 implicit none
 private
@@ -25,16 +25,16 @@ end interface
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 1.7 2002/07/16 22:47:25 fms Exp $'
-character(len=*), parameter :: tagname = '$Name: havana $'
+character(len=*), parameter :: version = '$Id: surface_flux.F90,v 1.8 2003/04/09 21:09:39 fms Exp $'
+character(len=*), parameter :: tagname = '$Name: inchon $'
    
 logical :: do_init = .true.
 
 real, parameter :: d622   = rdgas/rvgas
 real, parameter :: d378   = 1.-d622
 real, parameter :: hlars  = hlv/rvgas
-real, parameter :: gcp    = grav/cp
-real, parameter :: kappa  = rdgas/cp
+real, parameter :: gcp    = grav/cp_air
+real, parameter :: kappa  = rdgas/cp_air
 real            :: d608   = d378/d622
       ! d608 set to zero at initialization if the use of 
       ! virtual temperatures is turned off in namelist
@@ -183,7 +183,7 @@ subroutine surface_flux_1d (                                           &
      rho = p_atm / (rdgas * tv_atm)  
 
      ! sensible heat flux
-     rho_drag = cp * drag_t * rho
+     rho_drag = cp_air * drag_t * rho
      flux_t = rho_drag * (t_surf0 - th_atm)  ! flux of sensible heat (W/m**2)
      dhdt_surf =  rho_drag                   ! d(sensible heat flux)/d(surface temperature)
      dhdt_atm  = -rho_drag*p_ratio           ! d(sensible heat flux)/d(atmos temperature)

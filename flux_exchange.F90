@@ -39,7 +39,7 @@ module flux_exchange_mod
 
   use sat_vapor_pres_mod, only: escomp
 
-  use      constants_mod, only: rdgas, rvgas, cp
+  use      constants_mod, only: rdgas, rvgas, cp_air
 
   use           soil_mod, only: send_averaged_data
 
@@ -57,8 +57,8 @@ private
      flux_ocean_to_ice
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 1.8 2002/07/16 22:47:22 fms Exp $'
-  character(len=128) :: tag = '$Name: havana $'
+  character(len=128) :: version = '$Id: flux_exchange.F90,v 1.9 2003/04/09 21:09:34 fms Exp $'
+  character(len=128) :: tag = '$Name: inchon $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -74,13 +74,13 @@ character(len=4), parameter :: mod_name = 'flux'
   integer :: id_drag_moist,  id_drag_heat,  id_drag_mom,     &
      id_rough_moist, id_rough_heat, id_rough_mom,    &
      id_land_mask,   id_ice_mask,     &
-     id_u_star, id_b_star, id_u_flux, id_v_flux, id_t_surf,   &
-     id_t_flux, id_q_flux, id_r_flux,                         &
+     id_u_star, id_b_star, id_q_star, id_u_flux, id_v_flux,   &
+     id_t_surf, id_t_flux, id_q_flux, id_r_flux,              &
      id_t_atm,  id_u_atm,  id_v_atm,  id_wind,                &
      id_t_ref,  id_rh_ref, id_u_ref,  id_v_ref,               &
      id_del_h,  id_del_m,  id_del_q,                 &
      ! + slm, Mar 25, 2002 -- add diagnostics for q_surf
-     id_t_ca,   id_q_surf, id_q_atm, &
+     id_t_ca,   id_q_surf, id_q_atm, id_z_atm, id_p_atm, id_gust, &
      ! - slm, Mar 25, 2002
      ! + slm, Jun 02, 2002 -- add diagnostics for reference-level values
      ! (T, RH, U, V) over land part of the cells
@@ -100,7 +100,9 @@ real, parameter :: d378 = 1.0-d622
   real ::  z_ref_heat =  2.,  &
            z_ref_mom  = 10.
 
-namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom
+  integer :: remap_order = 1
+
+namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, remap_order
 
 ! ---- allocatable module storage --------------------------------------------
 real, allocatable, dimension(:) :: &
@@ -171,6 +173,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
 !    real, dimension(size(Atm%glat_bnd)) :: atmlatb
     real, dimension(:), allocatable :: atmlonb, atmlatb
   integer :: is, ie, js, je, kd
+  integer, dimension(:), allocatable :: pelist  
 
 !-----------------------------------------------------------------------
   !------ read namelist ------
@@ -182,6 +185,9 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
         read  (unit, nml=flux_exchange_nml, iostat=io, end=10)
         ierr = check_nml_error(io,'flux_exchange_nml')
      enddo
+     if (remap_order /= 1 .and. remap_order /=2 ) &
+        call error_mesg ('flux_exchange_mod', &
+           'remap_order must be 1 or 2', FATAL)
 10   call close_file (unit)
   endif
 
@@ -299,7 +305,20 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
         allocate( atmos_land_boundary%drdt(is:ie,js:je,kd) )
         allocate( atmos_land_boundary%drag_q(is:ie,js:je,kd) )
         allocate( atmos_land_boundary%p_surf(is:ie,js:je,kd) )
-
+! initialize boundary values for override experiments (mjh)
+        atmos_land_boundary%t_flux=0.0
+        atmos_land_boundary%q_flux=0.0
+        atmos_land_boundary%lw_flux=0.0
+        atmos_land_boundary%sw_flux=0.0
+        atmos_land_boundary%lprec=0.0
+        atmos_land_boundary%fprec=0.0
+        atmos_land_boundary%dhdt=0.0
+        atmos_land_boundary%dedt=0.0
+        atmos_land_boundary%dedq=0.0
+        atmos_land_boundary%drdt=0.0
+        atmos_land_boundary%drag_q=0.0
+        atmos_land_boundary%p_surf=0.0
+        
 !allocate atmos_ice_boundary
         call mpp_get_compute_domain( Ice%domain, is, ie, js, je )
         kd = size(Ice%ice_mask,3)
@@ -316,10 +335,27 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
         allocate( atmos_ice_boundary%drdt(is:ie,js:je,kd) )
         allocate( atmos_ice_boundary%coszen(is:ie,js:je,kd) )
         allocate( atmos_ice_boundary%p(is:ie,js:je,kd) )
+! initialize boundary values for override experiments (mjh)
+        atmos_ice_boundary%u_flux=0.0
+        atmos_ice_boundary%v_flux=0.0
+        atmos_ice_boundary%t_flux=0.0
+        atmos_ice_boundary%q_flux=0.0
+        atmos_ice_boundary%lw_flux=0.0
+        atmos_ice_boundary%sw_flux=0.0
+        atmos_ice_boundary%lprec=0.0
+        atmos_ice_boundary%fprec=0.0
+        atmos_ice_boundary%dhdt=0.0
+        atmos_ice_boundary%dedt=0.0
+        atmos_ice_boundary%drdt=0.0
+        atmos_ice_boundary%coszen=0.0
+        atmos_ice_boundary%p=0.0
+        
 !allocate land_ice_boundary
         allocate( land_ice_boundary%runoff(is:ie,js:je) )
         allocate( land_ice_boundary%calving(is:ie,js:je) )
-
+! initialize values for override experiments (mjh)
+        land_ice_boundary%runoff=0.0
+        land_ice_boundary%calving=0.0
 !allocate land_ice_atmos_boundary
         call mpp_get_compute_domain( Atm%domain, is, ie, js, je )
         allocate( land_ice_atmos_boundary%t(is:ie,js:je) )
@@ -332,9 +368,29 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
         allocate( land_ice_atmos_boundary%dtaudv(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%u_star(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%b_star(is:ie,js:je) )
+        allocate( land_ice_atmos_boundary%q_star(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%rough_mom(is:ie,js:je) )
+! initialize boundary values for override experiments (mjh)
+        land_ice_atmos_boundary%t=273.0
+        land_ice_atmos_boundary%albedo=0.0
+        land_ice_atmos_boundary%land_frac=0.0
+        land_ice_atmos_boundary%dt_t=0.0
+        land_ice_atmos_boundary%dt_q=0.0
+        land_ice_atmos_boundary%u_flux=0.0
+        land_ice_atmos_boundary%v_flux=0.0
+        land_ice_atmos_boundary%dtaudv=0.0
+        land_ice_atmos_boundary%u_star=0.0
+        land_ice_atmos_boundary%b_star=0.0
+        land_ice_atmos_boundary%q_star=0.0
+        land_ice_atmos_boundary%rough_mom=0.01        
     end if
-    call mpp_set_current_pelist()
+
+    allocate(pelist(size(Atm%pelist)+size(Ocean%pelist)))
+    pelist(1:size(Atm%pelist)) = Atm%pelist(:)
+    pelist(size(Atm%pelist)+1:size(pelist)) = Ocean%pelist(:)
+    call mpp_set_current_pelist(pelist)
+    deallocate(pelist)
+
 !ocean_ice_boundary and ice_ocean_boundary must be done on all PES
 !domain boundaries will assure no space is allocated on non-relevant PEs.
     call mpp_get_compute_domain( Ice%domain, is, ie, js, je )
@@ -346,6 +402,13 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
 !frazil and sea_level are optional, if not present they should be nullified
     allocate( ocean_ice_boundary%frazil(is:ie,js:je) )
     allocate( ocean_ice_boundary%sea_level(is:ie,js:je) )
+! initialize boundary fields for override experiments (mjh)
+    ocean_ice_boundary%u=0.0
+    ocean_ice_boundary%v=0.0
+    ocean_ice_boundary%t=273.0
+    ocean_ice_boundary%s=0.0
+    ocean_ice_boundary%frazil=0.0
+    ocean_ice_boundary%sea_level=0.0
 !allocate ice_ocean_boundary
     call mpp_get_compute_domain( Ocean%domain, is, ie, js, je )
 !ML ocean only requires t, q, lw, sw, fprec, calving
@@ -364,7 +427,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
     allocate ( ice_ocean_boundary%runoff    (is:ie,js:je) )
     allocate ( ice_ocean_boundary%calving   (is:ie,js:je) )
     allocate ( ice_ocean_boundary%p         (is:ie,js:je) )
-
+! initialize boundary values for override experiments
     ocean_ice_boundary%xtype = REDIST
     if( Ocean%domain.EQ.Ice%domain )ocean_ice_boundary%xtype = DIRECT
     ice_ocean_boundary%xtype = ocean_ice_boundary%xtype
@@ -469,14 +532,14 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Boundary )
 
   ! [4] put all the qantities we need onto exchange grid
   ! [4.1] put atmosphere quantities onto exchange grid
-  call put_to_xgrid (Atm%t_bot , 'ATM', ex_t_atm , xmap_sfc)
-  call put_to_xgrid (Atm%q_bot , 'ATM', ex_q_atm , xmap_sfc)
-  call put_to_xgrid (Atm%z_bot , 'ATM', ex_z_atm , xmap_sfc)
-  call put_to_xgrid (Atm%p_bot , 'ATM', ex_p_atm , xmap_sfc)
-  call put_to_xgrid (Atm%u_bot , 'ATM', ex_u_atm , xmap_sfc)
-  call put_to_xgrid (Atm%v_bot , 'ATM', ex_v_atm , xmap_sfc)
-  call put_to_xgrid (Atm%p_surf, 'ATM', ex_p_surf, xmap_sfc)
-  call put_to_xgrid (Atm%gust,   'ATM', ex_gust,   xmap_sfc)
+  call put_to_xgrid (Atm%t_bot , 'ATM', ex_t_atm , xmap_sfc, remapping_order=remap_order)
+  call put_to_xgrid (Atm%q_bot , 'ATM', ex_q_atm , xmap_sfc, remapping_order=remap_order)
+  call put_to_xgrid (Atm%z_bot , 'ATM', ex_z_atm , xmap_sfc, remapping_order=remap_order)
+  call put_to_xgrid (Atm%p_bot , 'ATM', ex_p_atm , xmap_sfc, remapping_order=remap_order)
+  call put_to_xgrid (Atm%u_bot , 'ATM', ex_u_atm , xmap_sfc, remapping_order=remap_order)
+  call put_to_xgrid (Atm%v_bot , 'ATM', ex_v_atm , xmap_sfc, remapping_order=remap_order)
+  call put_to_xgrid (Atm%p_surf, 'ATM', ex_p_surf, xmap_sfc, remapping_order=remap_order)
+  call put_to_xgrid (Atm%gust,   'ATM', ex_gust,   xmap_sfc, remapping_order=remap_order)
 
   ! slm, Mar 20 2002: changed order in whith the data transferred from ice and land 
   ! grids, to fill t_ca first with t_surf over ocean and then with t_ca from 
@@ -548,6 +611,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Boundary )
   call get_from_xgrid (Boundary%dtaudv,    'ATM', ex_dtaudv_atm, xmap_sfc)
   call get_from_xgrid (Boundary%u_star,    'ATM', ex_u_star    , xmap_sfc)
   call get_from_xgrid (Boundary%b_star,    'ATM', ex_b_star    , xmap_sfc)
+  call get_from_xgrid (Boundary%q_star,    'ATM', ex_q_star    , xmap_sfc)
 
   Boundary%t = Boundary%t ** 0.25
 
@@ -624,6 +688,11 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Boundary )
      used = send_data ( id_b_star, Boundary%b_star, Time )
   endif
 
+  !------- moisture scale -----------
+  if ( id_q_star > 0 ) then
+     used = send_data ( id_q_star, Boundary%q_star, Time )
+  endif
+
   !-----------------------------------------------------------------------
   !------ diagnostics for fields at bottom atmospheric level ------
   
@@ -648,6 +717,18 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Boundary )
      used = send_data ( id_q_atm, diag_atm, Time )
   endif
   ! - slm, Mar 25, 2002
+  if ( id_p_atm > 0 ) then
+     call get_from_xgrid (diag_atm, 'ATM', ex_p_atm, xmap_sfc)
+     used = send_data ( id_p_atm, diag_atm, Time )
+  endif
+  if ( id_z_atm > 0 ) then
+     call get_from_xgrid (diag_atm, 'ATM', ex_z_atm, xmap_sfc)
+     used = send_data ( id_z_atm, diag_atm, Time )
+  endif
+  if ( id_gust > 0 ) then
+     call get_from_xgrid (diag_atm, 'ATM', ex_gust, xmap_sfc)
+     used = send_data ( id_gust, diag_atm, Time )
+  endif
 
   !-----------------------------------------------------------------------
   !--------- diagnostics for fields at reference level ---------
@@ -796,7 +877,7 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
 !---- put atmosphere quantities onto exchange grid ----
 
   call put_to_xgrid (Atm%flux_sw, 'ATM', ex_flux_sw, xmap_sfc)
-  call put_to_xgrid (Atm%flux_lw, 'ATM', ex_flux_lwd, xmap_sfc)
+  call put_to_xgrid (Atm%flux_lw, 'ATM', ex_flux_lwd, xmap_sfc, remapping_order=remap_order)
 
   !  ccc = conservation_check(Atm%lprec, 'ATM', xmap_sfc)
   !  if (mpp_pe()==0) print *,'LPREC', ccc
@@ -806,8 +887,8 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
 
   call put_to_xgrid (Atm%coszen,  'ATM', ex_coszen, xmap_sfc)
 
-  call put_to_xgrid (Atmos_boundary%u_flux, 'ATM', ex_flux_u, xmap_sfc)
-  call put_to_xgrid (Atmos_boundary%v_flux, 'ATM', ex_flux_v, xmap_sfc)
+  call put_to_xgrid (Atmos_boundary%u_flux, 'ATM', ex_flux_u, xmap_sfc, remapping_order=remap_order)
+  call put_to_xgrid (Atmos_boundary%v_flux, 'ATM', ex_flux_v, xmap_sfc, remapping_order=remap_order)
 
 !-----------------------------------------------------------------------
 !---- adjust sw flux for albedo variations on exch grid ----
@@ -824,13 +905,13 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
 !----- adjust fluxes for implicit dependence on atmosphere ----
 
 
-  call put_to_xgrid (Atm%Surf_Diff%dtmass , 'ATM', ex_dtmass , xmap_sfc)
-  call put_to_xgrid (Atm%Surf_Diff%delta_t, 'ATM', ex_delta_t, xmap_sfc)
-  call put_to_xgrid (Atm%Surf_Diff%delta_q, 'ATM', ex_delta_q, xmap_sfc)
-  call put_to_xgrid (Atm%Surf_Diff%dflux_t, 'ATM', ex_dflux_t, xmap_sfc)
-  call put_to_xgrid (Atm%Surf_Diff%dflux_q, 'ATM', ex_dflux_q, xmap_sfc)
+  call put_to_xgrid (Atm%Surf_Diff%dtmass , 'ATM', ex_dtmass , xmap_sfc )
+  call put_to_xgrid (Atm%Surf_Diff%delta_t, 'ATM', ex_delta_t, xmap_sfc )
+  call put_to_xgrid (Atm%Surf_Diff%delta_q, 'ATM', ex_delta_q, xmap_sfc )
+  call put_to_xgrid (Atm%Surf_Diff%dflux_t, 'ATM', ex_dflux_t, xmap_sfc )
+  call put_to_xgrid (Atm%Surf_Diff%dflux_q, 'ATM', ex_dflux_q, xmap_sfc )
 
-  cp_inv = 1.0/cp
+  cp_inv = 1.0/cp_air
 
   where(ex_avail)
 
@@ -1338,6 +1419,10 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
        register_diag_field ( mod_name, 'b_star',     atmos_axes, Time, &
        'buoyancy scale',      'm/s2'   )
 
+  id_q_star     = &
+       register_diag_field ( mod_name, 'q_star',     atmos_axes, Time, &
+       'moisture scale',      'kg water/kg air'   )
+
   id_u_flux     = &
        register_diag_field ( mod_name, 'tau_x',      atmos_axes, Time, &
        'zonal wind stress',     'pa'   )
@@ -1359,14 +1444,23 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
 
   id_q_atm     = &
        register_diag_field ( mod_name, 'q_atm',     atmos_axes, Time, &
-       'specific humidity at btm level',    'kg/kg', &
-       range=trange    )
+       'specific humidity at btm level',    'kg/kg')
 
   id_q_surf     = &
        register_diag_field ( mod_name, 'q_surf',     atmos_axes, Time, &
-       'surface specific humidity',    'kg/kg', &
-       range=trange    )
+       'surface specific humidity',    'kg/kg')
   ! - slm, Mar 25, 2002
+  id_z_atm      = &
+       register_diag_field ( mod_name, 'z_atm',     atmos_axes, Time, &
+       'height of btm level',    'm')
+
+  id_p_atm      = &
+       register_diag_field ( mod_name, 'p_atm',     atmos_axes, Time, &
+       'pressure at btm level',    'pa')
+
+  id_gust       = &
+       register_diag_field ( mod_name, 'gust',     atmos_axes, Time, &
+       'gust scale',    'm/s')
 
   id_t_flux     = &
        register_diag_field ( mod_name, 'shflx',      atmos_axes, Time, &
@@ -1445,13 +1539,6 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
 !-----------------------------------------------------------------------
 
   end subroutine diag_field_init
-
-function in_box(i, j,is, ie, js, je)
-  integer :: i, j, is, ie, js, je
-  logical :: in_box
-
-  in_box = (i>=is) .and. (i<=ie) .and. (j>=js) .and. (j<=je)
-end function in_box
 
 end module flux_exchange_mod
 

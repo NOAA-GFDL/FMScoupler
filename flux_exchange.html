@@ -27,7 +27,7 @@
      <b>Contact:</b> &nbsp;  Bruce Wyman <br>
      <b>Reviewers:</b>&nbsp; <br>
      <b>Change History:&nbsp; </b><a HREF="http://www.gfdl.noaa.gov/fms-cgi-bin/cvsweb.cgi/FMS/coupler/flux_exchange.f90">WebCVS Log</a> <br>
-     <b>Last Modified:</b>&nbsp; $Date: 2002/02/22 19:13:00 $
+     <b>Last Modified:</b>&nbsp; $Date: 2003/04/09 21:36:03 $
 </div><br>
 <!-- END HEADER -->
 <!-------------------------------------------------------------------->
@@ -433,6 +433,11 @@ flux_salt = salt flux (Kg/m2/s)
   <dd>reference height (meters) for momentum diagnostics
               (u_ref,v_ref,del_m)<br><span class="type"> <font size=2>
               [real, default: z_ref_mom = 10.</font></span></dd>]
+
+  <dt><tt>remap_order</tt></dt>   
+  <dd> atmospheric fields are put onto the exchange grid using a 1st
+              (remap_order = 1) or 2nd (remap_order = 2) order mapping.
+               1st order is the default</dd>
 </dl>
 </div><br>
 <!-- END NAMELIST -->
