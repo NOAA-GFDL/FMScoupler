@@ -1,13 +1,49 @@
 ! ============================================================================
 module surface_flux_mod
+!-----------------------------------------------------------------------
+!                   GNU General Public License                        
+!                                                                      
+! This program is free software; you can redistribute it and/or modify it and  
+! are expected to follow the terms of the GNU General Public License  
+! as published by the Free Software Foundation; either version 2 of   
+! the License, or (at your option) any later version.                 
+!                                                                      
+! MOM is distributed in the hope that it will be useful, but WITHOUT    
+! ANY WARRANTY; without even the implied warranty of MERCHANTABILITY  
+! or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public    
+! License for more details.                                           
+!                                                                      
+! For the full text of the GNU General Public License,                
+! write to: Free Software Foundation, Inc.,                           
+!           675 Mass Ave, Cambridge, MA 02139, USA.                   
+! or see:   http://www.gnu.org/licenses/gpl.html                      
+!-----------------------------------------------------------------------
+!
+! <CONTACT EMAIL="Stephen.Klein@noaa.gov">Steve Klein  </CONTACT>
+! <CONTACT EMAIL="Isaac.Held@noaa.gov"> Isaac Held </CONTACT>
+! <CONTACT EMAIL="Bruce.Wyman@noaa.gov"> Bruce Wyman </CONTACT >
+
+! <REVIEWER EMAIL="V.Balaji@noaa.gov"> V. Balaji </REVIEWER>
+! <REVIEWER EMAIL="Sergey.Malyshev@noaa.gov"> Sergey Malyshev </REVIEWER>
+! <REVIEWER EMAIL="Elena.Shevliakova@noaa.gov"> Elena Shevliakova </REVIEWER>
+!
+! <HISTORY SRC="http://www.gfdl.noaa.gov/fms-cgi-bin/cvsweb.cgi/FMS/"/>
+!
+! <OVERVIEW>
+!  Driver program for the calculation of fluxes on the exchange grids. 
+! </OVERVIEW>
+!
+! <DESCRIPTION>
+!
+! </DESCRIPTION>
+!
 ! ============================================================================
 
-use       utilities_mod, only: error_mesg, FATAL, open_file,  &
-                               close_file, get_my_pe, file_exist, &
-                               check_nml_error, get_root_pe
+use             fms_mod, only: FATAL, close_file, mpp_pe, mpp_root_pe, write_version_number
+use             fms_mod, only: file_exist, check_nml_error, open_namelist_file, stdlog
 use   monin_obukhov_mod, only: mo_drag, mo_profile
 use  sat_vapor_pres_mod, only: escomp, descomp
-use       constants_mod, only: cp_air, hlv, stefan, rdgas, rvgas, grav
+use       constants_mod, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
 
 implicit none
 private
@@ -16,17 +52,148 @@ private
 public  surface_flux
 ! ==== end of public interface ===============================================
 
+! <INTERFACE NAME="surface_flux">
+!   <OVERVIEW>
+!   For the calculation of fluxes on the exchange grids. 
+!   </OVERVIEW>
+!   <DESCRIPTION>
+!   For the calculation of fluxes on the exchange grids. 
+!   </DESCRIPTION>
+!
+!  <IN NAME="t_atm" TYPE="real, dimension(:)" UNITS="Kelvin">
+!  Air temp lowest atmospheric level.  
+!  </IN>
+!  <IN NAME="q_atm" TYPE="real, dimension(:)" UNITS="dimensionless">
+!  Mixing ratio at lowest atmospheric level (kg/kg).  
+!  </IN>
+!  <IN NAME="u_atm" TYPE="real, dimension(:)" UNITS="m/s">
+!  Zonal wind velocity at lowest atmospheric level.       
+!  </IN>
+!  <IN NAME="v_atm" TYPE="real, dimension(:)" UNITS="m/s">
+!  Meridional wind velocity at lowest atmospheric level.    
+!  </IN>
+!  <IN NAME="p_atm" TYPE="real, dimension(:)" UNITS="Pascal">
+!  Pressure lowest atmospheric level.    
+!  </IN>
+!  <IN NAME="z_atm" TYPE="real, dimension(:)" UNITS="m" >
+!  Height lowest atmospheric level. 
+!  </IN>
+!  <IN NAME="p_surf" TYPE="real, dimension(:)" UNITS="Pascal">
+!   Pressure at the earth's surface
+!  </IN>
+!  <IN NAME="t_surf" TYPE="real, dimension(:)" UNITS="Kelvin">
+!   Temp at the earth's surface
+!  </IN>
+!  <IN NAME="t_ca" TYPE="real, dimension(:)" UNITS="Kelvin">
+!   Air temp at the canopy 
+!  </IN>
+!  <OUT NAME="q_surf" TYPE="real, dimension(:)" UNITS="dimensionless">
+!  Mixing ratio at earth surface (kg/kg). 
+!  </OUT>
+!  <IN NAME="u_surf" TYPE="real, dimension(:)" UNITS="m/s">
+!  Zonal wind velocity at earth surface.   
+!  </IN>
+!  <IN NAME="v_surf" TYPE="real, dimension(:)" UNITS="m/s">
+!  Meridional wind velocity at earth surface. 
+!  </IN>
+!  <IN NAME="rough_mom" TYPE="real, dimension(:)" UNITS="m">
+!  Momentum roughness length
+!  </IN>
+!  <IN NAME="rough_heat" TYPE="real, dimension(:)" UNITS="m">
+!  Heat roughness length
+!  </IN>
+!  <IN NAME="rough_moist" TYPE="real, dimension(:)" UNITS="m">
+! <Moisture roughness length
+!  </IN>
+!  <IN NAME="rough_scale" TYPE="real, dimension(:)" UNITS="dimensionless" >
+!  Scale factor used to topographic roughness calculation
+!  </IN>
+!  <IN NAME="gust" TYPE="real, dimension(:)"  UNITS="m/s">
+!   Gustiness factor 
+!  </IN>
+!  <OUT NAME="flux_t" TYPE="real, dimension(:)" UNITS="W/m^2">
+!  Sensible heat flux 
+!  </OUT>
+!  <OUT NAME="flux_q" TYPE="real, dimension(:)" UNITS="kg/(m^2 s)">
+!  Evaporative water flux 
+!  </OUT>
+!  <OUT NAME="flux_r" TYPE="real, dimension(:)" UNITS="W/m^2">
+!  Radiative energy flux 
+!  </OUT>
+!  <OUT NAME="flux_u" TYPE="real, dimension(:)" UNITS="Pa">
+!  Zonal momentum flux 
+!  </OUT>
+!  <OUT NAME="flux_v" TYPE="real, dimension(:)" UNITS="Pa">
+! Meridional momentum flux 
+!  </OUT>
+!  <OUT NAME="cd_m" TYPE="real, dimension(:)" UNITS="dimensionless">
+!  Momentum exchange coefficient 
+!  </OUT>
+!  <OUT NAME="cd_t" TYPE="real, dimension(:)" UNITS="dimensionless">
+!  Heat exchange coefficient 
+!  </OUT>
+!  <OUT NAME="cd_q" TYPE="real, dimension(:)" UNITS="dimensionless">
+!  Moisture exchange coefficient 
+!  </OUT>
+!  <OUT NAME="w_atm" TYPE="real, dimension(:)" UNITS="m/s">
+!  Absolute wind at the lowest atmospheric level
+!  </OUT>
+!  <OUT NAME="u_star" TYPE="real, dimension(:)" UNITS="m/s">
+!  Turbulent velocity scale 
+!  </OUT>
+!  <OUT NAME="b_star" TYPE="real, dimension(:)" UNITS="m/s^2">
+!  Turbulent buoyant scale
+!  </OUT>
+!  <OUT NAME="q_star" TYPE="real, dimension(:)" UNITS="dimensionless">
+!  Turbulent moisture scale
+!  </OUT>
+!  <OUT NAME="dhdt_surf" TYPE="real, dimension(:)" UNITS="(W/m^2)/K">
+!  Sensible heat flux temperature sensitivity
+!  </OUT>
+!  <OUT NAME="dedt_surf" TYPE="real, dimension(:)" UNITS="1/K">
+!   Moisture flux temperature sensitivity 
+!  </OUT>
+!  <OUT NAME="dedq_surf" TYPE="real, dimension(:)" UNITS="(kg/m^2)/s">
+!  Moisture flux humidity sensitivity  
+!  </OUT>
+!  <OUT NAME="drdt_surf" TYPE="real, dimension(:)" UNITS="(W/m^2)/K">
+!  Radiative energy flux temperature sensitivity 
+!  </OUT>
+!  <OUT NAME="dhdt_atm" TYPE="real, dimension(:)" UNITS="(W/m^2)/K">
+!  Derivative of sensible heat flux over temp at the lowest atmos level.
+!  </OUT>
+!  <OUT NAME="dedq_atm" TYPE="real, dimension(:)" UNITS="(kg/m^2/sec)/K">
+!  Derivative of water vapor flux over temp at the lowest atmos level.
+!  </OUT>
+!  <OUT NAME="dtaudv_atm" TYPE="real, dimension(:)" UNITS="Pa/(m/s)">
+!  Derivative of wind stress with regard to the lowest level wind speed of the atmos
+!  </OUT>
+!  <OUT NAME="dt" TYPE="real">
+!  Time step (it is not used presently)
+!  </OUT>
+!  <IN NAME="land" TYPE="logical, dimension(:)">
+!  Indicates where land exists (true if exchange cell is on land). 
+!  </IN>
+!  <IN NAME="seawater" TYPE="logical, dimension(:)">
+!  Indicates where liquid ocean water exists 
+!  (true if exchange cell is on liquid ocean water). 
+!  </IN>
+!  <IN NAME="avail" TYPE="logical, dimension(:)">
+!  True where the exchange cell is active.  
+!  </IN>
+
 
 interface surface_flux
 !    module procedure surface_flux_0d
     module procedure surface_flux_1d
 !    module procedure surface_flux_2d
 end interface
+! </INTERFACE>
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 1.8 2003/04/09 21:09:39 fms Exp $'
-character(len=*), parameter :: tagname = '$Name: inchon $'
+character(len=*), parameter :: version = '$Id: surface_flux.F90,v 10.0 2003/10/24 22:01:04 fms Exp $'
+character(len=*), parameter :: tagname = '$Name: jakarta $'
    
 logical :: do_init = .true.
 
@@ -41,17 +208,51 @@ real            :: d608   = d378/d622
       
       
 ! ---- namelist with default values ------------------------------------------
+! <NAMELIST NAME="surface_flux_nml">
+!   <DATA NAME="no_neg_q"  TYPE="logical"  DEFAULT=".false.">
+!    If q_atm_in (specific humidity) is negative (because of numerical truncation),  
+!    then override with 0. 
+!   </DATA>
+!   <DATA NAME="use_virtual_temp"  TYPE="logical"  DEFAULT=".true.">
+!    If true, use virtual potential temp to calculate the stability of the surface layer.
+!    if false, use potential temp.
+!   </DATA>
+!   <DATA NAME="alt_gustiness"  TYPE="logical"  DEFAULT=".false.">
+!   An alternative formulation for gustiness calculation. 
+!   A minimum bound on the wind speed used influx calculations, with the bound 
+!   equal to gust_const 
+!   </DATA>
+!   <DATA NAME="use_mixing_ratio"  TYPE="logical"  DEFAULT=".false.">
+!   An option to provide capability to run the Manabe Climate form of the 
+!   surface flux (coded for legacy purposes). 
+!   </DATA>
+!   <DATA NAME="gust_const"  TYPE=""  DEFAULT="1.0">
+!    Constant for alternative gustiness calculation.
+!   </DATA>
+!   <DATA NAME="ncar_ocean_flux"  TYPE="logical"  DEFAULT=".false.">
+!    Use NCAR climate model turbulent flux calculation described by
+!    Large and Yeager, NCAR Technical Document, in prep., 2003
+!   </DATA>
+!   <DATA NAME="raoult_sat_vap"  TYPE="logical"  DEFAULT=".false.">
+!    Reduce saturation vapor pressures to account for seawater salinity.
+!   </DATA>
+! </NAMELIST>
+
 logical :: no_neg_q         = .false.  ! for backwards compatibility
 logical :: use_virtual_temp = .true. 
 logical :: alt_gustiness    = .false.
 logical :: use_mixing_ratio = .false.
 real    :: gust_const       =  1.0
+logical :: ncar_ocean_flux  = .false.
+logical :: raoult_sat_vap   = .false.
 
 namelist /surface_flux_nml/ no_neg_q,         &
                             use_virtual_temp, &
                             alt_gustiness,    &
                             gust_const,       &
-                            use_mixing_ratio
+                            use_mixing_ratio, &
+                            ncar_ocean_flux,  &
+                            raoult_sat_vap
    
 
 
@@ -59,28 +260,71 @@ contains
 
 
 ! ============================================================================
+! <SUBROUTINE NAME="surface_flux_1d" INTERFACE="surface_flux">
+!  <IN NAME="t_atm" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="q_atm" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="u_atm" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="v_atm" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="p_atm" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="z_atm" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="p_surf" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="t_surf" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="t_ca" TYPE="real, dimension(:)"> </IN>
+!  <OUT NAME="q_surf" TYPE="real, dimension(:)"> </OUT>
+!  <IN NAME="u_surf" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="v_surf" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="rough_mom" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="rough_heat" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="rough_moist" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="rough_scale" TYPE="real, dimension(:)"> </IN>
+!  <IN NAME="gust" TYPE="real, dimension(:)"> </IN>
+!  <OUT NAME="flux_t" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="flux_q" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="flux_r" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="flux_u" TYPE="real, dimension(:)"></OUT>
+!  <OUT NAME="flux_v" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="cd_m" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="cd_t" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="cd_q" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="w_atm" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="u_star" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="b_star" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="q_star" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="dhdt_surf" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="dedt_surf" TYPE="real, dimension(:)"></OUT>
+!  <OUT NAME="dedq_surf" TYPE="real, dimension(:)"></OUT>
+!  <OUT NAME="drdt_surf" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="dhdt_atm" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="dedq_atm" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="dtaudv_atm" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="dt" TYPE="real"> </OUT>
+!  <IN NAME="land" TYPE="logical, dimension(:)"> </IN>
+!  <IN NAME="seawater" TYPE="logical, dimension(:)"> </IN>
+!  <IN NAME="avail" TYPE="logical, dimension(:)"> </IN>
+
+
+!<PUBLICROUTINE INTERFACE="surface_flux">
 subroutine surface_flux_1d (                                           &
      t_atm,     q_atm_in,   u_atm,     v_atm,     p_atm,     z_atm,    &
      p_surf,    t_surf,     t_ca,      q_surf,                         &
      u_surf,    v_surf,                                                &
-     rough_mom, rough_heat, rough_moist, gust,  &
-     flux_t, flux_q, flux_r, flux_u, flux_v,                &
+     rough_mom, rough_heat, rough_moist, rough_scale, gust,            &
+     flux_t, flux_q, flux_r, flux_u, flux_v,                           &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudv_atm,                                &
-! + slm Mar 28 2002 -- it is not necessary here since it is just cd_q*wind
-!     drag_q,                                                           &
-! - slm Mar 28 2002
-     dt,        land,      avail  )
+     dt,        land,      seawater,     avail  )
+!</PUBLICROUTINE>
+!  slm Mar 28 2002 -- remove agument drag_q since it is just cd_q*wind
 ! ============================================================================
   ! ---- arguments -----------------------------------------------------------
-  logical, intent(in), dimension(:) :: land,  avail
+  logical, intent(in), dimension(:) :: land,  seawater, avail
   real, intent(in),  dimension(:) :: &
        t_atm,     q_atm_in,   u_atm,     v_atm,              &
        p_atm,     z_atm,      t_ca,                          &
        p_surf,    t_surf,     u_surf,    v_surf,  &
-       rough_mom, rough_heat, rough_moist,  gust
+       rough_mom, rough_heat, rough_moist,  rough_scale, gust
   real, intent(out), dimension(:) :: &
        flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
@@ -140,6 +384,8 @@ subroutine surface_flux_1d (                                           &
      q_surf0 = q_sat  ! everything else assumes saturated sfc humidity
   endwhere
 
+  if (raoult_sat_vap) where (seawater) q_surf0 = 0.98 * q_surf0
+
   ! check for negative atmospheric humidities
   where(avail) q_atm = q_atm_in
   if(no_neg_q) then
@@ -151,12 +397,12 @@ subroutine surface_flux_1d (                                           &
      p_ratio = (p_surf/p_atm)**kappa
 
      tv_atm  = t_atm  * (1.0 + d608*q_atm)     ! virtual temperature
-     th_atm  = t_atm  * p_ratio  ! potential T, using p_surf as refernce
-     thv_atm = tv_atm * p_ratio  ! virt. potential T, using p_surf as reference 
+     th_atm  = t_atm  * p_ratio                ! potential T, using p_surf as refernce
+     thv_atm = tv_atm * p_ratio                ! virt. potential T, using p_surf as reference 
      thv_surf= t_surf0 * (1.0 + d608*q_surf0 ) ! surface virtual (potential) T
-!     thv_surf= t_surf0  ! surface virtual (potential) T -- just for testing tun off the q_surf
+!     thv_surf= t_surf0                        ! surface virtual (potential) T -- just for testing tun off the q_surf
 
-     u_dif = u_surf - u_atm      ! velocity components relative to surface
+     u_dif = u_surf - u_atm                    ! velocity components relative to surface
      v_dif = v_surf - v_atm
   endwhere
 
@@ -173,7 +419,15 @@ subroutine surface_flux_1d (                                           &
        rough_mom, rough_heat, rough_moist, w_atm,          &
        cd_m, cd_t, cd_q, u_star, b_star, avail             )
 
+  ! override with ocean fluxes from NCAR calculation
+  if (ncar_ocean_flux) then
+    call  ncar_ocean_fluxes (w_atm, th_atm, t_surf0, q_atm, q_surf0, z_atm, &
+                             seawater, cd_m, cd_t, cd_q, u_star, b_star     )
+  end if
+
   where (avail)
+     ! scale momentum drag coefficient on orographic roughness
+     cd_m = cd_m*(log(z_atm/rough_mom+1)/log(z_atm/rough_scale+1))**2
      ! surface layer drag coefficients
      drag_t = cd_t * w_atm
      drag_q = cd_q * w_atm
@@ -238,6 +492,7 @@ subroutine surface_flux_1d (                                           &
   endwhere
 
 end subroutine surface_flux_1d
+! </SUBROUTINE>
 
 !#######################################################################
 
@@ -245,37 +500,37 @@ subroutine surface_flux_0d (                                                 &
      t_atm_0,     q_atm_0,      u_atm_0,     v_atm_0,   p_atm_0, z_atm_0,    &
      p_surf_0,    t_surf_0,     t_ca_0,      q_surf_0,                       &
      u_surf_0,    v_surf_0,                                                  &
-     rough_mom_0, rough_heat_0, rough_moist_0, gust_0,                       &
+     rough_mom_0, rough_heat_0, rough_moist_0, rough_scale_0, gust_0,        &
      flux_t_0,    flux_q_0,     flux_r_0,    flux_u_0,  flux_v_0,            &
      cd_m_0,      cd_t_0,       cd_q_0,                                      &
      w_atm_0,     u_star_0,     b_star_0,     q_star_0,                      &
      dhdt_surf_0, dedt_surf_0,  dedq_surf_0,  drdt_surf_0,                   &
      dhdt_atm_0,  dedq_atm_0,   dtaudv_atm_0,                                &
-     dt,          land_0,       avail_0  )
+     dt,          land_0,       seawater_0,  avail_0  )
 
   ! ---- arguments -----------------------------------------------------------
-  logical, intent(in) :: land_0,  avail_0
-  real, intent(in) :: &
-       t_atm_0,     q_atm_0,      u_atm_0,     v_atm_0,              &
-       p_atm_0,     z_atm_0,      t_ca_0,                          &
-       p_surf_0,    t_surf_0,     u_surf_0,    v_surf_0,  &
-       rough_mom_0, rough_heat_0, rough_moist_0,  gust_0
-  real, intent(out) :: &
+  logical, intent(in) :: land_0,  seawater_0, avail_0
+  real, intent(in) ::                                                  &
+       t_atm_0,     q_atm_0,      u_atm_0,     v_atm_0,                &
+       p_atm_0,     z_atm_0,      t_ca_0,                              &
+       p_surf_0,    t_surf_0,     u_surf_0,    v_surf_0,               &
+       rough_mom_0, rough_heat_0, rough_moist_0, rough_scale_0, gust_0
+  real, intent(out) ::                                                 &
        flux_t_0,    flux_q_0,     flux_r_0,    flux_u_0,  flux_v_0,    &
-       dhdt_surf_0, dedt_surf_0,  dedq_surf_0, drdt_surf_0,          &
-       dhdt_atm_0,  dedq_atm_0,   dtaudv_atm_0,                    &
-       w_atm_0,     u_star_0,     b_star_0,    q_star_0,             &
+       dhdt_surf_0, dedt_surf_0,  dedq_surf_0, drdt_surf_0,            &
+       dhdt_atm_0,  dedq_atm_0,   dtaudv_atm_0,                        &
+       w_atm_0,     u_star_0,     b_star_0,    q_star_0,               &
        cd_m_0,      cd_t_0,       cd_q_0
   real, intent(inout) :: q_surf_0
   real, intent(in)    :: dt
 
   ! ---- local vars ----------------------------------------------------------
-  logical, dimension(1) :: land,  avail
+  logical, dimension(1) :: land,  seawater, avail
   real, dimension(1) :: &
        t_atm,     q_atm,      u_atm,     v_atm,              &
        p_atm,     z_atm,      t_ca,                          &
-       p_surf,    t_surf,     u_surf,    v_surf,  &
-       rough_mom, rough_heat, rough_moist,  gust
+       p_surf,    t_surf,     u_surf,    v_surf,             &
+       rough_mom, rough_heat, rough_moist,  rough_scale, gust
   real, dimension(1) :: &
        flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
@@ -300,19 +555,20 @@ subroutine surface_flux_0d (                                                 &
   rough_mom(1)   = rough_mom_0
   rough_heat(1)  = rough_heat_0
   rough_moist(1) = rough_moist_0
+  rough_scale(1) = rough_scale_0
   gust(1)        = gust_0
 
-  call surface_flux_1d (                                           &
+  call surface_flux_1d (                                                 &
        t_atm,     q_atm,      u_atm,     v_atm,     p_atm,     z_atm,    &
        p_surf,    t_surf,     t_ca,      q_surf,                         &
        u_surf,    v_surf,                                                &
-       rough_mom, rough_heat, rough_moist, gust,  &
-       flux_t, flux_q, flux_r, flux_u, flux_v,                &
+       rough_mom, rough_heat, rough_moist, rough_scale, gust,            &
+       flux_t, flux_q, flux_r, flux_u, flux_v,                           &
        cd_m,      cd_t,       cd_q,                                      &
        w_atm,     u_star,     b_star,     q_star,                        &
        dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
        dhdt_atm,  dedq_atm,   dtaudv_atm,                                &
-       dt,        land,      avail  )
+       dt,        land,      seawater, avail  )
 
   flux_t_0     = flux_t(1)
   flux_q_0     = flux_q(1)
@@ -340,21 +596,21 @@ subroutine surface_flux_2d (                                           &
      t_atm,     q_atm_in,   u_atm,     v_atm,     p_atm,     z_atm,    &
      p_surf,    t_surf,     t_ca,      q_surf,                         &
      u_surf,    v_surf,                                                &
-     rough_mom, rough_heat, rough_moist, gust,                         &
+     rough_mom, rough_heat, rough_moist, rough_scale, gust,            &
      flux_t,    flux_q,     flux_r,    flux_u,    flux_v,              &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudv_atm,                                &
-     dt,        land,       avail  )
+     dt,        land,       seawater,  avail  )
 
   ! ---- arguments -----------------------------------------------------------
-  logical, intent(in), dimension(:,:) :: land,  avail
+  logical, intent(in), dimension(:,:) :: land,  seawater, avail
   real, intent(in),  dimension(:,:) :: &
        t_atm,     q_atm_in,   u_atm,     v_atm,              &
        p_atm,     z_atm,      t_ca,                          &
-       p_surf,    t_surf,     u_surf,    v_surf,  &
-       rough_mom, rough_heat, rough_moist,  gust
+       p_surf,    t_surf,     u_surf,    v_surf,             &
+       rough_mom, rough_heat, rough_moist, rough_scale, gust
   real, intent(out), dimension(:,:) :: &
        flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
@@ -370,29 +626,30 @@ subroutine surface_flux_2d (                                           &
   do j = 1, size(t_atm,2)
      call surface_flux_1d (                                           &
           t_atm(:,j),     q_atm_in(:,j),   u_atm(:,j),     v_atm(:,j),     p_atm(:,j),     z_atm(:,j),    &
-          p_surf(:,j),    t_surf(:,j),     t_ca(:,j),      q_surf(:,j),                         &
-          u_surf(:,j),    v_surf(:,j),                                                &
-          rough_mom(:,j), rough_heat(:,j), rough_moist(:,j), gust(:,j),                         &
-          flux_t(:,j),    flux_q(:,j),     flux_r(:,j),    flux_u(:,j),    flux_v(:,j),              &
-          cd_m(:,j),      cd_t(:,j),       cd_q(:,j),                                      &
-          w_atm(:,j),     u_star(:,j),     b_star(:,j),     q_star(:,j),                        &
-          dhdt_surf(:,j), dedt_surf(:,j),  dedq_surf(:,j),  drdt_surf(:,j),                     &
-          dhdt_atm(:,j),  dedq_atm(:,j),   dtaudv_atm(:,j),                                &
-          dt,             land(:,j),       avail(:,j)  )
+          p_surf(:,j),    t_surf(:,j),     t_ca(:,j),      q_surf(:,j),                                   &
+          u_surf(:,j),    v_surf(:,j),                                                                    &
+          rough_mom(:,j), rough_heat(:,j), rough_moist(:,j), rough_scale(:,j), gust(:,j),                 &
+          flux_t(:,j),    flux_q(:,j),     flux_r(:,j),    flux_u(:,j),    flux_v(:,j),                   &
+          cd_m(:,j),      cd_t(:,j),       cd_q(:,j),                                                     &
+          w_atm(:,j),     u_star(:,j),     b_star(:,j),     q_star(:,j),                                  &
+          dhdt_surf(:,j), dedt_surf(:,j),  dedq_surf(:,j),  drdt_surf(:,j),                               &
+          dhdt_atm(:,j),  dedq_atm(:,j),   dtaudv_atm(:,j),                                               &
+          dt,             land(:,j),       seawater(:,j),  avail(:,j)  )
   end do
 end subroutine surface_flux_2d
 
 
 ! ============================================================================
+!  Initialization of the surface flux module--reads the nml.     
+!
 subroutine surface_flux_init
-! ============================================================================
-! initializes surface flux module
-  ! ---- local vars ----------------------------------------------------------
+
+! ---- local vars ----------------------------------------------------------
   integer :: unit, ierr, io
 
   ! read namelist
   if ( file_exist('input.nml')) then
-     unit = open_file ('input.nml', action='read')
+     unit = open_namelist_file ()
      ierr=1; 
      do while (ierr /= 0)
         read  (unit, nml=surface_flux_nml, iostat=io, end=10)
@@ -402,17 +659,90 @@ subroutine surface_flux_init
   endif
 
   ! write version number
-  unit = open_file ('logfile.out', action='append')
-  if ( get_my_pe() == get_root_pe() ) &
-       write (unit,'(/,80("="),/(a))') trim(version), trim(tagname)
-       write (unit, nml=surface_flux_nml)
-  call close_file (unit)
+  call write_version_number(version, tagname)
+
+  if ( mpp_pe() == mpp_root_pe() )  write (stdlog(), nml=surface_flux_nml)
   
   if(.not. use_virtual_temp) d608 = 0.0
   
   do_init = .false.
   
 end subroutine surface_flux_init
+
+
+
+!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
+! Over-ocean fluxes following Large and Yeager (used in NCAR models)           !
+! Coded by Mike Winton (Michael.Winton@noaa.gov)
+!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
+!
+subroutine ncar_ocean_fluxes (u_del, t, ts, q, qs, z, avail, &
+                              cd, ch, ce, ustar, bstar       )
+real   , intent(in)   , dimension(:) :: u_del, t, ts, q, qs, z
+logical, intent(in)   , dimension(:) :: avail
+real   , intent(inout), dimension(:) :: cd, ch, ce, ustar, bstar
+
+  real :: cd_n10, ce_n10, ch_n10, cd_n10_rt    ! neutral 10m drag coefficients
+  real :: cd_rt                                ! full drag coefficients @ z
+  real :: zeta, x2, x, psi_m, psi_h            ! stability parameters
+  real :: u, u10, tv, tstar, qstar, z0, xx, stab
+  integer, parameter :: n_itts = 2
+  integer               i, j
+
+
+  do i=1,size(u_del)
+    if (avail(i)) then
+      tv = t(i)*(1+0.608*q(i));
+      u = max(u_del(i), 0.5);                                 ! 0.5 m/s floor on wind (undocumented NCAR)
+      u10 = u;                                                ! first guess 10m wind
+    
+      cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3;                ! L-Y eqn. 6a
+      cd_n10_rt = sqrt(cd_n10);
+      ce_n10 =                     34.6 *cd_n10_rt/1e3;       ! L-Y eqn. 6b
+      stab = 0.5 + sign(0.5,t(i)-ts(i))
+      ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3;       ! L-Y eqn. 6c
+  
+      cd(i) = cd_n10;                                         ! first guess for exchange coeff's at z
+      ch(i) = ch_n10;
+      ce(i) = ce_n10;
+      do j=1,n_itts                                           ! Monin-Obukhov iteration
+        cd_rt = sqrt(cd(i));
+        ustar(i) = cd_rt*u;                                   ! L-Y eqn. 7a
+        tstar    = (ch(i)/cd_rt)*(t(i)-ts(i));                ! L-Y eqn. 7b
+        qstar    = (ce(i)/cd_rt)*(q(i)-qs(i));                ! L-Y eqn. 7c
+        bstar(i) = grav*(tstar/tv+qstar/(q(i)+1/0.608));
+        zeta     = vonkarm*bstar(i)*z(i)/(ustar(i)*ustar(i)); ! L-Y eqn. 8a
+        zeta     = sign( min(abs(zeta),10.0), zeta );         ! undocumented NCAR
+        x2 = sqrt(abs(1-16*zeta));                            ! L-Y eqn. 8b
+        x2 = max(x2, 1.0);                                    ! undocumented NCAR
+        x = sqrt(x2);
+    
+        if (zeta > 0) then
+          psi_m = -5*zeta;                                    ! L-Y eqn. 8c
+          psi_h = -5*zeta;                                    ! L-Y eqn. 8c
+        else
+          psi_m = log((1+2*x+x2)*(1+x2)/8)-2*(atan(x)-atan(1.0)); ! L-Y eqn. 8d
+          psi_h = 2*log((1+x2)/2);                                ! L-Y eqn. 8e
+        end if
+    
+        u10 = u*(1+cd_n10_rt*(log(z(i)/10)-psi_m)/vonkarm);       ! L-Y eqn. 9
+        cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3;                  ! L-Y eqn. 6a again
+        cd_n10_rt = sqrt(cd_n10);
+        ce_n10 = 34.6*cd_n10_rt/1e3;                              ! L-Y eqn. 6b again
+        stab = 0.5 + sign(0.5,zeta)
+        ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3;         ! L-Y eqn. 6c again
+        z0 = 10*exp(-vonkarm/cd_n10_rt);                          ! diagnostic
+    
+        xx = (log(z(i)/10)-psi_m)/vonkarm;
+        cd(i) = cd_n10/(1+cd_n10_rt*xx)**2;                       ! L-Y 10a
+        xx = (log(z(i)/10)-psi_h)/vonkarm;
+        ch(i) = ch_n10/(1+ch_n10*xx/cd_n10_rt)**2;                !       b
+        ce(i) = ce_n10/(1+ce_n10*xx/cd_n10_rt)**2;                !       c
+      end do
+    end if
+  end do
+
+end subroutine ncar_ocean_fluxes
 
 
 end module surface_flux_mod
