@@ -2,9 +2,15 @@
 
 module flux_exchange_mod
 
+use mpp_mod,         only: mpp_npes, mpp_pe
+use mpp_domains_mod, only: mpp_get_compute_domain, mpp_get_compute_domains, &
+                           mpp_global_sum
+
 use atmos_coupled_mod, only: atmos_boundary_data_type
-use ocean_coupled_mod, only: ocean_boundary_data_type
-use   ice_coupled_mod, only:   ice_boundary_data_type
+!use ocean_coupled_mod, only: ocean_boundary_data_type
+!use   ice_coupled_mod, only:   ice_boundary_data_type
+use ocean_model_mod, only: ocean_data_type
+use ice_model_mod,   only: ice_data_type
 use    land_model_mod, only:  land_boundary_data_type
 
 use surface_flux_mod, only: surface_flux, surface_profile     
@@ -18,7 +24,8 @@ use     exchange_mod, only: boundary_map_type,           &
                             get_exchange_grid_size,      &
                             get_exchange_grid,           &
                             put_exchange_grid,           &
-                            set_frac_area
+                            set_frac_area,               &
+                            setup_sfc_xmap, setup_runoff_xmap
 
 use diag_integral_mod, only:     diag_integral_field_init, &
                              sum_diag_integral_field
@@ -36,30 +43,32 @@ use sat_vapor_pres_mod, only: escomp
 use      constants_mod, only: rdgas, rvgas, cp
 
 implicit none
+include 'netcdf.inc'
 private
 
 public :: flux_exchange_init,   &
           flux_calculation,     &
           flux_down_from_atmos, &
           flux_up_to_atmos,     &
+          flux_land_to_ice,     &
           flux_ice_to_ocean,    &
           flux_ocean_to_ice
 
 !-----------------------------------------------------------------------
-character(len=128) :: version = '$Id: flux_exchange.F90,v 1.5 2001/07/05 17:42:57 fms Exp $'
-character(len=128) :: tag = '$Name: eugene $'
+character(len=128) :: version = '$Id: flux_exchange.F90,v 1.6 2001/10/25 17:52:05 fms Exp $'
+character(len=128) :: tag = '$Name: fez $'
 !-----------------------------------------------------------------------
 !---- boundary maps and exchange grid maps -----
 
-type (boundary_map_type) :: bd_map_atm, bd_map_land,                 &
-                            bd_map_ocean_data, bd_map_ocean_model,   &
-                            bd_map_ice_top, bd_map_ice_bot,          &
-                            bd_map_ice_bot_uv, bd_map_ocean_data_uv, &
-                            bd_map_ocean_model_uv
+type (boundary_map_type) :: bd_map_atm, bd_map_land, bd_map_ocean,  &
+                            bd_map_ice_top, bd_map_ice_bot,         &
+                            bd_map_ice_bot_uv, bd_map_ocean_uv,     &
+                            bd_map_land_runoff, bd_map_ice_runoff
 
-type(exchange_map_type), target :: ex_map_top, ex_map_bot, ex_map_bot_uv
+type(exchange_map_type), target :: ex_map_top, ex_map_bot, ex_map_bot_uv, &
+                                   ex_map_runoff
 
-integer :: ex_num_top, ex_num_bot, ex_num_bot_uv
+integer :: ex_num_top, ex_num_bot, ex_num_bot_uv, ex_num_runoff
 
 !-----------------------------------------------------------------------
 !-------- namelist (for diagnostics) ------
@@ -77,6 +86,8 @@ integer :: id_drag_moist,  id_drag_heat,  id_drag_mom,     &
 
 logical :: first_static = .true.
 logical :: do_init = .true.
+
+real, parameter :: bound_tol = 1e-7
 
 real, parameter :: d622 = rdgas/rvgas
 real, parameter :: d378 = 1.0-d622
@@ -101,6 +112,8 @@ namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom
   real, allocatable, dimension(:) :: ex_e_t_n,  ex_f_t_delt_n, &
                                      ex_e_q_n,  ex_f_q_delt_n           
 
+  real, allocatable, dimension(:,:) :: area_atm, area_ocn, area_lnd, area_lnd_cell
+
 contains
 
 !#######################################################################
@@ -114,7 +127,7 @@ contains
  type       (time_type), intent(in)  :: Time
  type (atmos_boundary_data_type), intent(in)  :: Atm
  type  (land_boundary_data_type), intent(in)  :: Land
- type   (ice_boundary_data_type), intent(in)  :: Ice
+ type   (ice_data_type), intent(in)  :: Ice
  real, dimension(:,:),   intent(out) :: t_surf_atm, albedo_atm,    &
                                         rough_mom_atm,             &
                                         land_frac_atm, dtaudv_atm, &
@@ -226,6 +239,8 @@ contains
 !---- (assume that ocean quantites are stored in no ice partition) ----
 !     (note: ex_avail is true at ice and ocean points)
 
+   call set_frac_area (Ice%part_size, bd_map_ice_top)
+
    ex_avail = .false.
    call put_exchange_grid  &
              (Ice%t_surf       , ex_t_surf     , bd_map_ice_top, &
@@ -305,6 +320,8 @@ contains
 
       first_static = .false.
    endif
+
+   if ( id_ice_mask > 0 ) call ice_frac_diag(Ice)
 
 !------- drag coeff moisture -----------
    if ( id_wind > 0 ) then
@@ -463,7 +480,7 @@ contains
  type       (time_type), intent(in)  :: Time
  type (atmos_boundary_data_type), intent(in)  :: Atm
  type  (land_boundary_data_type), intent(in)  :: Land
- type   (ice_boundary_data_type), intent(in)  :: Ice
+ type   (ice_data_type), intent(in)  :: Ice
  real, dimension(:,:),   intent(in)  :: flux_u_atm, flux_v_atm
  real, dimension(:,:,:), intent(out) ::                               &
                                     flux_t_land, flux_q_land,         &
@@ -479,13 +496,12 @@ contains
  real, dimension(ex_num_top) :: ex_flux_sw, ex_flux_lwd, &
                                 ex_lprec, ex_fprec,      &
                                 ex_flux_u, ex_flux_v,    &
-                                ex_coszen, ex_ice_frac
+                                ex_coszen
 
  real, dimension(ex_num_top) :: ex_gamma  , ex_dtmass,  &
                                 ex_delta_t, ex_delta_q, &
                                 ex_dflux_t, ex_dflux_q
 
- real :: ice_frac (size(dhdt_ice,1),size(dhdt_ice,2),size(dhdt_ice,3))
  real :: diag_atm (size(flux_u_atm,1),size(flux_u_atm,2))
 
  real    :: cp_inv
@@ -580,6 +596,11 @@ contains
    call get_exchange_grid (ex_flux_v,  flux_v_ice,  bd_map_ice_top)
    call get_exchange_grid (ex_coszen,  coszen_ice,  bd_map_ice_top)
 
+! print *, 'PE=', mpp_pe(), 'FLUX_SW',                                           &
+!         mpp_global_sum(Atm%Domain,area_atm*Atm%flux_sw),&
+!         mpp_global_sum(Ice%Domain, area_ocn*sum(Ice%part_size*flux_sw_ice,DIM=3))&
+!        +mpp_global_sum(Land%Domain,area_lnd*sum(Land%tile_size*flux_sw_land,DIM=3))
+
 !=======================================================================
 !-------------------- diagnostics section ------------------------------
 
@@ -593,21 +614,30 @@ contains
       used = send_data ( id_v_flux, flux_v_atm, Time )
    endif
 
-!------- diagnostics for sea ice fraction -----------
-!---- this should probably be done in slow loop -----
-
-   if ( id_ice_mask > 0 ) then
-      ice_frac        = 1.
-      ice_frac(:,:,1) = 0.
-      ex_ice_frac     = 0.
-      call put_exchange_grid (ice_frac, ex_ice_frac, bd_map_ice_top)
-      call get_exchange_grid (ex_ice_frac, diag_atm, bd_map_atm)
-      used = send_data ( id_ice_mask, diag_atm, Time )
-   endif
-
 !=======================================================================
 
  end subroutine flux_down_from_atmos
+
+!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
+! flux_land_to_ice - translate runoff from land to ice grids                   !
+!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
+subroutine flux_land_to_ice(Land, Ice, runoff_ice, calving_ice)
+type (land_boundary_data_type), intent(in) :: Land
+type ( ice_data_type), intent(in) :: Ice
+real, dimension(:,:), intent(out) :: runoff_ice, calving_ice
+
+real, dimension(ex_num_runoff) :: ex_runoff, ex_calving
+ 
+  call put_exchange_grid (Land%discharge,       ex_runoff, bd_map_land_runoff)
+  call put_exchange_grid (Land%discharge_snow, ex_calving, bd_map_land_runoff)
+  call get_exchange_grid (ex_runoff,           runoff_ice, bd_map_ice_runoff)
+  call get_exchange_grid (ex_calving,         calving_ice, bd_map_ice_runoff)
+
+! print *, 'PE=', mpp_pe(), 'RUNOFF',                               &
+!         mpp_global_sum(Land%Domain,area_lnd_cell*Land%discharge), &
+!         mpp_global_sum(Ice%Domain,area_ocn*runoff_ice)
+
+end subroutine flux_land_to_ice
 
 !#######################################################################
 
@@ -615,85 +645,71 @@ contains
                                      flux_t_ocean,  flux_q_ocean, &
                                     flux_sw_ocean, flux_lw_ocean, &
                                       lprec_ocean,   fprec_ocean, &
-                                     runoff_ocean                 )
+                                     runoff_ocean, calving_ocean, &
+                                  flux_salt_ocean,  p_surf_ocean  )
 
-  type (ice_boundary_data_type),   intent(in)  :: Ice
+  type (ice_data_type),   intent(in)  :: Ice
   real, dimension(:,:),   intent(out) :: flux_u_ocean,  flux_v_ocean,  &
                                          flux_t_ocean,  flux_q_ocean,  &
                                          flux_sw_ocean, flux_lw_ocean, &
-                                         lprec_ocean ,  fprec_ocean,   &
-                                         runoff_ocean
-
-   real, dimension(ex_num_bot) :: ex_flux_t, ex_flux_q, &
-                                  ex_flux_sw, ex_flux_lw, &
-                                  ex_lprec,   ex_fprec, ex_runoff
-
-   real, dimension(ex_num_bot_uv) :: ex_flux_u, ex_flux_v
-
-!-----------------------------------------------------------------------
-!-----  put ice grid quantities onto exchange grid -----
-!-----  then get ocean grid fields from exchange grid -----
-
-  call put_exchange_grid (Ice%flux_u,  ex_flux_u , bd_map_ice_bot_uv)
-  call put_exchange_grid (Ice%flux_v,  ex_flux_v , bd_map_ice_bot_uv)
-  call put_exchange_grid (Ice%flux_t,  ex_flux_t , bd_map_ice_bot)
-  call put_exchange_grid (Ice%flux_q,  ex_flux_q , bd_map_ice_bot)
-  call put_exchange_grid (Ice%flux_sw, ex_flux_sw, bd_map_ice_bot)
-  call put_exchange_grid (Ice%flux_lw, ex_flux_lw, bd_map_ice_bot)
-  call put_exchange_grid (Ice%lprec,   ex_lprec,   bd_map_ice_bot)
-  call put_exchange_grid (Ice%fprec,   ex_fprec,   bd_map_ice_bot)
-  call put_exchange_grid (Ice%runoff,  ex_runoff,  bd_map_ice_bot)
-
-  call get_exchange_grid (ex_flux_u ,  flux_u_ocean, bd_map_ocean_model_uv)
-  call get_exchange_grid (ex_flux_v ,  flux_v_ocean, bd_map_ocean_model_uv)
-  call get_exchange_grid (ex_flux_t ,  flux_t_ocean, bd_map_ocean_model)
-  call get_exchange_grid (ex_flux_q ,  flux_q_ocean, bd_map_ocean_model)
-  call get_exchange_grid (ex_flux_sw, flux_sw_ocean, bd_map_ocean_model)
-  call get_exchange_grid (ex_flux_lw, flux_lw_ocean, bd_map_ocean_model)
-  call get_exchange_grid (ex_lprec,     lprec_ocean, bd_map_ocean_model)
-  call get_exchange_grid (ex_fprec,     fprec_ocean, bd_map_ocean_model)
-  call get_exchange_grid (ex_runoff,   runoff_ocean, bd_map_ocean_model)
+                                         lprec_ocean,   fprec_ocean,   &
+                                         runoff_ocean,  calving_ocean, &
+                                         flux_salt_ocean, p_surf_ocean
+  !
+  ! assuming ice & ocean have same grids and domain decomposition
+  !
+  flux_u_ocean    = Ice%flux_u
+  flux_v_ocean    = Ice%flux_v
+  flux_t_ocean    = Ice%flux_t
+  flux_q_ocean    = Ice%flux_q
+  flux_sw_ocean   = Ice%flux_sw
+  flux_lw_ocean   = Ice%flux_lw
+  lprec_ocean     = Ice%lprec
+  fprec_ocean     = Ice%fprec
+  runoff_ocean    = Ice%runoff
+  calving_ocean   = Ice%calving
+  flux_salt_ocean = Ice%flux_salt
+  p_surf_ocean    = Ice%p_surf
 
 !-----------------------------------------------------------------------
 
  end subroutine flux_ice_to_ocean
 
-!#######################################################################
+ subroutine ice_frac_diag(Ice)
+ type (ice_data_type),   intent(in)  :: Ice
 
- subroutine flux_ocean_to_ice ( Ocean, Ice, t_surf_ice, frazil_ice, &
-                                            u_surf_ice, v_surf_ice  )
+   real, dimension(size(Ice%part_size,1), &
+                   size(Ice%part_size,2), &
+                   size(Ice%part_size,3)) :: ice_frac
+   real, dimension(ex_num_top) :: ex_ice_frac
+   real, dimension(size(area_atm,1),size(area_atm,2)) :: diag_atm
+   logical :: used
+  
+   ice_frac        = 1.
+   ice_frac(:,:,1) = 0.
+   ex_ice_frac     = 0.
+   call put_exchange_grid (ice_frac, ex_ice_frac, bd_map_ice_top)
+   call get_exchange_grid (ex_ice_frac, diag_atm, bd_map_atm)
+   used = send_data ( id_ice_mask, diag_atm, Ice%Time )
+ end subroutine ice_frac_diag
 
-  type (ocean_boundary_data_type), intent(in)  :: Ocean
-  type (ice_boundary_data_type),   intent(in)  :: Ice
-  real, dimension(:,:,:), intent(out) :: t_surf_ice,  frazil_ice, &
-                                         u_surf_ice,  v_surf_ice
+ subroutine flux_ocean_to_ice ( Ocean, Ice, t_surf_ice, u_surf_ice, v_surf_ice,&
+                                            frazil_ice, s_surf_ice, sea_lev_ice)
 
-   real, dimension(ex_num_bot)    :: ex_t_surf, ex_frazil
-   real, dimension(ex_num_bot_uv) :: ex_u_surf, ex_v_surf
+  type (ocean_data_type), intent(in)  :: Ocean
+  type (ice_data_type),   intent(in)  :: Ice
+  real, dimension(:,:),   intent(out) :: t_surf_ice, u_surf_ice, v_surf_ice, &
+                                         frazil_ice, s_surf_ice, sea_lev_ice
 
-!-----------------------------------------------------------------------
-!-----  put ocean grid fields onto exchange grid -----
-!-----  then get ice grid fields from exchange grid data -----
-!-----  use new fraction ice areas ------
-
- call set_frac_area (Ice%part_size,    bd_map_ice_top   )
- call set_frac_area (Ice%part_size   , bd_map_ice_bot   )
- call set_frac_area (Ice%part_size_uv, bd_map_ice_bot_uv)
-
- call put_exchange_grid (Ocean%t_surf_data, ex_t_surf, bd_map_ocean_data)
- ex_frazil = 0.0
- ex_u_surf = 0.0
- ex_v_surf = 0.0
-
- call put_exchange_grid (Ocean%t_surf, ex_t_surf, bd_map_ocean_model)
- call put_exchange_grid (Ocean%frazil, ex_frazil, bd_map_ocean_model)
- call put_exchange_grid (Ocean%u_surf, ex_u_surf, bd_map_ocean_model_uv)
- call put_exchange_grid (Ocean%v_surf, ex_v_surf, bd_map_ocean_model_uv)
-
- call get_exchange_grid (ex_t_surf,    t_surf_ice, bd_map_ice_bot)
- call get_exchange_grid (ex_frazil,    frazil_ice, bd_map_ice_bot)
- call get_exchange_grid (ex_u_surf,    u_surf_ice, bd_map_ice_bot_uv)
- call get_exchange_grid (ex_v_surf,    v_surf_ice, bd_map_ice_bot_uv)
+  !
+  ! assuming ice & ocean have same grids and domain decomposition (no exchange grid)
+  !
+  t_surf_ice  = Ocean%t_surf;
+  s_surf_ice  = Ocean%s_surf;
+  frazil_ice  = Ocean%frazil;
+  sea_lev_ice = Ocean%sea_lev;
+  u_surf_ice  = Ocean%u_surf;
+  v_surf_ice  = Ocean%v_surf;
 
 !-----------------------------------------------------------------------
 
@@ -705,7 +721,7 @@ contains
 
  type       (time_type), intent(in)  :: Time
  type  (land_boundary_data_type), intent(in)  :: Land
- type   (ice_boundary_data_type), intent(in)  :: Ice
+ type   (ice_data_type), intent(in)  :: Ice
  real, dimension(:,:),   intent(out) :: dt_t_atm, dt_q_atm
 
   real, dimension(ex_num_top) :: ex_t_surf_new, ex_dt_t_surf,  &
@@ -810,12 +826,29 @@ contains
  type                (time_type), intent(in)  :: Time
  type (atmos_boundary_data_type), intent(in)  :: Atm
  type  (land_boundary_data_type), intent(in)  :: Land
- type   (ice_boundary_data_type), intent(in)  :: Ice
- type (ocean_boundary_data_type), intent(in)  :: Ocean
+ type   (ice_data_type), intent(in)  :: Ice
+ type (ocean_data_type), intent(in)  :: Ocean
 
  logical, dimension(size(Atm%lon_bnd)-1,size(Atm%lat_bnd)-1) :: atm_mask
  integer :: part_land, part_ice
  integer :: unit, ierr, io, iref
+ integer :: rcode, ncid, varid, dims(4), start(4), nread(4)
+ integer :: nlon, nlat
+ integer :: i, j, k, l, ll
+ integer :: n, npes, me
+ integer :: ndims, n_ocean_areas, n_land_areas
+ integer, dimension(:), allocatable, save :: i1_ocean, i2_ocean 
+ integer, dimension(:), allocatable, save :: j1_ocean, j2_ocean
+ integer, dimension(:), allocatable, save :: peO;
+ integer, dimension(:), allocatable, save :: i1_land , j1_land 
+ integer, dimension(:), allocatable, save :: i2_land , j2_land 
+ integer, dimension(:), allocatable, save :: peL;
+ integer                                  :: peA_is, peA_ie, peA_js, peA_je
+ integer, dimension(:), allocatable, save :: peO_is, peO_ie, peO_js, peO_je
+ integer, dimension(:), allocatable, save :: peL_is, peL_ie, peL_js, peL_je
+ real, dimension(:), allocatable, save :: ocean_area, land_area
+ real, dimension(size(Atm%glon_bnd)) :: atmlonb
+ real, dimension(size(Atm%glat_bnd)) :: atmlatb
 
 !-----------------------------------------------------------------------
 !------ read namelist ------
@@ -838,9 +871,245 @@ contains
    endif
    call close_file (unit)
 
+  if (mpp_pe()==0) then
+    unit = open_file ('xba.dat', action='write')
+    write(unit, fmt='(F15.9)') Atm%glon_bnd*45/atan(1.0)
+    call close_file (unit)
+    unit = open_file ('yba.dat', action='write')
+    write(unit, fmt='(F15.9)') Atm%glat_bnd*45/atan(1.0)
+    call close_file (unit)
+  end if
+
+  call mpp_get_compute_domain(Atm%Domain, peA_is, peA_ie, peA_js, peA_je)
+  npes = mpp_npes()
+  me   = mpp_pe  ()
+  allocate( peO_is(0:npes-1), peO_ie(0:npes-1), &
+            peO_js(0:npes-1), peO_je(0:npes-1), &
+            peL_is(0:npes-1), peL_ie(0:npes-1), &
+            peL_js(0:npes-1), peL_je(0:npes-1)  )
+  call mpp_get_compute_domains(Ice %Domain, xbegin=peO_is, xend=peO_ie, &
+                                            ybegin=peO_js, yend=peO_je  )
+  call mpp_get_compute_domains(Land%Domain, xbegin=peL_is, xend=peL_ie, &
+                                            ybegin=peL_js, yend=peL_je  )
+  rcode = nf_open('INPUT/grid_spec.nc',0,ncid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                 'cannot open INPUT/grid_spec.nc', FATAL)
+
+  !
+  ! check atmosphere and grid_spec.nc have same atmosphere lat/lon boundaries
+  !
+  rcode = nf_inq_varid(ncid, 'AREA_ATM', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                 'cannot find AREA_ATM on INPUT/grid_spec.nc', &
+                                 FATAL)
+  rcode = nf_inq_vardimid(ncid, varid, dims)
+  rcode = nf_inq_dimlen(ncid, dims(1), nlon)
+  rcode = nf_inq_dimlen(ncid, dims(2), nlat)
+  if (nlon+1/=size(atmlonb).or.nlat+1/=size(atmlatb)) then
+    if (mpp_pe()==0) then
+      print *, 'grid_spec.nc has', nlon, 'longitudes,', nlat, 'latitudes; ', &
+               'atmosphere has', size(atmlonb)-1, 'longitudes,', &
+                size(atmlatb)-1, 'latitudes (see xba.dat and yba.dat)'
+    end if
+    call error_mesg ('flux_exchange_mod',  &
+                    'grid_spec.nc incompatible with atmosphere resolution', FATAL)
+  end if
+  rcode = nf_inq_varid(ncid, 'xba', varid)
+  start = 1; nread = 1; nread(1) = nlon+1;
+  rcode = nf_get_vara_double(ncid, varid, start, nread, atmlonb)
+  rcode = nf_inq_varid(ncid, 'yba', varid)
+  start = 1; nread = 1; nread(1) = nlat+1;
+  rcode = nf_get_vara_double(ncid, varid, start, nread, atmlatb)
+  if (maxval(abs(atmlonb-Atm%glon_bnd*45/atan(1.0)))>bound_tol) then
+    if (mpp_pe() == 0) then
+      print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY'
+      do i=1,size(atmlonb)
+        print *,atmlonb(i),Atm%glon_bnd(i)*45/atan(1.0)
+      end do
+    end if
+    call error_mesg ('flux_exchange_mod', &
+   'grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)'&
+    ,FATAL)
+  end if
+  if (maxval(abs(atmlatb-Atm%glat_bnd*45/atan(1.0)))>bound_tol) then
+    if (mpp_pe() == 0) then
+      print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY'
+      do i=1,size(atmlatb)
+        print *,atmlatb(i),Atm%glat_bnd(i)*45/atan(1.0)
+      end do
+    end if
+    call error_mesg ('flux_exchange_mod', &
+    'grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)'&
+    , FATAL)
+  end if
+
+  !
+  ! read in component model grid cell areas
+  !
+  allocate( area_atm     ( peA_is:peA_ie, peA_js:peA_je ),                 &
+            area_ocn     ( peO_is(me):peO_ie(me), peO_js(me):peO_je(me) ), &
+            area_lnd     ( peL_is(me):peL_ie(me), peL_js(me):peL_je(me) ), &
+            area_lnd_cell( peL_is(me):peL_ie(me), peL_js(me):peL_je(me) )  )
+
+  rcode = nf_inq_varid(ncid, 'AREA_ATM', varid)
+  start = 1; nread = 1;
+  start(1) = peA_is; nread(1) = peA_ie-peA_is+1;
+  start(2) = peA_js; nread(2) = peA_je-peA_js+1;
+  rcode = nf_get_vara_double(ncid, varid, start, nread, area_atm)
+
+  rcode = nf_inq_varid(ncid, 'AREA_OCN', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                 'cannot find AREA_OCN on INPUT/grid_spec.nc', &
+                                 FATAL)
+  start = 1; nread = 1;
+  start(1) = peO_is(me); nread(1) = peO_ie(me)-peO_is(me)+1;
+  start(2) = peO_js(me); nread(2) = peO_je(me)-peO_js(me)+1;
+  rcode = nf_get_vara_double(ncid, varid, start, nread, area_ocn)
+
+  rcode = nf_inq_varid(ncid, 'AREA_LND', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                 'cannot find AREA_LND on INPUT/grid_spec.nc', &
+                                 FATAL)
+  start = 1; nread = 1;
+  start(1) = peL_is(me); nread(1) = peL_ie(me)-peL_is(me)+1;
+  start(2) = peL_js(me); nread(2) = peL_je(me)-peL_js(me)+1;
+  rcode = nf_get_vara_double(ncid, varid, start, nread, area_lnd)
+
+  rcode = nf_inq_varid(ncid, 'AREA_LND_CELL', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                'cannot find AREA_LND_CELL on INPUT/grid_spec.nc', &
+                                 FATAL)
+  start = 1; nread = 1;
+  start(1) = peL_is(me); nread(1) = peL_ie(me)-peL_is(me)+1;
+  start(2) = peL_js(me); nread(2) = peL_je(me)-peL_js(me)+1;
+  rcode = nf_get_vara_double(ncid, varid, start, nread, area_lnd_cell)
+
+  rcode = nf_inq_varid(ncid, 'I_ATM_ATMxOCN', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                'cannot find I_ATM_ATMxOCN on INPUT/grid_spec.nc', &
+                                 FATAL)
+  rcode = nf_inq_vardimid(ncid, varid, dims)
+  rcode = nf_inq_dimlen(ncid, dims(1), n_ocean_areas)
+
+  allocate( ocean_area(n_ocean_areas) )
+  allocate( i1_ocean(n_ocean_areas), j1_ocean(n_ocean_areas), &
+            i2_ocean(n_ocean_areas), j2_ocean(n_ocean_areas), &
+            peO(n_ocean_areas)                                )
+
+  start = 1; nread = 1;
+  nread(1) = n_ocean_areas;
+  rcode = nf_get_vara_int(ncid, varid, start, nread, i1_ocean)
+  rcode = nf_inq_varid(ncid, 'J_ATM_ATMxOCN', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                'cannot find J_ATM_ATMxOCN on INPUT/grid_spec.nc', &
+                                 FATAL)
+  rcode = nf_get_vara_int(ncid, varid, start, nread, j1_ocean)
+  rcode = nf_inq_varid(ncid, 'I_OCN_ATMxOCN', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                'cannot find I_OCN_ATMxOCN on INPUT/grid_spec.nc', &
+                                 FATAL)
+  rcode = nf_get_vara_int(ncid, varid, start, nread, i2_ocean)
+  rcode = nf_inq_varid(ncid, 'J_OCN_ATMxOCN', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                'cannot find J_OCN_ATMxOCN on INPUT/grid_spec.nc', &
+                                 FATAL)
+  rcode = nf_get_vara_int(ncid, varid, start, nread, j2_ocean)
+  rcode = nf_inq_varid(ncid, 'AREA_ATMxOCN', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                 'cannot find AREA_ATMxOCN on INPUT/grid_spec.nc', &
+                                 FATAL)
+  rcode = nf_get_vara_double(ncid, varid, start, nread, ocean_area)
+! print *, n_ocean_areas, 'OCEAN AREAS READ', sum(ocean_area), 'GLOBE'
+
+  ll = 0
+  do l=1,n_ocean_areas
+    if (in_box(i1_ocean(l), j1_ocean(l), peA_is, peA_ie, peA_js, peA_je)) then
+      ll = ll + 1;
+      peO(ll) = -1
+      do n=0,npes-1
+        if (in_box(i2_ocean(l), j2_ocean(l), &
+                   peO_is(n), peO_ie(n), peO_js(n), peO_je(n))) then
+          peO(ll) = n;
+        end if
+      end do
+      if (peO(ll) .eq. -1) call error_mesg ('flux_exchange_mod',  &
+                                       'no side 2 pe for an ao xgrid area', FATAL)
+      i1_ocean(ll) = i1_ocean(l)-peA_is+1
+      j1_ocean(ll) = j1_ocean(l)-peA_js+1
+      i2_ocean(ll) = i2_ocean(l)-peO_is(peO(ll))+1
+      j2_ocean(ll) = j2_ocean(l)-peO_js(peO(ll))+1
+      ocean_area(ll) = ocean_area(l)
+    end if
+  end do
+  n_ocean_areas = ll;
+! print *, n_ocean_areas, 'Ocean areas on pe', mpp_pe()
+
+  rcode = nf_inq_varid(ncid, 'I_ATM_ATMxLND', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                'cannot find I_ATM_ATMxLND on INPUT/grid_spec.nc', &
+                                 FATAL)
+  rcode = nf_inq_vardimid(ncid, varid, dims)
+  rcode = nf_inq_dimlen(ncid, dims(1), n_land_areas)
+
+  allocate( land_area(n_land_areas) )
+  allocate( i1_land(n_land_areas), j1_land(n_land_areas), &
+            i2_land(n_land_areas), j2_land(n_land_areas), &
+            peL(n_land_areas)                             )
+
+  start = 1; nread = 1;
+  nread(1) = n_land_areas;
+  rcode = nf_get_vara_int(ncid, varid, start, nread, i1_land)
+  rcode = nf_inq_varid(ncid, 'J_ATM_ATMxLND', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                'cannot find J_ATM_ATMxLND on INPUT/grid_spec.nc', &
+                                 FATAL)
+  rcode = nf_get_vara_int(ncid, varid, start, nread, j1_land)
+  rcode = nf_inq_varid(ncid, 'I_LND_ATMxLND', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                'cannot find I_LND_ATMxLND on INPUT/grid_spec.nc', &
+                                 FATAL)
+  rcode = nf_get_vara_int(ncid, varid, start, nread, i2_land)
+  rcode = nf_inq_varid(ncid, 'J_LND_ATMxLND', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                'cannot find J_LND_ATMxLND on INPUT/grid_spec.nc', &
+                                 FATAL)
+  rcode = nf_get_vara_int(ncid, varid, start, nread, j2_land)
+  rcode = nf_inq_varid(ncid, 'AREA_ATMxLND', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                 'cannot find AREA_ATMxLND on INPUT/grid_spec.nc', &
+                                 FATAL)
+  rcode = nf_get_vara_double(ncid, varid, start, nread, land_area)
+! print *, n_land_areas, 'LAND AREAS READ', sum(land_area), 'GLOBE'
+
+  ll = 0
+  do l=1,n_land_areas
+    if (in_box(i1_land(l), j1_land(l), peA_is, peA_ie, peA_js, peA_je)) then
+      ll = ll + 1;
+      peL(ll) = -1
+      do n=0,npes-1
+        if (in_box(i2_land(l), j2_land(l), &
+                   peL_is(n), peL_ie(n), peL_js(n), peL_je(n))) then
+          peL(ll) = n;
+        end if
+      end do
+      if (peL(ll) .eq. -1) call error_mesg ('flux_exchange_mod',  &
+                                       'no side 2 pe for an al xgrid area', FATAL)
+      i1_land(ll) = i1_land(l)-peA_is+1
+      j1_land(ll) = j1_land(l)-peA_js+1
+      i2_land(ll) = i2_land(l)-peL_is(peL(ll))+1
+      j2_land(ll) = j2_land(l)-peL_js(peL(ll))+1
+      land_area(ll) = land_area(l)
+    end if
+  end do
+  n_land_areas = ll;
+! print *, n_land_areas, 'Land areas on pe', mpp_pe()
+
 !-----------------------------------------------------------------------
 !---- exchange map between atmosphere, land, and ice top -----
 
+   !
+   ! set up surface (atmos/land/ice) exchange grid
+   !
    atm_mask  = .true.
    part_land = size(Land%mask,3)
    part_ice  = size (Ice%ice_mask,3)
@@ -849,25 +1118,12 @@ contains
    call init_boundary_map (bd_map_land   , 2, ex_map_top)
    call init_boundary_map (bd_map_ice_top, 2, ex_map_top)
 
-   call lon_lat_size ( Atm%lon_bnd,  Atm%lat_bnd,  &
-                      Land%lon_bnd, Land%lat_bnd,  &
-                  atm_mask, Land%mask(:,:,1), 1, part_land, bd_map_atm)
+   call setup_sfc_xmap(bd_map_atm, bd_map_ice_top,        &
+                       bd_map_land, part_ice, part_land,  &
+                       ocean_area, i1_ocean, j1_ocean, i2_ocean, j2_ocean, &
+                       n_ocean_areas, land_area, i1_land, j1_land, i2_land, &
+                       j2_land, n_land_areas, peO=peO, peL=peL )
 
-   call lon_lat_size (Atm%lon_bnd, Atm%lat_bnd,  &
-                      Ice%lon_bnd, Ice%lat_bnd,  &
-                    atm_mask, Ice%mask,   1, part_ice, bd_map_atm)
-
-   call lon_lat_map ( Atm%lon_bnd,  Atm%lat_bnd,     &
-                     Land%lon_bnd, Land%lat_bnd,     &
-                      atm_mask,    Land%mask(:,:,1), &
-                         1,           part_land,     &
-                      bd_map_atm ,  bd_map_land      )
-
-   call lon_lat_map ( Atm%lon_bnd,  Atm%lat_bnd,     &
-                      Ice%lon_bnd,  Ice%lat_bnd,     &
-                      atm_mask,     Ice%mask,        &
-                         1,           part_ice ,     &
-                      bd_map_atm ,  bd_map_ice_top   )
 
    call complete_side1_boundary_map (bd_map_atm)
 
@@ -876,82 +1132,90 @@ contains
 
    call complete_side2_boundary_map (bd_map_ice_top, &
                      size(Ice%mask,1),  size(Ice%mask,2),  part_ice )
-
-!-----------------------------------------------------------------------
-!---- exchange map between ocean and ice bottom -----
-!---- at mass (temperature) points ----
-
-   call init_boundary_map (bd_map_ice_bot    , 1, ex_map_bot)
-   call init_boundary_map (bd_map_ocean_data , 2, ex_map_bot)
-   call init_boundary_map (bd_map_ocean_model, 2, ex_map_bot)
-
-   call lon_lat_size (       Ice%lon_bnd,          Ice%lat_bnd,  &
-                      Ocean%Data%lon_bnd,   Ocean%Data%lat_bnd,  &
-                                Ice%mask,   Ocean%Data%mask,     &
-                       part_ice,        1,        bd_map_ice_bot )
-
-   call lon_lat_size (        Ice%lon_bnd,         Ice%lat_bnd,  &
-                      Ocean%Model%lon_bnd, Ocean%Model%lat_bnd,  &
-                                Ice%mask,  Ocean%Model%mask,     &
-                       part_ice,        1,        bd_map_ice_bot )
-
-   call lon_lat_map (       Ice%lon_bnd,          Ice%lat_bnd,  &
-                     Ocean%Data%lon_bnd,   Ocean%Data%lat_bnd,  &
-                               Ice%mask,   Ocean%Data%mask,     &
-                     part_ice, 1,  bd_map_ice_bot, bd_map_ocean_data )
-
-   call lon_lat_map (        Ice%lon_bnd,          Ice%lat_bnd,  &
-                     Ocean%Model%lon_bnd,  Ocean%Model%lat_bnd,  &
-                               Ice%mask,   Ocean%Model%mask,     &
-                     part_ice, 1,  bd_map_ice_bot, bd_map_ocean_model )
-
-   call complete_side1_boundary_map (bd_map_ice_bot)
-
-   call complete_side2_boundary_map (bd_map_ocean_data, &
-                  size(Ocean%Data%mask,1), size(Ocean%Data%mask,2), 1 )
-
-   call complete_side2_boundary_map (bd_map_ocean_model, &
-                  size(Ocean%Model%mask,1), size(Ocean%Model%mask,2), 1 )
-
-!---- at velocity points ----
-
-   call init_boundary_map (bd_map_ice_bot_uv    , 1, ex_map_bot_uv)
-   call init_boundary_map (bd_map_ocean_data_uv , 2, ex_map_bot_uv)
-   call init_boundary_map (bd_map_ocean_model_uv, 2, ex_map_bot_uv)
-
-   call lon_lat_size (       Ice%lon_bnd_uv,         Ice%lat_bnd_uv,  &
-                      Ocean%Data%lon_bnd_uv,  Ocean%Data%lat_bnd_uv,  &
-                                Ice%mask_uv,  Ocean%Data%mask_uv,     &
-                         part_ice,        1,        bd_map_ice_bot_uv )
-
-   call lon_lat_size (        Ice%lon_bnd_uv,         Ice%lat_bnd_uv,  &
-                      Ocean%Model%lon_bnd_uv, Ocean%Model%lat_bnd_uv,  &
-                                Ice%mask_uv,  Ocean%Model%mask_uv,     &
-                         part_ice,        1,        bd_map_ice_bot_uv )
-
-   call lon_lat_map (       Ice%lon_bnd_uv,          Ice%lat_bnd_uv,  &
-                     Ocean%Data%lon_bnd_uv,   Ocean%Data%lat_bnd_uv,  &
-                               Ice%mask_uv,   Ocean%Data%mask_uv,     &
-                     part_ice, 1,  bd_map_ice_bot_uv, bd_map_ocean_data_uv )
-
-   call lon_lat_map (        Ice%lon_bnd_uv,          Ice%lat_bnd_uv,  &
-                     Ocean%Model%lon_bnd_uv,  Ocean%Model%lat_bnd_uv,  &
-                               Ice%mask_uv,   Ocean%Model%mask_uv,     &
-                     part_ice, 1,  bd_map_ice_bot_uv, bd_map_ocean_model_uv )
-
-   call complete_side1_boundary_map (bd_map_ice_bot_uv)
-
-   call complete_side2_boundary_map (bd_map_ocean_data_uv, &
-          size(Ocean%Data%mask_uv,1), size(Ocean%Data%mask_uv,2), 1 )
-
-   call complete_side2_boundary_map (bd_map_ocean_model_uv, &
-          size(Ocean%Model%mask_uv,1), size(Ocean%Model%mask_uv,2), 1 )
-
-!-----------------------------------------------------------------------
-
    ex_num_top    = get_exchange_grid_size (bd_map_atm)
-   ex_num_bot    = get_exchange_grid_size (bd_map_ocean_data)
-   ex_num_bot_uv = get_exchange_grid_size (bd_map_ocean_data_uv)
+
+   deallocate( ocean_area )
+   deallocate( i1_ocean, j1_ocean, i2_ocean, j2_ocean, peO )
+   deallocate( land_area )
+   deallocate( i1_land , j1_land , i2_land , j2_land , peL )
+
+   rcode = nf_inq_varid(ncid, 'I_LND_LNDxOCN', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                 'cannot find I_LND_LNDxOCN on INPUT/grid_spec.nc', &
+                                 FATAL)
+   rcode = nf_inq_vardimid(ncid, varid, dims)
+   rcode = nf_inq_dimlen(ncid, dims(1), n_ocean_areas)
+ 
+   allocate( ocean_area(n_ocean_areas) )
+   allocate( i1_ocean(n_ocean_areas), j1_ocean(n_ocean_areas), &
+             i2_ocean(n_ocean_areas), j2_ocean(n_ocean_areas), &
+             peO(n_ocean_areas)                                )
+ 
+   start = 1; nread = 1;
+   nread(1) = n_ocean_areas;
+   rcode = nf_get_vara_int(ncid, varid, start, nread, i1_ocean)
+   rcode = nf_inq_varid(ncid, 'J_LND_LNDxOCN', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                 'cannot find J_LND_LNDxOCN on INPUT/grid_spec.nc', &
+                                 FATAL)
+   rcode = nf_get_vara_int(ncid, varid, start, nread, j1_ocean)
+   rcode = nf_inq_varid(ncid, 'I_OCN_LNDxOCN', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                 'cannot find I_OCN_LNDxOCN on INPUT/grid_spec.nc', &
+                                 FATAL)
+   rcode = nf_get_vara_int(ncid, varid, start, nread, i2_ocean)
+   rcode = nf_inq_varid(ncid, 'J_OCN_LNDxOCN', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                 'cannot find J_OCN_LNDxOCN on INPUT/grid_spec.nc', &
+                                 FATAL)
+   rcode = nf_get_vara_int(ncid, varid, start, nread, j2_ocean)
+   rcode = nf_inq_varid(ncid, 'AREA_LNDxOCN', varid)
+  if (rcode/=0) call error_mesg ('flux_exchange_mod', &
+                                 'cannot find AREA_LNDxOCN on INPUT/grid_spec.nc', &
+                                 FATAL)
+   rcode = nf_get_vara_double(ncid, varid, start, nread, ocean_area)
+!  print *, n_ocean_areas, 'RUNOFF AREAS READ', sum(ocean_area), 'GLOBE'
+ 
+   ll = 0
+   do l=1,n_ocean_areas
+     if (in_box(i1_ocean(l), j1_ocean(l), peL_is(me), peL_ie(me), &
+                                          peL_js(me), peL_je(me)) ) then
+       ll = ll + 1;
+       peO(ll) = -1
+       do n=0,npes-1
+         if (in_box(i2_ocean(l), j2_ocean(l), &
+                    peO_is(n), peO_ie(n), peO_js(n), peO_je(n))) then
+           peO(ll) = n;
+         end if
+       end do
+       if (peO(ll) .eq. -1) call error_mesg ('flux_exchange_mod',  &
+                                        'no side 2 pe for an lo xgrid area', FATAL)
+       i1_ocean(ll) = i1_ocean(l)-peL_is(me)+1
+       j1_ocean(ll) = j1_ocean(l)-peL_js(me)+1
+       i2_ocean(ll) = i2_ocean(l)-peO_is(peO(ll))+1
+       j2_ocean(ll) = j2_ocean(l)-peO_js(peO(ll))+1
+       ocean_area(ll) = ocean_area(l)
+     end if
+   end do
+   n_ocean_areas = ll;
+!  print *, n_ocean_areas, 'Runoff areas on pe', mpp_pe()
+   !
+   ! set up exchange grid for runoff
+   !
+   call init_boundary_map (bd_map_land_runoff, 1, ex_map_runoff)
+   call init_boundary_map (bd_map_ice_runoff , 2, ex_map_runoff)
+   call setup_runoff_xmap (bd_map_land_runoff, bd_map_ice_runoff, ocean_area,     &
+                           i1_ocean, j1_ocean, i2_ocean, j2_ocean, n_ocean_areas, &
+                           peO=peO                                                )
+   call complete_side1_boundary_map (bd_map_land_runoff)
+   call complete_side2_boundary_map (bd_map_ice_runoff,                    &
+                                     size(Ice%mask,1),  size(Ice%mask,2), 1)
+   ex_num_runoff = get_exchange_grid_size (bd_map_land_runoff)
+                      
+   deallocate( ocean_area )
+   deallocate( i1_ocean, j1_ocean, i2_ocean, j2_ocean, peO)
+!-----------------------------------------------------------------------
+
 
 !-----------------------------------------------------------------------
 !----- initialize quantities for global integral package -----
@@ -1166,7 +1430,12 @@ subroutine diag_field_init ( Time, atmos_axes )
 
 end subroutine diag_field_init
 
-!#######################################################################
+function in_box(i, j,is, ie, js, je)
+integer :: i, j, is, ie, js, je
+logical :: in_box
+
+  in_box = (i>=is) .and. (i<=ie) .and. (j>=js) .and. (j<=je)
+end function in_box
 
 end module flux_exchange_mod
 
