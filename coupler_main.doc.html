@@ -124,8 +124,11 @@
 
    This is a main program. There are no callable interfaces.
 
-   A namelist interface called <b>&coupler_nml</b> must reside
-   in file <b>coupler.nml</b>. See the details below.
+   A namelist interface called <b>&coupler_nml</b> should reside
+   in file <b>input.nml</b>. See the details below.
+
+   For compatibility with previous versions the namelist input &coupler_nml
+   may also reside in file coupler.res.
 
 </PRE>
 </A><!-- END INTERFACE -->
@@ -226,6 +229,16 @@
 
 <b>FATAL ERRORS in program coupler_main</b>
 
+    <b>namelist file input.nml does not exist</b>
+        The file input.nml contains namelist input records and must
+        reside in the directory where the executable is run.
+        For compatibility with previous versions of program coupler_main
+        the namelist input &coupler_nml may also reside in file coupler.res.
+
+    <b>no namelist value for current_date</b>
+        A namelist value for current_date must be given if no restart file
+        for coupler_main (INPUT/coupler.res) is found.
+
     <b>invalid namelist value for calendar</b>
         The value of calendar must be 'julian', 'no_leap', or 'thirty_day'.
         See the namelist documentation.
@@ -233,6 +246,11 @@
     <b>no namelist value for calendar</b>
         If no restart file is present, then a namelist value for
         calendar must be specified.
+
+    <b>if run length in months then starting day must be <= 28</b>
+        If the namelist variable months > 0, then the current (starting)
+        date cannot bw greater than 28. This is because incrementing to 
+        the next month may be a problem for February.
 
     <b>initial time is greater than current time</b>
         If a restart file is present, then the namelist value for either
@@ -285,13 +303,10 @@
 
    1) A fully-coupled version (potentially on different grids).
 
-   2) Interface with a "fast-ocean" routine in the fast atmos-land-ice
+   2) Introduce a multiple time-step loop into the slow ocean-ice
       part of the integration loop.
 
-   3) Introduce a multiple time-step loop into the slow ocean-ice
-      part of the integration loop.
-
-   4) Interface with a more complex ice and land model.
+   3) Interface with a more complex ice and land model.
 
 </PRE>
 </A><!-- END PLANS -->

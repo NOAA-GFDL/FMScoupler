@@ -38,7 +38,8 @@ use  ice_coupled_mod, only: ice_coupled_init, ice_coupled_end, &
 use  utilities_mod, only: open_file, file_exist, check_nml_error,  &
                           error_mesg, FATAL, WARNING,              &
                           get_my_pe, utilities_init, utilities_end,&
-                          close_file, check_system_clock
+                          close_file, check_system_clock,          &
+                          mpp_clock_init, mpp_clock_begin, mpp_clock_end
 
 use flux_exchange_mod, only: flux_exchange_init,   &
                              flux_calculation,     &
@@ -55,8 +56,8 @@ implicit none
 
 !-----------------------------------------------------------------------
 
-character(len=128) :: version = '$Id: coupler_main.F90,v 1.2 2000/07/28 20:17:08 fms Exp $'
-character(len=128) :: tag = '$Name: calgary $'
+character(len=128) :: version = '$Id: coupler_main.F90,v 1.3 2001/03/06 19:01:43 fms Exp $'
+character(len=128) :: tag = '$Name: damascus $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -102,6 +103,11 @@ character(len=128) :: tag = '$Name: calgary $'
    integer :: date_init(6)
    integer :: calendar_type = -99
 
+! ----- timing flags -----
+
+   integer :: id_init, id_loop, id_end
+   integer, parameter :: timing_level = 1
+
 !-----------------------------------------------------------------------
 
       integer, dimension(6) :: current_date = (/ 0, 0, 0, 0, 0, 0 /)
@@ -122,6 +128,7 @@ character(len=128) :: tag = '$Name: calgary $'
  call initialize_coupler 
 
  call check_system_clock ('END OF INITIALIZATION')
+ call mpp_clock_begin (id_loop)
 !-----------------------------------------------------------------------
 !------ ocean/slow-ice integration loop -------
 
@@ -203,7 +210,7 @@ character(len=128) :: tag = '$Name: calgary $'
 !   -------- slow-land model and flux routine --------
 !     to put runoff on ice grid would be called here
 
-!!! call update_land_model_slow (Land)
+    call update_land_model_slow (Land)
 !!! call flux_land_to_ice       (Land, runoff_ice)
 
     runoff_ice = 0.0
@@ -231,11 +238,10 @@ character(len=128) :: tag = '$Name: calgary $'
  enddo
 
 !-----------------------------------------------------------------------
+ call mpp_clock_end (id_loop)
  call check_system_clock ('END OF TIME LOOP')
 
  call coupler_end
-
- call diag_manager_end (Time)
  call utilities_end
 
 !-----------------------------------------------------------------------
@@ -258,14 +264,30 @@ contains
     character(len=9) :: month
     logical :: use_namelist
 !-----------------------------------------------------------------------
-!----- read namelist -------
+!----- initialization timing identifiers ----
 
-   unit = open_file ('coupler.nml', action='read')
-   ierr=1; do while (ierr /= 0)
+ id_init = mpp_clock_init ('coupler_main', 'coupler_init', timing_level)
+ id_loop = mpp_clock_init ('coupler_main', 'time_loop'   , timing_level)
+ id_end  = mpp_clock_init ('coupler_main', 'coupler_end' , timing_level)
+
+ call mpp_clock_begin (id_init)
+
+!----- read namelist -------
+!----- for backwards compatibilty read from file coupler.nml -----
+
+   if (file_exist('coupler.nml')) then
+      unit = open_file ('coupler.nml', action='read')
+   else if (file_exist('input.nml')) then
+      unit = open_file ('input.nml', action='read')
+   else
+      call error_mesg ('program coupler',  &
+                       'namelist file input.nml does not exist', FATAL)
+   endif
+      ierr=1; do while (ierr /= 0)
           read  (unit, nml=coupler_nml, iostat=io, end=10)
           ierr = check_nml_error (io, 'coupler_nml')
-   enddo
-10 call close_file (unit)
+      enddo
+10    call close_file (unit)
 
 !----- write namelist to logfile (close log_unit later) -----
 
@@ -273,6 +295,9 @@ contains
    if ( get_my_pe() == 0 ) then
         write (log_unit,'(/,80("="),/(a))') trim(version), trim(tag)
         write (log_unit, nml=coupler_nml)
+        if (file_exist('coupler.nml')) write (log_unit,15)
+15      format (/,'WARNING: The namelist for program coupler_main &
+                  &should be placed in file input.nml.',/)
    endif
 
 !----- read restart file -----
@@ -296,7 +321,7 @@ contains
 
     if ( sum(current_date) <= 0 ) then
          call error_mesg ('program coupler',  &
-              'no namelist value for base_date or current_date', FATAL)
+              'no namelist value for current_date', FATAL)
     else
          date      = current_date
     endif
@@ -507,6 +532,10 @@ contains
                         form='native', action='write')
       call close_file (unit, status='delete')
 
+
+!  ---- terminate timing ----
+   call mpp_clock_end (id_init)
+
 !-----------------------------------------------------------------------
 
    end subroutine initialize_coupler
@@ -517,6 +546,7 @@ contains
 
    integer :: unit, date(6)
 !-----------------------------------------------------------------------
+   call mpp_clock_begin (id_end)
 
       call atmos_coupled_end (Atm)
       call ocean_coupled_end (Ocean)
@@ -535,14 +565,20 @@ contains
 
 !----- write restart file ------
 
-      if ( get_my_pe() /= 0 ) return
+      if ( get_my_pe() == 0 ) then
+           unit = open_file ('RESTART/coupler.res',  &
+                             form='native', action='write')
+           write (unit) date
+           write (unit) calendar_type
+           call close_file (unit)
+      endif
 
-      unit = open_file ('RESTART/coupler.res',  &
-                        form='native', action='write')
-      write (unit) date
-      write (unit) calendar_type
-      call close_file (unit)
+!----- final output of diagnostic fields ----
 
+   call diag_manager_end (Time)
+
+
+   call mpp_clock_end (id_end)
 !-----------------------------------------------------------------------
 
    end subroutine coupler_end

@@ -32,7 +32,8 @@ use diag_integral_mod, only:     diag_integral_field_init, &
 use     utilities_mod, only: file_exist, open_file, check_nml_error,  &
                              error_mesg, FATAL, get_my_pe, close_file
 
-use  diag_manager_mod, only: register_diag_field, send_data
+use  diag_manager_mod, only: register_diag_field,  &
+                             register_static_field, send_data
 
 use  time_manager_mod, only: time_type
 
@@ -51,8 +52,8 @@ public :: flux_exchange_init,   &
           flux_ocean_to_ice
 
 !-----------------------------------------------------------------------
-character(len=128) :: version = '$Id: flux_exchange.F90,v 1.3 2000/11/22 14:37:38 fms Exp $'
-character(len=128) :: tag = '$Name: calgary $'
+character(len=128) :: version = '$Id: flux_exchange.F90,v 1.4 2001/03/06 19:02:05 fms Exp $'
+character(len=128) :: tag = '$Name: damascus $'
 !-----------------------------------------------------------------------
 !---- boundary maps and exchange grid maps -----
 
@@ -73,12 +74,14 @@ character(len=4), parameter :: mod_name = 'flux'
 
 integer :: id_drag_moist,  id_drag_heat,  id_drag_mom,     &
            id_rough_moist, id_rough_heat, id_rough_mom,    &
+           id_land_mask,   id_glac_mask,  id_ice_mask,     &
            id_u_star, id_b_star, id_u_flux, id_v_flux, id_t_surf,   &
            id_t_flux, id_q_flux, id_r_flux,                         &
-           id_t_atm,  id_u_atm,  id_v_atm,                          &
+           id_t_atm,  id_u_atm,  id_v_atm,  id_wind,                &
            id_t_ref,  id_rh_ref, id_u_ref,  id_v_ref,               &
            id_del_h,  id_del_m,  id_del_q
 
+logical :: first_static = .true.
 logical :: do_init = .true.
 
 real, parameter :: d622 = rdgas/rvgas
@@ -128,9 +131,10 @@ contains
        ex_p_surf, ex_gust, ex_t_surf4, ex_u_surf, ex_v_surf,         &
        ex_rough_mom, ex_rough_heat, ex_rough_moist,                  &
        ex_stomatal, ex_snow, ex_water, ex_max_water,                 &
-       ex_u_star, ex_b_star, ex_q_star, ex_q_surf, ex_real_mask,     &
+       ex_u_star, ex_b_star, ex_q_star, ex_q_surf, ex_glac_frac,     &
        ex_cd_q, ex_cd_t, ex_cd_m, ex_flux_u, ex_flux_v, ex_dtaudv_atm,&
-       ex_ref, ex_t_ref, ex_qs_ref, ex_del_m, ex_del_h, ex_del_q
+       ex_ref, ex_t_ref, ex_qs_ref, ex_del_m, ex_del_h, ex_del_q,     &
+       ex_wind
 
  logical, dimension(ex_num_top) :: ex_glacier, ex_land
  real, dimension(size(t_surf_atm,1),size(t_surf_atm,2)) :: diag_atm
@@ -163,6 +167,7 @@ contains
    ex_u_surf   =   0.
    ex_v_surf   =   0.
    ex_stomatal =   0.
+   ex_snow     =   0.
 
 !---- do not use if relax time /= 0 ----
    ex_cd_t = 0.0
@@ -209,18 +214,17 @@ contains
    ex_land_frac = 0.0
    call put_logical_to_real      &
              (Land%mask         , ex_land_frac  , bd_map_land)
-   ex_real_mask = 0.0
+   ex_glac_frac = 0.0
    call put_logical_to_real      &
-             (Land%glacier      , ex_real_mask  , bd_map_land)
+             (Land%glacier      , ex_glac_frac  , bd_map_land)
 
-   ex_glacier = ex_land .and. (ex_real_mask > 0.5)
+   where (.not.ex_land) ex_glac_frac = 0.0
+   ex_glacier = ex_glac_frac > 0.5
 
 !-----------------------------------------------------------------------
 !---- put ice quantities onto exchange grid ----
 !---- (assume that ocean quantites are stored in no ice partition) ----
 !     (note: ex_avail is true at ice and ocean points)
-
-   call set_frac_area (Ice%part_size, bd_map_ice_top)
 
    ex_avail = .false.
    call put_exchange_grid  &
@@ -251,7 +255,7 @@ contains
                   ex_gust, ex_stomatal,                        &
                   ex_snow, ex_water,  ex_max_water,            &
              ex_flux_t, ex_flux_q, ex_flux_lw, ex_flux_u, ex_flux_v,  &
-             ex_cd_m,   ex_cd_t, ex_cd_q,                             &
+             ex_cd_m,   ex_cd_t, ex_cd_q, ex_wind,                    &
              ex_u_star, ex_b_star, ex_q_star, ex_q_surf,              &
              ex_dhdt_surf, ex_dedt_surf,  ex_drdt_surf,               &
              ex_dhdt_atm,  ex_dedq_atm,   ex_dtaudv_atm,              &
@@ -285,6 +289,28 @@ contains
 !=======================================================================
 !-------------------- diagnostics section ------------------------------
 
+!------- save static fields first time only ------
+   if (first_static) then
+
+!------- land fraction ------
+      if ( id_land_mask > 0 ) then
+         used = send_data ( id_land_mask, land_frac_atm, Time )
+      endif
+
+!------- glacier fraction -----
+      if ( id_glac_mask > 0 ) then
+         call get_exchange_grid (ex_glac_frac, diag_atm, bd_map_atm)
+         used = send_data ( id_glac_mask, diag_atm, Time )
+      endif
+
+      first_static = .false.
+   endif
+
+!------- drag coeff moisture -----------
+   if ( id_wind > 0 ) then
+      call get_exchange_grid (ex_wind, diag_atm, bd_map_atm)
+      used = send_data ( id_wind, diag_atm, Time )
+   endif
 !------- drag coeff moisture -----------
    if ( id_drag_moist > 0 ) then
       call get_exchange_grid (ex_cd_q, diag_atm, bd_map_atm)
@@ -454,7 +480,11 @@ contains
                                 ex_flux_sw, ex_flux_lwd, &
                                 ex_lprec, ex_fprec,      &
                                 ex_flux_u, ex_flux_v,    &
-                                ex_dt_t, ex_dt_q, ex_coszen
+                                ex_dt_t, ex_dt_q, ex_coszen, ex_ice_frac
+
+ real :: ice_frac (size(dhdt_ice,1),size(dhdt_ice,2),size(dhdt_ice,3))
+ real :: diag_atm (size(flux_u_atm,1),size(flux_u_atm,2))
+
  logical :: used
 !-----------------------------------------------------------------------
 !---- put atmosphere quantities onto exchange grid ----
@@ -535,6 +565,18 @@ contains
       used = send_data ( id_v_flux, flux_v_atm, Time )
    endif
 
+!------- diagnostics for sea ice fraction -----------
+!---- this should probably be done in slow loop -----
+
+   if ( id_ice_mask > 0 ) then
+      ice_frac        = 1.
+      ice_frac(:,:,1) = 0.
+      ex_ice_frac     = 0.
+      call put_exchange_grid (ice_frac, ex_ice_frac, bd_map_ice_top)
+      call get_exchange_grid (ex_ice_frac, diag_atm, bd_map_atm)
+      used = send_data ( id_ice_mask, diag_atm, Time )
+   endif
+
 !=======================================================================
 
  end subroutine flux_down_from_atmos
@@ -606,6 +648,7 @@ contains
 !-----  then get ice grid fields from exchange grid data -----
 !-----  use new fraction ice areas ------
 
+ call set_frac_area (Ice%part_size,    bd_map_ice_top   )
  call set_frac_area (Ice%part_size   , bd_map_ice_bot   )
  call set_frac_area (Ice%part_size_uv, bd_map_ice_bot_uv)
 
@@ -974,6 +1017,9 @@ subroutine diag_field_init ( Time, atmos_axes )
 
   integer :: iref
   character(len=6) :: label_zm, label_zh
+  real, dimension(2) :: trange = (/  100., 400. /), &
+                        vrange = (/ -400., 400. /), &
+                        frange = (/ -0.01, 1.01 /)
 !-----------------------------------------------------------------------
 !  initializes diagnostic fields that may be output from this module
 !  (the id numbers may be referenced anywhere in this module)
@@ -1002,7 +1048,29 @@ subroutine diag_field_init ( Time, atmos_axes )
 105 format (i2,' m',2x)
 110 format (f4.1,' m')
 
+!--------- initialize static diagnostic fields --------------------
+
+   id_land_mask = &
+   register_static_field ( mod_name, 'land_mask', atmos_axes,  &
+                          'fractional amount of land', 'none', &
+                          range=frange )
+
+   id_glac_mask = &
+   register_static_field ( mod_name, 'glac_mask', atmos_axes,  &
+                          'fractional amount of glacier', 'none', &
+                          range=frange )
+
 !--------- initialize diagnostic fields --------------------
+
+   id_ice_mask = &
+   register_diag_field ( mod_name, 'ice_mask', atmos_axes, Time, &
+                        'fractional amount of sea ice', 'none',  &
+                         range=frange )
+
+   id_wind = &
+   register_diag_field ( mod_name, 'wind', atmos_axes, Time, &
+                        'wind speed for flux calculations', 'm/s', &
+                         range=(/0.,vrange(2)/) )
 
    id_drag_moist = &
    register_diag_field ( mod_name, 'drag_moist', atmos_axes, Time, &
@@ -1046,7 +1114,8 @@ subroutine diag_field_init ( Time, atmos_axes )
 
    id_t_surf     = &
    register_diag_field ( mod_name, 't_surf',     atmos_axes, Time, &
-                        'surface temperature',    'deg_k'    )
+                        'surface temperature',    'deg_k', &
+                        range=trange    )
 
    id_t_flux     = &
    register_diag_field ( mod_name, 'shflx',      atmos_axes, Time, &
@@ -1062,19 +1131,23 @@ subroutine diag_field_init ( Time, atmos_axes )
 
    id_t_atm      = &
    register_diag_field ( mod_name, 't_atm',      atmos_axes, Time, &
-                        'temperature at btm level',    'deg_k'     )
+                        'temperature at btm level',    'deg_k', &
+                        range=trange     )
 
    id_u_atm      = &
    register_diag_field ( mod_name, 'u_atm',      atmos_axes, Time, &
-                        'u wind component at btm level',  'm/s'    )
+                        'u wind component at btm level',  'm/s', &
+                        range=vrange    )
 
    id_v_atm      = &
    register_diag_field ( mod_name, 'v_atm',      atmos_axes, Time, &
-                        'v wind component at btm level',  'm/s'    )
+                        'v wind component at btm level',  'm/s', &
+                        range=vrange    )
 
    id_t_ref      = &
    register_diag_field ( mod_name, 't_ref',      atmos_axes, Time, &
-                        'temperature at '//label_zh, 'deg_k'       )
+                        'temperature at '//label_zh, 'deg_k' , &
+                        range=trange      )
 
    id_rh_ref     = &
    register_diag_field ( mod_name, 'rh_ref',     atmos_axes, Time,   &
@@ -1082,11 +1155,13 @@ subroutine diag_field_init ( Time, atmos_axes )
 
    id_u_ref      = &
    register_diag_field ( mod_name, 'u_ref',      atmos_axes, Time, &
-                        'zonal wind component at '//label_zm,  'm/s' )
+                        'zonal wind component at '//label_zm,  'm/s', &
+                        range=vrange )
 
    id_v_ref      = &
    register_diag_field ( mod_name, 'v_ref',      atmos_axes, Time,     &
-                      'meridional wind component at '//label_zm, 'm/s' )
+                      'meridional wind component at '//label_zm, 'm/s', &
+                        range=vrange )
 
    id_del_h      = &
    register_diag_field ( mod_name, 'del_h',      atmos_axes, Time,  &

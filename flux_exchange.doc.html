@@ -109,10 +109,10 @@ The following assumptions are made when using this module:
 <!-- BEGIN MODULES_USED -->
 <PRE>
 
-      atmos_model_mod
+    atmos_coupled_mod
+      ice_coupled_mod
+    ocean_coupled_mod
        land_model_mod
-        ice_model_mod
-      ocean_model_mod
      surface_flux_mod
         vert_diff_mod
          exchange_mod
@@ -371,6 +371,10 @@ Diagnostic fields for module name identifier: <b>flux</b>
    field name      field description (units)
    ----------      -------------------------
 
+   land_mask       fractional amount of land (none)     <-- STATIC
+   glac_mask       fractional amount of glacier (none)  <-- STATIC
+   ice_mask        fractional amount of sea ice (none)
+   wind            wind speed for flux calculations (m/s)
    drag_moist      drag coeff for moisture (none)
    drag_heat       drag coeff for heat (none)
    drag_mom        drag coeff for momentum (none)

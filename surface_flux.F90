@@ -16,8 +16,8 @@ public  surface_flux, surface_profile
 
 !-----------------------------------------------------------------------
 
-   character(len=128) :: version = '$Id: surface_flux.F90,v 1.3 2000/11/27 17:40:29 fms Exp $'
-   character(len=128) :: tag = '$Name: calgary $'
+   character(len=128) :: version = '$Id: surface_flux.F90,v 1.5 2001/03/06 19:02:19 fms Exp $'
+   character(len=128) :: tag = '$Name: damascus $'
 
    logical :: do_init = .true.
 
@@ -39,7 +39,7 @@ subroutine surface_flux (                                              &
                  rough_mom, rough_heat, rough_moist, gust,  stomatal,  &
                  snow_depth, water_depth,  max_water,                  &
                  flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
-                 cd_m,      cd_t,       cd_q,                          &
+                 cd_m,      cd_t,       cd_q,      w_atm,              &
                  u_star,    b_star,     q_star,    q_surf,             &
                  dhdt_surf, dedt_surf,  drdt_surf,                     &
                  dhdt_atm,  dedq_atm,   dtaudv_atm,                    &
@@ -60,19 +60,19 @@ real, intent(out), dimension(:) ::                                     &
                  dhdt_atm,  dedq_atm,   dtaudv_atm  
 
 real, intent(inout), dimension(:) :: cd_m, cd_t, cd_q
-real, intent(out), dimension(:) :: u_star,  b_star, q_star, q_surf
+real, intent(out), dimension(:) :: w_atm, u_star, b_star, q_star, q_surf
 real, intent(in) :: dt
 
 !-----------------------------------------------------------------------
 
 real, dimension(size(t_atm)) ::                                      &
-                 th_atm,   tv_atm,   th_surf,   th_surf1,  w_atm,    &
+                 th_atm,   tv_atm,   th_surf,   th_surf1,            &
                  e_sat,    e_sat1,   q_sat,     q_sat1,    p_ratio,  &
                  t_surf0,  t_surf1,  t_surf2,   u_dif,     v_dif,    &
                  rho,      rho_drag, drag_t,    drag_m,    drag_q,   &
                  beta
 
-logical, dimension(size(t_atm)) :: bone_dry
+logical, dimension(size(t_atm)) :: bone_dry, snow_on_ground
 
 real, parameter :: del_temp = 0.1    
            ! temperature increment for computation of flux derivatives
@@ -117,7 +117,10 @@ call escomp (t_surf1, e_sat1)  ! perturbed  vapor pressure
 !---------- compute only where available ----------
 
           beta = 1.0
-where (land .and. .not.glacier) &
+
+where (land .and. .not.glacier) snow_on_ground = (snow_depth > 0.0) 
+
+where (land .and. .not.glacier .and. .not. snow_on_ground) &
           beta = min(water_depth/(0.75*max_water), 1.0)
 
 where (avail)
@@ -231,6 +234,7 @@ elsewhere
      b_star     = 0.0
      q_star     = 0.0
      q_surf     = 0.0
+     w_atm      = 0.0
 endwhere
 
 bone_dry = .false.
