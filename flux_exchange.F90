@@ -36,6 +36,10 @@ use  diag_manager_mod, only: register_diag_field, send_data
 
 use  time_manager_mod, only: time_type
 
+use sat_vapor_pres_mod, only: escomp
+
+use      constants_mod, only: rdgas, rvgas
+
 implicit none
 private
 
@@ -47,8 +51,8 @@ public :: flux_exchange_init,   &
           flux_ocean_to_ice
 
 !-----------------------------------------------------------------------
-character(len=128) :: version = '$Id: flux_exchange.F90,v 1.2 2000/07/28 20:17:09 fms Exp $'
-character(len=128) :: tag = '$Name: bombay $'
+character(len=128) :: version = '$Id: flux_exchange.F90,v 1.3 2000/11/22 14:37:38 fms Exp $'
+character(len=128) :: tag = '$Name: calgary $'
 !-----------------------------------------------------------------------
 !---- boundary maps and exchange grid maps -----
 
@@ -67,13 +71,18 @@ integer :: ex_num_top, ex_num_bot, ex_num_bot_uv
 
 character(len=4), parameter :: mod_name = 'flux'
 
-integer :: id_drag_heat, id_drag_mom, id_rough_heat, id_rough_mom,  &
+integer :: id_drag_moist,  id_drag_heat,  id_drag_mom,     &
+           id_rough_moist, id_rough_heat, id_rough_mom,    &
            id_u_star, id_b_star, id_u_flux, id_v_flux, id_t_surf,   &
            id_t_flux, id_q_flux, id_r_flux,                         &
            id_t_atm,  id_u_atm,  id_v_atm,                          &
-           id_t_ref,  id_u_ref,  id_v_ref, id_del_h, id_del_m
+           id_t_ref,  id_rh_ref, id_u_ref,  id_v_ref,               &
+           id_del_h,  id_del_m,  id_del_q
 
 logical :: do_init = .true.
+
+real, parameter :: d622 = rdgas/rvgas
+real, parameter :: d378 = 1.0-d622
 
 !-----------------------------------------------------------------------
 
@@ -116,12 +125,12 @@ contains
 
  real, dimension(ex_num_top) :: ex_albedo, ex_land_frac,  &
        ex_t_atm,  ex_q_atm, ex_z_atm, ex_p_atm, ex_u_atm, ex_v_atm,  &
-       ex_p_surf, ex_gust, ex_t_surf4,                               &
-       ex_u_surf, ex_v_surf, ex_rough_mom, ex_rough_heat,            &
+       ex_p_surf, ex_gust, ex_t_surf4, ex_u_surf, ex_v_surf,         &
+       ex_rough_mom, ex_rough_heat, ex_rough_moist,                  &
        ex_stomatal, ex_snow, ex_water, ex_max_water,                 &
-       ex_u_star, ex_b_star, ex_real_mask,                           &
-       ex_cd_t,    ex_cd_m,  ex_flux_u,  ex_flux_v, ex_dtaudv_atm,   &
-       ex_ref, ex_del_m, ex_del_h
+       ex_u_star, ex_b_star, ex_q_star, ex_q_surf, ex_real_mask,     &
+       ex_cd_q, ex_cd_t, ex_cd_m, ex_flux_u, ex_flux_v, ex_dtaudv_atm,&
+       ex_ref, ex_t_ref, ex_qs_ref, ex_del_m, ex_del_h, ex_del_q
 
  logical, dimension(ex_num_top) :: ex_glacier, ex_land
  real, dimension(size(t_surf_atm,1),size(t_surf_atm,2)) :: diag_atm
@@ -158,6 +167,7 @@ contains
 !---- do not use if relax time /= 0 ----
    ex_cd_t = 0.0
    ex_cd_m = 0.0
+   ex_cd_q = 0.0
 !-----------------------------------------------------------------------
 !---- put atmosphere quantities onto exchange grid ----
 
@@ -183,6 +193,8 @@ contains
              (Land%rough_mom    , ex_rough_mom  , bd_map_land)
    call put_exchange_grid  &
              (Land%rough_heat   , ex_rough_heat , bd_map_land)
+   call put_exchange_grid  &
+             (Land%rough_heat   , ex_rough_moist, bd_map_land)
    call put_exchange_grid  &
              (Land%albedo       , ex_albedo     , bd_map_land)
    call put_exchange_grid  &
@@ -219,6 +231,8 @@ contains
    call put_exchange_grid  &
              (Ice%rough_heat   , ex_rough_heat , bd_map_ice_top)
    call put_exchange_grid  &
+             (Ice%rough_moist  , ex_rough_moist, bd_map_ice_top)
+   call put_exchange_grid  &
              (Ice%albedo       , ex_albedo     , bd_map_ice_top)
    call put_exchange_grid  &
              (Ice%u_surf       , ex_u_surf     , bd_map_ice_top)
@@ -233,10 +247,12 @@ contains
    call surface_flux (ex_t_atm, ex_q_atm, ex_u_atm, ex_v_atm,  &
                       ex_p_atm, ex_z_atm,                      &
                   ex_p_surf, ex_t_surf, ex_u_surf, ex_v_surf,  &
-                  ex_rough_mom, ex_rough_heat, ex_gust, ex_stomatal,  &
+                  ex_rough_mom, ex_rough_heat, ex_rough_moist, &
+                  ex_gust, ex_stomatal,                        &
                   ex_snow, ex_water,  ex_max_water,            &
              ex_flux_t, ex_flux_q, ex_flux_lw, ex_flux_u, ex_flux_v,  &
-             ex_cd_t,   ex_cd_m,   ex_u_star, ex_b_star,              &
+             ex_cd_m,   ex_cd_t, ex_cd_q,                             &
+             ex_u_star, ex_b_star, ex_q_star, ex_q_surf,              &
              ex_dhdt_surf, ex_dedt_surf,  ex_drdt_surf,               &
              ex_dhdt_atm,  ex_dedq_atm,   ex_dtaudv_atm,              &
              dt,           ex_land,       ex_glacier,      ex_avail   )
@@ -269,7 +285,13 @@ contains
 !=======================================================================
 !-------------------- diagnostics section ------------------------------
 
-!------- drag coeff heat/moisture -----------
+!------- drag coeff moisture -----------
+   if ( id_drag_moist > 0 ) then
+      call get_exchange_grid (ex_cd_q, diag_atm, bd_map_atm)
+      used = send_data ( id_drag_moist, diag_atm, Time )
+   endif
+
+!------- drag coeff heat -----------
    if ( id_drag_heat > 0 ) then
       call get_exchange_grid (ex_cd_t, diag_atm, bd_map_atm)
       used = send_data ( id_drag_heat, diag_atm, Time )
@@ -281,7 +303,13 @@ contains
       used = send_data ( id_drag_mom, diag_atm, Time )
    endif
 
-!------- roughness heat/moisture -----------
+!------- roughness moisture -----------
+   if ( id_rough_moist > 0 ) then
+      call get_exchange_grid (ex_rough_moist, diag_atm, bd_map_atm)
+      used = send_data ( id_rough_moist, diag_atm, Time )
+   endif
+
+!------- roughness heat -----------
    if ( id_rough_heat > 0 ) then
       call get_exchange_grid (ex_rough_heat, diag_atm, bd_map_atm)
       used = send_data ( id_rough_heat, diag_atm, Time )
@@ -323,17 +351,29 @@ contains
 !-----------------------------------------------------------------------
 !--------- diagnostics for fields at reference level ---------
 
-   if ( id_t_ref > 0 .or. id_u_ref > 0 .or. id_v_ref > 0 ) then
+   if ( id_t_ref > 0 .or. id_rh_ref > 0 .or. &
+        id_u_ref > 0 .or. id_v_ref  > 0 ) then
 
        zrefm = z_ref_mom
        zrefh = z_ref_heat
 !      ---- optimize calculation ----
        if ( id_t_ref <= 0 ) zrefh = zrefm
 
-       call surface_profile ( zrefm, zrefh, ex_z_atm,       &
-                              ex_rough_mom, ex_rough_heat,  &
-                              ex_u_star, ex_b_star,         &
-                              ex_del_m, ex_del_h, ex_avail  )
+       call surface_profile ( zrefm, zrefh, ex_z_atm,   ex_rough_mom, &
+                              ex_rough_heat, ex_rough_moist,          &
+                              ex_u_star, ex_b_star, ex_q_star,        &
+                              ex_del_m, ex_del_h, ex_del_q, ex_avail  )
+
+!    ------- reference relative humidity -----------
+       if ( id_rh_ref > 0 ) then
+          ex_ref   = ex_q_surf + (ex_q_atm-ex_q_surf) * ex_del_q
+          ex_t_ref = ex_t_surf + (ex_t_atm-ex_t_surf) * ex_del_h
+          call escomp (ex_t_ref, ex_qs_ref)
+          ex_qs_ref = d622*ex_qs_ref/(ex_p_surf-d378*ex_qs_ref)
+          ex_ref    = 100.*ex_ref/ex_qs_ref
+          call get_exchange_grid (ex_ref, diag_atm, bd_map_atm)
+          used = send_data ( id_rh_ref, diag_atm, Time )
+       endif
 
 !    ------- reference temp -----------
        if ( id_t_ref > 0 ) then
@@ -366,6 +406,12 @@ contains
        if ( id_del_m > 0 ) then
           call get_exchange_grid (ex_del_m, diag_atm, bd_map_atm)
           used = send_data ( id_del_m, diag_atm, Time )
+       endif
+
+!    ------- interp factor for moisture ------
+       if ( id_del_q > 0 ) then
+          call get_exchange_grid (ex_del_q, diag_atm, bd_map_atm)
+          used = send_data ( id_del_q, diag_atm, Time )
        endif
 
    endif
@@ -958,6 +1004,10 @@ subroutine diag_field_init ( Time, atmos_axes )
 
 !--------- initialize diagnostic fields --------------------
 
+   id_drag_moist = &
+   register_diag_field ( mod_name, 'drag_moist', atmos_axes, Time, &
+                        'drag coeff for moisture',    'none'     )
+
    id_drag_heat  = &
    register_diag_field ( mod_name, 'drag_heat', atmos_axes, Time, &
                         'drag coeff for heat',    'none'     )
@@ -965,6 +1015,10 @@ subroutine diag_field_init ( Time, atmos_axes )
    id_drag_mom   = &
    register_diag_field ( mod_name, 'drag_mom',  atmos_axes, Time, &
                         'drag coeff for momentum',     'none'     )
+
+   id_rough_moist = &
+   register_diag_field ( mod_name, 'rough_moist', atmos_axes, Time, &
+                        'surface roughness for moisture',  'm'  )
 
    id_rough_heat = &
    register_diag_field ( mod_name, 'rough_heat', atmos_axes, Time, &
@@ -1022,6 +1076,10 @@ subroutine diag_field_init ( Time, atmos_axes )
    register_diag_field ( mod_name, 't_ref',      atmos_axes, Time, &
                         'temperature at '//label_zh, 'deg_k'       )
 
+   id_rh_ref     = &
+   register_diag_field ( mod_name, 'rh_ref',     atmos_axes, Time,   &
+                        'relative humidity at '//label_zh, 'percent' )
+
    id_u_ref      = &
    register_diag_field ( mod_name, 'u_ref',      atmos_axes, Time, &
                         'zonal wind component at '//label_zm,  'm/s' )
@@ -1036,6 +1094,9 @@ subroutine diag_field_init ( Time, atmos_axes )
    id_del_m      = &
    register_diag_field ( mod_name, 'del_m',      atmos_axes, Time,     &
                         'ref height interp factor for momentum','none' )
+   id_del_q      = &
+   register_diag_field ( mod_name, 'del_q',      atmos_axes, Time,     &
+                        'ref height interp factor for moisture','none' )
 
 !-----------------------------------------------------------------------
 

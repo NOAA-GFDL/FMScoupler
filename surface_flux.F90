@@ -16,8 +16,8 @@ public  surface_flux, surface_profile
 
 !-----------------------------------------------------------------------
 
-   character(len=128) :: version = '$Id: surface_flux.F90,v 1.2 2000/07/28 20:17:09 fms Exp $'
-   character(len=128) :: tag = '$Name: bombay $'
+   character(len=128) :: version = '$Id: surface_flux.F90,v 1.3 2000/11/27 17:40:29 fms Exp $'
+   character(len=128) :: tag = '$Name: calgary $'
 
    logical :: do_init = .true.
 
@@ -36,10 +36,11 @@ subroutine surface_flux (                                              &
                  t_atm,     q_atm,      u_atm,     v_atm,              &
                  p_atm,     z_atm,                                     &
                  p_surf,    t_surf,     u_surf,    v_surf,             &
-                 rough_mom, rough_heat, gust,    stomatal,             &
+                 rough_mom, rough_heat, rough_moist, gust,  stomatal,  &
                  snow_depth, water_depth,  max_water,                  &
                  flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
-                 cd_t,       cd_m,      u_star,  b_star,               &
+                 cd_m,      cd_t,       cd_q,                          &
+                 u_star,    b_star,     q_star,    q_surf,             &
                  dhdt_surf, dedt_surf,  drdt_surf,                     &
                  dhdt_atm,  dedq_atm,   dtaudv_atm,                    &
                  dt,        land,       glacier,      avail            )
@@ -50,7 +51,7 @@ real, intent(in),  dimension(:) ::                                     &
                  t_atm,     q_atm,      u_atm,     v_atm,              &
                  p_atm,     z_atm,                                     &
                  p_surf,    t_surf,     u_surf,    v_surf,             &
-                 rough_mom, rough_heat, gust,    stomatal,             &
+                 rough_mom, rough_heat, rough_moist,  gust,  stomatal, &
                  snow_depth, water_depth, max_water
 
 real, intent(out), dimension(:) ::                                     &
@@ -58,8 +59,8 @@ real, intent(out), dimension(:) ::                                     &
                  dhdt_surf, dedt_surf,  drdt_surf,                     &
                  dhdt_atm,  dedq_atm,   dtaudv_atm  
 
-real, intent(inout), dimension(:) :: cd_t, cd_m 
-real, intent(out), dimension(:) :: u_star,  b_star
+real, intent(inout), dimension(:) :: cd_m, cd_t, cd_q
+real, intent(out), dimension(:) :: u_star,  b_star, q_star, q_surf
 real, intent(in) :: dt
 
 !-----------------------------------------------------------------------
@@ -68,7 +69,8 @@ real, dimension(size(t_atm)) ::                                      &
                  th_atm,   tv_atm,   th_surf,   th_surf1,  w_atm,    &
                  e_sat,    e_sat1,   q_sat,     q_sat1,    p_ratio,  &
                  t_surf0,  t_surf1,  t_surf2,   u_dif,     v_dif,    &
-                 rho,      rho_drag, drag_t,    drag_m,    beta
+                 rho,      rho_drag, drag_t,    drag_m,    drag_q,   &
+                 beta
 
 logical, dimension(size(t_atm)) :: bone_dry
 
@@ -149,10 +151,11 @@ endwhere
 
 !  monin-obukhov similarity theory 
 
-call mo_drag (dt, th_atm, th_surf, z_atm, rough_mom, rough_heat, w_atm, &
-              cd_m, cd_t, u_star, b_star, avail)
+call mo_drag (dt, th_atm, th_surf, z_atm,                &
+              rough_mom, rough_heat, rough_moist, w_atm, &
+              cd_m, cd_t, cd_q, u_star, b_star, avail    )
 
-!call mo_drag (th_atm, th_surf, z_atm, rough_mom, rough_heat, w_atm, &
+!call mo_drag (dt, th_atm, th_surf, z_atm, rough_mom, rough_heat, w_atm, &
 !              cd_m, cd_t, u_star, b_star, avail)
 
 !-----------------------------------------------------------------------
@@ -162,6 +165,7 @@ where (avail)
 !---- surface layer drag coefficients ----
 
      drag_t = cd_t * w_atm
+     drag_q = cd_q * w_atm
      drag_m = cd_m * w_atm
 
 !---- density ----
@@ -181,9 +185,9 @@ where (avail)
 
 !---- evaporation ----
 
-     drag_t = 1.0/((1.0/drag_t) + stomatal)
+     drag_q = 1.0/((1.0/drag_q) + stomatal)
 
-     rho_drag  =  beta * drag_t * rho 
+     rho_drag  =  beta * drag_q * rho 
      flux_q    =  rho_drag * (q_sat - q_atm)  
                             ! flux of latent heat  (W/m**2)
 
@@ -191,6 +195,10 @@ where (avail)
                             ! d(latent heat flux)/d(surface temperature)
      dedq_atm  = -rho_drag   
                             ! d(latent heat flux)/d(atmospheric mixing ratio)
+
+     q_star = flux_q / (u_star * rho)             ! moisture scale
+     q_surf = q_atm + flux_q / (rho*cd_q*w_atm)   ! surface specific humidity
+
 !---- upward long wave radiation -----
 
      t_surf2   = t_surf0* t_surf0 
@@ -221,6 +229,8 @@ elsewhere
      dtaudv_atm = 0.0
      u_star     = 0.0
      b_star     = 0.0
+     q_star     = 0.0
+     q_surf     = 0.0
 endwhere
 
 bone_dry = .false.
@@ -238,13 +248,14 @@ end subroutine surface_flux
 !#######################################################################
 
 subroutine surface_profile (zref_mom, zref_heat, z_atm,             &
-                            rough_mom, rough_heat, u_star, b_star,  &
-                            del_mom, del_heat, avail                )
+                            rough_mom, rough_heat, rough_moist,     &
+                            u_star, b_star, q_star,                 &
+                            del_mom, del_heat, del_moist, avail     )
 
 real,    intent(in)                :: zref_mom, zref_heat
-real,    intent(in),  dimension(:) :: z_atm, rough_mom, rough_heat,  &
-                                      u_star, b_star
-real,    intent(out), dimension(:) :: del_mom, del_heat
+real,    intent(in),  dimension(:) :: z_atm, rough_mom, rough_heat, rough_moist,  &
+                                      u_star, b_star, q_star
+real,    intent(out), dimension(:) :: del_mom, del_heat, del_moist
 logical, intent(in),  dimension(:) :: avail
 
   real, dimension(size(del_mom)) :: del_mom_local
@@ -252,12 +263,12 @@ logical, intent(in),  dimension(:) :: avail
 
 !---- get scaling at zref separately for momentum and heat ----
 
-        call mo_profile ( zref_mom, z_atm, rough_mom, rough_heat,  &
-                          u_star, b_star, del_mom, del_heat, avail )
+        call mo_profile ( zref_mom, z_atm, rough_mom, rough_heat, rough_moist,  &
+                          u_star, b_star, q_star, del_mom, del_heat, del_moist, avail )
                  
    if ( zref_mom /= zref_heat ) then
-        call mo_profile ( zref_heat, z_atm, rough_mom, rough_heat,  &
-                          u_star, b_star, del_mom_local, del_heat,  &
+        call mo_profile ( zref_heat, z_atm, rough_mom, rough_heat, rough_moist,  &
+                          u_star, b_star, q_star, del_mom_local, del_heat, del_moist,  &
                           avail )
    endif
 

@@ -118,8 +118,10 @@ The following assumptions are made when using this module:
          exchange_mod
      diag_manager_mod
      time_manager_mod
+   sat_vapor_pres_mod
     diag_integral_mod
         utilities_mod
+        constants_mod
 
 </PRE>
 </A><!-- END MODULES_USED -->
@@ -341,12 +343,13 @@ NOTE:
 
 <b>&flux_exchange_nml</b>
 
-z_ref_heat = reference height (meters) for temperature diagnostics
-              (t_ref_file,del_h_file)
+z_ref_heat = reference height (meters) for temperature and 
+             relative humidity diagnostics
+              (t_ref,rh_ref,del_h,del_q)
               [real, default: z_ref_heat = 2.]
 
 z_ref_mom  = reference height (meters) for momentum diagnostics
-              (u_ref_file,v_ref_file,del_m_file)
+              (u_ref,v_ref,del_m)
               [real, default: z_ref_mom = 10.]
 
 </PRE>
@@ -365,11 +368,13 @@ in file <b>diag_table</b>. See the documentation for diag_manager.
 
 Diagnostic fields for module name identifier: <b>flux</b>
 
-   field name      field description
-   ----------      -----------------
+   field name      field description (units)
+   ----------      -------------------------
 
+   drag_moist      drag coeff for moisture (none)
    drag_heat       drag coeff for heat (none)
    drag_mom        drag coeff for momentum (none)
+   rough_moist     surface roughness for moisture (m)
    rough_heat      surface roughness for heat (m)
    rough_mom       surface roughness for momentum (m)
    u_star          friction velocity (m/s)
@@ -383,18 +388,20 @@ Diagnostic fields for module name identifier: <b>flux</b>
    t_atm           temperature at btm level (deg_k)
    u_atm           u wind component at btm level (m/s)
    v_atm           v wind component at btm level (m/s)
+   rh_ref          relative humidity at ref height (deg_k)
    t_ref           temperature at ref height (deg_k)
    u_ref           u wind component at ref height (m/s)
    v_ref           v wind component at ref height (m/s)
+   del_q           ref height interp factor for specific humidity (none)
    del_h           ref height interp factor for heat (none)
    del_m           ref height interp factor for momentum (none)
 
 
   NOTES:
 
-    1) del_h or del_m cannot be output unless t_ref, u_ref, or v_ref
+    1) del_q, del_h, or del_m cannot be output unless rh_ref, t_ref, u_ref, or v_ref
        have been specified.
-    2) All fields are output on the atmospheric grid.
+    2) All fields are output on the two-dimensional (x-y) atmospheric grid.
 
 </PRE>
 </A><!-- END DIAGNOSTICS -->
