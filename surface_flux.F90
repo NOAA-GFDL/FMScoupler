@@ -17,7 +17,7 @@ public  surface_flux, surface_profile
 !-----------------------------------------------------------------------
 
    character(len=128) :: version = '$Id: surface_flux.F90,v 1.5 2001/03/06 19:02:19 fms Exp $'
-   character(len=128) :: tag = '$Name: damascus $'
+   character(len=128) :: tag = '$Name: eugene $'
 
    logical :: do_init = .true.
 

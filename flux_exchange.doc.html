@@ -86,16 +86,19 @@ The following assumptions are made when using this module:
       containing specific boundary fields.  A list of these
       quantities is located in the <A HREF="flux_exchange.doc.html#NOTES">NOTES</A> of this document.
 
-  3)  Vertical diffusion of temperature/specific humidity is
-      implicit in both the atmosphere and land/ice models.
+  3)  The surface flux of sensible heat and surface evaporation can be
+      implicit functions of surface temperature.  As a consequence, the
+      parts of the land and sea-ice models that update the surface
+      temperature must be called on the atmospheric time step
 
-  4)  Vertical diffusion of momentum is implicit in only the 
-      atmosphere.
+  4)  The surface fluxes of all other tracers and of momentum are assumed to be 
+      explicit functions of all surface parameters
 
-  5)  Implicit vertical diffusion uses a tridiagonal solver that
-      performs a downward pass followed by an upward pass
-      (Richtmeyer scheme). Between the downward and upward passes
-      the land/ice diffusion is performed.
+  5)  While no explicit reference in made within this module to the 
+      implicit treatment of vertical diffusion in the atmosphere and
+      in the land or sea-ice models, the module is designed to allow
+      for simultaneous implicit time integration on both sides of the 
+      surface interface.
 
   6)  Due to #5, the diffusion part of the land and ice models must be
       called on the atmospheric time step.
@@ -114,7 +117,6 @@ The following assumptions are made when using this module:
     ocean_coupled_mod
        land_model_mod
      surface_flux_mod
-        vert_diff_mod
          exchange_mod
      diag_manager_mod
      time_manager_mod
@@ -143,17 +145,23 @@ The following assumptions are made when using this module:
         Initializes the interpolation routines and diagnostics.
 
    <a href="flux_exchange.doc.html#flux_calculation">flux_calculation</a>
-        Computes explicit fluxes and derivatives that will be used
+        Computes explicit fluxes as well as derivatives that will be used
         to compute an implicit flux correction
 
    <a href="flux_exchange.doc.html#flux_down_from_atmos">flux_down_from_atmos</a>
-        Returns fluxes and derivatives corrected for the downward pass
-        through an implicit vertical diffusion tridiagonal solver.
+	Returns fluxes and derivatives corrected for the implicit
+	treatment of atmospheric diffusive fluxes, as well as the
+	increments in the temperature and specific humidity of the
+	lowest atmospheric layer due to all explicit processes as well
+	as the diffusive fluxes through the top of this layer.
 
    <a href="flux_exchange.doc.html#flux_up_to_atmos">flux_up_to_atmos</a>
-        Update fluxes for surface temperature changes in land and ice models.
-        Tendency for temperature and specific humidity are computed and
-        returned for the upward pass in atmospheric vertical diffusion.
+	Corrects the fluxes for consistency with the new surface
+	temperatures in land and ice models.  Final increments for
+	temperature and specific humidity in the lowest atmospheric
+	layer are computed and returned to the atmospheric model so
+	that it can finalize the increments in the rest of the
+	atmosphere.
 
    <a href="flux_exchange.doc.html#flux_ice_to_ocean">flux_ice_to_ocean</a>
         Takes the ice model state (fluxes at the bottom of the ice) and
@@ -187,8 +195,8 @@ NOTE:
   The third dimension (for the land and ice models) is for partitions
   (e.g., different land or ice types).
 
-  For details on the defined types (atmos_data_type, land_data_type,
-  ice_data_type, ocean_data_type) see the documentation for the
+  For details on the defined types (atmos_boundary_data_type, land_boundary_data_type,
+  ice_boundary_data_type, ocean_boundary_data_type) see the documentation for the
   individual component models or look at the <A HREF="flux_exchange.doc.html#NOTES">developer notes</A> below.
 
 -----------------------------------------------------------------------
@@ -201,21 +209,25 @@ NOTE:
 
      in:       dt      = time step [real]
                Time    = current time [time_type]
-               Atm     =           [atmos_data_type]
-               Land    =            [land_data_type]
-               Ice     =             [ice_data_type]
+               Atm     =           [atmos_boundary_data_type]
+               Land    =            [land_boundary_data_type]
+               Ice     =             [ice_boundary_data_type]
 
-    out:    t_surf_atm = surface temperature (used for radiation)
-            albedo_atm = surface albedo      (used for radiation)
-         rough_mom_atm = surface roughness for momentum
-         land_frac_atm = fraction area of land beneath an atmospheric
-                         grid box
+    out:    t_surf_atm = surface temperature (used for radiation)    (K)
+            albedo_atm = surface albedo      (used for radiation)    (nondimensional)
+         rough_mom_atm = surface roughness for momentum (m)
+         land_frac_atm = fractional area of land beneath an atmospheric
+                         grid box 
             dtaudv_atm = derivative of wind stress w.r.t. the
-                         lowest level wind speed
-            flux_u_atm = zonal wind stress
-            flux_v_atm = meridional wind stress
-            u_star_atm = friction velocity
-            b_star_atm = buoyancy scale
+                         lowest level wind speed  (Pa/(m/s))
+            flux_u_atm = zonal wind stress  (Pa)
+            flux_v_atm = meridional wind stress (Pa)
+            u_star_atm = friction velocity (m/s)
+            b_star_atm = buoyancy scale    (m2/s)
+
+            (u_star and b_star are defined so that u_star**2 = magnitude
+              of surface stress divided by density of air at the surface, 
+              and u_star*b_star = buoyancy flux at the surface)
 
 -----------------------------------------------------------------------
 <a name="flux_down_from_atmos">
@@ -237,31 +249,27 @@ NOTE:
                Atm     =           [atmos_data_type]
                Land    =            [land_data_type]
                Ice     =             [ice_data_type]
-            flux_u_atm = zonal wind stress
-            flux_v_atm = meridional wind stress
+            flux_u_atm = zonal wind stress (Pa)  
+            flux_v_atm = meridional wind stress (Pa)
 
     out:   flux_t_land = sensible heat flux (W/m2)
-           flux_q_land = specific humidity flux (Kg/m2/s)
+           flux_q_land = specific humidity flux (Kg/(m2 s)
           flux_lw_land = net longwave flux (W/m2), uncorrected for
                          changes in surface temperature
           flux_sw_land = net shortwave flux (W/m2)
              dhdt_land = derivative of sensible heat flux w.r.t.
-                         surface temperature (on land model grid)
+                         surface temperature (on land model grid)  (W/(m2 K)
              dedt_land = derivative of specific humidity flux w.r.t.
-                         surface temperature (on land model grid)
+                         surface temperature (on land model grid)  (Kg/(m2 s K)
              drdt_land = derivative of upward longwave flux w.r.t.
-                         surface temperature (on land model grid)
+                         surface temperature (on land model grid) (W/(m2 K)
             lprec_land = liquid precipitation, mass for one time step
                           (Kg/m2)
             fprec_land = frozen precipitation, mass for one time step
                           (Kg/m2)
 
-         NOTE: these same output fields are on the ice grid plus ...
-
-            flux_u_ice = zonal wind stress (Pa), corrected for
-                          changes in the atmospheric wind
-            flux_v_ice = meridional wind stress (Pa), corrected for
-                          changes in the atmospheric wind
+            flux_u_ice = zonal wind stress (Pa)
+            flux_v_ice = meridional wind stress (Pa)
             coszen_ice = cosine of the zenith angle
 
 
@@ -275,7 +283,7 @@ NOTE:
                                      runoff_ocean )
 
 
-     in:        Ice     =             [ice_data_type]
+     in:        Ice     =             [ice_boundary_data_type]
 
     out:   flux_u_ocean = zonal wind stress (Pa)
            flux_v_ocean = meridional wind stress (Pa)
@@ -298,8 +306,8 @@ NOTE:
                                              u_surf_ice, v_surf_ice  )
 
 
-     in:      Ocean     =             [ocean_data_type]
-              Ice       =             [ice_data_type]
+     in:      Ocean     =             [ocean_boundary_data_type]
+              Ice       =             [ice_boundary_data_type]
 
     out:    t_surf_ice = surface temperature (deg K)
             frazil_ice = frazil (???)
@@ -313,8 +321,8 @@ NOTE:
  subroutine flux_up_to_atmos ( Time, Land, Ice, dt_t_atm, dt_q_atm )
 
      in:       Time   = current time [time_type]
-               Land   =            [land_data_type]
-               Ice    =             [ice_data_type]
+               Land   =            [land_boundary_data_type]
+               Ice    =             [ice_boundary_data_type]
 
      out:   dt_t_atm  = temperature change at the lowest
                          atmospheric level (deg k)
@@ -327,10 +335,10 @@ NOTE:
  subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean )
 
     in:  Time    =  current time [time_type]
-         Atm     =   [atmos_data_type]
-         Land    =    [land_data_type]
-         Ice     =     [ice_data_type]
-         Ocean   =   [ocean_data_type]
+         Atm     =   [atmos_boundary_data_type]
+         Land    =    [land_boundary_data_type]
+         Ice     =     [ice_boundary_data_type]
+         Ocean   =   [ocean_boundary_data_type]
 
 </PRE>
 </A><!-- END ROUTINES -->
@@ -531,12 +539,15 @@ MAIN PROGRAM EXAMPLE
 
      END DO
 
+  LAND_FAST and ICE_FAST must update the surface temperature
+
 =======================================================================
 
 REQUIRED VARIABLES IN DEFINED DATA TYPES FOR COMPONENT MODELS
 --------------------------------------------------------------
 
 <B>type (atmos_boundary_data_type) :: Atm</B>
+<B>type (surf_diff_type) :: Atm%Surf_Diff</B>
 
 real, dimension(:)
 
@@ -554,19 +565,34 @@ real, dimension(:,:)
    Atm%u_bot     zonal wind component at lowest model level (m/s)
    Atm%v_bot     meridional wind component at lowest model level (m/s)
    Atm%p_surf    surface pressure (pa)
-   Atm%gust      gustiness factor (m/s)
-
-   Atm%Surf_Diff Derived-type variable inherited from vert_diff_mod.
-                 Contains surface vertical diffusion terms and the
-                 tendencies of temperature and specific humidity at 
-                 lowest model level (these will be used/modified) during
-                 the coupling.
-                 
+   Atm%gust      gustiness factor (m/s)         
    Atm%flux_sw   net shortwave flux at the surface
    Atm%flux_lw   downward longwave flux at the surface
    Atm%lprec     liquid precipitation (kg/m2)
    Atm%fprec     water equivalent frozen precipitation (kg/m2)
    Atm%coszen    cosine of the zenith angle
+
+  (the following five fields are gathered into a data type for convenience in passing
+  this information thorugh the different levels of the atmospheric model -- 
+  these fields are rlated to the simultaneous implicit time steps in the 
+  atmosphere and surface models -- they are described more fully in 
+  <A HREF="flux_exchange.tech.ps">flux_exchange.tech.ps</A> and 
+  in the documntation for vert_diff_mod
+
+
+   Atm%Surf_Diff%dtmass   = dt/mass where dt = atmospheric time step ((i+1) = (i-1) for leapfrog) (s)
+                          mass = mass per unit area of lowest atmosphehic layer  (Kg/m2))
+   Atm%Surf_Diff%delta_t  increment ((i+1) = (i-1) for leapfrog) in temperature of 
+                          lowest atmospheric layer  (K)
+   Atm%Surf_Diff%delta_q  increment ((i+1) = (i-1) for leapfrog) in specific humidity of 
+                          lowest atmospheric layer (nondimensional -- Kg/Kg)
+   Atm%Surf_Diff%dflux_t  derivative of implicit part of downward temperature flux at top of lowest
+                          atmospheric layer with respect to temperature
+                          of lowest atmospheric layer (Kg/(m2 s))
+   Atm%Surf_Diff%dflux_q  derivative of implicit part of downward moisture flux at top of lowest
+                          atmospheric layer with respect to specific humidity of
+                          of lowest atmospheric layer (Kg/(m2 s))
+
 
 integer, dimension(4)
 
@@ -575,7 +601,7 @@ integer, dimension(4)
 
 -----------------------------------------------
 
-<B>type (land_data_type) :: Land</B>
+<B>type (land_boundary_data_type) :: Land</B>
 
 real, dimension(:)
 

@@ -7,13 +7,7 @@ use ocean_coupled_mod, only: ocean_boundary_data_type
 use   ice_coupled_mod, only:   ice_boundary_data_type
 use    land_model_mod, only:  land_boundary_data_type
 
-use surface_flux_mod, only: surface_flux, surface_profile
-
-use vert_diff_mod, only: surf_diff_type,          &
-                         alloc_surf_diff_type,    &
-                         dealloc_surf_diff_type,  &
-                         gcm_vert_diff_surf_down, &
-                         gcm_vert_diff_surf_up
+use surface_flux_mod, only: surface_flux, surface_profile     
 
 use     exchange_mod, only: boundary_map_type,           &
                             exchange_map_type,           &
@@ -39,7 +33,7 @@ use  time_manager_mod, only: time_type
 
 use sat_vapor_pres_mod, only: escomp
 
-use      constants_mod, only: rdgas, rvgas
+use      constants_mod, only: rdgas, rvgas, cp
 
 implicit none
 private
@@ -52,8 +46,8 @@ public :: flux_exchange_init,   &
           flux_ocean_to_ice
 
 !-----------------------------------------------------------------------
-character(len=128) :: version = '$Id: flux_exchange.F90,v 1.4 2001/03/06 19:02:05 fms Exp $'
-character(len=128) :: tag = '$Name: damascus $'
+character(len=128) :: version = '$Id: flux_exchange.F90,v 1.5 2001/07/05 17:42:57 fms Exp $'
+character(len=128) :: tag = '$Name: eugene $'
 !-----------------------------------------------------------------------
 !---- boundary maps and exchange grid maps -----
 
@@ -104,7 +98,8 @@ namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom
           ex_flux_t, ex_flux_q, ex_flux_lw, ex_albedo_fix
   logical, allocatable, dimension(:) ::  ex_avail
 
-  type (surf_diff_type) :: Ex_surf_diff
+  real, allocatable, dimension(:) :: ex_e_t_n,  ex_f_t_delt_n, &
+                                     ex_e_q_n,  ex_f_q_delt_n           
 
 contains
 
@@ -161,6 +156,11 @@ contains
               ex_flux_q   (ex_num_top),  &
               ex_flux_lw  (ex_num_top),  &
               ex_avail    (ex_num_top)   )
+
+   allocate ( ex_f_t_delt_n   (ex_num_top),  &
+              ex_f_q_delt_n   (ex_num_top),  &
+              ex_e_t_n        (ex_num_top),  &
+              ex_e_q_n        (ex_num_top) )
 
 !--- initialize some values ---
    ex_t_surf   = 200.
@@ -476,22 +476,23 @@ contains
                                     lprec_ice , fprec_ice,            &
                                     flux_u_ice, flux_v_ice, coszen_ice
 
- real, dimension(ex_num_top) :: ex_mu, ex_nu, ex_e,      &
-                                ex_flux_sw, ex_flux_lwd, &
+ real, dimension(ex_num_top) :: ex_flux_sw, ex_flux_lwd, &
                                 ex_lprec, ex_fprec,      &
                                 ex_flux_u, ex_flux_v,    &
-                                ex_dt_t, ex_dt_q, ex_coszen, ex_ice_frac
+                                ex_coszen, ex_ice_frac
+
+ real, dimension(ex_num_top) :: ex_gamma  , ex_dtmass,  &
+                                ex_delta_t, ex_delta_q, &
+                                ex_dflux_t, ex_dflux_q
 
  real :: ice_frac (size(dhdt_ice,1),size(dhdt_ice,2),size(dhdt_ice,3))
  real :: diag_atm (size(flux_u_atm,1),size(flux_u_atm,2))
 
+ real    :: cp_inv
  logical :: used
+
 !-----------------------------------------------------------------------
 !---- put atmosphere quantities onto exchange grid ----
-
-   call alloc_surf_diff_type ( Ex_surf_diff, ex_num_top )
-
-   call switch_surf_diff_type_order ( Atm%Surf_Diff, Ex_surf_diff )
 
    call put_exchange_grid (Atm%flux_sw,  ex_flux_sw,  bd_map_atm)
    call put_exchange_grid (Atm%flux_lw,  ex_flux_lwd, bd_map_atm)
@@ -516,12 +517,39 @@ contains
    ex_flux_lw = ex_flux_lwd - ex_flux_lw
 
 !-----------------------------------------------------------------------
-!----- adjust fluxes for downward atmospheric diffusion ----
+!----- adjust fluxes for implicit dependence on atmosphere ----
 
-    call gcm_vert_diff_surf_down (ex_avail, ex_dhdt_atm, ex_dhdt_surf, &
-                                            ex_dedq_atm, ex_dedt_surf, &
-                                            ex_drdt_surf,              &
-                                  ex_flux_t, ex_flux_q,  Ex_surf_diff  )
+ 
+   call put_exchange_grid (Atm%Surf_Diff%dtmass   , ex_dtmass   , bd_map_atm)
+   call put_exchange_grid (Atm%Surf_Diff%delta_t  , ex_delta_t  , bd_map_atm)
+   call put_exchange_grid (Atm%Surf_Diff%delta_q  , ex_delta_q  , bd_map_atm)
+   call put_exchange_grid (Atm%Surf_Diff%dflux_t  , ex_dflux_t  , bd_map_atm)
+   call put_exchange_grid (Atm%Surf_Diff%dflux_q  , ex_dflux_q  , bd_map_atm)
+
+ cp_inv = 1.0/cp
+
+ where(ex_avail)
+
+! temperature
+
+   ex_gamma      =  1./ (1.0 - ex_dtmass*(ex_dflux_t + ex_dhdt_atm*cp_inv))
+   ex_e_t_n      =  ex_dtmass*ex_dhdt_surf*cp_inv*ex_gamma
+   ex_f_t_delt_n = (ex_delta_t + ex_dtmass * ex_flux_t*cp_inv) * ex_gamma    
+
+   ex_flux_t     =  ex_flux_t        + ex_dhdt_atm * ex_f_t_delt_n 
+   ex_dhdt_surf  =  ex_dhdt_surf     + ex_dhdt_atm * ex_e_t_n   
+
+! moisture
+
+   ex_gamma      =  1./ (1.0 - ex_dtmass*(ex_dflux_q + ex_dedq_atm))
+   ex_e_q_n      =  ex_dtmass*ex_dedt_surf*ex_gamma
+   ex_f_q_delt_n = (ex_delta_q  + ex_dtmass * ex_flux_q) * ex_gamma    
+
+   ex_flux_q     =  ex_flux_q        + ex_dedq_atm * ex_f_q_delt_n 
+   ex_dedt_surf  =  ex_dedt_surf     + ex_dedq_atm * ex_e_q_n   
+
+ endwhere
+
 
 !-----------------------------------------------------------------------
 !---- output fields on the land grid -------
@@ -681,7 +709,8 @@ contains
  real, dimension(:,:),   intent(out) :: dt_t_atm, dt_q_atm
 
   real, dimension(ex_num_top) :: ex_t_surf_new, ex_dt_t_surf,  &
-                                 ex_dt_t, ex_dt_q
+                                 ex_dt_t, ex_dt_q, &
+                                 ex_delta_t_n, ex_delta_q_n
   real, dimension(size(dt_t_atm,1),size(dt_t_atm,2)) :: diag_atm, &
                                                         evap_atm
   logical :: used
@@ -695,22 +724,25 @@ contains
    ex_dt_t_surf = ex_t_surf_new - ex_t_surf
 
 !-----------------------------------------------------------------------
-!----- adjustments for surface temperature change -----
- 
-   call gcm_vert_diff_surf_up (ex_avail, ex_dt_t_surf,         &
-                    ex_dhdt_surf, ex_dedt_surf, ex_drdt_surf,  &
-                    ex_flux_t, ex_flux_q, ex_flux_lw,          &
-                    Ex_surf_diff                               )
+!-----  adjust fluxes and atmospheric increments for 
+!-----  implicit dependence on surface temperature -----
+
+   ex_delta_t_n = 0.0
+   ex_delta_q_n = 0.0
+
+   where(ex_avail)
+     ex_flux_t     = ex_flux_t  + ex_dt_t_surf * ex_dhdt_surf
+     ex_flux_q     = ex_flux_q  + ex_dt_t_surf * ex_dedt_surf
+     ex_flux_lw    = ex_flux_lw - ex_dt_t_surf * ex_drdt_surf
+     ex_delta_t_n  = ex_f_t_delt_n  + ex_dt_t_surf*ex_e_t_n
+     ex_delta_q_n  = ex_f_q_delt_n  + ex_dt_t_surf*ex_e_q_n
+   endwhere 
 
 !-----------------------------------------------------------------------
 !---- get mean quantites on atmospheric grid ----
 
-   call get_exchange_grid (Ex_surf_diff%x_delta_t_n, &
-                                dt_t_atm, bd_map_atm)
-   call get_exchange_grid (Ex_surf_diff%x_delta_q_n, &
-                                dt_q_atm, bd_map_atm)
-
-   call dealloc_surf_diff_type ( Ex_surf_diff )
+   call get_exchange_grid (ex_delta_t_n, dt_t_atm, bd_map_atm)
+   call get_exchange_grid (ex_delta_q_n, dt_q_atm, bd_map_atm)
 
 !  ---- always get evaporation for diagnostic purposes ----
 
@@ -763,6 +795,9 @@ contains
    deallocate ( ex_t_surf, ex_dhdt_surf, ex_dedt_surf, ex_drdt_surf, &
                 ex_dhdt_atm,  ex_dedq_atm,                           &
                 ex_flux_t, ex_flux_q, ex_flux_lw, ex_avail           )
+
+   deallocate ( ex_f_t_delt_n, ex_f_q_delt_n, ex_e_t_n, ex_e_q_n)
+
 
 !-----------------------------------------------------------------------
 
@@ -961,52 +996,6 @@ contains
    call put_exchange_grid (rmask, ex_mask, bd_map)
 
  end subroutine put_logical_to_real
-
-!#######################################################################
-
-subroutine switch_surf_diff_type_order ( Sdiff_in, Sdiff_out )
-
-type(surf_diff_type), intent(in)    :: Sdiff_in
-type(surf_diff_type), intent(inout) :: Sdiff_out
-
-!-------- from 2-dim lon-lat grid to 1-dim exchange grid ---------
-
-  if ( Sdiff_in%array_order == 2 .and. Sdiff_out%array_order == 1 ) then
-
-     call put_exchange_grid (Sdiff_in %  mu_delt_n,   &
-                             Sdiff_out%x_mu_delt_n,   bd_map_atm)
-     call put_exchange_grid (Sdiff_in %  nu_n,        &
-                             Sdiff_out%x_nu_n,        bd_map_atm)
-     call put_exchange_grid (Sdiff_in %  e_n1,        &
-                             Sdiff_out%x_e_n1,        bd_map_atm)
-     call put_exchange_grid (Sdiff_in %  f_t_delt_n1, &
-                             Sdiff_out%x_f_t_delt_n1, bd_map_atm)
-     call put_exchange_grid (Sdiff_in %  f_q_delt_n1, &
-                             Sdiff_out%x_f_q_delt_n1, bd_map_atm)
-     call put_exchange_grid (Sdiff_in %  delta_t_n,   &
-                             Sdiff_out%x_delta_t_n,   bd_map_atm)
-     call put_exchange_grid (Sdiff_in %  delta_q_n,   &
-                             Sdiff_out%x_delta_q_n,   bd_map_atm)
-
-!-------- from 1-dim exchange grid to 2-dim lon-lat grid ---------
-
-  else if ( Sdiff_in%array_order == 1 .and. Sdiff_out%array_order == 2 ) then
-
-
-     call get_exchange_grid (Sdiff_in %x_delta_t_n,  &
-                             Sdiff_out%  delta_t_n, bd_map_atm)
-     call get_exchange_grid (Sdiff_in %x_delta_q_n,  &
-                             Sdiff_out%  delta_q_n, bd_map_atm)
-
-  else
-
-     if ( Sdiff_in%array_order + Sdiff_out%array_order /= 3 )  &
-      call error_mesg ('switch_surf_diff_type_order in vert_diff_mod', &
-                       'arguments have the wrong order', FATAL )
-
-  endif
-
-end subroutine switch_surf_diff_type_order
 
 !#######################################################################
 
