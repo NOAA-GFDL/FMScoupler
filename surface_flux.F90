@@ -4,7 +4,7 @@ module surface_flux_mod
 !-----------------------------------------------------------------------
 
 use       utilities_mod, only: error_mesg, FATAL, open_file,  &
-                               print_version_number, get_my_pe
+                               close_file, get_my_pe
 use   monin_obukhov_mod, only: mo_drag, mo_profile
 use  sat_vapor_pres_mod, only: escomp, descomp, tcheck
 use       constants_mod, only: cp, hlv, stefan, rdgas, rvgas, grav
@@ -16,7 +16,9 @@ public  surface_flux, surface_profile
 
 !-----------------------------------------------------------------------
 
-   character(len=4), parameter :: vers_num = 'v2.0'
+   character(len=128) :: version = '$Id: surface_flux.F90,v 1.2 2000/07/28 20:17:09 fms Exp $'
+   character(len=128) :: tag = '$Name: bombay $'
+
    logical :: do_init = .true.
 
    real, parameter :: d622   = rdgas/rvgas
@@ -272,8 +274,9 @@ integer :: unit
 !----- write version number -----
 
    unit = open_file ('logfile.out', action='append')
-   call print_version_number (unit, 'surface_flux', vers_num)
-   close (unit)
+   if ( get_my_pe() == 0 ) &
+        write (unit,'(/,80("="),/(a))') trim(version), trim(tag)
+   call close_file (unit)
    do_init = .false.
 
 end subroutine surface_flux_init

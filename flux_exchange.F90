@@ -5,7 +5,7 @@ module flux_exchange_mod
 use atmos_coupled_mod, only: atmos_boundary_data_type
 use ocean_coupled_mod, only: ocean_boundary_data_type
 use   ice_coupled_mod, only:   ice_boundary_data_type
-use    land_model_mod, only:  land_boundary_data_type => land_data_type
+use    land_model_mod, only:  land_boundary_data_type
 
 use surface_flux_mod, only: surface_flux, surface_profile
 
@@ -30,8 +30,7 @@ use diag_integral_mod, only:     diag_integral_field_init, &
                              sum_diag_integral_field
 
 use     utilities_mod, only: file_exist, open_file, check_nml_error,  &
-                             print_version_number, error_mesg, FATAL, &
-                             get_my_pe, close_file
+                             error_mesg, FATAL, get_my_pe, close_file
 
 use  diag_manager_mod, only: register_diag_field, send_data
 
@@ -48,11 +47,16 @@ public :: flux_exchange_init,   &
           flux_ocean_to_ice
 
 !-----------------------------------------------------------------------
+character(len=128) :: version = '$Id: flux_exchange.F90,v 1.2 2000/07/28 20:17:09 fms Exp $'
+character(len=128) :: tag = '$Name: bombay $'
+!-----------------------------------------------------------------------
 !---- boundary maps and exchange grid maps -----
 
-type (boundary_map_type) :: bd_map_atm, bd_map_land, bd_map_ocean,  &
-                            bd_map_ice_top, bd_map_ice_bot,         &
-                            bd_map_ice_bot_uv, bd_map_ocean_uv
+type (boundary_map_type) :: bd_map_atm, bd_map_land,                 &
+                            bd_map_ocean_data, bd_map_ocean_model,   &
+                            bd_map_ice_top, bd_map_ice_bot,          &
+                            bd_map_ice_bot_uv, bd_map_ocean_data_uv, &
+                            bd_map_ocean_model_uv
 
 type(exchange_map_type), target :: ex_map_top, ex_map_bot, ex_map_bot_uv
 
@@ -69,9 +73,7 @@ integer :: id_drag_heat, id_drag_mom, id_rough_heat, id_rough_mom,  &
            id_t_atm,  id_u_atm,  id_v_atm,                          &
            id_t_ref,  id_u_ref,  id_v_ref, id_del_h, id_del_m
 
-
 logical :: do_init = .true.
-character(len=4), parameter :: vers_num = 'v2.0'
 
 !-----------------------------------------------------------------------
 
@@ -101,8 +103,8 @@ contains
                                flux_u_atm, flux_v_atm, dtaudv_atm,     &
                                u_star_atm, b_star_atm                  )
 
- real,                            intent(in)  :: dt
- type                (time_type), intent(in)  :: Time
+ real,                   intent(in)  :: dt
+ type       (time_type), intent(in)  :: Time
  type (atmos_boundary_data_type), intent(in)  :: Atm
  type  (land_boundary_data_type), intent(in)  :: Land
  type   (ice_boundary_data_type), intent(in)  :: Ice
@@ -384,9 +386,9 @@ contains
                                   flux_lw_ice, flux_sw_ice,         &
                                   dhdt_ice, dedt_ice, drdt_ice,     &
                                   lprec_ice , fprec_ice,            &
-                                  flux_u_ice, flux_v_ice            )
+                                  flux_u_ice, flux_v_ice, coszen_ice)
 
- type                (time_type), intent(in)  :: Time
+ type       (time_type), intent(in)  :: Time
  type (atmos_boundary_data_type), intent(in)  :: Atm
  type  (land_boundary_data_type), intent(in)  :: Land
  type   (ice_boundary_data_type), intent(in)  :: Ice
@@ -400,13 +402,13 @@ contains
                                     flux_lw_ice, flux_sw_ice,         &
                                     dhdt_ice, dedt_ice, drdt_ice,     &
                                     lprec_ice , fprec_ice,            &
-                                    flux_u_ice, flux_v_ice
+                                    flux_u_ice, flux_v_ice, coszen_ice
 
  real, dimension(ex_num_top) :: ex_mu, ex_nu, ex_e,      &
                                 ex_flux_sw, ex_flux_lwd, &
                                 ex_lprec, ex_fprec,      &
                                 ex_flux_u, ex_flux_v,    &
-                                ex_dt_t, ex_dt_q
+                                ex_dt_t, ex_dt_q, ex_coszen
  logical :: used
 !-----------------------------------------------------------------------
 !---- put atmosphere quantities onto exchange grid ----
@@ -420,6 +422,8 @@ contains
 
    call put_exchange_grid (Atm%lprec, ex_lprec, bd_map_atm)
    call put_exchange_grid (Atm%fprec, ex_fprec, bd_map_atm)
+
+   call put_exchange_grid (Atm%coszen, ex_coszen, bd_map_atm)
 
    call put_exchange_grid (flux_u_atm, ex_flux_u, bd_map_atm)
    call put_exchange_grid (flux_v_atm, ex_flux_v, bd_map_atm)
@@ -470,6 +474,7 @@ contains
    call get_exchange_grid (ex_fprec,    fprec_ice,  bd_map_ice_top)
    call get_exchange_grid (ex_flux_u,  flux_u_ice,  bd_map_ice_top)
    call get_exchange_grid (ex_flux_v,  flux_v_ice,  bd_map_ice_top)
+   call get_exchange_grid (ex_coszen,  coszen_ice,  bd_map_ice_top)
 
 !=======================================================================
 !-------------------- diagnostics section ------------------------------
@@ -523,15 +528,15 @@ contains
   call put_exchange_grid (Ice%fprec,   ex_fprec,   bd_map_ice_bot)
   call put_exchange_grid (Ice%runoff,  ex_runoff,  bd_map_ice_bot)
 
-  call get_exchange_grid (ex_flux_u ,  flux_u_ocean, bd_map_ocean_uv)
-  call get_exchange_grid (ex_flux_v ,  flux_v_ocean, bd_map_ocean_uv)
-  call get_exchange_grid (ex_flux_t ,  flux_t_ocean, bd_map_ocean)
-  call get_exchange_grid (ex_flux_q ,  flux_q_ocean, bd_map_ocean)
-  call get_exchange_grid (ex_flux_sw, flux_sw_ocean, bd_map_ocean)
-  call get_exchange_grid (ex_flux_lw, flux_lw_ocean, bd_map_ocean)
-  call get_exchange_grid (ex_lprec,     lprec_ocean, bd_map_ocean)
-  call get_exchange_grid (ex_fprec,     fprec_ocean, bd_map_ocean)
-  call get_exchange_grid (ex_runoff,   runoff_ocean, bd_map_ocean)
+  call get_exchange_grid (ex_flux_u ,  flux_u_ocean, bd_map_ocean_model_uv)
+  call get_exchange_grid (ex_flux_v ,  flux_v_ocean, bd_map_ocean_model_uv)
+  call get_exchange_grid (ex_flux_t ,  flux_t_ocean, bd_map_ocean_model)
+  call get_exchange_grid (ex_flux_q ,  flux_q_ocean, bd_map_ocean_model)
+  call get_exchange_grid (ex_flux_sw, flux_sw_ocean, bd_map_ocean_model)
+  call get_exchange_grid (ex_flux_lw, flux_lw_ocean, bd_map_ocean_model)
+  call get_exchange_grid (ex_lprec,     lprec_ocean, bd_map_ocean_model)
+  call get_exchange_grid (ex_fprec,     fprec_ocean, bd_map_ocean_model)
+  call get_exchange_grid (ex_runoff,   runoff_ocean, bd_map_ocean_model)
 
 !-----------------------------------------------------------------------
 
@@ -539,24 +544,16 @@ contains
 
 !#######################################################################
 
- subroutine flux_ocean_to_ice ( Ocean, Ice,                         &
-                                        t_surf_ice,     albedo_ice, &
-                                     rough_mom_ice, rough_heat_ice, &
-                                        u_surf_ice,     v_surf_ice, &
-                                        frazil_ice                  )
+ subroutine flux_ocean_to_ice ( Ocean, Ice, t_surf_ice, frazil_ice, &
+                                            u_surf_ice, v_surf_ice  )
 
   type (ocean_boundary_data_type), intent(in)  :: Ocean
   type (ice_boundary_data_type),   intent(in)  :: Ice
-  real, dimension(:,:,:), intent(out) :: t_surf_ice,     albedo_ice, &
-                                      rough_mom_ice, rough_heat_ice, &
-                                         u_surf_ice,     v_surf_ice, &
-                                         frazil_ice
+  real, dimension(:,:,:), intent(out) :: t_surf_ice,  frazil_ice, &
+                                         u_surf_ice,  v_surf_ice
 
-   real, dimension(ex_num_bot) :: ex_t_surf,    ex_albedo,     &
-                                  ex_rough_mom, ex_rough_heat, &
-                                  ex_frazil
-
-   real, dimension(ex_num_bot_uv) :: ex_u_surf,    ex_v_surf
+   real, dimension(ex_num_bot)    :: ex_t_surf, ex_frazil
+   real, dimension(ex_num_bot_uv) :: ex_u_surf, ex_v_surf
 
 !-----------------------------------------------------------------------
 !-----  put ocean grid fields onto exchange grid -----
@@ -566,21 +563,20 @@ contains
  call set_frac_area (Ice%part_size   , bd_map_ice_bot   )
  call set_frac_area (Ice%part_size_uv, bd_map_ice_bot_uv)
 
- call put_exchange_grid (Ocean%t_surf,    ex_t_surf,    bd_map_ocean)
- call put_exchange_grid (Ocean%albedo,    ex_albedo,    bd_map_ocean)
- call put_exchange_grid (Ocean%rough_mom, ex_rough_mom, bd_map_ocean)
- call put_exchange_grid (Ocean%rough_heat,ex_rough_heat,bd_map_ocean)
- call put_exchange_grid (Ocean%u_surf,    ex_u_surf,    bd_map_ocean_uv)
- call put_exchange_grid (Ocean%v_surf,    ex_v_surf,    bd_map_ocean_uv)
- call put_exchange_grid (Ocean%frazil,    ex_frazil,    bd_map_ocean)
+ call put_exchange_grid (Ocean%t_surf_data, ex_t_surf, bd_map_ocean_data)
+ ex_frazil = 0.0
+ ex_u_surf = 0.0
+ ex_v_surf = 0.0
 
- call get_exchange_grid (ex_t_surf,       t_surf_ice, bd_map_ice_bot)
- call get_exchange_grid (ex_albedo,       albedo_ice, bd_map_ice_bot)
- call get_exchange_grid (ex_rough_mom, rough_mom_ice, bd_map_ice_bot)
- call get_exchange_grid (ex_rough_heat,rough_heat_ice,bd_map_ice_bot)
- call get_exchange_grid (ex_u_surf,       u_surf_ice, bd_map_ice_bot_uv)
- call get_exchange_grid (ex_v_surf,       v_surf_ice, bd_map_ice_bot_uv)
- call get_exchange_grid (ex_frazil,       frazil_ice, bd_map_ice_bot)
+ call put_exchange_grid (Ocean%t_surf, ex_t_surf, bd_map_ocean_model)
+ call put_exchange_grid (Ocean%frazil, ex_frazil, bd_map_ocean_model)
+ call put_exchange_grid (Ocean%u_surf, ex_u_surf, bd_map_ocean_model_uv)
+ call put_exchange_grid (Ocean%v_surf, ex_v_surf, bd_map_ocean_model_uv)
+
+ call get_exchange_grid (ex_t_surf,    t_surf_ice, bd_map_ice_bot)
+ call get_exchange_grid (ex_frazil,    frazil_ice, bd_map_ice_bot)
+ call get_exchange_grid (ex_u_surf,    u_surf_ice, bd_map_ice_bot_uv)
+ call get_exchange_grid (ex_v_surf,    v_surf_ice, bd_map_ice_bot_uv)
 
 !-----------------------------------------------------------------------
 
@@ -590,7 +586,7 @@ contains
 
  subroutine flux_up_to_atmos ( Time, Land, Ice, dt_t_atm, dt_q_atm )
 
- type                (time_type), intent(in)  :: Time
+ type       (time_type), intent(in)  :: Time
  type  (land_boundary_data_type), intent(in)  :: Land
  type   (ice_boundary_data_type), intent(in)  :: Ice
  real, dimension(:,:),   intent(out) :: dt_t_atm, dt_q_atm
@@ -712,8 +708,10 @@ contains
 !--------- write version number and namelist ------------------
 
    unit = open_file ('logfile.out', action='append')
-   call print_version_number (unit, 'flux_exchange', vers_num)
-   if ( get_my_pe() == 0 ) write (unit, nml=flux_exchange_nml)
+   if ( get_my_pe() == 0 ) then
+        write (unit,'(/,80("="),/(a))') trim(version), trim(tag)
+        write (unit, nml=flux_exchange_nml)
+   endif
    call close_file (unit)
 
 !-----------------------------------------------------------------------
@@ -759,51 +757,77 @@ contains
 !---- exchange map between ocean and ice bottom -----
 !---- at mass (temperature) points ----
 
-   call init_boundary_map (bd_map_ice_bot, 1, ex_map_bot)
-   call init_boundary_map (bd_map_ocean  , 2, ex_map_bot)
+   call init_boundary_map (bd_map_ice_bot    , 1, ex_map_bot)
+   call init_boundary_map (bd_map_ocean_data , 2, ex_map_bot)
+   call init_boundary_map (bd_map_ocean_model, 2, ex_map_bot)
 
-   call lon_lat_size (  Ice%lon_bnd,     Ice%lat_bnd,  &
-                      Ocean%lon_bnd,   Ocean%lat_bnd,  &
-                      Ice%mask,        Ocean%mask,     &
-                         part_ice,        1,        bd_map_ice_bot)
+   call lon_lat_size (       Ice%lon_bnd,          Ice%lat_bnd,  &
+                      Ocean%Data%lon_bnd,   Ocean%Data%lat_bnd,  &
+                                Ice%mask,   Ocean%Data%mask,     &
+                       part_ice,        1,        bd_map_ice_bot )
 
-   call lon_lat_map (  Ice%lon_bnd,     Ice%lat_bnd,  &
-                     Ocean%lon_bnd,   Ocean%lat_bnd,  &
-                     Ice%mask,        Ocean%mask,     &
-                        part_ice,         1,          &
-                     bd_map_ice_bot,    bd_map_ocean  )
+   call lon_lat_size (        Ice%lon_bnd,         Ice%lat_bnd,  &
+                      Ocean%Model%lon_bnd, Ocean%Model%lat_bnd,  &
+                                Ice%mask,  Ocean%Model%mask,     &
+                       part_ice,        1,        bd_map_ice_bot )
+
+   call lon_lat_map (       Ice%lon_bnd,          Ice%lat_bnd,  &
+                     Ocean%Data%lon_bnd,   Ocean%Data%lat_bnd,  &
+                               Ice%mask,   Ocean%Data%mask,     &
+                     part_ice, 1,  bd_map_ice_bot, bd_map_ocean_data )
+
+   call lon_lat_map (        Ice%lon_bnd,          Ice%lat_bnd,  &
+                     Ocean%Model%lon_bnd,  Ocean%Model%lat_bnd,  &
+                               Ice%mask,   Ocean%Model%mask,     &
+                     part_ice, 1,  bd_map_ice_bot, bd_map_ocean_model )
 
    call complete_side1_boundary_map (bd_map_ice_bot)
 
-   call complete_side2_boundary_map (bd_map_ocean, &
-                     size(Ocean%mask,1), size(Ocean%mask,2), 1 )
+   call complete_side2_boundary_map (bd_map_ocean_data, &
+                  size(Ocean%Data%mask,1), size(Ocean%Data%mask,2), 1 )
+
+   call complete_side2_boundary_map (bd_map_ocean_model, &
+                  size(Ocean%Model%mask,1), size(Ocean%Model%mask,2), 1 )
 
 !---- at velocity points ----
 
-   call init_boundary_map (bd_map_ice_bot_uv, 1, ex_map_bot_uv)
-   call init_boundary_map (bd_map_ocean_uv  , 2, ex_map_bot_uv)
+   call init_boundary_map (bd_map_ice_bot_uv    , 1, ex_map_bot_uv)
+   call init_boundary_map (bd_map_ocean_data_uv , 2, ex_map_bot_uv)
+   call init_boundary_map (bd_map_ocean_model_uv, 2, ex_map_bot_uv)
 
-   call lon_lat_size (  Ice%lon_bnd_uv,     Ice%lat_bnd_uv,  &
-                      Ocean%lon_bnd_uv,   Ocean%lat_bnd_uv,  &
-                      Ice%mask_uv,        Ocean%mask_uv,     &
-                         part_ice,        1,        bd_map_ice_bot_uv)
+   call lon_lat_size (       Ice%lon_bnd_uv,         Ice%lat_bnd_uv,  &
+                      Ocean%Data%lon_bnd_uv,  Ocean%Data%lat_bnd_uv,  &
+                                Ice%mask_uv,  Ocean%Data%mask_uv,     &
+                         part_ice,        1,        bd_map_ice_bot_uv )
 
-   call lon_lat_map (  Ice%lon_bnd_uv,     Ice%lat_bnd_uv,  &
-                     Ocean%lon_bnd_uv,   Ocean%lat_bnd_uv,  &
-                     Ice%mask_uv,        Ocean%mask_uv,     &
-                        part_ice,         1,          &
-                     bd_map_ice_bot_uv,    bd_map_ocean_uv  )
+   call lon_lat_size (        Ice%lon_bnd_uv,         Ice%lat_bnd_uv,  &
+                      Ocean%Model%lon_bnd_uv, Ocean%Model%lat_bnd_uv,  &
+                                Ice%mask_uv,  Ocean%Model%mask_uv,     &
+                         part_ice,        1,        bd_map_ice_bot_uv )
+
+   call lon_lat_map (       Ice%lon_bnd_uv,          Ice%lat_bnd_uv,  &
+                     Ocean%Data%lon_bnd_uv,   Ocean%Data%lat_bnd_uv,  &
+                               Ice%mask_uv,   Ocean%Data%mask_uv,     &
+                     part_ice, 1,  bd_map_ice_bot_uv, bd_map_ocean_data_uv )
+
+   call lon_lat_map (        Ice%lon_bnd_uv,          Ice%lat_bnd_uv,  &
+                     Ocean%Model%lon_bnd_uv,  Ocean%Model%lat_bnd_uv,  &
+                               Ice%mask_uv,   Ocean%Model%mask_uv,     &
+                     part_ice, 1,  bd_map_ice_bot_uv, bd_map_ocean_model_uv )
 
    call complete_side1_boundary_map (bd_map_ice_bot_uv)
 
-   call complete_side2_boundary_map (bd_map_ocean_uv, &
-                     size(Ocean%mask_uv,1), size(Ocean%mask_uv,2), 1 )
+   call complete_side2_boundary_map (bd_map_ocean_data_uv, &
+          size(Ocean%Data%mask_uv,1), size(Ocean%Data%mask_uv,2), 1 )
+
+   call complete_side2_boundary_map (bd_map_ocean_model_uv, &
+          size(Ocean%Model%mask_uv,1), size(Ocean%Model%mask_uv,2), 1 )
 
 !-----------------------------------------------------------------------
 
    ex_num_top    = get_exchange_grid_size (bd_map_atm)
-   ex_num_bot    = get_exchange_grid_size (bd_map_ocean)
-   ex_num_bot_uv = get_exchange_grid_size (bd_map_ocean_uv)
+   ex_num_bot    = get_exchange_grid_size (bd_map_ocean_data)
+   ex_num_bot_uv = get_exchange_grid_size (bd_map_ocean_data_uv)
 
 !-----------------------------------------------------------------------
 !----- initialize quantities for global integral package -----

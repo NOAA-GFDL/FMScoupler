@@ -25,8 +25,9 @@ use  atmos_coupled_mod, only: atmos_coupled_init, atmos_coupled_end, &
                               atmos_boundary_data_type
 
 use   land_model_mod, only: land_model_init, land_model_end, &
-                            update_land_model,               &
-                            land_boundary_data_type => land_data_type
+                            update_land_model_fast,          &
+                            update_land_model_slow,          &
+                            land_boundary_data_type
 
 use  ice_coupled_mod, only: ice_coupled_init, ice_coupled_end, &
                             ice_bottom_to_ice_top,             &
@@ -36,8 +37,7 @@ use  ice_coupled_mod, only: ice_coupled_init, ice_coupled_end, &
 
 use  utilities_mod, only: open_file, file_exist, check_nml_error,  &
                           error_mesg, FATAL, WARNING,              &
-                          print_version_number, get_my_pe,         &
-                          utilities_init, utilities_end,           &
+                          get_my_pe, utilities_init, utilities_end,&
                           close_file, check_system_clock
 
 use flux_exchange_mod, only: flux_exchange_init,   &
@@ -55,7 +55,8 @@ implicit none
 
 !-----------------------------------------------------------------------
 
- character(len=4), parameter :: vers_num = 'v2.0'
+character(len=128) :: version = '$Id: coupler_main.F90,v 1.2 2000/07/28 20:17:08 fms Exp $'
+character(len=128) :: tag = '$Name: bombay $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -86,9 +87,8 @@ implicit none
  real, allocatable, dimension(:,:,:) ::                                &
     flux_t_ice , flux_q_ice , flux_lw_ice, flux_sw_ice ,               &
     dhdt_ice   , dedt_ice   , drdt_ice   , lprec_ice   , fprec_ice   , &
-    t_surf_ice , albedo_ice , rough_mom_ice,   rough_heat_ice ,        &
-    u_surf_ice , v_surf_ice , flux_u_ice,  flux_v_ice, runoff_ice,     &
-    frazil_ice
+    t_surf_ice , frazil_ice , runoff_ice , coszen_ice  ,               &
+    u_surf_ice , v_surf_ice , flux_u_ice , flux_v_ice
 
 !-----------------------------------------------------------------------
 ! ----- coupled model time -----
@@ -128,15 +128,11 @@ implicit none
  do no = 1, num_ocean_calls
 
 
-    call flux_ocean_to_ice (Ocean, Ice,   t_surf_ice,     albedo_ice, &
-                                       rough_mom_ice, rough_heat_ice, &
-                                          u_surf_ice,     v_surf_ice, &
-                                          frazil_ice                  )
+    call flux_ocean_to_ice (Ocean, Ice,  t_surf_ice,  frazil_ice, &
+                                         u_surf_ice,  v_surf_ice  )
 
-    call ice_bottom_to_ice_top (Ice, t_surf_ice,     albedo_ice, &
-                                  rough_mom_ice, rough_heat_ice, &
-                                     u_surf_ice,     v_surf_ice, &
-                                     frazil_ice                  )
+    call ice_bottom_to_ice_top (Ice,  t_surf_ice,  frazil_ice, &
+                                      u_surf_ice,  v_surf_ice  )
 
 !-----------------------------------------------------------------------
 !   ------ atmos/fast-land/fast-ice integration loop -------
@@ -169,24 +165,25 @@ implicit none
                                   flux_lw_ice, flux_sw_ice,          &
                                   dhdt_ice, dedt_ice, drdt_ice,      &
                                   lprec_ice ,  fprec_ice,            &
-                                  flux_u_ice,  flux_v_ice            )
+                                  flux_u_ice,  flux_v_ice,           &
+                                  coszen_ice                         )
 
 !      --------------------------------------------------------------
 
 !      ---- land model ----
 
-       call update_land_model (Land, flux_sw_land, flux_lw_land,    &
-                               flux_t_land,  flux_q_land,           &
-                               dhdt_land,   dedt_land,   drdt_land, &
-                               lprec_land, fprec_land               )
+       call update_land_model_fast (Land, flux_sw_land, flux_lw_land, &
+                                    flux_t_land,  flux_q_land,        &
+                                    dhdt_land,  dedt_land,  drdt_land,&
+                                    lprec_land, fprec_land            )
 
 !      ---- ice model ----
 
-       call update_ice_coupled_fast (Ice, flux_u_ice,  flux_v_ice,   &
-                                        flux_sw_ice, flux_lw_ice,    &
-                                        flux_t_ice,  flux_q_ice,     &
-                                  dhdt_ice,   dedt_ice,   drdt_ice,  &
-                                  lprec_ice , fprec_ice              )
+       call update_ice_coupled_fast (Ice, flux_u_ice,  flux_v_ice,    &
+                                        flux_sw_ice, flux_lw_ice,     &
+                                        flux_t_ice,  flux_q_ice,      &
+                                  dhdt_ice,   dedt_ice,   drdt_ice,   &
+                                  lprec_ice , fprec_ice,  coszen_ice  )
 
 !      --------------------------------------------------------------
 !      ---- atmosphere up ----
@@ -205,6 +202,9 @@ implicit none
 
 !   -------- slow-land model and flux routine --------
 !     to put runoff on ice grid would be called here
+
+!!! call update_land_model_slow (Land)
+!!! call flux_land_to_ice       (Land, runoff_ice)
 
     runoff_ice = 0.0
 
@@ -252,7 +252,7 @@ contains
 !   initialize all defined exchange grids and all boundary maps
 !-----------------------------------------------------------------------
     integer :: total_days, total_seconds, unit, log_unit,  &
-               ierr, io, id, jd, kd
+               ierr, io, id, jd, kd, n
     integer :: date(6)
     type (time_type) :: Run_length
     character(len=9) :: month
@@ -270,8 +270,10 @@ contains
 !----- write namelist to logfile (close log_unit later) -----
 
    log_unit = open_file ('logfile.out', action='append')
-   call print_version_number (log_unit, 'coupler_main', vers_num)
-   if ( get_my_pe() == 0 ) write (log_unit, nml=coupler_nml)
+   if ( get_my_pe() == 0 ) then
+        write (log_unit,'(/,80("="),/(a))') trim(version), trim(tag)
+        write (log_unit, nml=coupler_nml)
+   endif
 
 !----- read restart file -----
 
@@ -352,12 +354,26 @@ contains
     Time      = set_date (date(1), date(2), date(3),  &
                           date(4), date(5), date(6))
 
-!----- compute the ending time -----
+!-----------------------------------------------------------------------
+!----- compute the ending time (compute days in each month first) -----
+!
+!   (NOTE: if run length in months then starting day must be <= 28)
 
-      total_days    = days_in_month(Time)*months + days
-      total_seconds = hours*3600 + minutes*60 + seconds
-      Run_length    = set_time (total_seconds,total_days)
-      Time_end      = Time + Run_length
+    if ( months > 0 .and. date(3) > 28 )     &
+        call error_mesg ('program coupler',  &
+       'if run length in months then starting day must be <= 28', FATAL)
+
+    Time_end = Time
+    total_days = 0
+    do n = 1, months
+       total_days = total_days + days_in_month(Time_end)
+       Time_end = Time + set_time (0,total_days)
+    enddo
+
+    total_days    = total_days + days
+    total_seconds = hours*3600 + minutes*60 + seconds
+    Run_length    = set_time (total_seconds,total_days)
+    Time_end      = Time + Run_length
 
 !-----------------------------------------------------------------------
 !----- write time stamps (for start time and end time) ------
@@ -423,16 +439,18 @@ contains
 
 !---- initialize land model (use opposite of ocean grid) ------
 
-      call  land_model_init (Land, Time_init, Time, Time_step_atmos,  &
-                             Ocean%glon_bnd, Ocean%glat_bnd,          &
-                             .not. Ocean%gmask )
+      call land_model_init (Land, Time_init, Time,              &
+                            Time_step_atmos, Time_step_ocean,   &
+                            Ocean%Global%lon_bnd, Ocean%Global%lat_bnd,&
+                            .not. Ocean%Global%mask )
 
 !---- initialize ice model (use ocean grid) -----
 
       call  ice_coupled_init (Ice,   &
                   Time_init, Time, Time_step_atmos, Time_step_ocean,   &
-                  Ocean%glon_bnd   , Ocean%glat_bnd   , Ocean%gmask,   &
-                  Ocean%glon_bnd_uv, Ocean%glat_bnd_uv, Ocean%gmask_uv )
+                  Ocean%Global%lon_bnd   , Ocean%Global%lat_bnd   ,    &
+                  Ocean%Global%mask      , Ocean%Global%lon_bnd_uv,    &
+                  Ocean%Global%lat_bnd_uv, Ocean%Global%mask_uv        )
 
 !-----------------------------------------------------------------------
 !---- setup allocatable storage for fluxes exchanged between models ----
@@ -447,8 +465,8 @@ contains
                 u_star_atm (id,jd),  b_star_atm (id,jd), &
              rough_mom_atm (id,jd)                       )
 
-   id = size(Ocean%lon_bnd)-1
-   jd = size(Ocean%lat_bnd)-1
+   id = size(Ocean%Data%lon_bnd)-1
+   jd = size(Ocean%Data%lat_bnd)-1
    allocate  (  flux_u_ocean (id,jd),  flux_v_ocean (id,jd), &
                 flux_t_ocean (id,jd),  flux_q_ocean (id,jd), &
                flux_sw_ocean (id,jd), flux_lw_ocean (id,jd), &
@@ -472,8 +490,7 @@ contains
                                               drdt_ice (id,jd,kd), &
                flux_sw_ice (id,jd,kd),     flux_lw_ice (id,jd,kd), &
                  lprec_ice (id,jd,kd),       fprec_ice (id,jd,kd), &
-                t_surf_ice (id,jd,kd),      albedo_ice (id,jd,kd), &
-             rough_mom_ice (id,jd,kd),  rough_heat_ice (id,jd,kd), &
+                t_surf_ice (id,jd,kd),      coszen_ice (id,jd,kd), &
                 u_surf_ice (id,jd,kd),      v_surf_ice (id,jd,kd), &
                 flux_u_ice (id,jd,kd),      flux_v_ice (id,jd,kd), &
                 runoff_ice (id,jd,kd),      frazil_ice (id,jd,kd)  )
