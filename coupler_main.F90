@@ -7,9 +7,9 @@ program coupler_main
   use time_manager_mod, only: time_type, set_calendar_type, set_time,  &
                               set_date, get_date, days_in_month, month_name,  &
                               operator(+), operator(-), operator (<), &
-                              operator (>), operator (/=), operator (/), &
+                              operator (>), operator ( /= ), operator ( / ), &
                               operator (*), thirty_day_months, julian, &
-                              no_leap, no_calendar
+                              NOLEAP, no_calendar
 
   use  utilities_mod, only: open_file, file_exist, check_nml_error,  &
                             error_mesg, FATAL, WARNING,              &
@@ -25,10 +25,10 @@ program coupler_main
   use  atmos_model_mod, only: atmos_model_init, atmos_model_end, &
                               update_atmos_model_down,           &
                               update_atmos_model_up,             &
-                              atmos_boundary_data_type, &
+                              atmos_data_type, &
                               land_ice_atmos_boundary_type
   use   land_model_mod, only: land_model_init, land_model_end, &
-                              land_boundary_data_type, atmos_land_boundary_type, &
+                              land_data_type, atmos_land_boundary_type, &
                               update_land_model_fast, update_land_model_slow
 
   use    ice_model_mod, only: ice_model_init, ice_model_end,  &
@@ -52,22 +52,23 @@ program coupler_main
                                flux_ice_to_ocean,    &
                                flux_ocean_to_ice
   use mpp_mod, only: mpp_clock_id, mpp_clock_begin, mpp_clock_end, MPP_CLOCK_SYNC, MPP_CLOCK_DETAILED
+  use mpp_mod, only: mpp_pe, mpp_npes, mpp_root_pe, stderr, mpp_set_current_pelist, mpp_declare_pelist, mpp_error
+  use mpp_domains_mod, only: mpp_broadcast_domain
 
   implicit none
 
 !-----------------------------------------------------------------------
 
-  character(len=4), parameter :: vers_num = 'v2.0'
-  character(len=128) :: version = '$Id: coupler_main.F90,v 1.5 2002/02/22 19:07:15 fms Exp $'
-  character(len=128) :: tag = '$Name: galway $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 1.6 2002/07/16 22:47:16 fms Exp $'
+  character(len=128) :: tag = '$Name: havana $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
 
-  type (atmos_boundary_data_type) :: Atm
-  type  (land_boundary_data_type) :: Land
-  type   (ice_data_type)          :: Ice
-  type (ocean_data_type)          :: Ocean
+  type (atmos_data_type) :: Atm
+  type  (land_data_type) :: Land
+  type   (ice_data_type) :: Ice
+  type (ocean_data_type) :: Ocean
 
   type(atmos_land_boundary_type)     :: Atmos_land_boundary
   type(atmos_ice_boundary_type)      :: Atmos_ice_boundary
@@ -81,6 +82,7 @@ program coupler_main
 
   type (time_type) :: Time, Time_init, Time_end, Time_step_ocean, &
                       Time_step_atmos, Time_step_cpld
+  type(time_type) :: Time_atmos, Time_ocean
   integer :: num_ocean_calls, num_atmos_calls, no, na
   integer :: num_cpld_calls, nc
 
@@ -102,10 +104,12 @@ program coupler_main
   integer :: dt_cpld  = 0  ! fluxes passed between ice & ocean
   integer,dimension (3)           :: locmax, locmin
 
+  integer :: atmos_pe_start=0, atmos_pe_end=0, ocean_pe_start=0, ocean_pe_end=0
   namelist /coupler_nml/ current_date, calendar, override,       &
        months, days, hours, minutes, seconds,  &
-       dt_cpld, dt_atmos, dt_ocean
-  integer :: atmclock, ocnclock, iceclock, landclock, fluxclock, icefluxclock, fluxclockdn, fluxclockup
+       dt_cpld, dt_atmos, dt_ocean, &
+       atmos_pe_start, atmos_pe_end, ocean_pe_start, ocean_pe_end
+  integer :: atmclock, ocnclock, iceclock, landclock, fluxclock, icefluxclock, landicefluxclock, fluxclockdn, fluxclockup
 
 !#######################################################################
 
@@ -118,7 +122,8 @@ program coupler_main
   iceclock     = mpp_clock_id( 'Ice',             flags=MPP_CLOCK_SYNC )
   landclock    = mpp_clock_id( 'Land',            flags=MPP_CLOCK_SYNC )
   fluxclock    = mpp_clock_id( 'Surface BL',      flags=MPP_CLOCK_SYNC )
-  icefluxclock = mpp_clock_id( 'Ice flux',        flags=MPP_CLOCK_SYNC )
+  icefluxclock = mpp_clock_id( 'Ice ocean flux',        flags=MPP_CLOCK_SYNC )
+  landicefluxclock = mpp_clock_id( 'Ice land flux',        flags=MPP_CLOCK_SYNC )
   fluxclockdn  = mpp_clock_id( 'Atmos flux down', flags=MPP_CLOCK_SYNC )
   fluxclockup  = mpp_clock_id( 'Atmos flux up',   flags=MPP_CLOCK_SYNC )
 
@@ -128,7 +133,11 @@ program coupler_main
 
   do nc = 1, num_cpld_calls
 
-     call generate_sfc_xgrid( Land, Ice )
+     if( Atm%pe )then
+         call mpp_set_current_pelist(Atm%pelist)
+         call generate_sfc_xgrid( Land, Ice )
+     end if
+     call mpp_set_current_pelist()
      call mpp_clock_begin(icefluxclock)
      call flux_ocean_to_ice( Ocean, Ice, Ocean_ice_boundary )
      call mpp_clock_end(icefluxclock)
@@ -137,115 +146,119 @@ program coupler_main
 !     call flux_ice_to_ocean( Ice, Ocean, Ice_ocean_boundary )
 !     call mpp_clock_end(icefluxclock)
 
-     call mpp_clock_begin(iceclock)
-     call update_ice_model_slow_up( Ocean_ice_boundary, Ice )
-     call mpp_clock_end(iceclock)
+     if( Atm%pe )then
+         call mpp_set_current_pelist(Atm%pelist)
+         call mpp_clock_begin(iceclock)
+         call update_ice_model_slow_up( Ocean_ice_boundary, Ice )
+         call mpp_clock_end(iceclock)
 
 !-----------------------------------------------------------------------
 !   ------ atmos/fast-land/fast-ice integration loop -------
 
 
-     do na = 1, num_atmos_calls
+         do na = 1, num_atmos_calls
 
-        Time = Time + Time_step_atmos
+!            if( mpp_pe().EQ.mpp_root_pe() )write( stderr(),'(a,2i3)' )'nc,nc=', nc,na
+            Time_atmos = Time_atmos + Time_step_atmos
 
-        call mpp_clock_begin(fluxclock)
-        call sfc_boundary_layer( REAL(dt_atmos), Time, Atm, Land, Ice, &
-                                 Land_ice_atmos_boundary )
-        call mpp_clock_end(fluxclock)
+            call mpp_clock_begin(fluxclock)
+            call sfc_boundary_layer( REAL(dt_atmos), Time_atmos, Atm, Land, Ice, &
+                 Land_ice_atmos_boundary )
+            call mpp_clock_end(fluxclock)
 
 !      ---- atmosphere down ----
 
-        call mpp_clock_begin(atmclock)
-        call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
-        call mpp_clock_end(atmclock)
+            call mpp_clock_begin(atmclock)
+            call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
+            call mpp_clock_end(atmclock)
 
-        call mpp_clock_begin(fluxclockdn)
-        call flux_down_from_atmos( Time, Atm, Land, Ice, &
-                                   Land_ice_atmos_boundary, &
-                                   Atmos_land_boundary, &
-                                   Atmos_ice_boundary )
-        call mpp_clock_end(fluxclockdn)
+            call mpp_clock_begin(fluxclockdn)
+            call flux_down_from_atmos( Time_atmos, Atm, Land, Ice, &
+                 Land_ice_atmos_boundary, &
+                 Atmos_land_boundary, &
+                 Atmos_ice_boundary )
+            call mpp_clock_end(fluxclockdn)
 
 
 !      --------------------------------------------------------------
 
 !      ---- land model ----
 
-        call mpp_clock_begin(landclock)
-        call update_land_model_fast( Atmos_land_boundary, Land )
-        call mpp_clock_end(landclock)
+            call mpp_clock_begin(landclock)
+            call update_land_model_fast( Atmos_land_boundary, Land )
+            call mpp_clock_end(landclock)
 
 !      ---- ice model ----
 
 
-        call mpp_clock_begin(iceclock)
-        call update_ice_model_fast( Atmos_ice_boundary, Ice )
-        call mpp_clock_end(iceclock)
+            call mpp_clock_begin(iceclock)
+            call update_ice_model_fast( Atmos_ice_boundary, Ice )
+            call mpp_clock_end(iceclock)
 
 !      --------------------------------------------------------------
 !      ---- atmosphere up ----
 
-        call mpp_clock_begin(fluxclockup)
-        call flux_up_to_atmos( Time, Land, Ice, Land_ice_atmos_boundary )
-        call mpp_clock_end(fluxclockup)
+            call mpp_clock_begin(fluxclockup)
+            call flux_up_to_atmos( Time_atmos, Land, Ice, Land_ice_atmos_boundary )
+            call mpp_clock_end(fluxclockup)
 
-        call mpp_clock_begin(atmclock)
-        call update_atmos_model_up( Land_ice_atmos_boundary, Atm )
-        call mpp_clock_end(atmclock)
+            call mpp_clock_begin(atmclock)
+            call update_atmos_model_up( Land_ice_atmos_boundary, Atm )
+            call mpp_clock_end(atmclock)
 
 !--------------
 
-     enddo
+         enddo
 
 !   ------ end of atmospheric time step loop -----
-     call mpp_clock_begin(landclock)
-     call update_land_model_slow(Land)
-     call mpp_clock_end(landclock)
+         call mpp_clock_begin(landclock)
+         call update_land_model_slow(Land)
+         call mpp_clock_end(landclock)
 !-----------------------------------------------------------------------
 
 !
 !     need flux call to put runoff and p_surf on ice grid
 !
-     call mpp_clock_begin(icefluxclock)
-     call flux_land_to_ice( Land, Ice, Land_ice_boundary )
+         call mpp_clock_begin(landicefluxclock)
+         call flux_land_to_ice( Land, Ice, Land_ice_boundary )
 
-     Atmos_ice_boundary%p = 0.0 ! call flux_atmos_to_ice_slow ?
-     call mpp_clock_end(icefluxclock)
+         Atmos_ice_boundary%p = 0.0 ! call flux_atmos_to_ice_slow ?
+         call mpp_clock_end(landicefluxclock)
 
 !   ------ slow-ice model ------
 
-     call mpp_clock_begin(iceclock)
-     call update_ice_model_slow_dn( Atmos_ice_boundary, Land_ice_boundary, Ice )
-     call mpp_clock_end(iceclock)
+         call mpp_clock_begin(iceclock)
+         call update_ice_model_slow_dn( Atmos_ice_boundary, Land_ice_boundary, Ice )
+         call mpp_clock_end(iceclock)
+         Time = Time_atmos
+     end if                     !Atm%pe block
+     call mpp_set_current_pelist()
 
      call mpp_clock_begin(icefluxclock)
      call flux_ice_to_ocean( Ice, Ocean, Ice_ocean_boundary )
      call mpp_clock_end(icefluxclock)
 
-     do no = 1,num_ocean_calls
+     if( Ocean%pe )then
+         call mpp_set_current_pelist(Ocean%pelist)
+         do no = 1,num_ocean_calls
+            Time_ocean = Time_ocean + Time_step_ocean
 
-        ocean_seg_start = ( no .eq. 1 )               ! could eliminate these by
-        ocean_seg_end   = ( no .eq. num_ocean_calls ) ! putting this loop in
-                                                      ! update_ocean_model since
-                                                      ! fluxes don't change here
+            ocean_seg_start = ( no .eq. 1 )               ! could eliminate these by
+            ocean_seg_end   = ( no .eq. num_ocean_calls ) ! putting this loop in
+                                                          ! update_ocean_model since
+                                                          ! fluxes don't change here
 
-        call mpp_clock_begin(ocnclock)
-        call update_ocean_model( Ice_ocean_boundary, Ocean, &
-                                 ocean_seg_start, ocean_seg_end, num_ocean_calls)
-        call mpp_clock_end(ocnclock)
+            call mpp_clock_begin(ocnclock)
+            call update_ocean_model( Ice_ocean_boundary, Ocean, &
+                 ocean_seg_start, ocean_seg_end, num_ocean_calls)
+            call mpp_clock_end(ocnclock)
 
-     enddo
-!--------------
-
-
-
-
+         enddo
 !   ------ end of ocean time step loop -----
 !-----------------------------------------------------------------------
-
+         Time = Time_ocean
+     end if
 !--------------
-
   enddo
 
 !-----------------------------------------------------------------------
@@ -272,6 +285,7 @@ contains
     type (time_type) :: Run_length
     character(len=9) :: month
     logical :: use_namelist
+    integer :: pe, npes
 !-----------------------------------------------------------------------
 !----- read namelist -------
 
@@ -320,8 +334,8 @@ contains
 
         if (calendar(1:6) == 'julian') then
             calendar_type = julian
-        else if (calendar(1:7) == 'no_leap') then
-            calendar_type = no_leap
+        else if (calendar(1:6) == 'NOLEAP') then
+            calendar_type = NOLEAP
         else if (calendar(1:10) == 'thirty_day') then
             calendar_type = thirty_day_months
         else if (calendar(1:11) == 'no_calendar') then
@@ -437,17 +451,41 @@ contains
 !------ initialize component models ------
 !------ grid info now comes from grid_spec file
 
+!pe information
+    pe = mpp_pe()
+    npes = mpp_npes()
+    if( atmos_pe_end.EQ.0 )atmos_pe_end = npes-1
+    if( ocean_pe_end.EQ.0 )ocean_pe_end = npes-1
+!    if( pe.EQ.mpp_root_pe() )write( stderr(),* ) &
+!         'atmos_pe_start, atmos_pe_end, ocean_pe_start, ocean_pe_end=', &
+!          atmos_pe_start, atmos_pe_end, ocean_pe_start, ocean_pe_end
+    Atm%pe = atmos_pe_start.LE.pe .AND. pe.LE.atmos_pe_end
+    Ocean%pe = ocean_pe_start.LE.pe .AND. pe.LE.ocean_pe_end
+    allocate( Atm%pelist(atmos_pe_end-atmos_pe_start+1) )
+    allocate( Ocean%pelist(ocean_pe_end-ocean_pe_start+1) )
+    Atm%pelist = (/(i,i=atmos_pe_start,atmos_pe_end)/)
+    Ocean%pelist = (/(i,i=ocean_pe_start,ocean_pe_end)/)
+    call mpp_declare_pelist( Atm%pelist )
+    call mpp_declare_pelist( Ocean%pelist )
+    if( Atm%pe )then
+        call mpp_set_current_pelist(Atm%pelist)
 !---- atmosphere ----
-    call atmos_model_init( Atm, Time_init, Time, Time_step_atmos )
+        call atmos_model_init( Atm, Time_init, Time, Time_step_atmos )
 
 !---- land ----------
-    call land_model_init( Land, Time_init, Time, Time_step_atmos, Time_step_cpld )
+        call land_model_init( Land, Time_init, Time, Time_step_atmos, Time_step_cpld )
 
 !---- ice -----------
-    call ice_model_init( Ice, Time_init, Time, Time_step_atmos, Time_step_cpld )
-         
+        call ice_model_init( Ice, Time_init, Time, Time_step_atmos, Time_step_cpld )
+    end if
+    if( Ocean%pe )then
+        call mpp_set_current_pelist(Ocean%pelist)
 !---- ocean ---------
-    call ocean_model_init( Ocean, Time_init, Time, Time_step_ocean )
+        call ocean_model_init( Ocean, Time_init, Time, Time_step_ocean )
+    end if
+    call mpp_set_current_pelist()
+    call mpp_broadcast_domain(Ice%domain)
+    call mpp_broadcast_domain(Ocean%domain)
 !-----------------------------------------------------------------------
 !---- initialize flux exchange module ----
 
@@ -455,6 +493,8 @@ contains
          atmos_land_boundary, atmos_ice_boundary, land_ice_atmos_boundary, &
          land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary )
 
+    Time_atmos = Time
+    Time_ocean = Time
 !-----------------------------------------------------------------------
 !---- open and close output restart to make sure directory is there ----
 
@@ -473,10 +513,17 @@ contains
     integer :: unit, date(6)
 !-----------------------------------------------------------------------
 
-    call atmos_model_end (Atm)
-    call ocean_model_end (Ocean)
-    call  land_model_end (Land)
-    call   ice_model_end (Ice)
+    if( Atm%pe )then
+        call mpp_set_current_pelist(Atm%pelist)
+        call atmos_model_end (Atm)
+        call  land_model_end (Land)
+        call   ice_model_end (Ice)
+    end if
+    if( Ocean%pe )then
+        call mpp_set_current_pelist(Ocean%pelist)
+        call ocean_model_end (Ocean)
+    end if
+    call mpp_set_current_pelist()
 
 !----- compute current date ------
 

@@ -27,7 +27,7 @@
      <b>Contact:</b> &nbsp;  Bruce Wyman, V. Balaji <br>
      <b>Reviewers:</b>&nbsp; <br>
      <b>Change History:&nbsp; </b><a HREF="http://www.gfdl.noaa.gov/fms-cgi-bin/cvsweb.cgi/FMS/coupler/coupler_main.f90">WebCVS Log</a> <br>
-     <b>Last Modified:</b>&nbsp; $Date: 2002/02/22 19:12:56 $
+     <b>Last Modified:</b>&nbsp; $Date: 2002/07/16 22:47:19 $
 </div><br>
 <!-- END HEADER -->
 <!-------------------------------------------------------------------->
@@ -186,7 +186,7 @@ flux_exchange_mod
   <dt><tt>calendar</tt></dt>      
   <dd>The calendar type used by the current integration.
                 Valid values are consistent with the time_manager
-                module: 'julian', 'no_leap', or 'thirty_day'.
+                module: 'julian', 'noleap', or 'thirty_day'.
                 The value 'no_calendar' can not be used because
                 the time_manager's date function are used.
                 All values must be lowercase.<br>
@@ -286,7 +286,7 @@ None.
     <br><br>
 
     <dt><b>invalid namelist value for calendar</b></dt>
-    <dd>The value of calendar must be 'julian', 'no_leap', or 'thirty_day'.
+    <dd>The value of calendar must be 'julian', 'noleap', or 'thirty_day'.
         See the namelist documentation.</dd>
     <br><br>
 
