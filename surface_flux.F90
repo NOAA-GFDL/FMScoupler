@@ -192,8 +192,8 @@ end interface
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 10.0 2003/10/24 22:01:04 fms Exp $'
-character(len=*), parameter :: tagname = '$Name: jakarta $'
+character(len=*), parameter :: version = '$Id: surface_flux.F90,v 11.0 2004/09/28 19:36:57 fms Exp $'
+character(len=*), parameter :: tagname = '$Name: khartoum $'
    
 logical :: do_init = .true.
 
@@ -339,7 +339,7 @@ subroutine surface_flux_1d (                                           &
   real, parameter:: del_temp=0.1, del_temp_inv=1.0/del_temp
 
   ! ---- local vars ----------------------------------------------------------
-  real, dimension(size(t_atm)) ::                          &
+  real, dimension(size(t_atm(:))) ::                          &
        thv_atm,  th_atm,   tv_atm,    thv_surf,            &
        e_sat,    e_sat1,   q_sat,     q_sat1,    p_ratio,  &
        t_surf0,  t_surf1,  u_dif,     v_dif,               &
@@ -690,7 +690,7 @@ real   , intent(inout), dimension(:) :: cd, ch, ce, ustar, bstar
   integer               i, j
 
 
-  do i=1,size(u_del)
+  do i=1,size(u_del(:))
     if (avail(i)) then
       tv = t(i)*(1+0.608*q(i));
       u = max(u_del(i), 0.5);                                 ! 0.5 m/s floor on wind (undocumented NCAR)

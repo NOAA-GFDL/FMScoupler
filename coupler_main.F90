@@ -192,8 +192,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 10.0 2003/10/24 22:01:03 fms Exp $'
-  character(len=128) :: tag = '$Name: jakarta $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 11.0 2004/09/28 19:36:47 fms Exp $'
+  character(len=128) :: tag = '$Name: khartoum $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -430,7 +430,7 @@ program coupler_main
          enddo
 
 !   ------ end of atmospheric time step loop -----
-         if (do_land) call update_land_model_slow(Land)
+         if (do_land) call update_land_model_slow(Atmos_land_boundary,Land)
 !-----------------------------------------------------------------------
 
 !
@@ -778,13 +778,13 @@ contains
 
     if ( num_atmos_calls * Time_step_atmos /= Time_step_cpld )  &
          call error_mesg ('program coupler',   &
-         'atmos time step is not a multiple of the cpld time step', 2)
+         'atmos time step is not a multiple of the cpld time step', FATAL)
 
 ! ---- make sure cpld time step is a multiple of ocean time step ----
 
     if ( num_ocean_calls * Time_step_ocean /= Time_step_cpld )  &
          call error_mesg ('program coupler',   &
-         'cpld time step is not a multiple of the ocean time step', 2)
+         'cpld time step is not a multiple of the ocean time step', FATAL)
 
 !-----------------------------------------------------------------------
 !------ initialize component models ------
@@ -797,7 +797,8 @@ contains
         call print_memuse_stats( 'atmos_model_init' )
 
 !---- land ----------
-        call land_model_init( Land, Time_init, Time, Time_step_atmos, Time_step_cpld )
+        call land_model_init( Atmos_land_boundary, Land, Time_init, Time, &
+             Time_step_atmos, Time_step_cpld )
         call print_memuse_stats( 'land_model_init' )
 
 !---- ice -----------
@@ -819,7 +820,7 @@ contains
 !-----------------------------------------------------------------------
 !---- initialize flux exchange module ----
     call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
-         atmos_land_boundary, atmos_ice_boundary, land_ice_atmos_boundary, &
+         atmos_ice_boundary, land_ice_atmos_boundary, &
          land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary )
 
     Time_atmos = Time
@@ -887,7 +888,7 @@ contains
     if( Atm%pe )then
         call mpp_set_current_pelist(Atm%pelist)
         call atmos_model_end (Atm)
-        call  land_model_end (Land)
+        call  land_model_end (Atmos_land_boundary, Land)
         call   ice_model_end (Ice)
     end if
     call fms_io_exit

@@ -1,399 +1,424 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <html>
 <head>
-   <title>program coupler_main</title>
-   <link rel="stylesheet" href="http://www.gfdl.noaa.gov/~fms/style/doc.css" 
-                          type="text/css">
-   <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-
+<META http-equiv="Content-Type" content="text/html; charset=EUC-JP">
+<title>Program coupler_main</title>
+<link type="text/css" href="http://www.gfdl.noaa.gov/~fms/style/doc.css" rel="stylesheet">
+<STYLE TYPE="text/css">
+          .fixed {
+            font-size:medium;
+            font-family:monospace;
+            border-style:none;
+            border-width:0.1em;
+            padding:0.1em;
+            color:#663366;
+          }
+        </STYLE>
 </head>
 <body>
-<font size=1 class="header">
-<a href="#PUBLIC INTERFACE">PUBLIC INTERFACE </a>~
-<a href="#PUBLIC DATA">PUBLIC DATA </a>~
-<a href="#PUBLIC ROUTINES">PUBLIC ROUTINES </a>~
-<a href="#NAMELIST">NAMELIST </a>~
-<a href="#DIAGNOSTIC FIELDS">DIAGNOSTIC FIELDS</a>~
-<a href="#ERROR MESSAGES">ERROR MESSAGES </a>~
-<a href="#REFERENCES">REFERENCES</a>~
-<a href="#NOTES">NOTES </a>
-</font><hr>
-
-
-<h2>program coupler_main</h2>
+<a name="TOP"></a><font class="header" size="1"><a href="#PUBLIC%20INTERFACE">PUBLIC INTERFACE </a>~
+          <a href="#PUBLIC%20DATA">PUBLIC DATA </a>~
+          <a href="#PUBLIC%20ROUTINES">PUBLIC ROUTINES </a>~
+          <a href="#NAMELIST">NAMELIST </a>~
+          <a href="#DIAGNOSTIC%20FIELDS">DIAGNOSTIC FIELDS </a>~
+          <a href="#ERROR%20MESSAGES">ERROR MESSAGES </a>~
+          <a href="#REFERENCES">REFERENCES </a>~ 
+          <a href="#NOTES">NOTES</a></font>
+<hr>
+<h2>Program coupler_main</h2>
 <a name="HEADER"></a>
 <!-- BEGIN HEADER -->
 <div>
-     <b>Contact:</b> &nbsp;  Bruce Wyman, V. Balaji <br>
-     <b>Reviewers:</b>&nbsp; <br>
-     <b>Change History:&nbsp; </b><a HREF="http://www.gfdl.noaa.gov/fms-cgi-bin/cvsweb.cgi/FMS/coupler/coupler_main.f90">WebCVS Log</a> <br>
-     <b>Last Modified:</b>&nbsp; $Date: 2003/10/24 22:01:05 $
-</div><br>
+<b>Contact:&nbsp;</b><a href="mailto:Bruce.Wyman@noaa.gov">   Bruce Wyman </a>,&nbsp;
+    <a href="mailto:V.Balaji@noaa.gov">   V. Balaji </a>
+<br>
+<b>Reviewers:&nbsp;</b>
+<br>
+<b>Change History:&nbsp;</b><a href="http://www.gfdl.noaa.gov/fms-cgi-bin/cvsweb.cgi/FMS/coupler">WebCVS Log</a>
+<br>
+<br>
+</div>
 <!-- END HEADER -->
-<!-------------------------------------------------------------------->
 <a name="OVERVIEW"></a>
 <hr>
 <h4>OVERVIEW</h4>
 <!-- BEGIN OVERVIEW -->
-<div>
-     A main program that couples component models for atmosphere,
-     ocean, land, and sea ice on independent grids.
-</div>
+<p class="text">   A main program that couples component models for atmosphere, ocean, land, 
+   and sea ice on independent grids. </p>
 <!-- END OVERVIEW -->
-<!-------------------------------------------------------------------->
 <a name="DESCRIPTION"></a>
 <!-- BEGIN DESCRIPTION -->
-<div>
-     <p>This version couples model components representing atmosphere,
-     ocean, land and sea ice on independent grids. Each model
-     component is represented by a data type giving the instantaneous
-     model state.</p>
+<div>   This version couples model components representing atmosphere, ocean, land 
+   and sea ice on independent grids. Each model component is represented by a 
+   data type giving the instantaneous model state.
+   <br>
+<br>
+   The component models are coupled to allow implicit vertical diffusion of 
+   heat and moisture at the interfaces of the atmosphere, land, and ice models. 
+   As a result, the atmosphere, land, and ice models all use the same time step. 
+   The atmospheric model has been separated into down and up calls that 
+   correspond to the down and up sweeps of the standard tridiagonal elimination.
+   <br>
+<br>
+   The ocean interface uses explicit mixing. Fluxes to and from the ocean must
+   be passed through the ice model. This includes atmospheric fluxes as well as 
+   fluxes from the land to the ocean (runoff).
+   <br>
+<br>
+   This program contains the model's main time loop. Each iteration of the 
+   main time loop is one coupled (slow) time step. Within this slow time step 
+   loop is a fast time step loop, using the atmospheric time step, where the
+   tridiagonal vertical diffusion equations are solved. Exchange between sea 
+   ice and ocean occurs once every slow timestep.
+   <br>
+<br> 
+<pre>      MAIN PROGRAM EXAMPLE
+      --------------------
 
-     <p>The component models are coupled to allow implicit vertical
-     diffusion of heat and moisture at the interfaces of the atmosphere,
-     land, and ice models. As a result, the atmosphere, land, and ice
-     models all use the same time step.  The atmospheric model has been
-     separated into down and up calls that correspond to the down and up
-     sweeps of the standard tridiagonal elimination.</p>
+         DO slow time steps (ocean)
 
-     <p>The ocean interface uses explicit mixing.  Fluxes to and from the
-     ocean must be passed through the ice model. This includes
-     atmospheric fluxes as well as fluxes from the land to the ocean
-     (runoff).</p>
+              call flux_ocean_to_ice
 
-     <p>This program contains the model's main time loop. Each iteration
-     of the main time loop is one coupled (slow) time step.  Within this
-     slow time step loop is a fast time step loop, using the
-     atmospheric time step, where the tridiagonal vertical diffusion
-     equations are solved. Exchange between sea ice and ocean occurs
-     once every slow timestep.</p>
-<pre>
+              call ICE_SLOW_UP
 
-  MAIN PROGRAM EXAMPLE
-  --------------------
+              DO fast time steps (atmos)
 
-     DO slow time steps (ocean)
+                   call flux_calculation
 
-          call flux_ocean_to_ice
+                   call ATMOS_DOWN
 
-          call ICE_SLOW_UP
+                   call flux_down_from_atmos
 
-          DO fast time steps (atmos)
+                   call LAND_FAST
 
-               call flux_calculation
+                   call ICE_FAST
 
-               call ATMOS_DOWN
+                   call flux_up_to_atmos
 
-               call flux_down_from_atmos
+                   call ATMOS_UP
 
-               call LAND_FAST
+              END DO
 
-               call ICE_FAST
+              call ICE_SLOW_DN
 
-               call flux_up_to_atmos
+              call flux_ice_to_ocean
 
-               call ATMOS_UP
+              call OCEAN
 
-          END DO
-
-          call ICE_SLOW_DN
-
-          call flux_ice_to_ocean
-
-          call OCEAN
-
-     END DO
-</pre>
+         END DO</pre> 
 </div>
+<br>
 <!-- END DESCRIPTION -->
-<!-------------------------------------------------------------------->
-<a name="OTHER MODULES USED"></a>
+<a name="OTHER%20MODULES%20USED"></a>
 <hr>
-<h4>OTHER MODULES USED</h4>
+<h4>MODULES USED</h4>
 <!-- BEGIN OTHER MODULES USED -->
 <div>
-<pre>
-  atmos_model_mod
-    ice_model_mod
-   land_model_mod
-  ocean_model_mod
-flux_exchange_mod
- diag_manager_mod
- time_manager_mod
-    utilities_mod
-          mpp_mod (only for timing calls: may be eliminated)
-
-</pre>
+<pre>    constants_mod<br> time_manager_mod<br>          fms_mod<br>       fms_io_mod<br>field_manager_mod<br> diag_manager_mod<br>data_override_mod<br>  atmos_model_mod<br>   land_model_mod<br>    ice_model_mod<br>  ocean_model_mod<br>flux_exchange_mod<br>          mpp_mod<br>       mpp_io_mod<br>  mpp_domains_mod<br>     memutils_mod</pre>
 </div>
 <!-- END OTHER MODULES USED -->
-<!-------------------------------------------------------------------->
-<a name="PUBLIC INTERFACE"></a>
+<!-- BEGIN PUBLIC INTERFACE -->
+<a name="PUBLIC%20INTERFACE"></a>
 <hr>
 <h4>PUBLIC INTERFACE</h4>
-<!-- BEGIN PUBLIC INTERFACE -->
-
 <div>
-   <p>This is a main program. There are no callable interfaces.</p>
-
-   <p>A namelist interface called <b>&#38;coupler_nml</b> should reside
-   in file <b>input.nml</b>. See the details below.</p>
-
-   <p>For compatibility with previous versions the namelist input <b>&#38;coupler_nml</b>
-   may also reside in file coupler.res.</p>
-
+<dl></dl>
 </div>
-<!-- END INTERFACE -->
-<!-------------------------------------------------------------------->
-<a name="PUBLIC DATA"></a>
+<br>
+<!-- END PUBLIC INTERFACE -->
+<a name="PUBLIC%20DATA"></a>
 <hr>
 <h4>PUBLIC DATA</h4>
-<!-- BEGIN DATA_TYPES -->
-<div>
-     None.
-</div><br>
-<!-- END DATA_TYPES -->
-<!-------------------------------------------------------------------->
-<a name="PUBLIC ROUTINES"></a>
+<!-- BEGIN PUBLIC DATA -->
+<div>None.<br>
+<br>
+</div>
+<!-- END PUBLIC DATA -->
+<a name="PUBLIC%20ROUTINES"></a>
 <hr>
 <h4>PUBLIC ROUTINES</h4>
 <!-- BEGIN PUBLIC ROUTINES -->
-<div>
-     None.
-</div><br>
+<ol type="a"></ol>
 <!-- END PUBLIC ROUTINES -->
-<!-------------------------------------------------------------------->
-<a name="NAMELIST"></a>
+<a name="PUBLIC%20TYPES"></a>
+<!-- BEGIN PUBLIC TYPES -->
+<!-- END PUBLIC TYPES --><a name="NAMELIST"></a>
+<!-- BEGIN NAMELIST -->
 <hr>
 <h4>NAMELIST</h4>
-<!-- BEGIN NAMELIST -->
 <div>
-<b>&#38;coupler_nml</b>
+<b>&amp;coupler_nml</b>
+<br>
+<br>
+<div>
 <dl>
-   <dt><tt>current_date</tt>  </dt>
-   <dd>The date that the current integration starts with.  
-        <span class="type"> <br><font size=2>[integer, dimension(6), default: 
-            current_date=0]</font></span></dd>
-
-  <dt><tt>override</tt></dt>     
-  <dd> Flag that determines whether the namelist variable
-                current_date should override the date in the
-                restart file INPUT/coupler.res. If the restart file
-                does not exist then override has not effect, the
-                value of current_date will be used.<br>
-                <span class="type"> <font size=2>[logical, default: 
-                      override=false]</font></span></dd>
-
-  <dt><tt>calendar</tt></dt>      
-  <dd>The calendar type used by the current integration.
-                Valid values are consistent with the time_manager
-                module: 'julian', 'noleap', or 'thirty_day'.
-                The value 'no_calendar' can not be used because
-                the time_manager's date function are used.
-                All values must be lowercase.<br>
-                  <span class="type"> <font size=2>[ character(maxlen=17), 
-                default: calendar=' ' ]</font></span></dd>
-
-  <dt><tt>months</tt></dt>        
-  <dd>The number of months that the current integration will be run for. <br>  
-            <span class="type"> <font size=2>[integer, default: months=0]
-            </font></span></dd>
-  <dt><tt>days</tt></dt>          
-  <dd>The number of days that the current integration will be run for. <br>  
-       <span class="type"> <font size=2>[integer, default: days=0]</font></span></dd>
-
-  <dt><tt>hours</tt></dt>         
-  <dd>The number of hours that the current integration will be run for. <br>  
-      <span class="type"> <font size=2>[integer, default: hours=0]</font></span></dd>
-
-  <dt><tt>minutes</tt></dt>       
-  <dd>The number of minutes that the current integration will be run for. <br>  
-        <span class="type"> <font size=2>[integer, default: minutes=0]</font></span></dd>
-  
-  <dt><tt>seconds</tt></dt>       
-  <dd>The number of seconds that the current integration will be run for. <br>  
-       <span class="type"> <font size=2>[integer, default: seconds=0]</font></span></dd>
- 
-
-  <dt><tt>dt_atmos</tt></dt>      
-  <dd>Atmospheric model time step in seconds, including the fast coupling with 
-            land and sea ice. <br> <span class="type"> <font size=2>
-             [integer, default: dt_atmos=0]</font></span></dd>
-
-  <dt><tt>dt_ocean</tt></dt>     
-  <dd>Ocean model time step in seconds. <br><span class="type"> <font size=2>
-                    [integer, default: dt_ocean=0]</font></span></dd>
-  
-  <dt><tt>dt_cpld</tt></dt>       
-  <dd>Time step in seconds for coupling between ocean and atmospheric models: 
-      must be an integral multiple of dt_atmos and dt_ocean. This is the "slow" 
-      timestep.<br>
-      <span class="type"> <font size=2> [integer, default: dt_cpld=0]</font></span></dd>
-</dl><br>
-  Notes:
-<br> <br>
-<ol>
-
-    <li> If no value is set for current_date, start_date, or calendar
-       (or default value specified) then the value from restart
-       file "INPUT/coupler.res" will be used. If neither a namelist
-       value or restart file value exist the program will fail.
-    </li>
-    <li> The actual run length will be the sum of months, days, hours,
-       minutes, and seconds.  A run length of zero is not a valid option.
-    </li>
-    <li> The run length must be an intergal multiple of the coupling
-    timestep dt_cpld.
-    </li>
-</ol>
+<dt>
+<tt>current_date</tt>
+</dt>
+<dl>   The date that the current integration starts with. <br>
+<span class="type">[integer, dimension(6), default: 0]</span>
+</dl>
+<dt>
+<tt>force_date_from_namelist</tt>
+</dt>
+<dl>   Flag that determines whether the namelist variable current_date should 
+   override the date in the restart file INPUT/coupler.res. If the restart 
+   file does not exist then force_date_from_namelist has not effect, the value of current_date 
+   will be used. <br>
+<span class="type">[logical, default: .false.]</span>
+</dl>
+<dt>
+<tt>calendar</tt>
+</dt>
+<dl>   The calendar type used by the current integration. Valid values are consistent 
+   with the time_manager module: 'julian', 'noleap', or 'thirty_day'. The value 
+   'no_calendar' can not be used because the time_manager's date  function are used. 
+   All values must be lowercase. <br>
+<span class="type">[character(maxlen=17), default: '']</span>
+</dl>
+<dt>
+<tt>months </tt>
+</dt>
+<dl>   The number of months that the current integration will be run for. <br>
+<span class="type">[integer, default: 0]</span>
+</dl>
+<dt>
+<tt>days </tt>
+</dt>
+<dl>   The number of days that the current integration will be run for. <br>
+<span class="type">[integer, default: 0]</span>
+</dl>
+<dt>
+<tt>hours</tt>
+</dt>
+<dl>   The number of hours that the current integration will be run for. <br>
+<span class="type">[integer, default: 0]</span>
+</dl>
+<dt>
+<tt>minutes </tt>
+</dt>
+<dl>   The number of minutes that the current integration will be run for. <br>
+<span class="type">[integer, default: 0]</span>
+</dl>
+<dt>
+<tt>seconds</tt>
+</dt>
+<dl>   The number of seconds that the current integration will be run for. <br>
+<span class="type">[integer, default: 0]</span>
+</dl>
+<dt>
+<tt>dt_atmos</tt>
+</dt>
+<dl>   Atmospheric model time step in seconds, including the fast coupling with 
+   land and sea ice. <br>
+<span class="type">[integer, default: 0]</span>
+</dl>
+<dt>
+<tt>dt_ocean</tt>
+</dt>
+<dl>   Ocean model time step in seconds. <br>
+<span class="type">[integer, default: 0]</span>
+</dl>
+<dt>
+<tt>dt_cpld</tt>
+</dt>
+<dl>   Time step in seconds for coupling between ocean and atmospheric models: 
+   must be an integral multiple of dt_atmos and dt_ocean. This is the "slow" timestep. <br>
+<span class="type">[integer, default: 0]</span>
+</dl>
+<dt>
+<tt>do_atmos, do_ocean, do_ice, do_land, do_flux</tt>
+</dt>
+<dl>   If true (default), that particular model component (atmos, etc.) is run.
+   If false, the execution of that component is skipped. This is used when
+   ALL the output fields sent by that component to the coupler have been
+   overridden using the data_override feature. For advanced users only:
+   if you're not sure, you should leave these values at TRUE. <br>
+<span class="type">[logical]</span>
+</dl>
+<dt>
+<tt>concurrent</tt>
+</dt>
+<dl>   If true, the ocean executes concurrently with the atmosphere-land-ocean
+   on a separate set of PEs.
+   If false (default), the execution is serial: call atmos... followed by
+   call ocean...
+   If using concurrent execution, you must set one of
+   atmos_npes and ocean_npes, see below. <br>
+<span class="type">[logical]</span>
+</dl>
+<dt>
+<tt>atmos_npes, ocean_npes</tt>
+</dt>
+<dl>   If concurrent is set to true, we use these to set the list of PEs on which
+   each component runs.
+   At least one of them must be set to a number between 0 and NPES.
+   If exactly one of these two is set non-zero, the other is set to the
+   remainder from NPES.
+   If both are set non-zero they must add up to NPES. <br>
+<span class="type">[integer]</span>
+</dl>
+<dt>
+<tt>use_lag_fluxes</tt>
+</dt>
+<dl>   If true, then mom4 is forced with SBCs from one coupling timestep ago
+   If false, then mom4 is forced with most recent SBCs.
+   For a leapfrog MOM coupling with dt_cpld=dt_ocean, lag fluxes
+   can be shown to be stable and current fluxes to be unconditionally unstable.
+   For dt_cpld&gt;dt_ocean there is probably sufficient damping.
+   use_lag_fluxes is set to TRUE by default. <br>
+<span class="type">[logical]</span>
+</dl>
+</dl>
 </div>
+</div>
+<br>
 <!-- END NAMELIST -->
-<!-------------------------------------------------------------------->
-<a name="DIAGNOSTIC FIELDS"></a>
-<hr>
-<h4>DIAGNOSTIC FIELDS</h4>
-<!-- BEGIN DIAGNOSTICS -->
-<div>
-None.
-</div><br>
-<!-- END DIAGNOSTICS -->
-<!-------------------------------------------------------------------->
-<a name="DATA SETS"></a>
+<a name="DIAGNOSTIC%20FIELDS"></a>
+<!-- BEGIN DIAGNOSTIC FIELDS -->
+<!-- END DIAGNOSTIC FIELDS --><a name="DATA%20SETS"></a>
+<!-- BEGIN DATA SETS -->
 <hr>
 <h4>DATA SETS</h4>
-<!-- BEGIN DATA_SETS -->
-<div>
-None.
-</div><br>
-<!-- END DATA_SETS -->
-<!-------------------------------------------------------------------->
-<a name="ERROR MESSAGES"></a>
+<div>None.<br>
+<br>
+</div>
+<!-- END DATA SETS -->
+<a name="PUBLIC%20CODE"></a>
+<!-- BEGIN PUBLIC CODE -->
+<!-- END PUBLIC CODE --><a name="ERROR%20MESSAGES"></a>
+<!-- BEGIN ERROR MESSAGES -->
 <hr>
 <h4>ERROR MESSAGES</h4>
-<!-- BEGIN ERROR MESSAGES -->
 <div>
-<b>FATAL ERRORS in program coupler_main</b>
-<br><br>
 <dl>
-    <dt><b>namelist file input.nml does not exist</b></dt>
-    <dd>The file input.nml contains namelist input records and must
-        reside in the directory where the executable is run.
-        For compatibility with previous versions of program coupler_main
-        the namelist input &coupler_nml may also reside in file coupler.res.</dd>
-    <br><br>
-    <dt><b>no namelist value for current_date</b></dt>
-    <dd>A namelist value for current_date must be given if no restart file
-        for coupler_main (INPUT/coupler.res) is found.</dd>
-    <br><br>
-
-    <dt><b>invalid namelist value for calendar</b></dt>
-    <dd>The value of calendar must be 'julian', 'noleap', or 'thirty_day'.
-        See the namelist documentation.</dd>
-    <br><br>
-
-    <dt><b>no namelist value for calendar</b></dt>
-    <dd>If no restart file is present, then a namelist value for
-        calendar must be specified.</dd>
-    <br><br>
-
-    <dt><b>if run length in months then starting day must be &#60;&#61; 28</b></dt>
-    <dd>If the namelist variable months &#62; 0, then the current (starting)
-        date cannot bw greater than 28. This is because incrementing to 
-        the next month may be a problem for February.</dd>
-    <br><br>
-
-    <dt><b>initial time is greater than current time</b></dt>
-    <dd>If a restart file is present, then the namelist value for either
-        current_date or start_date was incorrectly set.</dd>
-    <br><br>
-
-    <dt><b>run length must be multiple of ocean time step</b></dt>
-    <dd>There must be an even number of ocean time steps for the
-        requested run length.</dd>
-    <br><br>
-
-    <dt><b>ocean time step is not a multiple of the atmosphere time step</b></dt>
-    <dd>There must be an even number of fast atmospheric time steps
-        for the length of one slow ocean time step.</dd>
+<dt>
+<b>FATAL error during execution of program coupler_main</b>
+</dt>
+<dd>
+<span class="errmsg">no namelist value for current_date </span>
+</dd>
+<dd>   A namelist value for current_date must be given if no restart file for
+   coupler_main (INPUT/coupler.res) is found. </dd>
+<dt>
+<b>FATAL error during execution of program coupler_main</b>
+</dt>
+<dd>
+<span class="errmsg">invalid namelist value for calendar</span>
+</dd>
+<dd>   The value of calendar must be 'julian', 'noleap', or 'thirty_day'. 
+   See the namelist documentation. </dd>
+<dt>
+<b>FATAL error during execution of program coupler_main</b>
+</dt>
+<dd>
+<span class="errmsg">no namelist value for calendar</span>
+</dd>
+<dd>   If no restart file is present, then a namelist value for calendar 
+   must be specified. </dd>
+<dt>
+<b>FATAL error during execution of program coupler_main</b>
+</dt>
+<dd>
+<span class="errmsg">initial time is greater than current time</span>
+</dd>
+<dd>   If a restart file is present, then the namelist value for either 
+   current_date or start_date was incorrectly set. </dd>
+<dt>
+<b>FATAL error during execution of program coupler_main</b>
+</dt>
+<dd>
+<span class="errmsg">run length must be multiple of ocean time step </span>
+</dd>
+<dd>   There must be an even number of ocean time steps for the requested run length. </dd>
+<dt>
+<b>WARNING error during execution of program coupler_main</b>
+</dt>
+<dd>
+<span class="errmsg">final time does not match expected ending time </span>
+</dd>
+<dd>   This error should probably not occur because of checks done at initialization time. </dd>
 </dl>
 <br>
-<b>WARNINGS in program coupler_main</b>
-<br><br>
-<dl>
-    <dt><b>final time does not match expected ending time</b></dt>
-    <dd>This error should probably not occur because of checks done at
-        initialization time.</dd>
-</dl>
-</div><br>
+</div>
 <!-- END ERROR MESSAGES -->
-<!-------------------------------------------------------------------->
 <a name="REFERENCES"></a>
 <hr>
 <h4>REFERENCES</h4>
 <!-- BEGIN REFERENCES -->
 <div>
-None.
-</div><br>
+        None.
+      </div>
+<br>
 <!-- END REFERENCES -->
-<!-------------------------------------------------------------------->
-<a name="COMPILER SPECIFICS"></a>
+<a name="COMPILER%20SPECIFICS"></a>
 <hr>
 <h4>COMPILER SPECIFICS</h4>
+<!-- BEGIN COMPILER SPECIFICS -->
 <div>
-None.
-</div><br>
-<!-- END COMPILER -->
-<!-------------------------------------------------------------------->
-<a name="PRECOMPILER OPTIONS"></a>
+        None.
+      </div>
+<br>
+<!-- END COMPILER SPECIFICS -->
+<a name="PRECOMPILER%20OPTIONS"></a>
 <hr>
-<h4>PRECOMPILER OPTIONS (or PORTABILITY)</h4>
-<!-- BEGIN PRECOMPILER -->
+<h4>PRECOMPILER OPTIONS</h4>
+<!-- BEGIN PRECOMPILER OPTIONS -->
 <div>
-None.
-</div><br>
-<!-- END PRECOMPILER -->
-<!-------------------------------------------------------------------->
-<a name="LOADER OPTIONS"></a>
+        None.
+      </div>
+<br>
+<!-- END PRECOMPILER OPTIONS -->
+<a name="LOADER%20OPTIONS"></a>
 <hr>
-<h4>LOADER OPTIONS (or ACQUIRING SOURCE)</h4>
+<h4>LOADER OPTIONS</h4>
 <!-- BEGIN LOADER -->
-<div>
-None.
-</div><br>
-<!-- END LOADER -->
-<!-------------------------------------------------------------------->
-<a name="KNOWN BUGS"></a>
+<div>None.<br>
+<br>
+</div>
+<!-- END LOADER OPTIONS -->
+<a name="TEST%20PROGRAM"></a>
+<hr>
+<h4>TEST PROGRAM</h4>
+<!-- BEGIN TEST PROGRAM -->
+<div>None.<br>
+</div>
+<br>
+<!-- END TEST PROGRAM -->
+<a name="KNOWN%20BUGS"></a>
 <hr>
 <h4>KNOWN BUGS</h4>
 <!-- BEGIN KNOWN BUGS -->
 <div>
-None.
-</div><br>
+        None.
+      </div>
+<br>
 <!-- END KNOWN BUGS -->
-<!-------------------------------------------------------------------->
 <a name="NOTES"></a>
 <hr>
 <h4>NOTES</h4>
 <!-- BEGIN NOTES -->
-<div>
-None.
-</div><br>
+<div> 
+<pre>   1.If no value is set for current_date, start_date, or calendar (or default value 
+     specified) then the value from restart file "INPUT/coupler.res" will be used. 
+     If neither a namelist value or restart file value exist the program will fail. 
+   2.The actual run length will be the sum of months, days, hours, minutes, and 
+     seconds. A run length of zero is not a valid option. 
+   3.The run length must be an intergal multiple of the coupling timestep dt_cpld.</pre> 
+</div>
+<br>
 <!-- END NOTES -->
-<!-------------------------------------------------------------------->
-<a name="FUTURE PLANS"></a>
+<a name="FUTURE%20PLANS"></a>
 <hr>
 <h4>FUTURE PLANS</h4>
 <!-- BEGIN FUTURE PLANS -->
 <div>
-<ol>
-<li>Parallel scheduling of atmosphere and ocean models to support
-   sequential and concurrent coupling on parallel systems.
-</li>
-<li>Multiple instances of any component to support ensemble studies.
-</li>
-</ol>
-</div><br>
+        None.
+      </div>
+<br>
 <!-- END FUTURE PLANS -->
-<!-------------------------------------------------------------------->
 <hr>
+<div align="right">
+<font size="-1"><a href="#TOP">top</a></font>
+</div>
 </body>
 </html>
