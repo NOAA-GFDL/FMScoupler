@@ -15,12 +15,12 @@
         </STYLE>
 </head>
 <body>
-<a name="TOP"></a><font class="header" size="1"><a href="#PUBLIC%20INTERFACE">PUBLIC INTERFACE </a>~
-          <a href="#PUBLIC%20DATA">PUBLIC DATA </a>~
-          <a href="#PUBLIC%20ROUTINES">PUBLIC ROUTINES </a>~
+<a name="TOP"></a><font class="header" size="1"><a href="#PUBLIC INTERFACE">PUBLIC INTERFACE </a>~
+          <a href="#PUBLIC DATA">PUBLIC DATA </a>~
+          <a href="#PUBLIC ROUTINES">PUBLIC ROUTINES </a>~
           <a href="#NAMELIST">NAMELIST </a>~
-          <a href="#DIAGNOSTIC%20FIELDS">DIAGNOSTIC FIELDS </a>~
-          <a href="#ERROR%20MESSAGES">ERROR MESSAGES </a>~
+          <a href="#DIAGNOSTIC FIELDS">DIAGNOSTIC FIELDS </a>~
+          <a href="#ERROR MESSAGES">ERROR MESSAGES </a>~
           <a href="#REFERENCES">REFERENCES </a>~ 
           <a href="#NOTES">NOTES</a></font>
 <hr>
@@ -125,8 +125,8 @@
    FROM the exchange grid TO land_ice_atmos_boundary (in
    sfc_boundary_layer):
 
-        t, albedo, land_frac, dt_t, dt_q, u_flux, v_flux, dtaudv, u_star,
-        b_star, rough_mom
+        t, albedo, land_frac, dt_t, dt_q, u_flux, v_flux, dtaudu, dtaudv,
+        u_star, b_star, rough_mom
    
    FROM the atmosphere boundary TO the exchange grid (in
     flux_down_from_atmos):
@@ -171,7 +171,7 @@
 </div>
 <br>
 <!-- END DESCRIPTION -->
-<a name="OTHER%20MODULES%20USED"></a>
+<a name="OTHER MODULES USED"></a>
 <hr>
 <h4>OTHER MODULES USED</h4>
 <!-- BEGIN OTHER MODULES USED -->
@@ -180,7 +180,7 @@
 </div>
 <!-- END OTHER MODULES USED -->
 <!-- BEGIN PUBLIC INTERFACE -->
-<a name="PUBLIC%20INTERFACE"></a>
+<a name="PUBLIC INTERFACE"></a>
 <hr>
 <h4>PUBLIC INTERFACE</h4>
 <div>
@@ -217,7 +217,7 @@
 </div>
 <br>
 <!-- END PUBLIC INTERFACE -->
-<a name="PUBLIC%20DATA"></a>
+<a name="PUBLIC DATA"></a>
 <hr>
 <h4>PUBLIC DATA</h4>
 <!-- BEGIN PUBLIC DATA -->
@@ -225,7 +225,7 @@
 <br>
 </div>
 <!-- END PUBLIC DATA -->
-<a name="PUBLIC%20ROUTINES"></a>
+<a name="PUBLIC ROUTINES"></a>
 <hr>
 <h4>PUBLIC ROUTINES</h4>
 <!-- BEGIN PUBLIC ROUTINES -->
@@ -309,7 +309,7 @@
       rough_mom_atm = surface roughness for momentum (m)
       land_frac_atm = fractional area of land beneath an atmospheric
                       grid box 
-         dtaudv_atm = derivative of wind stress w.r.t. the
+         dtaudu_atm, dtaudv_atm = derivatives of wind stress w.r.t. the
                       lowest level wind speed  (Pa/(m/s))
          flux_u_atm = zonal wind stress  (Pa)
          flux_v_atm = meridional wind stress (Pa)
@@ -678,7 +678,7 @@
 </li>
 </ol>
 <!-- END PUBLIC ROUTINES -->
-<a name="PUBLIC%20TYPES"></a>
+<a name="PUBLIC TYPES"></a>
 <!-- BEGIN PUBLIC TYPES -->
 <!-- END PUBLIC TYPES --><a name="NAMELIST"></a>
 <!-- BEGIN NAMELIST -->
@@ -703,12 +703,22 @@
 <dl>   reference height (meters) for momentum diagnostics (u_ref,v_ref,del_m) <br>
 <span class="type">[real, default: 10.0]</span>
 </dl>
+<dt>
+<tt>ex_u_star_smooth_bug</tt>
+</dt>
+<dl>   By default, the global exchange grid u_star will not be interpolated from 
+   atmospheric grid, this is different from Jakarta behavior and will
+   change answers. So to perserve Jakarta behavior and reproduce answers
+   explicitly set this namelist variable to .true. in input.nml.
+   Talk to mw, ens for details. <br>
+<span class="type">[logical, default: false]</span>
+</dl>
 </dl>
 </div>
 </div>
 <br>
 <!-- END NAMELIST -->
-<a name="DIAGNOSTIC%20FIELDS"></a>
+<a name="DIAGNOSTIC FIELDS"></a>
 <!-- BEGIN DIAGNOSTIC FIELDS -->
 <hr>
 <h4>DIAGNOSTIC FIELDS</h4>
@@ -776,7 +786,7 @@ height of btm level (m)
 gust scale (m/s)
 relative humidity at ref height (percent)
 temperature at ref height (deg_k)
-zonal wind component at ref height (m/s)
+zonal wind component at ref height  (m/s)
 meridional wind component at ref height (m/s)
 ref height interp factor for heat (none)
 ref height interp factor for momentum (none)
@@ -797,7 +807,7 @@ net (down-up) longwave flux (w/m2)
 </div>
 </div>
 <!-- END DIAGNOSTIC FIELDS -->
-<a name="DATA%20SETS"></a>
+<a name="DATA SETS"></a>
 <!-- BEGIN DATA SETS -->
 <hr>
 <h4>DATA SETS</h4>
@@ -805,9 +815,9 @@ net (down-up) longwave flux (w/m2)
 <br>
 </div>
 <!-- END DATA SETS -->
-<a name="PUBLIC%20CODE"></a>
+<a name="PUBLIC CODE"></a>
 <!-- BEGIN PUBLIC CODE -->
-<!-- END PUBLIC CODE --><a name="ERROR%20MESSAGES"></a>
+<!-- END PUBLIC CODE --><a name="ERROR MESSAGES"></a>
 <!-- BEGIN ERROR MESSAGES -->
 <hr>
 <h4>ERROR MESSAGES</h4>
@@ -884,7 +894,7 @@ net (down-up) longwave flux (w/m2)
       </div>
 <br>
 <!-- END REFERENCES -->
-<a name="COMPILER%20SPECIFICS"></a>
+<a name="COMPILER SPECIFICS"></a>
 <hr>
 <h4>COMPILER SPECIFICS</h4>
 <!-- BEGIN COMPILER SPECIFICS -->
@@ -893,7 +903,7 @@ net (down-up) longwave flux (w/m2)
       </div>
 <br>
 <!-- END COMPILER SPECIFICS -->
-<a name="PRECOMPILER%20OPTIONS"></a>
+<a name="PRECOMPILER OPTIONS"></a>
 <hr>
 <h4>PRECOMPILER OPTIONS</h4>
 <!-- BEGIN PRECOMPILER OPTIONS -->
@@ -902,7 +912,7 @@ net (down-up) longwave flux (w/m2)
       </div>
 <br>
 <!-- END PRECOMPILER OPTIONS -->
-<a name="LOADER%20OPTIONS"></a>
+<a name="LOADER OPTIONS"></a>
 <hr>
 <h4>LOADER OPTIONS</h4>
 <!-- BEGIN LOADER -->
@@ -910,7 +920,7 @@ net (down-up) longwave flux (w/m2)
 <br>
 </div>
 <!-- END LOADER OPTIONS -->
-<a name="TEST%20PROGRAM"></a>
+<a name="TEST PROGRAM"></a>
 <hr>
 <h4>TEST PROGRAM</h4>
 <!-- BEGIN TEST PROGRAM -->
@@ -918,7 +928,7 @@ net (down-up) longwave flux (w/m2)
 </div>
 <br>
 <!-- END TEST PROGRAM -->
-<a name="KNOWN%20BUGS"></a>
+<a name="KNOWN BUGS"></a>
 <hr>
 <h4>KNOWN BUGS</h4>
 <!-- BEGIN KNOWN BUGS -->
@@ -1159,7 +1169,7 @@ net (down-up) longwave flux (w/m2)
 </div>
 <br>
 <!-- END NOTES -->
-<a name="FUTURE%20PLANS"></a>
+<a name="FUTURE PLANS"></a>
 <hr>
 <h4>FUTURE PLANS</h4>
 <!-- BEGIN FUTURE PLANS -->

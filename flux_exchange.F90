@@ -108,8 +108,8 @@ module flux_exchange_mod
 !   FROM the exchange grid TO land_ice_atmos_boundary (in
 !   sfc_boundary_layer):
 !
-!        t, albedo, land_frac, dt_t, dt_q, u_flux, v_flux, dtaudv, u_star,
-!        b_star, rough_mom
+!        t, albedo, land_frac, dt_t, dt_q, u_flux, v_flux, dtaudu, dtaudv,
+!        u_star, b_star, rough_mom
 !   
 !   FROM the atmosphere boundary TO the exchange grid (in
 !    flux_down_from_atmos):
@@ -218,8 +218,8 @@ private
      flux_ocean_to_ice
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 11.0 2004/09/28 19:36:52 fms Exp $'
-  character(len=128) :: tag = '$Name: khartoum $'
+  character(len=128) :: version = '$Id: flux_exchange.F90,v 12.0 2005/04/14 15:59:14 fms Exp $'
+  character(len=128) :: tag = '$Name: lima $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -262,11 +262,19 @@ real, parameter :: d378 = 1.0-d622
 !   <DATA NAME="z_ref_mom"  TYPE="real"  DEFAULT="10.0">
 !    reference height (meters) for momentum diagnostics (u_ref,v_ref,del_m)
 !   </DATA>
+!   <DATA NAME="ex_u_star_smooth_bug"  TYPE="logical"  DEFAULT="false">
+!    By default, the global exchange grid u_star will not be interpolated from 
+!    atmospheric grid, this is different from Jakarta behavior and will
+!    change answers. So to perserve Jakarta behavior and reproduce answers
+!    explicitly set this namelist variable to .true. in input.nml.
+!    Talk to mw, ens for details.
+!   </DATA>
 
   real ::  z_ref_heat =  2.,  &
            z_ref_mom  = 10.
+  logical :: ex_u_star_smooth_bug = .false.
 
-namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom
+namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug
 ! </NAMELIST>
 
 ! ---- allocatable module storage --------------------------------------------
@@ -289,7 +297,8 @@ real, allocatable, dimension(:) :: &
      ex_dedq_atm,  &   ! d(water.vap.flux)/d(q atm)
      ex_flux_u,    &   ! u stress on atmosphere
      ex_flux_v,    &   ! v stress on atmosphere
-     ex_dtaudv_atm,&   ! d(stress)/d(u or v)
+     ex_dtaudu_atm,&   ! d(stress)/d(u)
+     ex_dtaudv_atm,&   ! d(stress)/d(v)
      ex_albedo_fix,&
      ex_albedo_vis_dir_fix,&
      ex_albedo_nir_dir_fix,&
@@ -441,10 +450,10 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
         rcode = nf_inq_dimlen(ncid, dims(1), nlon)
         rcode = nf_inq_dimlen(ncid, dims(2), nlat)
         if (nlon+1/=size(Atm%glon_bnd(:)).or.nlat+1/=size(Atm%glat_bnd(:))) then
-            if (mpp_pe()==0) then
+            if (mpp_pe()==mpp_root_pe()) then
                 print *, 'grid_spec.nc has', nlon, 'longitudes,', nlat, 'latitudes; ', &
-                     'atmosphere has', size(atmlonb(:))-1, 'longitudes,', &
-                     size(atmlatb(:))-1, 'latitudes (see xba.dat and yba.dat)'
+                     'atmosphere has', size(Atm%glon_bnd(:))-1, 'longitudes,', &
+                     size(Atm%glat_bnd(:))-1, 'latitudes (see xba.dat and yba.dat)'
             end if
 !   <ERROR MSG="grid_spec.nc incompatible with atmosphere resolution" STATUS="FATAL">
 !      The atmosphere grid size from file grid_spec.nc is not compatible with the atmosphere 
@@ -462,7 +471,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
         start = 1; nread = 1; nread(1) = nlat+1;
         rcode = nf_get_vara_double(ncid, varid, start, nread, atmlatb)
         if (maxval(abs(atmlonb-Atm%glon_bnd*45/atan(1.0)))>bound_tol) then
-            if (mpp_pe() == 0) then
+            if (mpp_pe() == mpp_root_pe()) then
                 print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY'
                 do i=1,size(atmlonb(:))
                    print *,atmlonb(i),Atm%glon_bnd(i)*45/atan(1.0)
@@ -476,7 +485,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
                  ,FATAL)
         end if
         if (maxval(abs(atmlatb-Atm%glat_bnd*45/atan(1.0)))>bound_tol) then
-            if (mpp_pe() == 0) then
+            if (mpp_pe() == mpp_root_pe()) then
                 print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY'
                 do i=1,size(atmlatb(:))
                    print *,atmlatb(i),Atm%glat_bnd(i)*45/atan(1.0)
@@ -583,6 +592,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
         allocate( land_ice_atmos_boundary%dt_q(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%u_flux(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%v_flux(is:ie,js:je) )
+        allocate( land_ice_atmos_boundary%dtaudu(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%dtaudv(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%u_star(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%b_star(is:ie,js:je) )
@@ -600,6 +610,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
         land_ice_atmos_boundary%dt_q=0.0
         land_ice_atmos_boundary%u_flux=0.0
         land_ice_atmos_boundary%v_flux=0.0
+        land_ice_atmos_boundary%dtaudu=0.0
         land_ice_atmos_boundary%dtaudv=0.0
         land_ice_atmos_boundary%u_star=0.0
         land_ice_atmos_boundary%b_star=0.0
@@ -691,7 +702,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
 !      rough_mom_atm = surface roughness for momentum (m)
 !      land_frac_atm = fractional area of land beneath an atmospheric
 !                      grid box 
-!         dtaudv_atm = derivative of wind stress w.r.t. the
+!         dtaudu_atm, dtaudv_atm = derivatives of wind stress w.r.t. the
 !                      lowest level wind speed  (Pa/(m/s))
 !         flux_u_atm = zonal wind stress  (Pa)
 !         flux_v_atm = meridional wind stress (Pa)
@@ -804,6 +815,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Boundary )
 ! MOD these were moved from local ! so they can be passed to flux down
        ex_flux_u(n_xgrid_sfc),    &
        ex_flux_v(n_xgrid_sfc),    &
+       ex_dtaudu_atm(n_xgrid_sfc),&
        ex_dtaudv_atm(n_xgrid_sfc),&
 
 ! values added for LM3
@@ -930,7 +942,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Boundary )
        ex_cd_m,   ex_cd_t, ex_cd_q,                                    &
        ex_wind,   ex_u_star, ex_b_star, ex_q_star,                     &
        ex_dhdt_surf, ex_dedt_surf, ex_dedq_surf,  ex_drdt_surf,        &
-       ex_dhdt_atm,  ex_dedq_atm,   ex_dtaudv_atm,                     &
+       ex_dhdt_atm,  ex_dedq_atm,   ex_dtaudu_atm,  ex_dtaudv_atm,     &
        dt,                                                             &
        ex_land, ex_seawater .gt. 0,  ex_avail                          )
 
@@ -955,6 +967,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Boundary )
 
   call get_from_xgrid (Boundary%u_flux,    'ATM', ex_flux_u,     xmap_sfc)
   call get_from_xgrid (Boundary%v_flux,    'ATM', ex_flux_v,     xmap_sfc)
+  call get_from_xgrid (Boundary%dtaudu,    'ATM', ex_dtaudu_atm, xmap_sfc)
   call get_from_xgrid (Boundary%dtaudv,    'ATM', ex_dtaudv_atm, xmap_sfc)
   call get_from_xgrid (Boundary%u_star,    'ATM', ex_u_star    , xmap_sfc)
   call get_from_xgrid (Boundary%b_star,    'ATM', ex_b_star    , xmap_sfc)
@@ -973,6 +986,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Boundary )
   call data_override('ATM', 'dt_q',      Boundary%dt_q,      Time)
   call data_override('ATM', 'u_flux',    Boundary%u_flux,    Time)
   call data_override('ATM', 'v_flux',    Boundary%v_flux,    Time)
+  call data_override('ATM', 'dtaudu',    Boundary%dtaudu,    Time)
   call data_override('ATM', 'dtaudv',    Boundary%dtaudv,    Time)
   call data_override('ATM', 'u_star',    Boundary%u_star,    Time)
   call data_override('ATM', 'b_star',    Boundary%b_star,    Time)
@@ -1335,7 +1349,7 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
        ex_flux_sw_vis_dir, &
        ex_flux_sw_vis_dif, &
        ex_lprec, ex_fprec,      &
-       ex_u_star,               &
+       ex_u_star_smooth,        &
        ex_coszen, ex_ice_frac
 
   real, dimension(n_xgrid_sfc) :: ex_gamma  , ex_dtmass,  &
@@ -1388,14 +1402,19 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   call put_to_xgrid (Atm%flux_sw_down_total_dif, 'ATM', ex_flux_sw_down_total_dif, xmap_sfc)
   call put_to_xgrid (Atm%flux_lw, 'ATM', ex_flux_lwd, xmap_sfc, remap_method=remap_method)
   !  ccc = conservation_check(Atm%lprec, 'ATM', xmap_sfc)
-  !  if (mpp_pe()==0) print *,'LPREC', ccc
+  !  if (mpp_pe()== mpp_root_pe()) print *,'LPREC', ccc
 
   call put_to_xgrid (Atm%lprec,   'ATM', ex_lprec, xmap_sfc)
   call put_to_xgrid (Atm%fprec,   'ATM', ex_fprec, xmap_sfc)
 
   call put_to_xgrid (Atm%coszen,  'ATM', ex_coszen, xmap_sfc)
 
-  call put_to_xgrid (Atmos_boundary%u_star, 'ATM', ex_u_star, xmap_sfc, remap_method=remap_method)
+
+  if(ex_u_star_smooth_bug) then
+     call put_to_xgrid (Atmos_boundary%u_star, 'ATM', ex_u_star_smooth, xmap_sfc, remap_method=remap_method)
+     ex_u_star = ex_u_star_smooth
+  endif
+
 
 ! MOD changed the following two lines to put Atmos%surf_diff%delta_u and v
 ! on exchange grid instead of the stresses themselves so that only the 
@@ -1405,7 +1424,7 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   call put_to_xgrid (Atm%Surf_Diff%delta_v, 'ATM', ex_delta_v, xmap_sfc, remap_method=remap_method)
 
   ! MOD update stresses using atmos delta's but derivatives on exchange grid
-  ex_flux_u = ex_flux_u + ex_delta_u*ex_dtaudv_atm
+  ex_flux_u = ex_flux_u + ex_delta_u*ex_dtaudu_atm
   ex_flux_v = ex_flux_v + ex_delta_v*ex_dtaudv_atm
 
 !-----------------------------------------------------------------------
@@ -1602,7 +1621,7 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   call data_override('ICE', 'coszen', Ice_boundary%coszen,  Time)
   call data_override('ICE', 'p',      Ice_boundary%p,       Time)
 
-  deallocate ( ex_flux_u, ex_flux_v, ex_dtaudv_atm)
+  deallocate ( ex_flux_u, ex_flux_v, ex_dtaudu_atm, ex_dtaudv_atm)
 
   !=======================================================================
   !-------------------- diagnostics section ------------------------------
@@ -1673,7 +1692,7 @@ subroutine flux_land_to_ice( Time, Land, Ice, Boundary )
   call mpp_clock_begin(fluxLandIceClock)
 
   ! ccc = conservation_check(Land%discharge, 'LND', xmap_runoff)
-  ! if (mpp_pe()==0) print *,'RUNOFF', ccc
+  ! if (mpp_pe()==mpp_root_pe()) print *,'RUNOFF', ccc
 
   call put_to_xgrid ( Land%discharge,      'LND', ex_runoff,  xmap_runoff)
   call put_to_xgrid ( Land%discharge_snow, 'LND', ex_calving, xmap_runoff)

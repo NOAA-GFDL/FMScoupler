@@ -193,7 +193,7 @@ program coupler_main
 !-----------------------------------------------------------------------
 
   character(len=128) :: version = '$Id: coupler_main.F90,v 11.0 2004/09/28 19:36:47 fms Exp $'
-  character(len=128) :: tag = '$Name: khartoum $'
+  character(len=128) :: tag = '$Name: lima $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----

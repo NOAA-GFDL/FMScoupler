@@ -165,8 +165,11 @@ public  surface_flux
 !  <OUT NAME="dedq_atm" TYPE="real, dimension(:)" UNITS="(kg/m^2/sec)/K">
 !  Derivative of water vapor flux over temp at the lowest atmos level.
 !  </OUT>
+!  <OUT NAME="dtaudu_atm" TYPE="real, dimension(:)" UNITS="Pa/(m/s)">
+!  Derivative of zonal wind stress with regard to the lowest level zonal wind speed of the atmos
+!  </OUT>
 !  <OUT NAME="dtaudv_atm" TYPE="real, dimension(:)" UNITS="Pa/(m/s)">
-!  Derivative of wind stress with regard to the lowest level wind speed of the atmos
+!  Derivative of meridional wind stress with regard to the lowest level meridional wind speed of the atmos
 !  </OUT>
 !  <OUT NAME="dt" TYPE="real">
 !  Time step (it is not used presently)
@@ -192,8 +195,8 @@ end interface
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 11.0 2004/09/28 19:36:57 fms Exp $'
-character(len=*), parameter :: tagname = '$Name: khartoum $'
+character(len=*), parameter :: version = '$Id: surface_flux.F90,v 12.0 2005/04/14 15:59:25 fms Exp $'
+character(len=*), parameter :: tagname = '$Name: lima $'
    
 logical :: do_init = .true.
 
@@ -222,6 +225,10 @@ real            :: d608   = d378/d622
 !   A minimum bound on the wind speed used influx calculations, with the bound 
 !   equal to gust_const 
 !   </DATA>
+!   <DATA NAME="old_dtaudv"  TYPE="logical"  DEFAULT=".false.">
+!   The derivative of surface wind stress w.r.t. the zonal wind and
+!   meridional wind are approximated by the same tendency.
+!   </DATA>
 !   <DATA NAME="use_mixing_ratio"  TYPE="logical"  DEFAULT=".false.">
 !   An option to provide capability to run the Manabe Climate form of the 
 !   surface flux (coded for legacy purposes). 
@@ -241,6 +248,7 @@ real            :: d608   = d378/d622
 logical :: no_neg_q         = .false.  ! for backwards compatibility
 logical :: use_virtual_temp = .true. 
 logical :: alt_gustiness    = .false.
+logical :: old_dtaudv       = .false.
 logical :: use_mixing_ratio = .false.
 real    :: gust_const       =  1.0
 logical :: ncar_ocean_flux  = .false.
@@ -250,6 +258,7 @@ namelist /surface_flux_nml/ no_neg_q,         &
                             use_virtual_temp, &
                             alt_gustiness,    &
                             gust_const,       &
+                            old_dtaudv,       &
                             use_mixing_ratio, &
                             ncar_ocean_flux,  &
                             raoult_sat_vap
@@ -296,6 +305,7 @@ contains
 !  <OUT NAME="drdt_surf" TYPE="real, dimension(:)"> </OUT>
 !  <OUT NAME="dhdt_atm" TYPE="real, dimension(:)"> </OUT>
 !  <OUT NAME="dedq_atm" TYPE="real, dimension(:)"> </OUT>
+!  <OUT NAME="dtaudu_atm" TYPE="real, dimension(:)"> </OUT>
 !  <OUT NAME="dtaudv_atm" TYPE="real, dimension(:)"> </OUT>
 !  <OUT NAME="dt" TYPE="real"> </OUT>
 !  <IN NAME="land" TYPE="logical, dimension(:)"> </IN>
@@ -313,7 +323,7 @@ subroutine surface_flux_1d (                                           &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
-     dhdt_atm,  dedq_atm,   dtaudv_atm,                                &
+     dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
      dt,        land,      seawater,     avail  )
 !</PUBLICROUTINE>
 !  slm Mar 28 2002 -- remove agument drag_q since it is just cd_q*wind
@@ -328,7 +338,7 @@ subroutine surface_flux_1d (                                           &
   real, intent(out), dimension(:) :: &
        flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
-       dhdt_atm,  dedq_atm,   dtaudv_atm,                    &
+       dhdt_atm,  dedq_atm,   dtaudu_atm,dtaudv_atm,         &
        w_atm,     u_star,     b_star,    q_star,             &
        cd_m,      cd_t,       cd_q
   real, intent(inout), dimension(:) :: q_surf
@@ -344,7 +354,7 @@ subroutine surface_flux_1d (                                           &
        e_sat,    e_sat1,   q_sat,     q_sat1,    p_ratio,  &
        t_surf0,  t_surf1,  u_dif,     v_dif,               &
        rho_drag, drag_t,    drag_m,   drag_q,    rho,      &
-       q_atm,    q_surf0
+       q_atm,    q_surf0,  dw_atmdu,  dw_atmdv
 
   integer :: i, nbad
 
@@ -407,11 +417,25 @@ subroutine surface_flux_1d (                                           &
   endwhere
 
   if(alt_gustiness) then
-     where(avail) &
-          w_atm = max(sqrt(u_dif*u_dif + v_dif*v_dif), gust_const)
+     do i = 1, size(avail)
+        if (.not.avail(i)) cycle
+        w_atm(i) = max(sqrt(u_dif(i)**2 + v_dif(i)**2), gust_const)
+        ! derivatives of surface wind w.r.t. atm. wind components
+        if(w_atm(i) > gust_const) then
+           dw_atmdu(i) = u_dif(i)/w_atm(i)
+           dw_atmdv(i) = v_dif(i)/w_atm(i)
+        else
+           dw_atmdu(i) = 0.0
+           dw_atmdv(i) = 0.0
+        endif
+     enddo
   else
-     where(avail) &
-          w_atm = sqrt(u_dif*u_dif + v_dif*v_dif + gust*gust)
+     where(avail) 
+        w_atm = sqrt(u_dif*u_dif + v_dif*v_dif + gust*gust)
+        ! derivatives of surface wind w.r.t. atm. wind components
+        dw_atmdu = u_dif/w_atm
+        dw_atmdv = v_dif/w_atm
+     endwhere
   endif
 
   !  monin-obukhov similarity theory 
@@ -468,7 +492,6 @@ subroutine surface_flux_1d (                                           &
      rho_drag   = drag_m * rho
      flux_u     = rho_drag * u_dif   ! zonal      component of stress (Nt/m**2)
      flux_v     = rho_drag * v_dif   ! meridional component of stress 
-     dtaudv_atm = -rho_drag          ! d(stress component)/d(atmos wind)
 
   elsewhere
      ! zero-out un-available data in output only fields
@@ -483,13 +506,27 @@ subroutine surface_flux_1d (                                           &
      drdt_surf  = 0.0
      dhdt_atm   = 0.0
      dedq_atm   = 0.0
-     dtaudv_atm = 0.0
      u_star     = 0.0
      b_star     = 0.0
      q_star     = 0.0
      q_surf     = 0.0
      w_atm      = 0.0
   endwhere
+
+  ! calculate d(stress component)/d(atmos wind component)
+  dtaudu_atm = 0.0
+  dtaudv_atm = 0.0
+  if (old_dtaudv) then
+     where(avail)
+        dtaudv_atm = -rho_drag
+        dtaudu_atm = -rho_drag
+     endwhere
+  else
+     where(avail)
+        dtaudu_atm = -cd_m*rho*(dw_atmdu*u_dif + w_atm)
+        dtaudv_atm = -cd_m*rho*(dw_atmdv*v_dif + w_atm)
+     endwhere
+  endif
 
 end subroutine surface_flux_1d
 ! </SUBROUTINE>
@@ -505,7 +542,7 @@ subroutine surface_flux_0d (                                                 &
      cd_m_0,      cd_t_0,       cd_q_0,                                      &
      w_atm_0,     u_star_0,     b_star_0,     q_star_0,                      &
      dhdt_surf_0, dedt_surf_0,  dedq_surf_0,  drdt_surf_0,                   &
-     dhdt_atm_0,  dedq_atm_0,   dtaudv_atm_0,                                &
+     dhdt_atm_0,  dedq_atm_0,   dtaudu_atm_0, dtaudv_atm_0,                  &
      dt,          land_0,       seawater_0,  avail_0  )
 
   ! ---- arguments -----------------------------------------------------------
@@ -518,7 +555,7 @@ subroutine surface_flux_0d (                                                 &
   real, intent(out) ::                                                 &
        flux_t_0,    flux_q_0,     flux_r_0,    flux_u_0,  flux_v_0,    &
        dhdt_surf_0, dedt_surf_0,  dedq_surf_0, drdt_surf_0,            &
-       dhdt_atm_0,  dedq_atm_0,   dtaudv_atm_0,                        &
+       dhdt_atm_0,  dedq_atm_0,   dtaudu_atm_0,dtaudv_atm_0,           &
        w_atm_0,     u_star_0,     b_star_0,    q_star_0,               &
        cd_m_0,      cd_t_0,       cd_q_0
   real, intent(inout) :: q_surf_0
@@ -534,7 +571,7 @@ subroutine surface_flux_0d (                                                 &
   real, dimension(1) :: &
        flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
-       dhdt_atm,  dedq_atm,   dtaudv_atm,                    &
+       dhdt_atm,  dedq_atm,   dtaudu_atm,dtaudv_atm,         &
        w_atm,     u_star,     b_star,    q_star,             &
        cd_m,      cd_t,       cd_q
   real, dimension(1) :: q_surf
@@ -548,6 +585,7 @@ subroutine surface_flux_0d (                                                 &
   v_atm(1)       = v_atm_0
   p_atm(1)       = p_atm_0
   z_atm(1)       = z_atm_0
+  t_ca(1)        = t_ca_0
   p_surf(1)      = p_surf_0
   t_surf(1)      = t_surf_0
   u_surf(1)      = u_surf_0
@@ -557,6 +595,10 @@ subroutine surface_flux_0d (                                                 &
   rough_moist(1) = rough_moist_0
   rough_scale(1) = rough_scale_0
   gust(1)        = gust_0
+  q_surf(1)      = q_surf_0
+  land(1)        = land_0
+  seawater(1)    = seawater_0
+  avail(1)       = avail_0
 
   call surface_flux_1d (                                                 &
        t_atm,     q_atm,      u_atm,     v_atm,     p_atm,     z_atm,    &
@@ -567,7 +609,7 @@ subroutine surface_flux_0d (                                                 &
        cd_m,      cd_t,       cd_q,                                      &
        w_atm,     u_star,     b_star,     q_star,                        &
        dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
-       dhdt_atm,  dedq_atm,   dtaudv_atm,                                &
+       dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
        dt,        land,      seawater, avail  )
 
   flux_t_0     = flux_t(1)
@@ -577,9 +619,11 @@ subroutine surface_flux_0d (                                                 &
   flux_v_0     = flux_v(1)
   dhdt_surf_0  = dhdt_surf(1)
   dedt_surf_0  = dedt_surf(1)
+  dedq_surf_0  = dedq_surf(1)
   drdt_surf_0  = drdt_surf(1)
   dhdt_atm_0   = dhdt_atm(1)
   dedq_atm_0   = dedq_atm(1)
+  dtaudu_atm_0 = dtaudu_atm(1)
   dtaudv_atm_0 = dtaudv_atm(1)
   w_atm_0      = w_atm(1)
   u_star_0     = u_star(1)
@@ -601,7 +645,7 @@ subroutine surface_flux_2d (                                           &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
-     dhdt_atm,  dedq_atm,   dtaudv_atm,                                &
+     dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
      dt,        land,       seawater,  avail  )
 
   ! ---- arguments -----------------------------------------------------------
@@ -614,7 +658,7 @@ subroutine surface_flux_2d (                                           &
   real, intent(out), dimension(:,:) :: &
        flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
-       dhdt_atm,  dedq_atm,   dtaudv_atm,                    &
+       dhdt_atm,  dedq_atm,   dtaudv_atm,dtaudu_atm,         &
        w_atm,     u_star,     b_star,    q_star,             &
        cd_m,      cd_t,       cd_q
   real, intent(inout), dimension(:,:) :: q_surf
@@ -633,7 +677,7 @@ subroutine surface_flux_2d (                                           &
           cd_m(:,j),      cd_t(:,j),       cd_q(:,j),                                                     &
           w_atm(:,j),     u_star(:,j),     b_star(:,j),     q_star(:,j),                                  &
           dhdt_surf(:,j), dedt_surf(:,j),  dedq_surf(:,j),  drdt_surf(:,j),                               &
-          dhdt_atm(:,j),  dedq_atm(:,j),   dtaudv_atm(:,j),                                               &
+          dhdt_atm(:,j),  dedq_atm(:,j),   dtaudu_atm(:,j), dtaudv_atm(:,j),                              &
           dt,             land(:,j),       seawater(:,j),  avail(:,j)  )
   end do
 end subroutine surface_flux_2d
@@ -725,7 +769,7 @@ real   , intent(inout), dimension(:) :: cd, ch, ce, ustar, bstar
           psi_h = 2*log((1+x2)/2);                                ! L-Y eqn. 8e
         end if
     
-        u10 = u*(1+cd_n10_rt*(log(z(i)/10)-psi_m)/vonkarm);       ! L-Y eqn. 9
+        u10 = u/(1+cd_n10_rt*(log(z(i)/10)-psi_m)/vonkarm);       ! L-Y eqn. 9
         cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3;                  ! L-Y eqn. 6a again
         cd_n10_rt = sqrt(cd_n10);
         ce_n10 = 34.6*cd_n10_rt/1e3;                              ! L-Y eqn. 6b again
