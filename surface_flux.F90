@@ -166,10 +166,12 @@ public  surface_flux
 !  Derivative of water vapor flux over temp at the lowest atmos level.
 !  </OUT>
 !  <OUT NAME="dtaudu_atm" TYPE="real, dimension(:)" UNITS="Pa/(m/s)">
-!  Derivative of zonal wind stress with regard to the lowest level zonal wind speed of the atmos
+!  Derivative of zonal wind stress w.r.t the lowest level zonal 
+!  wind speed of the atmos
 !  </OUT>
 !  <OUT NAME="dtaudv_atm" TYPE="real, dimension(:)" UNITS="Pa/(m/s)">
-!  Derivative of meridional wind stress with regard to the lowest level meridional wind speed of the atmos
+!  Derivative of meridional wind stress w.r.t the lowest level meridional 
+!  wind speed of the atmos
 !  </OUT>
 !  <OUT NAME="dt" TYPE="real">
 !  Time step (it is not used presently)
@@ -195,8 +197,8 @@ end interface
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 12.0 2005/04/14 15:59:25 fms Exp $'
-character(len=*), parameter :: tagname = '$Name: lima $'
+character(len=*), parameter :: version = '$Id: surface_flux.F90,v 13.0 2006/03/28 21:20:44 fms Exp $'
+character(len=*), parameter :: tagname = '$Name: memphis_2006_07 $'
    
 logical :: do_init = .true.
 
@@ -658,7 +660,7 @@ subroutine surface_flux_2d (                                           &
   real, intent(out), dimension(:,:) :: &
        flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
-       dhdt_atm,  dedq_atm,   dtaudv_atm,dtaudu_atm,         &
+       dhdt_atm,  dedq_atm,   dtaudu_atm,dtaudv_atm,         &
        w_atm,     u_star,     b_star,    q_star,             &
        cd_m,      cd_t,       cd_q
   real, intent(inout), dimension(:,:) :: q_surf

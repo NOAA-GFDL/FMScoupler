@@ -176,7 +176,7 @@
 <h4>OTHER MODULES USED</h4>
 <!-- BEGIN OTHER MODULES USED -->
 <div>
-<pre>           mpp_mod<br>   mpp_domains_mod<br>        mpp_io_mod<br>   atmos_model_mod<br>   ocean_model_mod<br>     ice_model_mod<br>    land_model_mod<br>  surface_flux_mod<br> monin_obukhov_mod<br>         xgrid_mod<br> diag_integral_mod<br>  diag_manager_mod<br>  time_manager_mod<br>sat_vapor_pres_mod<br>     constants_mod<br>           fms_mod<br> data_override_mod</pre>
+<pre>                mpp_mod<br>        mpp_domains_mod<br>             mpp_io_mod<br>        atmos_model_mod<br>        ocean_model_mod<br>          ice_model_mod<br>         land_model_mod<br>       surface_flux_mod<br>      monin_obukhov_mod<br>              xgrid_mod<br>      diag_integral_mod<br>       diag_manager_mod<br>       time_manager_mod<br>     sat_vapor_pres_mod<br>          constants_mod<br>                fms_mod<br>      data_override_mod<br>      coupler_types_mod<br> atmos_ocean_fluxes_mod<br>atmos_tracer_driver_mod<br>      field_manager_mod<br>     tracer_manager_mod</pre>
 </div>
 <!-- END OTHER MODULES USED -->
 <!-- BEGIN PUBLIC INTERFACE -->
@@ -446,7 +446,7 @@
 <a name="flux_land_to_ice"></a>
 <h4>flux_land_to_ice</h4>
 <pre>
-<b>call flux_land_to_ice </b>(Time, Land, Ice, Boundary )</pre>
+<b>call flux_land_to_ice </b>(Time, Land, Ice, Land_Ice_Boundary )</pre>
 <dl>
 <dt>
 <b>DESCRIPTION</b>
@@ -482,7 +482,7 @@
 <dd>
 <table border="0">
 <tr>
-<td valign="top" align="left"><tt>Boundary&nbsp;&nbsp;&nbsp;</tt></td><td>   A derived data type to specify properties and fluxes passed from land to ice. <br>&nbsp;&nbsp;&nbsp;<span class="type">[land_ice_boundary_type]</span></td>
+<td valign="top" align="left"><tt>Land_Ice_Boundary&nbsp;&nbsp;&nbsp;</tt></td><td>   A derived data type to specify properties and fluxes passed from land to ice. <br>&nbsp;&nbsp;&nbsp;<span class="type">[land_ice_boundary_type]</span></td>
 </tr>
 </table>
 </dd>
@@ -493,7 +493,7 @@
 <a name="flux_ice_to_ocean"></a>
 <h4>flux_ice_to_ocean</h4>
 <pre>
-<b>call flux_ice_to_ocean </b>( Time, Ice, Ocean, Boundary )</pre>
+<b>call flux_ice_to_ocean </b>( Time, Ice, Ocean, Ice_Ocean_Boundary )</pre>
 <dl>
 <dt>
 <b>DESCRIPTION</b>
@@ -541,7 +541,7 @@
 <dd>
 <table border="0">
 <tr>
-<td valign="top" align="left"><tt>Boundary&nbsp;&nbsp;&nbsp;</tt></td><td>   A derived data type to specify properties and fluxes passed from ice to ocean. <br>&nbsp;&nbsp;&nbsp;<span class="type">[ice_ocean_boundary_type]</span></td>
+<td valign="top" align="left"><tt>Ice_Ocean_Boundary&nbsp;&nbsp;&nbsp;</tt></td><td>   A derived data type to specify properties and fluxes passed from ice to ocean. <br>&nbsp;&nbsp;&nbsp;<span class="type">[ice_ocean_boundary_type]</span></td>
 </tr>
 </table>
 </dd>
@@ -552,7 +552,7 @@
 <a name="flux_ocean_to_ice"></a>
 <h4>flux_ocean_to_ice</h4>
 <pre>
-<b>call flux_ocean_to_ice </b>( Time, Ocean, Ice, Boundary)</pre>
+<b>call flux_ocean_to_ice </b>( Time, Ocean, Ice, Ocean_Ice_Boundary)</pre>
 <dl>
 <dt>
 <b>DESCRIPTION</b>
@@ -590,7 +590,7 @@
 <dd>
 <table border="0">
 <tr>
-<td valign="top" align="left"><tt>Boundary&nbsp;&nbsp;&nbsp;</tt></td><td>   A derived data type to specify properties and fluxes passed from ocean to ice. <br>&nbsp;&nbsp;&nbsp;<span class="type">[ocean_ice_boundary_type]</span></td>
+<td valign="top" align="left"><tt>Ocean_Ice_Boundary&nbsp;&nbsp;&nbsp;</tt></td><td>   A derived data type to specify properties and fluxes passed from ocean to ice. <br>&nbsp;&nbsp;&nbsp;<span class="type">[ocean_ice_boundary_type]</span></td>
 </tr>
 </table>
 </dd>
@@ -629,7 +629,7 @@
 <a name="flux_up_to_atmos"></a>
 <h4>flux_up_to_atmos</h4>
 <pre>
-<b>call flux_up_to_atmos </b>( Time, Land, Ice, Boundary )</pre>
+<b>call flux_up_to_atmos </b>( Time, Land, Ice, Land_Ice_Atmos_Boundary )</pre>
 <dl>
 <dt>
 <b>DESCRIPTION</b>
@@ -668,7 +668,7 @@
 <td valign="top" align="left"><tt>Ice&nbsp;&nbsp;&nbsp;</tt></td><td>   A derived data type to specify ice boundary data. <br>&nbsp;&nbsp;&nbsp;<span class="type">[ice_data_type]</span></td>
 </tr>
 <tr>
-<td valign="top" align="left"><tt>Boundary&nbsp;&nbsp;&nbsp;</tt></td><td>   A derived data type to specify properties and fluxes passed from exchange grid to
+<td valign="top" align="left"><tt>Land_Ice_Atmos_Boundary&nbsp;&nbsp;&nbsp;</tt></td><td>   A derived data type to specify properties and fluxes passed from exchange grid to
    the atmosphere, land and ice. <br>&nbsp;&nbsp;&nbsp;<span class="type">[land_ice_atmos_boundary_type]</span></td>
 </tr>
 </table>
@@ -767,7 +767,7 @@ lwflx
 </pre>
 </td><td>
 <pre>field description (units)<br>-------------------------<br>fractional amount of land (none)
-wind speed for flux calculations (m/s)
+wind speed for flux calculations  (m/s)
 drag coeff for moisture (none)
 drag coeff for heat (none)
 drag coeff for momentum (none)
@@ -786,7 +786,7 @@ height of btm level (m)
 gust scale (m/s)
 relative humidity at ref height (percent)
 temperature at ref height (deg_k)
-zonal wind component at ref height  (m/s)
+zonal wind component at ref height (m/s)
 meridional wind component at ref height (m/s)
 ref height interp factor for heat (none)
 ref height interp factor for momentum (none)
@@ -871,14 +871,14 @@ net (down-up) longwave flux (w/m2)
 <b>FATAL in flux_ice_to_ocean</b>
 </dt>
 <dd>
-<span class="errmsg">Boundary%xtype must be DIRECT or REDIST.</span>
+<span class="errmsg">Ice_Ocean_Boundary%xtype must be DIRECT or REDIST.</span>
 </dd>
 <dd>   The value of variable xtype of ice_ocean_boundary_type data must be DIRECT or REDIST. </dd>
 <dt>
 <b>FATAL in flux_ocean_to_ice</b>
 </dt>
 <dd>
-<span class="errmsg">Boundary%xtype must be DIRECT or REDIST.</span>
+<span class="errmsg">Ocean_Ice_Boundary%xtype must be DIRECT or REDIST.</span>
 </dd>
 <dd>   The value of variable xtype of ice_ocean_boundary_type data must be DIRECT or REDIST. </dd>
 </dl>

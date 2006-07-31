@@ -127,73 +127,93 @@ program coupler_main
 
 ! </INFO>
 
+  use constants_mod,           only: constants_init
 
-  use constants_mod, only:    constants_init
-  use time_manager_mod, only: time_type, set_calendar_type, set_time,  &
-                              set_date, get_date, days_in_month, month_name,  &
-                              operator(+), operator(-), operator (<), &
-                              operator (>), operator ( /= ), operator ( / ), &
-                              operator (*), THIRTY_DAY_MONTHS, JULIAN, &
-                              NOLEAP, NO_CALENDAR
-  use fms_mod, only: open_namelist_file, file_exist, check_nml_error, &
-                     uppercase, error_mesg, write_version_number, &
-                     fms_init, fms_end
-  use fms_io_mod, only: fms_io_exit
+  use time_manager_mod,        only: time_type, set_calendar_type, set_time
+  use time_manager_mod,        only: set_date, get_date, days_in_month, month_name
+  use time_manager_mod,        only: operator(+), operator(-), operator (<)
+  use time_manager_mod,        only: operator (>), operator ( /= ), operator ( / )
+  use time_manager_mod,        only: operator (*), THIRTY_DAY_MONTHS, JULIAN
+  use time_manager_mod,        only: NOLEAP, NO_CALENDAR
 
-  use  field_manager_mod, only : field_manager_init
-  use  diag_manager_mod, only: diag_manager_init, diag_manager_end, &
-                               DIAG_OCEAN, DIAG_OTHER, DIAG_ALL, get_base_date
-  use  data_override_mod, only: data_override_init
+  use fms_mod,                 only: open_namelist_file, field_exist, file_exist, check_nml_error
+  use fms_mod,                 only: uppercase, error_mesg, write_version_number
+  use fms_mod,                 only: fms_init, fms_end, stdout
+  use fms_mod,                 only: read_data, write_data
+
+  use fms_io_mod,              only: fms_io_exit
+
+  use diag_manager_mod,        only: diag_manager_init, diag_manager_end
+  use diag_manager_mod,        only: DIAG_OCEAN, DIAG_OTHER, DIAG_ALL, get_base_date
+
+  use field_manager_mod,       only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE
+
+  use tracer_manager_mod,      only: tracer_manager_init, get_tracer_index
+  use tracer_manager_mod,      only: get_number_tracers, get_tracer_names, NO_TRACER
+
+  use coupler_types_mod,       only: coupler_types_init
+
+  use data_override_mod,       only: data_override_init
+
 !
 ! model interfaces used to couple the component models:
 !               atmosphere, land, ice, and ocean
 !
-  use  atmos_model_mod, only: atmos_model_init, atmos_model_end, &
-                              update_atmos_model_down,           &
-                              update_atmos_model_up,             &
-                              atmos_data_type, &
-                              land_ice_atmos_boundary_type
-  use   land_model_mod, only: land_model_init, land_model_end, &
-                              land_data_type, atmos_land_boundary_type, &
-                              update_land_model_fast, update_land_model_slow
 
-  use    ice_model_mod, only: ice_model_init, ice_model_end,  &
-                              update_ice_model_slow_up,          &
-                              update_ice_model_fast,          &
-                              update_ice_model_slow_dn,          &
-                              ice_data_type, land_ice_boundary_type, &
-                              ocean_ice_boundary_type, atmos_ice_boundary_type
+  use atmos_model_mod,         only: atmos_model_init, atmos_model_end
+  use atmos_model_mod,         only: update_atmos_model_down
+  use atmos_model_mod,         only: update_atmos_model_up
+  use atmos_model_mod,         only: atmos_data_type
+  use atmos_model_mod,         only: land_ice_atmos_boundary_type
 
-  use  ocean_model_mod, only: update_ocean_model, ocean_model_init,  &
-                              ocean_model_end, ocean_data_type, ice_ocean_boundary_type, &
-                              read_ice_ocean_boundary, write_ice_ocean_boundary, &
-                              init_default_ice_ocean_boundary
+  use land_model_mod,          only: land_model_init, land_model_end
+  use land_model_mod,          only: land_data_type, atmos_land_boundary_type
+  use land_model_mod,          only: update_land_model_fast, update_land_model_slow
+
+  use ice_model_mod,           only: ice_model_init, ice_model_end
+  use ice_model_mod,           only: update_ice_model_slow_up
+  use ice_model_mod,           only: update_ice_model_fast
+  use ice_model_mod,           only: update_ice_model_slow_dn
+  use ice_model_mod,           only: ice_data_type, land_ice_boundary_type
+  use ice_model_mod,           only: ocean_ice_boundary_type, atmos_ice_boundary_type
+
+  use ocean_model_mod,         only: update_ocean_model, ocean_model_init
+  use ocean_model_mod,         only: ocean_model_end, ocean_data_type, ice_ocean_boundary_type
+  use ocean_model_mod,         only: read_ice_ocean_boundary, write_ice_ocean_boundary
+
 !
 ! flux_ calls translate information between model grids - see flux_exchange.f90
 !
-  use flux_exchange_mod, only: flux_exchange_init,   &
-                               sfc_boundary_layer,   &
-                               generate_sfc_xgrid,   &
-                               flux_down_from_atmos, &
-                               flux_up_to_atmos,     &
-                               flux_land_to_ice,     &
-                               flux_ice_to_ocean,    &
-                               flux_ocean_to_ice
-  use mpp_mod, only: mpp_clock_id, mpp_clock_begin, mpp_clock_end
-  use mpp_mod, only: mpp_init, mpp_pe, mpp_npes, mpp_root_pe, &
-                     stderr, stdlog, mpp_error, NOTE, FATAL, WARNING, &
-                     mpp_set_current_pelist, mpp_declare_pelist
-  use mpp_io_mod, only: mpp_open, mpp_close, &
-                        MPP_NATIVE, MPP_RDONLY, MPP_DELETE
-  use mpp_domains_mod, only: mpp_broadcast_domain
 
-  use memutils_mod, only: print_memuse_stats
+  use flux_exchange_mod,       only: flux_exchange_init
+  use flux_exchange_mod,       only: sfc_boundary_layer
+  use flux_exchange_mod,       only: generate_sfc_xgrid
+  use flux_exchange_mod,       only: flux_down_from_atmos
+  use flux_exchange_mod,       only: flux_up_to_atmos
+  use flux_exchange_mod,       only: flux_land_to_ice
+  use flux_exchange_mod,       only: flux_ice_to_ocean
+  use flux_exchange_mod,       only: flux_ocean_to_ice
+
+  use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
+
+  use mpp_mod,                 only: mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_chksum
+  use mpp_mod,                 only: mpp_init, mpp_pe, mpp_npes, mpp_root_pe, MAXPES
+  use mpp_mod,                 only: stderr, stdlog, mpp_error, NOTE, FATAL, WARNING
+  use mpp_mod,                 only: mpp_set_current_pelist, mpp_declare_pelist
+
+  use mpp_io_mod,              only: mpp_open, mpp_close
+  use mpp_io_mod,              only: MPP_NATIVE, MPP_RDONLY, MPP_DELETE
+
+  use mpp_domains_mod,         only: mpp_broadcast_domain
+
+  use memutils_mod,            only: print_memuse_stats
+
   implicit none
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 11.0 2004/09/28 19:36:47 fms Exp $'
-  character(len=128) :: tag = '$Name: lima $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 13.0 2006/03/28 21:20:25 fms Exp $'
+  character(len=128) :: tag = '$Name: memphis_2006_07 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -301,7 +321,20 @@ program coupler_main
 !  can be shown to be stable and current fluxes to be unconditionally unstable.
 !  For dt_cpld>dt_ocean there is probably sufficient damping.
 !  use_lag_fluxes is set to TRUE by default.
-!  </DATA> 
+!  </DATA>
+!  <DATA NAME="n_mask" TYPE="integer">
+!    number of region to be masked out. Its value should be less than MAX_PES.
+!  </DATA>
+!  <DATA NAME="mask_list(2,MAXPES)" TYPE="integer, dimension(2,MAX_MASK_REGION)">
+!    The position of the region to be masked out. mask_list(1,:) is the x-layout position
+!    and mask_list(2,:) is y-layout position.  
+!  </DATA>
+!  <DATA NAME="layout_mask" TYPE="integer, dimension(2)">
+!   Processor domain layout for all the component model. layout_mask need to be set when and only 
+!   when n_mask is greater than 0 ( some domain region is masked out ). When this namelist is set,
+!   it will overload the layout in each component model. The default value is (0,0).
+!   Currently we require all the component model has the same layout and same grid size.
+!  </DATA>
 !   <NOTE>
 !     <PRE>
 !     1.If no value is set for current_date, start_date, or calendar (or default value specified) then the value from restart
@@ -321,22 +354,44 @@ program coupler_main
   integer :: dt_atmos = 0  ! fluxes passed between atmosphere & ice/land
   integer :: dt_ocean = 0  ! ocean tracer timestep
   integer :: dt_cpld  = 0  ! fluxes passed between ice & ocean
-  integer,dimension (3)           :: locmax, locmin
+
 
   integer ::atmos_npes=0, ocean_npes=0, ice_npes=0, land_npes=0
   logical :: do_atmos =.true., do_land =.true., do_ice =.true., do_ocean=.true.
   logical :: do_flux =.true.
   logical :: concurrent=.FALSE.
   logical :: use_lag_fluxes=.TRUE.
+  logical :: do_chksum=.FALSE.
+  integer :: layout_mask(2) = (/0 , 0/)
+  integer :: n_mask = 0
+  integer :: mask_list(2, MAXPES), n, m 
+  integer, parameter :: mp = 2*MAXPES
+  data ((mask_list(n,m),n=1, 2),m=1,MAXPES) /mp*0/
+
   namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, months, days, hours,      &
                          minutes, seconds, dt_cpld, dt_atmos, dt_ocean, do_atmos,    &
                          do_land, do_ice, do_ocean, do_flux, atmos_npes, ocean_npes, &
-                         ice_npes, land_npes, concurrent, use_lag_fluxes
+                         ice_npes, land_npes, concurrent, use_lag_fluxes, do_chksum, &
+                         n_mask, layout_mask, mask_list
 
   integer :: initClock, mainClock, termClock
 
-  integer :: nfields
   character(len=80) :: text
+  character(len=48), parameter                    :: mod_name = 'coupler_main_mod'
+ 
+!
+!-----------------------------------------------------------------------
+!     local parameters
+!-----------------------------------------------------------------------
+!
+
+character(len=64), parameter    :: sub_name = 'coupler_main'
+character(len=256), parameter   :: error_header =                               &
+     '==>Error from ' // trim(mod_name) // '(' // trim(sub_name) // '):'
+character(len=256), parameter   :: warn_header =                                &
+     '==>Warning from ' // trim(mod_name) // '(' // trim(sub_name) // '):'
+character(len=256), parameter   :: note_header =                                &
+     '==>Note from ' // trim(mod_name) // '(' // trim(sub_name) // '):'
 
 !#######################################################################
 
@@ -351,6 +406,8 @@ program coupler_main
   call constants_init
 
   call coupler_init
+  if(do_chksum) call coupler_chksum('coupler_init+', 0)
+
   call mpp_set_current_pelist()
 
   call mpp_clock_end (initClock) !end initialization
@@ -390,9 +447,15 @@ program coupler_main
 
             Time_atmos = Time_atmos + Time_step_atmos
 
+            if (do_atmos) then
+              call atmos_tracer_driver_gather_data(Atm%fields, Atm%tr_bot)
+            endif
+
             if (do_flux) then
+              !if(do_chksum) call coupler_chksum('sfc-', (nc-1)*num_atmos_calls+na)
               call sfc_boundary_layer( REAL(dt_atmos), Time_atmos, &
                                        Atm, Land, Ice, Land_ice_atmos_boundary )
+              !if(do_chksum) call coupler_chksum('sfc+', (nc-1)*num_atmos_calls+na)
             end if
 
 !      ---- atmosphere down ----
@@ -473,6 +536,7 @@ program coupler_main
          Time = Time_ocean
      end if
 !--------------
+     if(do_chksum) call coupler_chksum('MAIN_LOOP+', nc)
      write( text,'(a,i4)' )'Main loop at coupling timestep=', nc
      call print_memuse_stats(text)
 
@@ -488,6 +552,8 @@ program coupler_main
 !-----------------------------------------------------------------------
   call mpp_clock_end(mainClock)
   call mpp_clock_begin(termClock)
+
+  if(do_chksum) call coupler_chksum('coupler_end-', nc)
   call coupler_end
 
   call diag_manager_end (Time)
@@ -507,20 +573,32 @@ contains
 !-----------------------------------------------------------------------
 !   initialize all defined exchange grids and all boundary maps
 !-----------------------------------------------------------------------
-    integer :: unit, log_unit, ierr, io, id, jd, kd, m, i
+ 
+!
+!-----------------------------------------------------------------------
+!     local parameters
+!-----------------------------------------------------------------------
+!
+
+    character(len=64), parameter    :: sub_name = 'coupler_init'
+    character(len=256), parameter   :: error_header =                               &
+         '==>Error from ' // trim(mod_name) // '(' // trim(sub_name) // '):'
+    character(len=256), parameter   :: warn_header =                                &
+         '==>Warning from ' // trim(mod_name) // '(' // trim(sub_name) // '):'
+    character(len=256), parameter   :: note_header =                                &
+         '==>Note from ' // trim(mod_name) // '(' // trim(sub_name) // '):'
+
+    integer :: unit,  ierr, io,    m, i
     integer :: date(6)
     type (time_type) :: Run_length
     character(len=9) :: month
     integer :: pe, npes
     integer :: atmos_pe_start=0, atmos_pe_end=0, &
-               ocean_pe_start=0, ocean_pe_end=0, &
-               ice_pe_start=0, ice_pe_end=0, &
-               land_pe_start=0, land_pe_end=0
-    integer :: atm1_pe_start=0, atm1_pe_end, &
-               ocn1_pe_start=0, ocn1_pe_end, &
-               atm2_pe_start=0, atm2_pe_end, &
-               ocn2_pe_start=0, ocn2_pe_end
+               ocean_pe_start=0, ocean_pe_end=0
+    integer :: n
     integer :: diag_model_subset=DIAG_ALL
+    logical :: other_fields_exist
+    logical, allocatable :: maskmap(:,:)
 !-----------------------------------------------------------------------
 !----- read namelist -------
 
@@ -605,12 +683,45 @@ contains
          write( stdlog(), 16 )date(1),trim(month_name(date(2))),date(3:6)
 16  format ('  current date used = ',i4,1x,a,2i3,2(':',i2.2),' gmt') 
 
+    npes = mpp_npes()
+!----- check the value of layout and setup the maskmap for domain layout.
+    if( n_mask > 0 ) then
+       if(do_atmos .OR. do_land) call mpp_error(FATAL, &
+            'program coupler: do_atmos and do_land should be false when n_mask > 0')
+
+       if(concurrent) call mpp_error(FATAL, &
+            'program coupler: can not run concurrent run when some regions are masked out')
+       if( layout_mask(1)*layout_mask(2) - n_mask .NE. npes ) call mpp_error(FATAL, &
+            'program coupler: layout(1)*layout(2) - n_mask should equal to npes when n_mask>0')
+       call mpp_error(NOTE, 'program coupler: layout_mask and mask_list is set in coupler_nml, ' // &
+                            'the value of layout_mask will override the layout specified in each component model')
+
+       allocate(maskmap(layout_mask(1), layout_mask(2)) )
+       maskmap = .TRUE.
+       do n=1, n_mask
+          if (mask_list(1,n) .gt. layout_mask(1) ) &
+             call mpp_error( FATAL, 'program coupler: mask_list elements outside layout defines.' )
+          if (mask_list(2,n) .gt. layout_mask(2) ) &
+             call mpp_error( FATAL, 'program coupler: mask_list elements outside layout defines.' )
+          maskmap(mask_list(1,n),mask_list(2,n)) = .false.
+       enddo
+       !--- copy maskmap value to each model data type
+       allocate(Atm%maskmap(layout_mask(1), layout_mask(2)), Land%maskmap(layout_mask(1), layout_mask(2)) )
+       allocate(Ice%maskmap(layout_mask(1), layout_mask(2)), Ocean%maskmap(layout_mask(1), layout_mask(2)))
+       Atm%maskmap = maskmap;  Land%maskmap = maskmap
+       Ice%maskmap = maskmap;  Ocean%maskmap = maskmap
+       deallocate(maskmap)
+    else
+       if( layout_mask(1)*layout_mask(2) .NE. 0 ) call mpp_error(NOTE, &
+            'program coupler: when no region is masked out, layout_mask need not be set' )
+    end if
+
+
 !-----------------------------------------------------------------------
 !------ initialize concurrent PEset management ------
 
 !pe information
     pe = mpp_pe()
-    npes = mpp_npes()
     if( ice_npes.NE.0 ) &
          call mpp_error( WARNING, 'coupler_init: pelists not yet implemented for ice.' )
     if( land_npes.NE.0 ) &
@@ -630,8 +741,8 @@ contains
         ocean_pe_start = atmos_npes
         ocean_pe_end = atmos_npes+ocean_npes-1
         if( .NOT.use_lag_fluxes )call mpp_error( WARNING, &
-             'coupler_init: you have set both concurrent and use_lag_fluxes &
-            & to TRUE in coupler_nml. When not using lag fluxes, components &
+             'coupler_init: you have set concurrent=TRUE and use_lag_fluxes=FALSE &
+            & in coupler_nml. When not using lag fluxes, components &
             & will synchronize at two points, and thus run serially.' )
     else                        !serial timestepping
         if( atmos_npes.EQ.0 )atmos_npes = npes
@@ -697,7 +808,6 @@ contains
         call mpp_set_current_pelist(Ocean%pelist)
         if(ocean_npes /= npes)diag_model_subset = DIAG_OCEAN  ! change diag_model_subset from DIAG_ALL
     end if
-   call field_manager_init(nfields)
    call diag_manager_init(DIAG_MODEL_SUBSET=diag_model_subset)   ! initialize diag_manager for processor subset output
     call print_memuse_stats( 'diag_manager_init' )
 !-----------------------------------------------------------------------
@@ -786,6 +896,18 @@ contains
          call error_mesg ('program coupler',   &
          'cpld time step is not a multiple of the ocean time step', FATAL)
 
+!
+!       Initialize the tracer manager. This needs to be done on all PEs,
+!       before the individual models are initialized.
+!
+
+    call tracer_manager_init
+!
+!       Initialize the coupler types
+!
+
+    call coupler_types_init
+
 !-----------------------------------------------------------------------
 !------ initialize component models ------
 !------ grid info now comes from grid_spec file
@@ -826,23 +948,54 @@ contains
     Time_atmos = Time
     Time_ocean = Time
 
-!---- initialize Ice for ice_ocean_boundary update ----
-!  ! Only ocean PEs read ice_ocean_boundary; data in ice_ocean_boundary
-!  ! struct is ignored in non-concurrent mode since atmos
-!  ! model has run one iteration before ocean model is called.
-!    if( Ocean%pe )then
-!      call mpp_set_current_pelist(Ocean%pelist)
-!      if (force_date_from_namelist .or. .NOT.concurrent) then
-!        call init_default_ice_ocean_boundary(ice_ocean_boundary)
-!      else
-!        if( file_exist('INPUT/coupler_fluxes.res.nc') )then !Balaji
-!            call read_ice_ocean_boundary('INPUT/coupler_fluxes.res.nc', &
-!                                     ice_ocean_boundary,Ocean)
-!        else
-!            if( Time.NE.Time_init ) &
-!                 call mpp_error( FATAL, 'COUPLER_INIT: missing restart file INPUT/coupler_fluxes.res.nc.' )
-!        endif
-!    endif
+!
+!       read in extra fields for the air-sea gas fluxes
+!
+
+    if ( Atm%pe ) then
+      call mpp_set_current_pelist(Atm%pelist)
+      do n = 1, Ice%ocean_fluxes%num_bcs  !{
+        other_fields_exist = .false.
+        do m = 1, Ice%ocean_fluxes%bc(n)%num_fields  !{
+          if (field_exist(Ice%ocean_fluxes%bc(n)%ice_file_in,                           &
+                          Ice%ocean_fluxes%bc(n)%field(m)%name)) then
+            other_fields_exist = .true.
+            write (stdout(),*) trim(note_header), ' Reading restart info for ',         &
+                 trim(Ice%ocean_fluxes%bc(n)%field(m)%name), ' from ',                  &
+                 trim(Ice%ocean_fluxes%bc(n)%ice_file_in)
+            call read_data(Ice%ocean_fluxes%bc(n)%ice_file_in,                          &
+                 Ice%ocean_fluxes%bc(n)%field(m)%name,                                  &
+                 Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%domain)
+          elseif (other_fields_exist) then
+            call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
+                 trim(Ice%ocean_fluxes%bc(n)%field(m)%name) // ' in file ' //           &
+                 trim(Ice%ocean_fluxes%bc(n)%ice_file_in))
+          endif
+        enddo  !} m
+      enddo  !} n
+    endif
+    if ( Ocean%pe ) then
+      call mpp_set_current_pelist(Ocean%pelist)
+      do n = 1, Ocean%fields%num_bcs  !{
+        other_fields_exist = .false.
+        do m = 1, Ocean%fields%bc(n)%num_fields  !{
+          if (field_exist(Ocean%fields%bc(n)%ocean_file_in,                &
+                          Ocean%fields%bc(n)%field(m)%name)) then
+            other_fields_exist = .true.
+            write (stdout(),*) trim(note_header), ' Reading restart info for ',         &
+                 trim(Ocean%fields%bc(n)%field(m)%name), ' from ',         &
+                 trim(Ocean%fields%bc(n)%ocean_file_in)
+            call read_data(Ocean%fields%bc(n)%ocean_file_in,               &
+                 Ocean%fields%bc(n)%field(m)%name,                         &
+                 Ocean%fields%bc(n)%field(m)%values, Ocean%domain)
+          elseif (other_fields_exist) then
+            call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
+                 trim(Ocean%fields%bc(n)%field(m)%name) // ' in file ' //  &
+                 trim(Ocean%fields%bc(n)%ocean_file_in))
+          endif
+        enddo  !} m
+      enddo  !} n
+    endif
 
     call mpp_set_current_pelist()
 
@@ -861,6 +1014,8 @@ contains
   subroutine coupler_end
 
     integer :: unit, date(6)
+    integer :: m
+    integer :: n
 !-----------------------------------------------------------------------
 
     call mpp_set_current_pelist()
@@ -884,12 +1039,26 @@ contains
 !        call write_ice_ocean_boundary('RESTART/coupler_fluxes.res.nc', &
 !                                      ice_ocean_boundary,Ocean)
         call ocean_model_end (Ocean)
+        do n = 1, Ocean%fields%num_bcs  !{
+          do m = 1, Ocean%fields%bc(n)%num_fields  !{
+            call write_data(Ocean%fields%bc(n)%ocean_file_out,     &
+                 Ocean%fields%bc(n)%field(m)%name,                 &
+                 Ocean%fields%bc(n)%field(m)%values, Ocean%domain)
+          enddo  !} m
+        enddo  !} n
     end if
     if( Atm%pe )then
         call mpp_set_current_pelist(Atm%pelist)
         call atmos_model_end (Atm)
         call  land_model_end (Atmos_land_boundary, Land)
         call   ice_model_end (Ice)
+        do n = 1, Ice%ocean_fluxes%num_bcs  !{
+          do m = 1, Ice%ocean_fluxes%bc(n)%num_fields  !{
+            call write_data(Ice%ocean_fluxes%bc(n)%ice_file_out,                &
+                 Ice%ocean_fluxes%bc(n)%field(m)%name,                          &
+                 Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%domain)
+          enddo  !} m
+        enddo  !} n
     end if
     call fms_io_exit
     call mpp_set_current_pelist()
@@ -912,7 +1081,105 @@ contains
 
   end subroutine coupler_end
 
-!#######################################################################
+  subroutine coupler_chksum(id, timestep)
 
-end program coupler_main
+    character(len=*), intent(in) :: id
+    integer         , intent(in) :: timestep
+
+    type :: tracer_ind_type
+       integer :: atm, ice, lnd ! indices of the tracer in the respective models
+    end type tracer_ind_type
+    integer                            :: n_atm_tr, n_lnd_tr, n_exch_tr
+    integer                            :: n_atm_tr_tot, n_lnd_tr_tot
+    integer                            :: i, tr, n, m
+    type(tracer_ind_type), allocatable :: tr_table(:)
+    character(32) :: tr_name
+
+    call get_number_tracers (MODEL_ATMOS, num_tracers=n_atm_tr_tot, &
+                             num_prog=n_atm_tr)
+    call get_number_tracers (MODEL_LAND, num_tracers=n_lnd_tr_tot, &
+                             num_prog=n_lnd_tr)
+
+    ! assemble the table of tracer number translation by matching names of
+    ! prognostic tracers in the atmosphere and surface models; skip all atmos.
+    ! tracers that have no corresponding surface tracers.
+    allocate(tr_table(n_atm_tr))
+    n = 1
+    do i = 1,n_atm_tr
+       call get_tracer_names( MODEL_ATMOS, i, tr_name )
+       tr_table(n)%atm = i
+       tr_table(n)%ice = get_tracer_index ( MODEL_ICE,  tr_name )
+       tr_table(n)%lnd = get_tracer_index ( MODEL_LAND, tr_name )
+       if(tr_table(n)%ice/=NO_TRACER.or.tr_table(n)%lnd/=NO_TRACER) &
+            n = n+1
+    enddo
+    n_exch_tr = n-1
+
+100 FORMAT("CHECKSUM::",A32," = ",Z20)
+101 FORMAT("CHECKSUM::",A16,a,'%',a," = ",Z20)
+
+    if( Atm%pe )then
+        call mpp_set_current_pelist(Atm%pelist)
+
+    write(stdout(),*) 'BEGIN CHECKSUM(Atm):: ', id, timestep
+    write(stdout(),100) 'atm%t_bot', mpp_chksum(atm%t_bot)
+    write(stdout(),100) 'atm%z_bot', mpp_chksum(atm%z_bot)
+    write(stdout(),100) 'atm%p_bot', mpp_chksum(atm%p_bot)
+    write(stdout(),100) 'atm%u_bot', mpp_chksum(atm%u_bot)
+    write(stdout(),100) 'atm%v_bot', mpp_chksum(atm%v_bot)
+    write(stdout(),100) 'atm%p_surf', mpp_chksum(atm%p_surf)
+    write(stdout(),100) 'atm%gust', mpp_chksum(atm%gust)
+    do tr = 1,n_exch_tr
+       n = tr_table(tr)%atm
+       if(n /= NO_TRACER ) then
+          call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
+          write(stdout(),100) 'atm%'//trim(tr_name), mpp_chksum(Atm%tr_bot(:,:,n))
+       endif
+    enddo
+
+    write(stdout(),100) 'land%t_surf', mpp_chksum(land%t_surf)
+    write(stdout(),100) 'land%t_ca', mpp_chksum(land%t_ca)
+    write(stdout(),100) 'land%rough_mom', mpp_chksum(land%rough_mom)
+    write(stdout(),100) 'land%rough_heat', mpp_chksum(land%rough_heat)
+    write(stdout(),100) 'land%rough_scale', mpp_chksum(land%rough_scale)
+    do tr = 1,n_exch_tr
+       n = tr_table(tr)%lnd
+       if(n /= NO_TRACER ) then
+          call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
+          write(stdout(),100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,:,n))
+       endif
+    enddo
+
+    write(stdout(),100) 'ice%t_surf', mpp_chksum(ice%t_surf)
+    write(stdout(),100) 'ice%rough_mom', mpp_chksum(ice%rough_mom)
+    write(stdout(),100) 'ice%rough_heat', mpp_chksum(ice%rough_heat)
+    write(stdout(),100) 'ice%rough_moist', mpp_chksum(ice%rough_moist)
+    write(stdout(),*) 'STOP CHECKSUM(Atm):: ', id, timestep
+
+    !endif
+
+    !if( Ocean%pe )then
+        !call mpp_set_current_pelist(Ocean%pelist)
+
+    write(stdout(),*) 'BEGIN CHECKSUM(Ice):: ', id, timestep
+    do n = 1, ice%ocean_fields%num_bcs  !{
+       do m = 1, ice%ocean_fields%bc(n)%num_fields  !{
+          !write(stdout(),101) 'ice%', m, n, mpp_chksum(Ice%ocean_fields%bc(n)%field(m)%values)
+          write(stdout(),101) 'ice%',trim(ice%ocean_fields%bc(n)%name), &
+               trim(ice%ocean_fields%bc(n)%field(m)%name), mpp_chksum(Ice%ocean_fields%bc(n)%field(m)%values)
+       enddo  !} m
+    enddo  !} n
+    write(stdout(),*) 'STOP CHECKSUM(Ice):: ', id, timestep
+
+    endif
+
+    deallocate(tr_table)
+
+    call mpp_set_current_pelist()
+
+  end subroutine coupler_chksum
+
+  !#######################################################################
+
+  end program coupler_main
 

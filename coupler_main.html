@@ -113,7 +113,7 @@
 <h4>MODULES USED</h4>
 <!-- BEGIN OTHER MODULES USED -->
 <div>
-<pre>    constants_mod<br> time_manager_mod<br>          fms_mod<br>       fms_io_mod<br>field_manager_mod<br> diag_manager_mod<br>data_override_mod<br>  atmos_model_mod<br>   land_model_mod<br>    ice_model_mod<br>  ocean_model_mod<br>flux_exchange_mod<br>          mpp_mod<br>       mpp_io_mod<br>  mpp_domains_mod<br>     memutils_mod</pre>
+<pre>          constants_mod<br>       time_manager_mod<br>                fms_mod<br>             fms_io_mod<br>       diag_manager_mod<br>      field_manager_mod<br>     tracer_manager_mod<br>      coupler_types_mod<br>      data_override_mod<br>        atmos_model_mod<br>         land_model_mod<br>          ice_model_mod<br>        ocean_model_mod<br>      flux_exchange_mod<br>atmos_tracer_driver_mod<br>                mpp_mod<br>             mpp_io_mod<br>        mpp_domains_mod<br>           memutils_mod</pre>
 </div>
 <!-- END OTHER MODULES USED -->
 <!-- BEGIN PUBLIC INTERFACE -->
@@ -267,6 +267,28 @@
    For dt_cpld&gt;dt_ocean there is probably sufficient damping.
    use_lag_fluxes is set to TRUE by default. <br>
 <span class="type">[logical]</span>
+</dl>
+<dt>
+<tt>n_mask</tt>
+</dt>
+<dl>   number of region to be masked out. Its value should be less than MAX_PES. <br>
+<span class="type">[integer]</span>
+</dl>
+<dt>
+<tt>mask_list(2,MAXPES)</tt>
+</dt>
+<dl>   The position of the region to be masked out. mask_list(1,:) is the x-layout position
+   and mask_list(2,:) is y-layout position. <br>
+<span class="type">[integer, dimension(2,MAX_MASK_REGION)]</span>
+</dl>
+<dt>
+<tt>layout_mask</tt>
+</dt>
+<dl>   Processor domain layout for all the component model. layout_mask need to be set when and only 
+   when n_mask is greater than 0 ( some domain region is masked out ). When this namelist is set,
+   it will overload the layout in each component model. The default value is (0,0).
+   Currently we require all the component model has the same layout and same grid size. <br>
+<span class="type">[integer, dimension(2)]</span>
 </dl>
 </dl>
 </div>
