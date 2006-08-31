@@ -212,8 +212,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 13.0 2006/03/28 21:20:25 fms Exp $'
-  character(len=128) :: tag = '$Name: memphis_2006_07 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 13.0.2.1 2006/06/06 01:19:47 ap Exp $'
+  character(len=128) :: tag = '$Name: memphis_2006_08 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -221,7 +221,8 @@ program coupler_main
   type (atmos_data_type) :: Atm
   type  (land_data_type) :: Land
   type   (ice_data_type) :: Ice
-  type (ocean_data_type) :: Ocean
+  ! allow members of ocean type to be aliased (ap)
+  type (ocean_data_type), target :: Ocean
 
   type(atmos_land_boundary_type)     :: Atmos_land_boundary
   type(atmos_ice_boundary_type)      :: Atmos_ice_boundary
