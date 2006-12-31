@@ -134,7 +134,7 @@ program coupler_main
   use time_manager_mod,        only: operator(+), operator(-), operator (<)
   use time_manager_mod,        only: operator (>), operator ( /= ), operator ( / )
   use time_manager_mod,        only: operator (*), THIRTY_DAY_MONTHS, JULIAN
-  use time_manager_mod,        only: NOLEAP, NO_CALENDAR
+  use time_manager_mod,        only: NOLEAP, NO_CALENDAR, INVALID_CALENDAR
 
   use fms_mod,                 only: open_namelist_file, field_exist, file_exist, check_nml_error
   use fms_mod,                 only: uppercase, error_mesg, write_version_number
@@ -212,8 +212,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 13.0.2.1 2006/06/06 01:19:47 ap Exp $'
-  character(len=128) :: tag = '$Name: memphis_2006_08 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 13.0.2.1.6.1 2006/10/03 02:12:24 fms Exp $'
+  character(len=128) :: tag = '$Name: memphis_2006_12 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -245,7 +245,7 @@ program coupler_main
   logical :: ocean_seg_start
   logical :: ocean_seg_end
   integer :: date_init(6)
-  integer :: calendar_type = -99
+  integer :: calendar_type = INVALID_CALENDAR
 
 !-----------------------------------------------------------------------
 !------ namelist interface -------
@@ -600,7 +600,12 @@ contains
     integer :: diag_model_subset=DIAG_ALL
     logical :: other_fields_exist
     logical, allocatable :: maskmap(:,:)
+    character(len=256) :: err_msg
 !-----------------------------------------------------------------------
+
+!----- write version to logfile -----
+    call write_version_number (version, tag)
+
 !----- read namelist -------
 
     unit = open_namelist_file()
@@ -609,10 +614,6 @@ contains
        ierr = check_nml_error (io, 'coupler_nml')
     enddo
 10  call mpp_close(unit)
-
-!----- write namelist to logfile -----
-    call write_version_number (version, tag)
-    if( mpp_pe() == mpp_root_pe() )write( stdlog(), nml=coupler_nml )
 
 !----- read date and calendar type from restart file -----
 
@@ -655,28 +656,17 @@ contains
             calendar_type = THIRTY_DAY_MONTHS
         case( 'NO_CALENDAR' )
             calendar_type = NO_CALENDAR
-        case default
-            call mpp_error( FATAL, 'COUPLER_MAIN: coupler_nml entry calendar must be one of JULIAN|NOLEAP|THIRTY_DAY|NO_CALENDAR.' )
         end select
-!        if ( uppercase(calendar(1:6)) == 'JULIAN') then
-!            calendar_type = JULIAN
-!        else if ( uppercase(calendar(1:6)) == 'NOLEAP') then
-!            calendar_type = NOLEAP
-!        else if ( uppercase(calendar(1:10)) == 'THIRTY_DAY') then
-!            calendar_type = THIRTY_DAY_MONTHS
-!        else if ( uppercase(calendar(1:11)) == 'NO_CALENDAR') then
-!            calendar_type = NO_CALENDAR
-!        else if (calendar(1:1) /= ' ') then
-!            call error_mesg ('program coupler',  &
-!                 'invalid namelist value for calendar', FATAL)
-!        else
-!            call error_mesg ('program coupler',  &
-!                 'no namelist value for calendar', FATAL)
-!        endif
 
     endif
 
-    call set_calendar_type (calendar_type)
+    call set_calendar_type (calendar_type, err_msg)
+    if(err_msg /= '') then
+      call mpp_error( FATAL, 'ERROR in coupler_init: '//trim(err_msg))
+    endif
+
+!----- write namelist to logfile -----
+    if( mpp_pe() == mpp_root_pe() )write( stdlog(), nml=coupler_nml )
 
 !----- write current/initial date actually used to logfile file -----
 
