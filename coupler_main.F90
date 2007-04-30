@@ -193,6 +193,7 @@ program coupler_main
   use flux_exchange_mod,       only: flux_land_to_ice
   use flux_exchange_mod,       only: flux_ice_to_ocean
   use flux_exchange_mod,       only: flux_ocean_to_ice
+  use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks, flux_ice_to_ocean_stocks
 
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
@@ -212,8 +213,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 13.0.2.1.6.1 2006/10/03 02:12:24 fms Exp $'
-  character(len=128) :: tag = '$Name: memphis_2006_12 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 14.0 2007/03/15 22:15:50 fms Exp $'
+  character(len=128) :: tag = '$Name: nalanda_2007_04 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -366,6 +367,7 @@ program coupler_main
   integer :: layout_mask(2) = (/0 , 0/)
   integer :: n_mask = 0
   integer :: mask_list(2, MAXPES), n, m 
+  integer :: check_stocks = 0 ! -1: never 0: at end of run only n>0: every n coupled steps
   integer, parameter :: mp = 2*MAXPES
   data ((mask_list(n,m),n=1, 2),m=1,MAXPES) /mp*0/
 
@@ -373,7 +375,7 @@ program coupler_main
                          minutes, seconds, dt_cpld, dt_atmos, dt_ocean, do_atmos,    &
                          do_land, do_ice, do_ocean, do_flux, atmos_npes, ocean_npes, &
                          ice_npes, land_npes, concurrent, use_lag_fluxes, do_chksum, &
-                         n_mask, layout_mask, mask_list
+                         n_mask, layout_mask, mask_list, check_stocks
 
   integer :: initClock, mainClock, termClock
 
@@ -418,130 +420,155 @@ character(len=256), parameter   :: note_header =                                
 !-----------------------------------------------------------------------
 !------ ocean/slow-ice integration loop ------
 
+     if(check_stocks >= 0) then
+        call mpp_set_current_pelist()
+        call flux_init_stocks(Atm, Land, Ice, Ocean)
+     endif
+
   do nc = 1, num_cpld_calls
      if( Atm%pe )then
-         call mpp_set_current_pelist(Atm%pelist)
-         call generate_sfc_xgrid( Land, Ice )
+        call mpp_set_current_pelist(Atm%pelist)
+        call generate_sfc_xgrid( Land, Ice )
      end if
      call mpp_set_current_pelist()
 
-! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
-! points when running concurrently. The calls as placed next to each other in
-! concurrent mode to avoid multiple synchronizations within the main loop.
-! This is only possible in the serial case when use_lag_fluxes.
+     ! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
+     ! points when running concurrently. The calls as placed next to each other in
+     ! concurrent mode to avoid multiple synchronizations within the main loop.
+     ! This is only possible in the serial case when use_lag_fluxes.
      call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
 
-! Update Ice_ocean_boundary; first iteration is supplied by restart     
+     ! Update Ice_ocean_boundary; first iteration is supplied by restart     
      if( use_lag_fluxes )then
-         call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
+        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
      end if
 
      if( Atm%pe )then
-         call mpp_set_current_pelist(Atm%pelist)
-         if (do_ice) call update_ice_model_slow_up( Ocean_ice_boundary, Ice )
+        call mpp_set_current_pelist(Atm%pelist)
+        if (do_ice) call update_ice_model_slow_up( Ocean_ice_boundary, Ice )
 
-!-----------------------------------------------------------------------
-!   ------ atmos/fast-land/fast-ice integration loop -------
+        !-----------------------------------------------------------------------
+        !   ------ atmos/fast-land/fast-ice integration loop -------
 
 
-         do na = 1, num_atmos_calls
+        do na = 1, num_atmos_calls
 
-            Time_atmos = Time_atmos + Time_step_atmos
+           Time_atmos = Time_atmos + Time_step_atmos
 
-            if (do_atmos) then
+           if (do_atmos) then
               call atmos_tracer_driver_gather_data(Atm%fields, Atm%tr_bot)
-            endif
+           endif
 
-            if (do_flux) then
+           if (do_flux) then
               !if(do_chksum) call coupler_chksum('sfc-', (nc-1)*num_atmos_calls+na)
               call sfc_boundary_layer( REAL(dt_atmos), Time_atmos, &
-                                       Atm, Land, Ice, Land_ice_atmos_boundary )
+                   Atm, Land, Ice, Land_ice_atmos_boundary )
               !if(do_chksum) call coupler_chksum('sfc+', (nc-1)*num_atmos_calls+na)
-            end if
+           end if
 
-!      ---- atmosphere down ----
+           !      ---- atmosphere down ----
 
-            if (do_atmos) &
-              call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
+           if (do_atmos) &
+                call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
 
-            call flux_down_from_atmos( Time_atmos, Atm, Land, Ice, &
-                 Land_ice_atmos_boundary, &
-                 Atmos_land_boundary, &
-                 Atmos_ice_boundary )
-            
+           call flux_down_from_atmos( Time_atmos, Atm, Land, Ice, &
+                Land_ice_atmos_boundary, &
+                Atmos_land_boundary, &
+                Atmos_ice_boundary )
 
-!      --------------------------------------------------------------
 
-!      ---- land model ----
+           !      --------------------------------------------------------------
 
-            if (do_land) &
-              call update_land_model_fast( Atmos_land_boundary, Land )
-            
-!      ---- ice model ----
-            if (do_ice) &
-              call update_ice_model_fast( Atmos_ice_boundary, Ice )
-            
-!      --------------------------------------------------------------
-!      ---- atmosphere up ----
+           !      ---- land model ----
 
-            call flux_up_to_atmos( Time_atmos, Land, Ice, Land_ice_atmos_boundary )
-            
-            if (do_atmos) &
-              call update_atmos_model_up( Land_ice_atmos_boundary, Atm )
-            
-!--------------
+           if (do_land) &
+                call update_land_model_fast( Atmos_land_boundary, Land )
 
-         enddo
+           !      ---- ice model ----
+           if (do_ice) &
+                call update_ice_model_fast( Atmos_ice_boundary, Ice )
 
-!   ------ end of atmospheric time step loop -----
-         if (do_land) call update_land_model_slow(Atmos_land_boundary,Land)
-!-----------------------------------------------------------------------
+           !      --------------------------------------------------------------
+           !      ---- atmosphere up ----
 
-!
-!     need flux call to put runoff and p_surf on ice grid
-!
-         call flux_land_to_ice( Time, Land, Ice, Land_ice_boundary )
+           call flux_up_to_atmos( Time_atmos, Land, Ice, Land_ice_atmos_boundary, &
+                & Atmos_land_boundary, Atmos_ice_boundary )
 
-         Atmos_ice_boundary%p = 0.0 ! call flux_atmos_to_ice_slow ?
+           if (do_atmos) &
+                call update_atmos_model_up( Land_ice_atmos_boundary, Atm )
 
-!   ------ slow-ice model ------
+           !--------------
 
-         if (do_ice) call update_ice_model_slow_dn( Atmos_ice_boundary, &
-                                                    Land_ice_boundary, Ice )
-         Time = Time_atmos
+        enddo
+
+        !   ------ end of atmospheric time step loop -----
+        if (do_land) call update_land_model_slow(Atmos_land_boundary,Land)
+        !-----------------------------------------------------------------------
+
+        !
+        !     need flux call to put runoff and p_surf on ice grid
+        !
+        call flux_land_to_ice( Time, Land, Ice, Land_ice_boundary )
+
+        Atmos_ice_boundary%p = 0.0 ! call flux_atmos_to_ice_slow ?
+
+        !   ------ slow-ice model ------
+
+        if (do_ice) then 
+           call update_ice_model_slow_dn( Atmos_ice_boundary, &
+                & Land_ice_boundary, Ice )
+           call flux_ice_to_ocean_stocks(Ice)
+        endif
+        Time = Time_atmos
      end if                     !Atm%pe block
 
      if( .NOT.use_lag_fluxes )then !this will serialize
-         call mpp_set_current_pelist()
-         call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
+        call mpp_set_current_pelist()
+        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
      end if
-     
+
      if( Ocean%pe )then
-         call mpp_set_current_pelist(Ocean%pelist)
-         do no = 1,num_ocean_calls
+        call mpp_set_current_pelist(Ocean%pelist)
+        do no = 1,num_ocean_calls
 
-!            if( mpp_pe().EQ.mpp_root_pe() )write( stderr(),'(a,2i4)' )'nc,no=', nc,no
-            Time_ocean = Time_ocean + Time_step_ocean
+           !            if( mpp_pe().EQ.mpp_root_pe() )write( stderr(),'(a,2i4)' )'nc,no=', nc,no
+           Time_ocean = Time_ocean + Time_step_ocean
 
-            ocean_seg_start = ( no .eq. 1 )               ! could eliminate these by
-            ocean_seg_end   = ( no .eq. num_ocean_calls ) ! putting this loop in
-                                                          ! update_ocean_model since
-                                                          ! fluxes don't change here
+           ocean_seg_start = ( no .eq. 1 )               ! could eliminate these by
+           ocean_seg_end   = ( no .eq. num_ocean_calls ) ! putting this loop in
+           ! update_ocean_model since
+           ! fluxes don't change here
 
-            if (do_ocean) call update_ocean_model( Ice_ocean_boundary, Ocean, &
-                               ocean_seg_start, ocean_seg_end, num_ocean_calls)
-            
-         enddo
-!   ------ end of ocean time step loop -----
-!-----------------------------------------------------------------------
-         Time = Time_ocean
+           if (do_ocean) call update_ocean_model( Ice_ocean_boundary, Ocean, &
+                ocean_seg_start, ocean_seg_end, num_ocean_calls)
+
+        enddo
+
+        !   ------ end of ocean time step loop -----
+        !-----------------------------------------------------------------------
+        Time = Time_ocean
+
      end if
-!--------------
+
+     if(check_stocks > 0) then
+        if(check_stocks*(nc/check_stocks) == nc) then
+           call mpp_set_current_pelist()
+           call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn=Ocean)
+        endif
+     endif
+
+     !--------------
      if(do_chksum) call coupler_chksum('MAIN_LOOP+', nc)
      write( text,'(a,i4)' )'Main loop at coupling timestep=', nc
      call print_memuse_stats(text)
 
+        
   enddo
+
+  if(check_stocks == 0) then
+     call mpp_set_current_pelist()
+     call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn=Ocean)
+  endif
 
 ! Need final update of Ice_ocean_boundary for concurrent restart
 !  if( concurrent )then
@@ -603,8 +630,8 @@ contains
     character(len=256) :: err_msg
 !-----------------------------------------------------------------------
 
-!----- write version to logfile -----
-    call write_version_number (version, tag)
+!----- write version to logfile -------
+    call write_version_number(version, tag)
 
 !----- read namelist -------
 
@@ -662,7 +689,7 @@ contains
 
     call set_calendar_type (calendar_type, err_msg)
     if(err_msg /= '') then
-      call mpp_error( FATAL, 'ERROR in coupler_init: '//trim(err_msg))
+      call mpp_error(FATAL, 'ERROR in coupler_init: '//trim(err_msg))
     endif
 
 !----- write namelist to logfile -----
@@ -773,6 +800,8 @@ contains
     Ocean%pelist = (/(i,i=ocean_pe_start,ocean_pe_end)/)
     Atm%pe = atmos_pe_start.LE.pe .AND. pe.LE.atmos_pe_end
     Ocean%pe = ocean_pe_start.LE.pe .AND. pe.LE.ocean_pe_end
+    Ice%pe  = Atm%pe
+    Land%pe = Atm%pe
     call mpp_declare_pelist( Atm%pelist,   '_atm' )
     call mpp_declare_pelist( Ocean%pelist, '_ocn' )
     if( concurrent .AND. pe.EQ.mpp_root_pe() )then
@@ -934,7 +963,8 @@ contains
 !---- initialize flux exchange module ----
     call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
          atmos_ice_boundary, land_ice_atmos_boundary, &
-         land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary )
+         land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
+         dt_atmos=dt_atmos, dt_ocean=dt_ocean, dt_cpld=dt_cpld)
 
     Time_atmos = Time
     Time_ocean = Time
