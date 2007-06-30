@@ -155,7 +155,7 @@ module flux_exchange_mod
 
   use mpp_mod,         only: mpp_npes, mpp_pe, mpp_root_pe, &
        mpp_error, stderr, stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
-       mpp_clock_id, mpp_clock_begin, mpp_clock_end, &
+       mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, &
        CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase
                     
   use mpp_domains_mod, only: mpp_get_compute_domain, mpp_get_compute_domains, &
@@ -184,7 +184,9 @@ module flux_exchange_mod
   use xgrid_mod, only: xmap_type, setup_xmap, set_frac_area, &
        put_to_xgrid, get_from_xgrid, &
        xgrid_count, some, conservation_check, xgrid_init, &
-       get_ocean_model_area_elements, stock_integrate_2d
+       get_ocean_model_area_elements, stock_integrate_2d, &
+       AREA_ATM_MODEL, AREA_ATM_SPHERE, AREA_OCN_MODEL, AREA_OCN_SPHERE, &
+       stock_move, stock_type, stock_print
 
   use diag_integral_mod, only:     diag_integral_field_init, &
        sum_diag_integral_field
@@ -202,6 +204,7 @@ module flux_exchange_mod
 !utilities stuff into use fms_mod
   use fms_mod,                    only: clock_flag_default, check_nml_error, error_mesg
   use fms_mod,                    only: open_namelist_file, write_version_number
+  use fms_mod,                    only: field_exist, field_size, read_data, get_mosaic_tile_grid
 
   use data_override_mod,          only: data_override
   use coupler_types_mod,          only: coupler_1d_bc_type
@@ -216,7 +219,6 @@ module flux_exchange_mod
   use tracer_manager_mod,         only: get_tracer_names, get_number_tracers, NO_TRACER
 
   use stock_constants_mod,        only: ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_TOP, ISTOCK_BOTTOM, ISTOCK_SIDE
-  use xgrid_mod,                  only: stock_move, stock_type, stock_print
 
   use land_model_mod,             only: Lnd_stock_pe
   use ocean_model_mod,            only: Ocean_stock_pe
@@ -241,8 +243,8 @@ private
      flux_ice_to_ocean_stocks
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 14.0.2.1 2007/03/28 14:22:03 nnz Exp $'
-  character(len=128) :: tag = '$Name: nalanda_2007_04 $'
+  character(len=128) :: version = '$Id: flux_exchange.F90,v 14.0.4.1.2.1.2.1 2007/05/31 17:03:42 pjp Exp $'
+  character(len=128) :: tag = '$Name: nalanda_2007_06 $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -300,8 +302,9 @@ real, parameter :: d378 = 1.0-d622
   logical :: ex_u_star_smooth_bug = .false.
   logical :: sw1way_bug = .false.
   logical :: do_area_weighted_flux = .FALSE.
+  logical :: debug = .FALSE.
 
-namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug, sw1way_bug, do_area_weighted_flux
+namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug, sw1way_bug, do_area_weighted_flux, debug
 ! </NAMELIST>
 
 ! ---- allocatable module storage --------------------------------------------
@@ -491,12 +494,13 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
                                                    '(' // trim(sub_name) // '):'
   character(len=256), parameter   :: note_header = '==>Note from ' // trim(module_name) //     &
                                                    '(' // trim(sub_name) // '):'
-  
-  integer :: unit, ierr, io,  i
-  integer :: rcode, ncid, varid, dims(4), start(4), nread(4)
-  integer :: nlon, nlat
+  character(len=64),  parameter   :: grid_file = 'INPUT/grid_spec.nc'  
+  character(len=256)              :: atm_mosaic_file, tile_file 
 
-  real, dimension(:), allocatable :: atmlonb, atmlatb
+  integer :: unit, ierr, io,  i, j
+  integer :: nlon, nlat, siz(4)
+  real, dimension(:,:), allocatable :: tmpx(:,:), tmpy(:,:)
+  real, dimension(:),   allocatable :: atmlonb, atmlatb
   integer :: is, ie, js, je, kd
   integer, dimension(:), allocatable :: pelist  
   character(32) :: tr_name
@@ -626,81 +630,114 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
     allocate( ocn_pelist(size(Ocean%pelist)) )
     ocn_pelist(:) = Ocean%pelist(:)
 
-    call get_ocean_model_area_elements(Ocean%domain, "INPUT/grid_spec.nc")
+    call get_ocean_model_area_elements(Ocean%domain, grid_file)
 
     if( Atm%pe )then
-        call mpp_set_current_pelist(Atm%pelist)
-        rcode = nf_open('INPUT/grid_spec.nc',0,ncid)
-!   <ERROR MSG="cannot open INPUT/grid_spec.nc" STATUS="FATAL">
-!      Can not open the file INPUT/grid_spec.nc. The possible reason is 
-!      that file grid_spec.nc is not in the directory INPUT.
-!   </ERROR>
-        if (rcode/=0) call error_mesg ('flux_exchange_mod', &
-             'cannot open INPUT/grid_spec.nc', FATAL)
+       call mpp_set_current_pelist(Atm%pelist)
 
-!
-! check atmosphere and grid_spec.nc have same atmosphere lat/lon boundaries
-!
-        rcode = nf_inq_varid(ncid, 'AREA_ATM', varid)
-!   <ERROR MSG="cannot find AREA_ATM on INPUT/grid_spec.nc" STATUS="FATAL">
-!      File INPUT/grid_spec.nc does not contain the field AREA_ATM.
-!   </ERROR>
-        if (rcode/=0) call error_mesg ('flux_exchange_mod', &
-             'cannot find AREA_ATM on INPUT/grid_spec.nc', &
-             FATAL)
-        rcode = nf_inq_vardimid(ncid, varid, dims)
-        rcode = nf_inq_dimlen(ncid, dims(1), nlon)
-        rcode = nf_inq_dimlen(ncid, dims(2), nlat)
-        if (nlon+1/=size(Atm%glon_bnd(:)).or.nlat+1/=size(Atm%glat_bnd(:))) then
-            if (mpp_pe()==mpp_root_pe()) then
+       !
+       ! check atmosphere and grid_spec.nc have same atmosphere lat/lon boundaries
+       !
+       if(field_exist(grid_file, "AREA_ATM" ) ) then  ! old grid
+          call field_size(grid_file, "AREA_ATM", siz)
+          nlon = siz(1)
+          nlat = siz(2)          
+
+          if (nlon+1/=size(Atm%glon_bnd,1).or.nlat+1/=size(Atm%glon_bnd,2)) then
+             if (mpp_pe()==mpp_root_pe()) then
                 print *, 'grid_spec.nc has', nlon, 'longitudes,', nlat, 'latitudes; ', &
-                     'atmosphere has', size(Atm%glon_bnd(:))-1, 'longitudes,', &
-                     size(Atm%glat_bnd(:))-1, 'latitudes (see xba.dat and yba.dat)'
-            end if
-!   <ERROR MSG="grid_spec.nc incompatible with atmosphere resolution" STATUS="FATAL">
-!      The atmosphere grid size from file grid_spec.nc is not compatible with the atmosphere 
-!      resolution from atmosphere model.
-!   </ERROR>
-            call error_mesg ('flux_exchange_mod',  &
-                 'grid_spec.nc incompatible with atmosphere resolution', FATAL)
-        end if
-        allocate( atmlonb(size(Atm%glon_bnd(:))) )
-        allocate( atmlatb(size(Atm%glat_bnd(:))) )
-        rcode = nf_inq_varid(ncid, 'xba', varid)
-        start = 1; nread = 1; nread(1) = nlon+1;
-        rcode = nf_get_vara_double(ncid, varid, start, nread, atmlonb)
-        rcode = nf_inq_varid(ncid, 'yba', varid)
-        start = 1; nread = 1; nread(1) = nlat+1;
-        rcode = nf_get_vara_double(ncid, varid, start, nread, atmlatb)
-        if (maxval(abs(atmlonb-Atm%glon_bnd*45/atan(1.0)))>bound_tol) then
-            if (mpp_pe() == mpp_root_pe()) then
+                     'atmosphere has', size(Atm%glon_bnd,1)-1, 'longitudes,', &
+                     size(Atm%glat_bnd,2)-1, 'latitudes (see xba.dat and yba.dat)'
+             end if
+             !   <ERROR MSG="grid_spec.nc incompatible with atmosphere resolution" STATUS="FATAL">
+             !      The atmosphere grid size from file grid_spec.nc is not compatible with the atmosphere 
+             !      resolution from atmosphere model.
+             !   </ERROR>
+             call error_mesg ('flux_exchange_mod',  &
+                  'grid_spec.nc incompatible with atmosphere resolution', FATAL)
+          end if
+          allocate( atmlonb(size(Atm%glon_bnd,1)) )
+          allocate( atmlatb(size(Atm%glon_bnd,2)) )
+          call read_data(grid_file, 'xba', atmlonb, no_domain=.true. )
+          call read_data(grid_file, 'yba', atmlatb, no_domain=.true. )
+          if (maxval(abs(atmlonb-Atm%glon_bnd(:,1)*45/atan(1.0)))>bound_tol) then
+             if (mpp_pe() == mpp_root_pe()) then
                 print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY'
                 do i=1,size(atmlonb(:))
-                   print *,atmlonb(i),Atm%glon_bnd(i)*45/atan(1.0)
+                   print *,atmlonb(i),Atm%glon_bnd(i,1)*45/atan(1.0)
                 end do
-            end if
-!   <ERROR MSG="grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)" STATUS="FATAL">
-!      longitude from file grid_spec.nc ( from field xba ) is different from the longitude from atmosphere model.
-!   </ERROR>
-            call error_mesg ('flux_exchange_mod', &
-                 'grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)'&
-                 ,FATAL)
-        end if
-        if (maxval(abs(atmlatb-Atm%glat_bnd*45/atan(1.0)))>bound_tol) then
-            if (mpp_pe() == mpp_root_pe()) then
+             end if
+             !   <ERROR MSG="grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)" STATUS="FATAL">
+             !      longitude from file grid_spec.nc ( from field yba ) is different from the longitude from atmosphere model.
+             !   </ERROR>
+             call error_mesg ('flux_exchange_mod', &
+                  'grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)'&
+                  , FATAL)
+          end if
+
+          if (maxval(abs(atmlatb-Atm%glat_bnd(1,:)*45/atan(1.0)))>bound_tol) then
+             if (mpp_pe() == mpp_root_pe()) then
                 print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY'
                 do i=1,size(atmlatb(:))
-                   print *,atmlatb(i),Atm%glat_bnd(i)*45/atan(1.0)
+                   print *,atmlatb(i),Atm%glat_bnd(i,1)*45/atan(1.0)
                 end do
-            end if
-!   <ERROR MSG="grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)" STATUS="FATAL">
-!      longitude from file grid_spec.nc ( from field yba ) is different from the longitude from atmosphere model.
-!   </ERROR>
-            call error_mesg ('flux_exchange_mod', &
-                 'grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)'&
-                 , FATAL)
+             end if
+             !   <ERROR MSG="grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)" STATUS="FATAL">
+             !      latitude from file grid_spec.nc ( from field yba ) is different from the latitude from atmosphere model.
+             !   </ERROR>
+             call error_mesg ('flux_exchange_mod', &
+                  'grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)'&
+                  , FATAL)
+          end if
+          deallocate(atmlonb, atmlatb)
+        else if(field_exist(grid_file, "atm_mosaic_file" ) ) then  ! mosaic grid file.
+           call read_data(grid_file, 'atm_mosaic_file', atm_mosaic_file)
+           call get_mosaic_tile_grid(tile_file, 'INPUT/'//trim(atm_mosaic_file), Atm%domain)          
+           call field_size(tile_file, 'area', siz)
+           nlon = siz(1); nlat = siz(2)
+           if( mod(nlon,2) .NE. 0) call mpp_error(FATAL,  &
+                'flux_exchange_mod: atmos supergrid longitude size can not be divided by 2')
+           if( mod(nlat,2) .NE. 0) call mpp_error(FATAL,  &
+                'flux_exchange_mod: atmos supergrid latitude size can not be divided by 2')
+           nlon = nlon/2
+           nlat = nlat/2
+           allocate(tmpx(nlon*2+1, nlat*2+1), tmpy(nlon*2+1, nlat*2+1))
+           call read_data( tile_file, 'x', tmpx, no_domain=.true.)
+           call read_data( tile_file, 'y', tmpy, no_domain=.true.)     
+           do j = 1, nlat+1
+              do i = 1, nlon+1
+                 if (abs(tmpx(2*i-1,2*j-1)-Atm%glon_bnd(i,j)*45/atan(1.0))>bound_tol) then
+                    if (mpp_pe() == mpp_root_pe()) then
+                       print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY at i= ',i, ', j= ', j, ': ', &
+                            tmpx(2*i-1,2*j-1),  Atm%glon_bnd(i,j)*45/atan(1.0)
+                    end if
+                    !   <ERROR MSG="grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)" STATUS="FATAL">
+                    !      longitude from file grid_spec.nc ( from field xba ) is different from the longitude from atmosphere model.
+                    !   </ERROR>
+                    call error_mesg ('flux_exchange_mod', &
+                         'grid_spec.nc incompatible with atmosphere longitudes (see '//trim(tile_file)//')'&
+                         ,FATAL)
+                 end if
+                 if (abs(tmpy(2*i-1,2*j-1)-Atm%glat_bnd(i,j)*45/atan(1.0))>bound_tol) then
+                    if (mpp_pe() == mpp_root_pe()) then
+                       print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY at i= ',i, ', j= ', j, ': ', &
+                            tmpy(2*i-1,2*j-1),  Atm%glat_bnd(i,j)*45/atan(1.0)
+                    end if
+                    !   <ERROR MSG="grid_spec.nc incompatible with atmosphere latitudes (see grid_spec.nc)" STATUS="FATAL">
+                    !      latgitude from file grid_spec.nc is different from the latitude from atmosphere model.
+                    !   </ERROR>
+                    call error_mesg ('flux_exchange_mod', &
+                         'grid_spec.nc incompatible with atmosphere latitudes (see '//trim(tile_file)//')'&
+                         ,FATAL)
+                 end if
+              end do
+           end do
+           deallocate(tmpx, tmpy)
+        else
+           call mpp_error(FATAL, 'flux_exchange_mod: both AREA_ATMxOCN and ocn_mosaic_file does not exist in '//trim(grid_file))
         end if
 
+ 
         call xgrid_init(remap_method)
 
         call setup_xmap(xmap_sfc, (/ 'ATM', 'OCN', 'LND' /),   &
@@ -731,8 +768,8 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
 !----- all fields will be output on the atmospheric grid -----
 
         call diag_field_init ( Time, Atm%axes(1:2), Land%axes )
-        ni_atm = size(Atm%lon_bnd(:))-1 ! to dimension "diag_atm"
-        nj_atm = size(Atm%lat_bnd(:))-1 ! in flux_ocean_to_ice
+        ni_atm = size(Atm%lon_bnd,1)-1 ! to dimension "diag_atm"
+        nj_atm = size(Atm%lon_bnd,2)-1 ! in flux_ocean_to_ice
 
 !Balaji
         
@@ -1829,8 +1866,6 @@ end subroutine sfc_boundary_layer
 subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
      Atmos_boundary, Land_boundary, Ice_boundary )
 
-  use xgrid_mod, only : AREA_ATM_MODEL, AREA_ATM_SPHERE
-
   type(time_type),       intent(in) :: Time
   type(atmos_data_type), intent(inout) :: Atm
   type(land_data_type),  intent(in) :: Land
@@ -1861,7 +1896,7 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   real    :: cp_inv
   logical :: used
   logical :: ov
-  integer :: ier, k,i
+  integer :: ier
 
   character(32) :: tr_name ! name of the tracer
   integer :: tr, n, m ! tracer indices
@@ -2102,7 +2137,7 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   endif
   if(associated(Land_boundary%z_bot)) then
      call get_from_xgrid (Land_boundary%z_bot, 'LND', ex_z_atm, xmap_sfc)
-     call data_override('LND', 'bstar',  Land_boundary%bstar, Time )
+     call data_override('LND', 'z_bot',  Land_boundary%z_bot, Time )
   endif
 
   Land_boundary%tr_flux(:,:,:,:) = 0.0
@@ -2241,7 +2276,7 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
        & xmap=xmap_sfc, &
        & delta_t=Dt_atm, &
        & from_side=ISTOCK_BOTTOM, to_side=ISTOCK_TOP, &
-       & radius=Radius, ier=ier) !!, verbose='stock move PRECIP (Atm->Lnd) ')
+       & radius=Radius, ier=ier, verbose='stock move PRECIP (Atm->Lnd) ')
 
   ! Atm -> Lnd (heat)
   call stock_move( &
@@ -2263,7 +2298,7 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
        & xmap=xmap_sfc, &
        & delta_t=Dt_atm, &
        & from_side=ISTOCK_BOTTOM, to_side=ISTOCK_TOP, &
-       & radius=Radius, ier=ier) !!, verbose='stock move PRECIP (Atm->Ice) ')
+       & radius=Radius, ier=ier, verbose='stock move PRECIP (Atm->Ice) ')
 
   ! Atm -> Ice (heat)
   call stock_move( &
@@ -2369,7 +2404,7 @@ subroutine flux_land_to_ice( Time, Land, Ice, Land_Ice_Boundary )
               & xmap=xmap_runoff, &
               & delta_t=Dt_cpl, &
               & from_side=ISTOCK_SIDE, to_side=ISTOCK_SIDE, &
-              & radius=Radius, ier=ier) !!, verbose='stock move RUNOFF+CALVING (Lnd->Ice) ')
+              & radius=Radius, ier=ier, verbose='stock move RUNOFF+CALVING (Lnd->Ice) ')
   
    call mpp_clock_end(fluxLandIceClock)
   call mpp_clock_end(cplClock)
@@ -2419,8 +2454,6 @@ end subroutine flux_land_to_ice
 !  </INOUT>
 !
 subroutine flux_ice_to_ocean ( Time, Ice, Ocean, Ice_Ocean_Boundary )
-
-  use xgrid_mod, only : AREA_OCN_SPHERE, AREA_OCN_MODEL
 
   type(time_type),        intent(in) :: Time
   type(ice_data_type),   intent(in)  :: Ice
@@ -2729,7 +2762,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
   if(Ice%pe) then
      ! frazil (already in J/m^2 so no need to multiply by Dt_cpl)
      from_dq = 4*PI*Radius*Radius * &
-          & SUM( ice_cell_area * Ocean_Ice_Boundary%frazil )
+         & SUM( ice_cell_area * Ocean_Ice_Boundary%frazil )
      Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
      Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
   endif
@@ -2761,7 +2794,7 @@ subroutine flux_check_stocks(Time, Atm, Lnd, Ice, Ocn)
   type(ice_data_type), optional   :: Ice
   type(ocean_data_type), optional :: Ocn
 
-  real :: ref_value, tot_value
+  real :: ref_value, tmp
   integer :: i, ier
 
   if(present(Atm)) then
@@ -2769,14 +2802,23 @@ subroutine flux_check_stocks(Time, Atm, Lnd, Ice, Ocn)
 
         ref_value = 0
         call Atm_stock_pe(Atm, index=i, value=ref_value)        
-        if(i==ISTOCK_WATER) then
+        if(i==ISTOCK_WATER .and. Atm%pe ) then
            ! decrease the Atm stock by the precip adjustment to reflect the fact that
            ! after an update_atmos_up call, the precip will that of the future time step.
            ! Thus, the stock call will represent the (explicit ) precip at 
            ! the beginning of the preceding time step, and the (implicit) evap at the 
            ! end of the preceding time step
            call stock_integrate_2d(Atm%lprec + Atm%fprec, xmap=xmap_sfc, delta_t=Dt_atm, &
-                & radius=Radius, res=ATM_PRECIP_NEW, ier=ier) !!, verbose='ATM_PRECIP_NEW = ')
+                & radius=Radius, res=ATM_PRECIP_NEW, ier=ier)
+
+           if(debug) then
+              tmp = ATM_PRECIP_NEW/(4*PI*Radius**2)
+              call mpp_sum(tmp,pelist=Atm%pelist)
+              if(mpp_pe()==mpp_root_pe()) then
+                 write(*,'(a,es22.15,a)') 'ATM_PRECIP_NEW = ',tmp, ' [*/m^2]'
+              endif
+           endif
+           
            ref_value = ref_value + ATM_PRECIP_NEW
         endif
         call stock_print(Time=Time, stck=Atm_stock(i), comp_name='ATM', &
@@ -2826,20 +2868,34 @@ end subroutine flux_check_stocks
 
 subroutine flux_init_stocks(Atm, Lnd, Ice, Ocn)
 
-  use mpp_mod, only : mpp_sum
-
   type(atmos_data_type) :: Atm
   type(land_data_type)  :: Lnd
   type(ice_data_type)   :: Ice
   type(ocean_data_type) :: Ocn
 
-  integer i
-  real :: earth_area
+  integer i, ier
+  real :: earth_area, tmp
   real, dimension(NELEMS) :: val_atm, val_lnd, val_ice, val_ocn
 
     ! Initialize stock values
     do i = 1, NELEMS
        call Atm_stock_pe(   Atm , index=i, value=Atm_stock(i)%q_start)
+
+       if(i==ISTOCK_WATER .and. Atm%pe ) then
+          call stock_integrate_2d(Atm%lprec + Atm%fprec, xmap=xmap_sfc, & 
+               delta_t=Dt_atm, radius=Radius, res=ATM_PRECIP_NEW, ier=ier) 
+          
+          if(debug) then
+             tmp = ATM_PRECIP_NEW/(4*PI*Radius**2)
+             call mpp_sum(tmp,pelist=Atm%pelist)
+             if(mpp_pe()==mpp_root_pe()) then
+                write(*,'(a,es22.15,a)') 'initial ATM_PRECIP_NEW = ',tmp, ' [*/m^2]'
+             endif
+          endif
+          
+          Atm_stock(i)%q_start = Atm_stock(i)%q_start + ATM_PRECIP_NEW
+       endif
+
        call Lnd_stock_pe(   Lnd , index=i, value=Lnd_stock(i)%q_start)
        call Ice_stock_pe(   Ice , index=i, value=Ice_stock(i)%q_start)
        call Ocean_stock_pe( Ocn , index=i, value=Ocn_stock(i)%q_start)
@@ -3137,7 +3193,7 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
        & xmap=xmap_sfc, &
        & delta_t=Dt_atm, &
        & to_side=ISTOCK_SIDE, from_side=ISTOCK_TOP, &
-       & radius=Radius, ier=ier) !!, verbose='stock move EVAP (Lnd->ATm) ')
+       & radius=Radius, ier=ier, verbose='stock move EVAP (Lnd->ATm) ')
 
   ! Lnd -> Atm (heat lost through evap)
   call stock_move( &
@@ -3161,7 +3217,7 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
        & xmap=xmap_sfc, &
        & delta_t=Dt_atm, &
        & to_side=ISTOCK_TOP, from_side=ISTOCK_TOP, &
-       & radius=Radius, ier=ier) !!, verbose='stock move EVAP (Ice->ATm) ')
+       & radius=Radius, ier=ier, verbose='stock move EVAP (Ice->ATm) ')
 
   ! Ice -> Atm (heat lost through evap)
   call stock_move( &
@@ -3568,8 +3624,6 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
 
     ! should be invoked by all PEs
 
-    use xgrid_mod, only: area_ocn_sphere, area_ocn_model
-
     type(ice_data_type) :: ice
     type(ice_ocean_boundary_type)   :: ice_ocean_bdry
     type(ocean_data_type), optional :: ocean
@@ -3581,37 +3635,37 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
        ! heat
 
        if (ASSOCIATED(ice_ocean_bdry%t_flux)) then
-          tmp = ice%flux_t  * AREA_OCN_SPHERE 
+          if( ice%pe ) tmp = ice%flux_t  * AREA_OCN_SPHERE 
           call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ice_ocean_bdry%t_flux)
           if(ocean%pe) call divide_by_area(data=ice_ocean_bdry%t_flux, area=AREA_OCN_MODEL)
        endif
        
        if (ASSOCIATED(ice_ocean_bdry%sw_flux_vis_dir)) then
-          tmp = ice%flux_sw_vis_dir  * AREA_OCN_SPHERE 
+          if( ice%pe ) tmp = ice%flux_sw_vis_dir  * AREA_OCN_SPHERE 
           call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ice_ocean_bdry%sw_flux_vis_dir)
           if(ocean%pe) call divide_by_area(data=ice_ocean_bdry%sw_flux_vis_dir, area=AREA_OCN_MODEL)
        endif
        
        if (ASSOCIATED(ice_ocean_bdry%sw_flux_vis_dif)) then
-          tmp = ice%flux_sw_vis_dif  * AREA_OCN_SPHERE 
+          if( ice%pe ) tmp = ice%flux_sw_vis_dif  * AREA_OCN_SPHERE 
           call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ice_ocean_bdry%sw_flux_vis_dif)
           if(ocean%pe) call divide_by_area(data=ice_ocean_bdry%sw_flux_vis_dif, area=AREA_OCN_MODEL)
        endif
 
        if (ASSOCIATED(ice_ocean_bdry%sw_flux_nir_dir)) then
-          tmp = ice%flux_sw_nir_dir  * AREA_OCN_SPHERE
+          if( ice%pe ) tmp = ice%flux_sw_nir_dir  * AREA_OCN_SPHERE
           call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ice_ocean_bdry%sw_flux_nir_dir)
           if(ocean%pe) call divide_by_area(data=ice_ocean_bdry%sw_flux_nir_dir, area=AREA_OCN_MODEL)
        endif
 
        if (ASSOCIATED(ice_ocean_bdry%sw_flux_nir_dif)) then
-          tmp = ice%flux_sw_nir_dif  * AREA_OCN_SPHERE
+          if( ice%pe ) tmp = ice%flux_sw_nir_dif  * AREA_OCN_SPHERE
           call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ice_ocean_bdry%sw_flux_nir_dif)
           if(ocean%pe) call divide_by_area(data=ice_ocean_bdry%sw_flux_nir_dif, area=AREA_OCN_MODEL)
        endif
        
        if (ASSOCIATED(ice_ocean_bdry%lw_flux)) then
-          tmp = ice%flux_lw  * AREA_OCN_SPHERE 
+          if( ice%pe ) tmp = ice%flux_lw  * AREA_OCN_SPHERE 
           call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ice_ocean_bdry%lw_flux)
           if(ocean%pe) call divide_by_area(data=ice_ocean_bdry%lw_flux, area=AREA_OCN_MODEL)
        endif
@@ -3619,31 +3673,31 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
        ! water
 
        if (ASSOCIATED(ice_ocean_bdry%lprec)) then
-          tmp = ice%lprec  * AREA_OCN_SPHERE 
+          if( ice%pe ) tmp = ice%lprec  * AREA_OCN_SPHERE 
           call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ice_ocean_bdry%lprec)
           if(ocean%pe) call divide_by_area(data=ice_ocean_bdry%lprec, area=AREA_OCN_MODEL)
        endif
 
        if (ASSOCIATED(ice_ocean_bdry%fprec)) then
-          tmp = ice%fprec  * AREA_OCN_SPHERE
+          if( ice%pe ) tmp = ice%fprec  * AREA_OCN_SPHERE
           call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ice_ocean_bdry%fprec)
           if(ocean%pe) call divide_by_area(data=ice_ocean_bdry%fprec, area=AREA_OCN_MODEL)
        endif
 
        if (ASSOCIATED(ice_ocean_bdry%runoff)) then
-          tmp = ice%runoff  * AREA_OCN_SPHERE
+          if( ice%pe ) tmp = ice%runoff  * AREA_OCN_SPHERE
           call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ice_ocean_bdry%runoff)
           if(ocean%pe) call divide_by_area(data=ice_ocean_bdry%runoff, area=AREA_OCN_MODEL)
        endif
 
        if (ASSOCIATED(ice_ocean_bdry%calving)) then
-          tmp = ice%calving  * AREA_OCN_SPHERE
+          if( ice%pe ) tmp = ice%calving  * AREA_OCN_SPHERE
           call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ice_ocean_bdry%calving)
           if(ocean%pe) call divide_by_area(data=ice_ocean_bdry%calving, area=AREA_OCN_MODEL)
        endif
 
        if (ASSOCIATED(ice_ocean_bdry%q_flux)) then
-          tmp = ice%flux_q  * AREA_OCN_SPHERE
+          if( ice%pe ) tmp = ice%flux_q  * AREA_OCN_SPHERE
           call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ice_ocean_bdry%q_flux)
           if(ocean%pe) call divide_by_area(data=ice_ocean_bdry%q_flux, area=AREA_OCN_MODEL)
        endif
