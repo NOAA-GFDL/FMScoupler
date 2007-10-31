@@ -197,8 +197,8 @@ end interface
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 13.0 2006/03/28 21:20:44 fms Exp $'
-character(len=*), parameter :: tagname = '$Name: nalanda_2007_06 $'
+character(len=*), parameter :: version = '$Id: surface_flux.F90,v 15.0 2007/08/14 03:58:56 fms Exp $'
+character(len=*), parameter :: tagname = '$Name: omsk_2007_10 $'
    
 logical :: do_init = .true.
 
@@ -238,31 +238,45 @@ real            :: d608   = d378/d622
 !   <DATA NAME="gust_const"  TYPE=""  DEFAULT="1.0">
 !    Constant for alternative gustiness calculation.
 !   </DATA>
+!   <DATA NAME="gust_min"  TYPE=""  DEFAULT="0.0">
+!    Minimum gustiness used when alt_gustiness = false.
+!   </DATA>
 !   <DATA NAME="ncar_ocean_flux"  TYPE="logical"  DEFAULT=".false.">
 !    Use NCAR climate model turbulent flux calculation described by
-!    Large and Yeager, NCAR Technical Document, in prep., 2003
+!    Large and Yeager, NCAR Technical Document, 2004
+!   </DATA>
+!   <DATA NAME="ncar_ocean_flux_orig"  TYPE="logical"  DEFAULT=".false.">
+!    Use NCAR climate model turbulent flux calculation described by
+!    Large and Yeager, NCAR Technical Document, 2004, using the original
+!    GFDL implementation, which contains a bug in the specification of 
+!    the exchange coefficient for the sensible heat.  This option is available
+!    for legacy purposes, and is not recommended for new experiments.   
 !   </DATA>
 !   <DATA NAME="raoult_sat_vap"  TYPE="logical"  DEFAULT=".false.">
 !    Reduce saturation vapor pressures to account for seawater salinity.
 !   </DATA>
 ! </NAMELIST>
 
-logical :: no_neg_q         = .false.  ! for backwards compatibility
-logical :: use_virtual_temp = .true. 
-logical :: alt_gustiness    = .false.
-logical :: old_dtaudv       = .false.
-logical :: use_mixing_ratio = .false.
-real    :: gust_const       =  1.0
-logical :: ncar_ocean_flux  = .false.
-logical :: raoult_sat_vap   = .false.
+logical :: no_neg_q              = .false.  ! for backwards compatibility
+logical :: use_virtual_temp      = .true. 
+logical :: alt_gustiness         = .false.
+logical :: old_dtaudv            = .false.
+logical :: use_mixing_ratio      = .false.
+real    :: gust_const            =  1.0
+real    :: gust_min              =  0.0
+logical :: ncar_ocean_flux       = .false.
+logical :: ncar_ocean_flux_orig  = .false. ! for backwards compatibility 
+logical :: raoult_sat_vap        = .false.
 
-namelist /surface_flux_nml/ no_neg_q,         &
-                            use_virtual_temp, &
-                            alt_gustiness,    &
-                            gust_const,       &
-                            old_dtaudv,       &
-                            use_mixing_ratio, &
-                            ncar_ocean_flux,  &
+namelist /surface_flux_nml/ no_neg_q,             &
+                            use_virtual_temp,     &
+                            alt_gustiness,        &
+                            gust_const,           &
+                            gust_min,             &
+                            old_dtaudv,           &
+                            use_mixing_ratio,     &
+                            ncar_ocean_flux,      &
+                            ncar_ocean_flux_orig, &
                             raoult_sat_vap
    
 
@@ -356,7 +370,7 @@ subroutine surface_flux_1d (                                           &
        e_sat,    e_sat1,   q_sat,     q_sat1,    p_ratio,  &
        t_surf0,  t_surf1,  u_dif,     v_dif,               &
        rho_drag, drag_t,    drag_m,   drag_q,    rho,      &
-       q_atm,    q_surf0,  dw_atmdu,  dw_atmdv
+       q_atm,    q_surf0,  dw_atmdu,  dw_atmdv,  w_gust
 
   integer :: i, nbad
 
@@ -432,8 +446,18 @@ subroutine surface_flux_1d (                                           &
         endif
      enddo
   else
+     if (gust_min > 0.0) then 
+       where(avail)
+         w_gust = max(gust,gust_min) ! minimum gustiness
+       end where
+     else
+       where(avail)
+         w_gust = gust
+       end where
+     endif  
+           
      where(avail) 
-        w_atm = sqrt(u_dif*u_dif + v_dif*v_dif + gust*gust)
+        w_atm = sqrt(u_dif*u_dif + v_dif*v_dif + w_gust*w_gust)
         ! derivatives of surface wind w.r.t. atm. wind components
         dw_atmdu = u_dif/w_atm
         dw_atmdv = v_dif/w_atm
@@ -446,7 +470,7 @@ subroutine surface_flux_1d (                                           &
        cd_m, cd_t, cd_q, u_star, b_star, avail             )
 
   ! override with ocean fluxes from NCAR calculation
-  if (ncar_ocean_flux) then
+  if (ncar_ocean_flux .or. ncar_ocean_flux_orig) then
     call  ncar_ocean_fluxes (w_atm, th_atm, t_surf0, q_atm, q_surf0, z_atm, &
                              seawater, cd_m, cd_t, cd_q, u_star, b_star     )
   end if
@@ -719,7 +743,8 @@ end subroutine surface_flux_init
 
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
 ! Over-ocean fluxes following Large and Yeager (used in NCAR models)           !
-! Coded by Mike Winton (Michael.Winton@noaa.gov)
+! Original  code: Michael.Winton@noaa.gov
+! Update Jul2007: Stephen.Griffies@noaa.gov (ch and ce exchange coeff bugfix)  
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
 !
 subroutine ncar_ocean_fluxes (u_del, t, ts, q, qs, z, avail, &
@@ -735,58 +760,115 @@ real   , intent(inout), dimension(:) :: cd, ch, ce, ustar, bstar
   integer, parameter :: n_itts = 2
   integer               i, j
 
+  if(ncar_ocean_flux_orig) then
 
-  do i=1,size(u_del(:))
-    if (avail(i)) then
-      tv = t(i)*(1+0.608*q(i));
-      u = max(u_del(i), 0.5);                                 ! 0.5 m/s floor on wind (undocumented NCAR)
-      u10 = u;                                                ! first guess 10m wind
-    
-      cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3;                ! L-Y eqn. 6a
-      cd_n10_rt = sqrt(cd_n10);
-      ce_n10 =                     34.6 *cd_n10_rt/1e3;       ! L-Y eqn. 6b
-      stab = 0.5 + sign(0.5,t(i)-ts(i))
-      ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3;       ! L-Y eqn. 6c
-  
-      cd(i) = cd_n10;                                         ! first guess for exchange coeff's at z
-      ch(i) = ch_n10;
-      ce(i) = ce_n10;
-      do j=1,n_itts                                           ! Monin-Obukhov iteration
-        cd_rt = sqrt(cd(i));
-        ustar(i) = cd_rt*u;                                   ! L-Y eqn. 7a
-        tstar    = (ch(i)/cd_rt)*(t(i)-ts(i));                ! L-Y eqn. 7b
-        qstar    = (ce(i)/cd_rt)*(q(i)-qs(i));                ! L-Y eqn. 7c
-        bstar(i) = grav*(tstar/tv+qstar/(q(i)+1/0.608));
-        zeta     = vonkarm*bstar(i)*z(i)/(ustar(i)*ustar(i)); ! L-Y eqn. 8a
-        zeta     = sign( min(abs(zeta),10.0), zeta );         ! undocumented NCAR
-        x2 = sqrt(abs(1-16*zeta));                            ! L-Y eqn. 8b
-        x2 = max(x2, 1.0);                                    ! undocumented NCAR
-        x = sqrt(x2);
-    
-        if (zeta > 0) then
-          psi_m = -5*zeta;                                    ! L-Y eqn. 8c
-          psi_h = -5*zeta;                                    ! L-Y eqn. 8c
-        else
-          psi_m = log((1+2*x+x2)*(1+x2)/8)-2*(atan(x)-atan(1.0)); ! L-Y eqn. 8d
-          psi_h = 2*log((1+x2)/2);                                ! L-Y eqn. 8e
-        end if
-    
-        u10 = u/(1+cd_n10_rt*(log(z(i)/10)-psi_m)/vonkarm);       ! L-Y eqn. 9
-        cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3;                  ! L-Y eqn. 6a again
-        cd_n10_rt = sqrt(cd_n10);
-        ce_n10 = 34.6*cd_n10_rt/1e3;                              ! L-Y eqn. 6b again
-        stab = 0.5 + sign(0.5,zeta)
-        ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3;         ! L-Y eqn. 6c again
-        z0 = 10*exp(-vonkarm/cd_n10_rt);                          ! diagnostic
-    
-        xx = (log(z(i)/10)-psi_m)/vonkarm;
-        cd(i) = cd_n10/(1+cd_n10_rt*xx)**2;                       ! L-Y 10a
-        xx = (log(z(i)/10)-psi_h)/vonkarm;
-        ch(i) = ch_n10/(1+ch_n10*xx/cd_n10_rt)**2;                !       b
-        ce(i) = ce_n10/(1+ce_n10*xx/cd_n10_rt)**2;                !       c
+      do i=1,size(u_del(:))
+         if (avail(i)) then
+             tv = t(i)*(1+0.608*q(i));
+             u = max(u_del(i), 0.5);                                 ! 0.5 m/s floor on wind (undocumented NCAR)
+             u10 = u;                                                ! first guess 10m wind
+
+             cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3;                ! L-Y eqn. 6a
+             cd_n10_rt = sqrt(cd_n10);
+             ce_n10 =                     34.6 *cd_n10_rt/1e3;       ! L-Y eqn. 6b
+             stab = 0.5 + sign(0.5,t(i)-ts(i))
+             ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3;       ! L-Y eqn. 6c
+
+             cd(i) = cd_n10;                                         ! first guess for exchange coeff's at z
+             ch(i) = ch_n10;
+             ce(i) = ce_n10;
+             do j=1,n_itts                                           ! Monin-Obukhov iteration
+                cd_rt = sqrt(cd(i));
+                ustar(i) = cd_rt*u;                                   ! L-Y eqn. 7a
+                tstar    = (ch(i)/cd_rt)*(t(i)-ts(i));                ! L-Y eqn. 7b
+                qstar    = (ce(i)/cd_rt)*(q(i)-qs(i));                ! L-Y eqn. 7c
+                bstar(i) = grav*(tstar/tv+qstar/(q(i)+1/0.608));
+                zeta     = vonkarm*bstar(i)*z(i)/(ustar(i)*ustar(i)); ! L-Y eqn. 8a
+                zeta     = sign( min(abs(zeta),10.0), zeta );         ! undocumented NCAR
+                x2 = sqrt(abs(1-16*zeta));                            ! L-Y eqn. 8b
+                x2 = max(x2, 1.0);                                    ! undocumented NCAR
+                x = sqrt(x2);
+
+                if (zeta > 0) then
+                    psi_m = -5*zeta;                                    ! L-Y eqn. 8c
+                    psi_h = -5*zeta;                                    ! L-Y eqn. 8c
+                else
+                    psi_m = log((1+2*x+x2)*(1+x2)/8)-2*(atan(x)-atan(1.0)); ! L-Y eqn. 8d
+                    psi_h = 2*log((1+x2)/2);                                ! L-Y eqn. 8e
+                end if
+
+                u10 = u/(1+cd_n10_rt*(log(z(i)/10)-psi_m)/vonkarm);       ! L-Y eqn. 9
+                cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3;                  ! L-Y eqn. 6a again
+                cd_n10_rt = sqrt(cd_n10);
+                ce_n10 = 34.6*cd_n10_rt/1e3;                              ! L-Y eqn. 6b again
+                stab = 0.5 + sign(0.5,zeta)
+                ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3;         ! L-Y eqn. 6c again
+                z0 = 10*exp(-vonkarm/cd_n10_rt);                          ! diagnostic
+
+                xx = (log(z(i)/10)-psi_m)/vonkarm;
+                cd(i) = cd_n10/(1+cd_n10_rt*xx)**2;                       ! L-Y 10a
+                xx = (log(z(i)/10)-psi_h)/vonkarm;
+                ch(i) = ch_n10/(1+ch_n10*xx/cd_n10_rt)**2;                !     10b (this code is wrong)  
+                ce(i) = ce_n10/(1+ce_n10*xx/cd_n10_rt)**2;                !     10c (this code is wrong)
+             end do
+         end if
       end do
-    end if
-  end do
+
+  else
+
+      do i=1,size(u_del(:))
+         if (avail(i)) then
+             tv = t(i)*(1+0.608*q(i));
+             u = max(u_del(i), 0.5);                                 ! 0.5 m/s floor on wind (undocumented NCAR)
+             u10 = u;                                                ! first guess 10m wind
+
+             cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3;                ! L-Y eqn. 6a
+             cd_n10_rt = sqrt(cd_n10);
+             ce_n10 =                     34.6 *cd_n10_rt/1e3;       ! L-Y eqn. 6b
+             stab = 0.5 + sign(0.5,t(i)-ts(i))
+             ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3;       ! L-Y eqn. 6c
+
+             cd(i) = cd_n10;                                         ! first guess for exchange coeff's at z
+             ch(i) = ch_n10;
+             ce(i) = ce_n10;
+             do j=1,n_itts                                           ! Monin-Obukhov iteration
+                cd_rt = sqrt(cd(i));
+                ustar(i) = cd_rt*u;                                   ! L-Y eqn. 7a
+                tstar    = (ch(i)/cd_rt)*(t(i)-ts(i));                ! L-Y eqn. 7b
+                qstar    = (ce(i)/cd_rt)*(q(i)-qs(i));                ! L-Y eqn. 7c
+                bstar(i) = grav*(tstar/tv+qstar/(q(i)+1/0.608));
+                zeta     = vonkarm*bstar(i)*z(i)/(ustar(i)*ustar(i)); ! L-Y eqn. 8a
+                zeta     = sign( min(abs(zeta),10.0), zeta );         ! undocumented NCAR
+                x2 = sqrt(abs(1-16*zeta));                            ! L-Y eqn. 8b
+                x2 = max(x2, 1.0);                                    ! undocumented NCAR
+                x = sqrt(x2);
+
+                if (zeta > 0) then
+                    psi_m = -5*zeta;                                    ! L-Y eqn. 8c
+                    psi_h = -5*zeta;                                    ! L-Y eqn. 8c
+                else
+                    psi_m = log((1+2*x+x2)*(1+x2)/8)-2*(atan(x)-atan(1.0)); ! L-Y eqn. 8d
+                    psi_h = 2*log((1+x2)/2);                                ! L-Y eqn. 8e
+                end if
+
+                u10 = u/(1+cd_n10_rt*(log(z(i)/10)-psi_m)/vonkarm);       ! L-Y eqn. 9
+                cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3;                  ! L-Y eqn. 6a again
+                cd_n10_rt = sqrt(cd_n10);
+                ce_n10 = 34.6*cd_n10_rt/1e3;                              ! L-Y eqn. 6b again
+                stab = 0.5 + sign(0.5,zeta)
+                ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3;         ! L-Y eqn. 6c again
+                z0 = 10*exp(-vonkarm/cd_n10_rt);                          ! diagnostic
+
+                xx = (log(z(i)/10)-psi_m)/vonkarm;
+                cd(i) = cd_n10/(1+cd_n10_rt*xx)**2;                       ! L-Y 10a
+                xx = (log(z(i)/10)-psi_h)/vonkarm;
+                ch(i) = ch_n10/(1+ch_n10*xx/cd_n10_rt)*sqrt(cd(i)/cd_n10) ! 10b (corrected code)
+                ce(i) = ce_n10/(1+ce_n10*xx/cd_n10_rt)*sqrt(cd(i)/cd_n10) ! 10c (corrected code)
+             end do
+         end if
+      end do
+
+  endif
 
 end subroutine ncar_ocean_fluxes
 

@@ -213,8 +213,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 14.0 2007/03/15 22:15:50 fms Exp $'
-  character(len=128) :: tag = '$Name: nalanda_2007_06 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 14.0.8.1 2007/07/31 16:12:53 nnz Exp $'
+  character(len=128) :: tag = '$Name: omsk_2007_10 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -443,6 +443,15 @@ character(len=256), parameter   :: note_header =                                
         call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
      end if
 
+     ! To print the value of frazil heat flux at the right time the following block
+     ! needs to sit here rather than at the end of the coupler loop.
+     if(check_stocks > 0) then
+        if(check_stocks*(nc/check_stocks) == nc) then
+           call mpp_set_current_pelist()
+           call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn=Ocean)
+        endif
+     endif
+
      if( Atm%pe )then
         call mpp_set_current_pelist(Atm%pelist)
         if (do_ice) call update_ice_model_slow_up( Ocean_ice_boundary, Ice )
@@ -550,12 +559,6 @@ character(len=256), parameter   :: note_header =                                
 
      end if
 
-     if(check_stocks > 0) then
-        if(check_stocks*(nc/check_stocks) == nc) then
-           call mpp_set_current_pelist()
-           call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn=Ocean)
-        endif
-     endif
 
      !--------------
      if(do_chksum) call coupler_chksum('MAIN_LOOP+', nc)

@@ -316,10 +316,26 @@
 <span class="type">[, default: 1.0]</span>
 </dl>
 <dt>
+<tt>gust_min</tt>
+</dt>
+<dl>   Minimum gustiness used when alt_gustiness = false. <br>
+<span class="type">[, default: 0.0]</span>
+</dl>
+<dt>
 <tt>ncar_ocean_flux</tt>
 </dt>
 <dl>   Use NCAR climate model turbulent flux calculation described by
-   Large and Yeager, NCAR Technical Document, in prep., 2003 <br>
+   Large and Yeager, NCAR Technical Document, 2004 <br>
+<span class="type">[logical, default: .false.]</span>
+</dl>
+<dt>
+<tt>ncar_ocean_flux_orig</tt>
+</dt>
+<dl>   Use NCAR climate model turbulent flux calculation described by
+   Large and Yeager, NCAR Technical Document, 2004, using the original
+   GFDL implementation, which contains a bug in the specification of 
+   the exchange coefficient for the sensible heat.  This option is available
+   for legacy purposes, and is not recommended for new experiments. <br>
 <span class="type">[logical, default: .false.]</span>
 </dl>
 <dt>
