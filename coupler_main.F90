@@ -214,7 +214,7 @@ program coupler_main
 !-----------------------------------------------------------------------
 
   character(len=128) :: version = '$Id: coupler_main.F90,v 14.0.8.1 2007/07/31 16:12:53 nnz Exp $'
-  character(len=128) :: tag = '$Name: omsk_2007_10 $'
+  character(len=128) :: tag = '$Name: omsk_2007_12 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
