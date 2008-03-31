@@ -244,8 +244,8 @@ private
      flux_ice_to_ocean_stocks
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 15.0.4.2 2007/10/05 14:30:10 bw Exp $'
-  character(len=128) :: tag = '$Name: omsk_2007_12 $'
+  character(len=128) :: version = '$Id: flux_exchange.F90,v 15.0.4.2.2.1.2.1 2008/01/04 18:31:14 z1l Exp $'
+  character(len=128) :: tag = '$Name: omsk_2008_03 $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -311,7 +311,8 @@ real, parameter :: d378 = 1.0-d622
   logical :: divert_stocks_report = .FALSE.
   logical :: do_runoff = .TRUE.
 
-namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug, sw1way_bug, do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff
+namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug, sw1way_bug, &
+         do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff
 ! </NAMELIST>
 
 ! ---- allocatable module storage --------------------------------------------
@@ -749,7 +750,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
 
         call setup_xmap(xmap_sfc, (/ 'ATM', 'OCN', 'LND' /),   &
              (/ Atm%Domain, Ice%Domain, Land%Domain /),        &
-             "INPUT/grid_spec.nc")
+             "INPUT/grid_spec.nc", Atm%grid)
         ! exchange grid indices
         X1_GRID_ATM = 1; X1_GRID_ICE = 2; X1_GRID_LND = 3;
         call generate_sfc_xgrid( Land, Ice )
