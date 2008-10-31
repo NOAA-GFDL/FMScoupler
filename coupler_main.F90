@@ -135,6 +135,8 @@ program coupler_main
   use time_manager_mod,        only: operator (>), operator ( /= ), operator ( / )
   use time_manager_mod,        only: operator (*), THIRTY_DAY_MONTHS, JULIAN
   use time_manager_mod,        only: NOLEAP, NO_CALENDAR, INVALID_CALENDAR
+  use time_manager_mod,        only: date_to_string, increment_date
+  use time_manager_mod,        only: operator(>=), operator(<=)
 
   use fms_mod,                 only: open_namelist_file, field_exist, file_exist, check_nml_error
   use fms_mod,                 only: uppercase, error_mesg, write_version_number
@@ -142,6 +144,7 @@ program coupler_main
   use fms_mod,                 only: read_data, write_data
 
   use fms_io_mod,              only: fms_io_exit
+  use fms_io_mod,              only: restart_file_type, register_restart_field, save_restart
 
   use diag_manager_mod,        only: diag_manager_init, diag_manager_end
   use diag_manager_mod,        only: DIAG_OCEAN, DIAG_OTHER, DIAG_ALL, get_base_date
@@ -165,10 +168,12 @@ program coupler_main
   use atmos_model_mod,         only: update_atmos_model_up
   use atmos_model_mod,         only: atmos_data_type
   use atmos_model_mod,         only: land_ice_atmos_boundary_type
+  use atmos_model_mod,         only: atmos_model_restart
 
   use land_model_mod,          only: land_model_init, land_model_end
   use land_model_mod,          only: land_data_type, atmos_land_boundary_type
   use land_model_mod,          only: update_land_model_fast, update_land_model_slow
+  use land_model_mod,          only: land_model_restart
 
   use ice_model_mod,           only: ice_model_init, ice_model_end
   use ice_model_mod,           only: update_ice_model_slow_up
@@ -176,11 +181,11 @@ program coupler_main
   use ice_model_mod,           only: update_ice_model_slow_dn
   use ice_model_mod,           only: ice_data_type, land_ice_boundary_type
   use ice_model_mod,           only: ocean_ice_boundary_type, atmos_ice_boundary_type
+  use ice_model_mod,           only: ice_model_restart
 
   use ocean_model_mod,         only: update_ocean_model, ocean_model_init
-  use ocean_model_mod,         only: ocean_model_end, ocean_data_type, ice_ocean_boundary_type
-  use ocean_model_mod,         only: read_ice_ocean_boundary, write_ice_ocean_boundary
-
+  use ocean_model_mod,         only: ocean_model_end, ocean_public_type, ocean_state_type, ice_ocean_boundary_type
+  use ocean_model_mod,         only: ocean_model_restart
 !
 ! flux_ calls translate information between model grids - see flux_exchange.f90
 !
@@ -213,8 +218,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 14.0.8.1 2007/07/31 16:12:53 nnz Exp $'
-  character(len=128) :: tag = '$Name: omsk_2008_03 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 16.0.4.2.2.1.2.1.2.2 2008/10/15 11:39:54 z1l Exp $'
+  character(len=128) :: tag = '$Name: perth_2008_10 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -223,7 +228,8 @@ program coupler_main
   type  (land_data_type) :: Land
   type   (ice_data_type) :: Ice
   ! allow members of ocean type to be aliased (ap)
-  type (ocean_data_type), target :: Ocean
+  type (ocean_public_type), target :: Ocean
+  type (ocean_state_type),  pointer :: Ocean_state
 
   type(atmos_land_boundary_type)     :: Atmos_land_boundary
   type(atmos_ice_boundary_type)      :: Atmos_ice_boundary
@@ -235,16 +241,21 @@ program coupler_main
 !-----------------------------------------------------------------------
 ! ----- coupled model time -----
 
-  type (time_type) :: Time, Time_init, Time_end, Time_step_ocean, &
+  type (time_type) :: Time, Time_init, Time_end, &
                       Time_step_atmos, Time_step_cpld
   type(time_type) :: Time_atmos, Time_ocean
-  integer :: num_ocean_calls, num_atmos_calls, no, na
+  integer :: num_atmos_calls, na
   integer :: num_cpld_calls, nc
+
+!------ for intermediate restart
+  type(restart_file_type), allocatable :: Ice_bc_restart(:), Ocn_bc_restart(:)
+  character(len=64),       allocatable :: ice_bc_restart_file(:), ocn_bc_restart_file(:) 
+  integer                              :: num_ice_bc_restart=0, num_ocn_bc_restart=0
+  type(time_type)                      :: Time_restart, Time_restart_current, Time_start
+  character(len=32)                    :: timestamp
 
 ! ----- coupled model initial date -----
 
-  logical :: ocean_seg_start
-  logical :: ocean_seg_end
   integer :: date_init(6)
   integer :: calendar_type = INVALID_CALENDAR
 
@@ -285,9 +296,6 @@ program coupler_main
 !   <DATA NAME="dt_atmos"  TYPE="integer"  DEFAULT="0">
 !     Atmospheric model time step in seconds, including the fast coupling with 
 !     land and sea ice. 
-!   </DATA>
-!   <DATA NAME="dt_ocean"  TYPE="integer"  DEFAULT="0">
-!     Ocean model time step in seconds. 
 !   </DATA>
 !   <DATA NAME="dt_cpld"  TYPE="integer"  DEFAULT="0">
 !     Time step in seconds for coupling between ocean and atmospheric models: 
@@ -337,6 +345,10 @@ program coupler_main
 !   it will overload the layout in each component model. The default value is (0,0).
 !   Currently we require all the component model has the same layout and same grid size.
 !  </DATA>
+!  <DATA NAME="restart_interval" TYPE="integer, dimension(6)"  DEFAULT="0">
+!     The time interval that write out intermediate restart file. The format is (yr,mo,day,hr,min,sec).
+!     When restart_interval is all zero, no intermediate restart file will be written out.
+!   </DATA>
 !   <NOTE>
 !     <PRE>
 !     1.If no value is set for current_date, start_date, or calendar (or default value specified) then the value from restart
@@ -348,13 +360,12 @@ program coupler_main
 !   </NOTE>
 ! </NAMELIST>
 
-
-  integer, dimension(6) :: current_date = (/ 0, 0, 0, 0, 0, 0 /)
+  integer, dimension(6) :: restart_interval = (/ 0, 0, 0, 0, 0, 0/)
+  integer, dimension(6) :: current_date     = (/ 0, 0, 0, 0, 0, 0 /)
   character(len=17) :: calendar = '                 '
   logical :: force_date_from_namelist = .false.  ! override restart values for date
   integer :: months=0, days=0, hours=0, minutes=0, seconds=0
   integer :: dt_atmos = 0  ! fluxes passed between atmosphere & ice/land
-  integer :: dt_ocean = 0  ! ocean tracer timestep
   integer :: dt_cpld  = 0  ! fluxes passed between ice & ocean
 
 
@@ -372,16 +383,19 @@ program coupler_main
   data ((mask_list(n,m),n=1, 2),m=1,MAXPES) /mp*0/
 
   namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, months, days, hours,      &
-                         minutes, seconds, dt_cpld, dt_atmos, dt_ocean, do_atmos,    &
+                         minutes, seconds, dt_cpld, dt_atmos, do_atmos,              &
                          do_land, do_ice, do_ocean, do_flux, atmos_npes, ocean_npes, &
                          ice_npes, land_npes, concurrent, use_lag_fluxes, do_chksum, &
-                         n_mask, layout_mask, mask_list, check_stocks
+                         n_mask, layout_mask, mask_list, check_stocks, restart_interval
 
   integer :: initClock, mainClock, termClock
 
   character(len=80) :: text
   character(len=48), parameter                    :: mod_name = 'coupler_main_mod'
  
+  integer :: ensemble_id = 1 
+  integer, allocatable :: ensemble_pelist(:, :) 
+
 !
 !-----------------------------------------------------------------------
 !     local parameters
@@ -422,7 +436,7 @@ character(len=256), parameter   :: note_header =                                
 
      if(check_stocks >= 0) then
         call mpp_set_current_pelist()
-        call flux_init_stocks(Atm, Land, Ice, Ocean)
+        call flux_init_stocks(Atm, Land, Ice, Ocean_state)
      endif
 
   do nc = 1, num_cpld_calls
@@ -448,7 +462,7 @@ character(len=256), parameter   :: note_header =                                
      if(check_stocks > 0) then
         if(check_stocks*(nc/check_stocks) == nc) then
            call mpp_set_current_pelist()
-           call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn=Ocean)
+           call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
         endif
      endif
 
@@ -536,41 +550,52 @@ character(len=256), parameter   :: note_header =                                
         call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
      end if
 
-     if( Ocean%pe )then
+     if( Ocean%is_ocean_pe )then
         call mpp_set_current_pelist(Ocean%pelist)
-        do no = 1,num_ocean_calls
 
-           !            if( mpp_pe().EQ.mpp_root_pe() )write( stderr(),'(a,2i4)' )'nc,no=', nc,no
-           Time_ocean = Time_ocean + Time_step_ocean
+        ! update_ocean_model since fluxes don't change here
 
-           ocean_seg_start = ( no .eq. 1 )               ! could eliminate these by
-           ocean_seg_end   = ( no .eq. num_ocean_calls ) ! putting this loop in
-           ! update_ocean_model since
-           ! fluxes don't change here
+        if (do_ocean) &
+          call update_ocean_model( Ice_ocean_boundary, Ocean_state,  Ocean, &
+                                   Time_ocean, Time_step_cpld )
 
-           if (do_ocean) call update_ocean_model( Ice_ocean_boundary, Ocean, &
-                ocean_seg_start, ocean_seg_end, num_ocean_calls)
+        Time_ocean = Time_ocean +  Time_step_cpld
 
-        enddo
-
-        !   ------ end of ocean time step loop -----
         !-----------------------------------------------------------------------
         Time = Time_ocean
 
      end if
 
+     !--- write out intermediate restart file when needed.
+     if( Time >= Time_restart ) then
+        Time_restart_current = Time
+        Time_restart = increment_date(Time, restart_interval(1), restart_interval(2), &
+             restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
+        timestamp = date_to_string(time_restart_current)
+        write(stdout(),*) '=> NOTE from program coupler: intermediate restart file is written and ', &
+             trim(timestamp),' is appended as prefix to each restart file name'
+        if( Atm%pe )then        
+           call atmos_model_restart(Atm, timestamp)
+           call land_model_restart(timestamp)
+           call ice_model_restart(timestamp)
+        endif
+        if( Ocean%is_ocean_pe) then
+           call ocean_model_restart(Ocean_state, timestamp)
+        endif
+        call coupler_restart(Time, Time_restart_current, timestamp)
+     end if
 
      !--------------
      if(do_chksum) call coupler_chksum('MAIN_LOOP+', nc)
      write( text,'(a,i4)' )'Main loop at coupling timestep=', nc
      call print_memuse_stats(text)
 
-        
+
   enddo
 
   if(check_stocks == 0) then
      call mpp_set_current_pelist()
-     call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn=Ocean)
+     call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
   endif
 
 ! Need final update of Ice_ocean_boundary for concurrent restart
@@ -601,6 +626,9 @@ contains
 
   subroutine coupler_init
 
+    use ensemble_manager_mod, only : ensemble_manager_init, get_ensemble_id,ensemble_pelist_setup
+    use ensemble_manager_mod, only : get_ensemble_size, get_ensemble_pelist
+
 !-----------------------------------------------------------------------
 !   initialize all defined exchange grids and all boundary maps
 !-----------------------------------------------------------------------
@@ -624,6 +652,9 @@ contains
     type (time_type) :: Run_length
     character(len=9) :: month
     integer :: pe, npes
+
+    integer :: ens_siz(4), ensemble_size
+
     integer :: atmos_pe_start=0, atmos_pe_end=0, &
                ocean_pe_start=0, ocean_pe_end=0
     integer :: n
@@ -631,6 +662,9 @@ contains
     logical :: other_fields_exist
     logical, allocatable :: maskmap(:,:)
     character(len=256) :: err_msg
+    integer :: date_restart(6)
+    character(len=64)  :: filename, fieldname
+    integer :: id_restart, l
 !-----------------------------------------------------------------------
 
 !----- write version to logfile -------
@@ -695,6 +729,97 @@ contains
       call mpp_error(FATAL, 'ERROR in coupler_init: '//trim(err_msg))
     endif
 
+    if( concurrent .AND. .NOT.use_lag_fluxes )call mpp_error( WARNING, &
+            'coupler_init: you have set concurrent=TRUE and use_lag_fluxes=FALSE &
+            & in coupler_nml. When not using lag fluxes, components &
+            & will synchronize at two points, and thus run serially.' )
+
+
+    !Check with the ensemble_manager module for the size of ensemble
+    !and PE counts for each member of the ensemble.
+    !
+    !NOTE: ensemble_manager_init renames all the output files (restart and diagnostics)
+    !      to show which ensemble member they are coming from.
+    !      There also need to be restart files for each member of the ensemble in INPUT.
+    !
+    !NOTE: if the ensemble_size=1 the input/output files will not be renamed.
+    !
+    
+    call ensemble_manager_init() ! init pelists for ensembles
+    ens_siz = get_ensemble_size()   
+    ensemble_size = ens_siz(1)      
+    npes = ens_siz(2)              
+
+    !Check for the consistency of PE counts
+    if( concurrent )then
+!atmos_npes + ocean_npes must equal npes
+        if( atmos_npes.EQ.0 )atmos_npes = npes - ocean_npes
+        if( ocean_npes.EQ.0 )ocean_npes = npes - atmos_npes
+!both must now be non-zero
+        if( atmos_npes.EQ.0 .OR. ocean_npes.EQ.0 ) &
+             call mpp_error( FATAL, 'coupler_init: atmos_npes or ocean_npes must be specified for concurrent coupling.' )
+        if( atmos_npes+ocean_npes.NE.npes ) &
+             call mpp_error( FATAL, 'coupler_init: atmos_npes+ocean_npes must equal npes for concurrent coupling.' )
+    else                        !serial timestepping
+        if( atmos_npes.EQ.0 )atmos_npes = npes
+        if( ocean_npes.EQ.0 )ocean_npes = npes
+        if( max(atmos_npes,ocean_npes).EQ.npes )then !overlapping pelists
+            ! do nothing
+        else                    !disjoint pelists
+            if( atmos_npes+ocean_npes.NE.npes ) call mpp_error( FATAL,  &
+                 'coupler_init: atmos_npes+ocean_npes must equal npes for serial coupling on disjoint pelists.' )
+        end if
+    end if    
+
+    allocate( Atm%pelist  (atmos_npes) )
+    allocate( Ocean%pelist(ocean_npes) )
+
+    !Set up and declare all the needed pelists
+    call ensemble_pelist_setup(concurrent, atmos_npes, ocean_npes, Atm%pelist, Ocean%pelist)
+    ensemble_id = get_ensemble_id() 
+ 
+    allocate(ensemble_pelist(1:ensemble_size,1:npes))   
+    call get_ensemble_pelist(ensemble_pelist) 
+
+    Atm%pe            = ANY(Atm%pelist   .EQ. mpp_pe()) 
+    Ocean%is_ocean_pe = ANY(Ocean%pelist .EQ. mpp_pe())  
+    Ice%pe  = Atm%pe
+    Land%pe = Atm%pe
+ 
+    !Why is the following needed?
+    if( Atm%pe )            call mpp_set_current_pelist( Atm%pelist   )
+    if( Ocean%is_ocean_pe ) call mpp_set_current_pelist( Ocean%pelist )
+    
+    !Write out messages on root PEs
+    if(mpp_pe().EQ.mpp_root_pe() )then
+       write( text,'(a,2i6,a,i2.2)' )'Atmos PE range: ', Atm%pelist(1)  , Atm%pelist(atmos_npes)  ,&
+            ' ens_', ensemble_id
+       call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+       write( text,'(a,2i6,a,i2.2)' )'Ocean PE range: ', Ocean%pelist(1), Ocean%pelist(ocean_npes), &
+            ' ens_', ensemble_id
+       call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+       if( concurrent )then
+          call mpp_error( NOTE, 'coupler_init: Running with CONCURRENT coupling.' )
+
+          write( stdlog(),'(a)' )'Using concurrent coupling...'
+          write( stdlog(),'(a,4i4)' ) &
+               'atmos_pe_start, atmos_pe_end, ocean_pe_start, ocean_pe_end=', &
+               Atm%pelist(1)  , Atm%pelist(atmos_npes), Ocean%pelist(1), Ocean%pelist(ocean_npes) 
+       else
+          call mpp_error( NOTE, 'coupler_init: Running with SERIAL coupling.' )
+       end if
+       if( use_lag_fluxes )then
+          call mpp_error( NOTE, 'coupler_init: Sending LAG fluxes to ocean.' )
+       else
+          call mpp_error( NOTE, 'coupler_init: Sending most recent fluxes to ocean.' )
+       end if
+    endif
+
+    if( ice_npes.NE.0 ) &
+         call mpp_error( WARNING, 'coupler_init: pelists not yet implemented for ice.' )
+    if( land_npes.NE.0 ) &
+         call mpp_error( WARNING, 'coupler_init: pelists not yet implemented for land.' )
+
 !----- write namelist to logfile -----
     if( mpp_pe() == mpp_root_pe() )write( stdlog(), nml=coupler_nml )
 
@@ -704,7 +829,6 @@ contains
          write( stdlog(), 16 )date(1),trim(month_name(date(2))),date(3:6)
 16  format ('  current date used = ',i4,1x,a,2i3,2(':',i2.2),' gmt') 
 
-    npes = mpp_npes()
 !----- check the value of layout and setup the maskmap for domain layout.
     if( n_mask > 0 ) then
        if(do_atmos .OR. do_land) call mpp_error(FATAL, &
@@ -737,83 +861,6 @@ contains
             'program coupler: when no region is masked out, layout_mask need not be set' )
     end if
 
-
-!-----------------------------------------------------------------------
-!------ initialize concurrent PEset management ------
-
-!pe information
-    pe = mpp_pe()
-    if( ice_npes.NE.0 ) &
-         call mpp_error( WARNING, 'coupler_init: pelists not yet implemented for ice.' )
-    if( land_npes.NE.0 ) &
-         call mpp_error( WARNING, 'coupler_init: pelists not yet implemented for land.' )
-
-    if( concurrent )then
-!atmos_npes + ocean_npes must equal npes
-        if( atmos_npes.EQ.0 )atmos_npes = npes - ocean_npes
-        if( ocean_npes.EQ.0 )ocean_npes = npes - atmos_npes
-!both must now be non-zero
-        if( atmos_npes.EQ.0 .OR. ocean_npes.EQ.0 ) &
-             call mpp_error( FATAL, 'coupler_init: atmos_npes or ocean_npes must be specified for concurrent coupling.' )
-        if( atmos_npes+ocean_npes.NE.npes ) &
-             call mpp_error( FATAL, 'coupler_init: atmos_npes+ocean_npes must equal npes for concurrent coupling.' )
-        atmos_pe_start = 0
-        atmos_pe_end = atmos_npes-1
-        ocean_pe_start = atmos_npes
-        ocean_pe_end = atmos_npes+ocean_npes-1
-        if( .NOT.use_lag_fluxes )call mpp_error( WARNING, &
-             'coupler_init: you have set concurrent=TRUE and use_lag_fluxes=FALSE &
-            & in coupler_nml. When not using lag fluxes, components &
-            & will synchronize at two points, and thus run serially.' )
-    else                        !serial timestepping
-        if( atmos_npes.EQ.0 )atmos_npes = npes
-        if( ocean_npes.EQ.0 )ocean_npes = npes
-        if( max(atmos_npes,ocean_npes).EQ.npes )then !overlapping pelists
-            atmos_pe_start = 0
-            atmos_pe_end = atmos_npes-1
-            ocean_pe_start = 0
-            ocean_pe_end = ocean_npes-1
-        else                    !disjoint pelists
-            if( atmos_npes+ocean_npes.NE.npes ) call mpp_error( FATAL,  &
-                 'coupler_init: atmos_npes+ocean_npes must equal npes for serial coupling on disjoint pelists.' )
-            atmos_pe_start = 0
-            atmos_pe_end = atmos_npes-1
-            ocean_pe_start = atmos_npes
-            ocean_pe_end = atmos_npes+ocean_npes-1
-        end if
-    end if
-!messages
-    write( text,'(a,2i6)' )'Atmos PE range: ', atmos_pe_start, atmos_pe_end
-    call mpp_error( NOTE, 'coupler_init: '//trim(text) )
-    write( text,'(a,2i6)' )'Ocean PE range: ', ocean_pe_start, ocean_pe_end
-    call mpp_error( NOTE, 'coupler_init: '//trim(text) )
-    if( concurrent )then
-        call mpp_error( NOTE, 'coupler_init: Running with CONCURRENT coupling.' )
-    else
-        call mpp_error( NOTE, 'coupler_init: Running with SERIAL coupling.' )
-    end if
-    if( use_lag_fluxes )then
-        call mpp_error( NOTE, 'coupler_init: Sending LAG fluxes to ocean.' )
-    else
-        call mpp_error( NOTE, 'coupler_init: Sending most recent fluxes to ocean.' )
-    end if
-    allocate( Atm%pelist  (atmos_npes) )
-    allocate( Ocean%pelist(ocean_npes) )
-    Atm%pelist   = (/(i,i=atmos_pe_start,atmos_pe_end)/)
-    Ocean%pelist = (/(i,i=ocean_pe_start,ocean_pe_end)/)
-    Atm%pe = atmos_pe_start.LE.pe .AND. pe.LE.atmos_pe_end
-    Ocean%pe = ocean_pe_start.LE.pe .AND. pe.LE.ocean_pe_end
-    Ice%pe  = Atm%pe
-    Land%pe = Atm%pe
-    call mpp_declare_pelist( Atm%pelist,   '_atm' )
-    call mpp_declare_pelist( Ocean%pelist, '_ocn' )
-    if( concurrent .AND. pe.EQ.mpp_root_pe() )then
-        write( stdlog(),'(a)' )'Using concurrent coupling...'
-        write( stdlog(),'(a,4i4)' ) &
-         'atmos_pe_start, atmos_pe_end, ocean_pe_start, ocean_pe_end=', &
-          atmos_pe_start, atmos_pe_end, ocean_pe_start, ocean_pe_end
-    end if
-
 !-----------------------------------------------------------------------
 !------ initialize diagnostics manager ------
 
@@ -827,11 +874,11 @@ contains
     if( Atm%pe )then
         call mpp_set_current_pelist(Atm%pelist)
         if(atmos_npes /= npes)diag_model_subset = DIAG_OTHER  ! change diag_model_subset from DIAG_ALL
-    elseif( Ocean%pe )then  ! Error check above for disjoint pelists should catch any problem
+    elseif( Ocean%is_ocean_pe )then  ! Error check above for disjoint pelists should catch any problem
         call mpp_set_current_pelist(Ocean%pelist)
         if(ocean_npes /= npes)diag_model_subset = DIAG_OCEAN  ! change diag_model_subset from DIAG_ALL
     end if
-   call diag_manager_init(DIAG_MODEL_SUBSET=diag_model_subset)   ! initialize diag_manager for processor subset output
+    call diag_manager_init(DIAG_MODEL_SUBSET=diag_model_subset)   ! initialize diag_manager for processor subset output
     call print_memuse_stats( 'diag_manager_init' )
 !-----------------------------------------------------------------------
 !------ reset pelist to "full group" ------
@@ -854,6 +901,8 @@ contains
     Time      = set_date (date(1), date(2), date(3),  &
          date(4), date(5), date(6))
 
+    Time_start = Time
+
 !----- compute the ending time -----
 
     Time_end = Time
@@ -862,6 +911,27 @@ contains
     end do
     Time_end   = Time_end + set_time(hours*3600+minutes*60+seconds, days)
     Run_length = Time_end - Time
+
+!--- get the time that last intermediate restart file was written out.
+    if (file_exist('INPUT/coupler.intermediate.res')) then
+       call mpp_open(unit,'INPUT/coupler.intermediate.res',action=MPP_RDONLY)
+       read(unit,*) date_restart
+       call mpp_close(unit)
+    else
+       date_restart = date
+    endif
+
+    Time_restart_current = Time
+    if(ALL(restart_interval ==0)) then
+       Time_restart = increment_date(Time_end, 1, 0, 0, 0, 0, 0)   ! no intermediate restart
+    else
+       Time_restart = set_date(date_restart(1), date_restart(2), date_restart(3),  &
+                               date_restart(4), date_restart(5), date_restart(6) )
+       Time_restart = increment_date(Time_restart, restart_interval(1), restart_interval(2), &
+            restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
+       if(Time_restart <= Time) call mpp_error(FATAL, &
+            '==>Error from program ocean_solo: The first intermediate restart time is no larger than the start time')
+    end if
 
 !-----------------------------------------------------------------------
 !----- write time stamps (for start time and end time) ------
@@ -884,13 +954,11 @@ contains
 !----- compute the time steps ------
 
     Time_step_cpld  = set_time (dt_cpld ,0)
-    Time_step_ocean = set_time (dt_ocean,0)
     Time_step_atmos = set_time (dt_atmos,0)
 
 !----- determine maximum number of iterations per loop ------
 
     num_cpld_calls  = Run_length      / Time_step_cpld
-    num_ocean_calls = Time_step_cpld  / Time_step_ocean
     num_atmos_calls = Time_step_cpld  / Time_step_atmos
 
 !-----------------------------------------------------------------------
@@ -903,21 +971,15 @@ contains
 
 !----- make sure run length is a multiple of ocean time step ------
 
-    if ( num_cpld_calls * num_ocean_calls * Time_step_ocean /= Run_length )  &
+    if ( num_cpld_calls * Time_step_cpld  /= Run_length )  &
          call error_mesg ('program coupler',  &
-         'run length must be multiple of ocean time step', FATAL)
+         'run length must be multiple of coupled time step', FATAL)
 
 ! ---- make sure cpld time step is a multiple of atmos time step ----
 
     if ( num_atmos_calls * Time_step_atmos /= Time_step_cpld )  &
          call error_mesg ('program coupler',   &
-         'atmos time step is not a multiple of the cpld time step', FATAL)
-
-! ---- make sure cpld time step is a multiple of ocean time step ----
-
-    if ( num_ocean_calls * Time_step_ocean /= Time_step_cpld )  &
-         call error_mesg ('program coupler',   &
-         'cpld time step is not a multiple of the ocean time step', FATAL)
+         'cpld time step is not a multiple of the atmos time step', FATAL)
 
 !
 !       Initialize the tracer manager. This needs to be done on all PEs,
@@ -934,7 +996,7 @@ contains
 !-----------------------------------------------------------------------
 !------ initialize component models ------
 !------ grid info now comes from grid_spec file
-    
+
     if( Atm%pe )then
         call mpp_set_current_pelist(Atm%pelist)
 !---- atmosphere ----
@@ -951,23 +1013,23 @@ contains
         call print_memuse_stats( 'ice_model_init' )
         call data_override_init(Atm_domain_in = Atm%domain, Ice_domain_in = Ice%domain, Land_domain_in=Land%domain)
     end if
-    if( Ocean%pe )then
+    if( Ocean%is_ocean_pe )then
         call mpp_set_current_pelist(Ocean%pelist)
 !---- ocean ---------
-        call ocean_model_init( Ocean, Time_init, Time, Time_step_ocean )
+        call ocean_model_init( Ocean, Ocean_state, Time_init, Time )
         call print_memuse_stats( 'ocean_model_init' )
         call data_override_init(Ocean_domain_in = Ocean%domain )
     end if
-    call mpp_set_current_pelist()
+    call mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
 
     call mpp_broadcast_domain(Ice%domain)
     call mpp_broadcast_domain(Ocean%domain)
 !-----------------------------------------------------------------------
 !---- initialize flux exchange module ----
-    call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, &
+    call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
          atmos_ice_boundary, land_ice_atmos_boundary, &
          land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
-         dt_atmos=dt_atmos, dt_ocean=dt_ocean, dt_cpld=dt_cpld)
+         dt_atmos=dt_atmos, dt_cpld=dt_cpld)
 
     Time_atmos = Time
     Time_ocean = Time
@@ -978,44 +1040,64 @@ contains
 
     if ( Atm%pe ) then
       call mpp_set_current_pelist(Atm%pelist)
+      allocate(Ice_bc_restart(Ice%ocean_fluxes%num_bcs))
+      allocate(ice_bc_restart_file(Ice%ocean_fluxes%num_bcs))
       do n = 1, Ice%ocean_fluxes%num_bcs  !{
+        if(Ice%ocean_fluxes%bc(n)%num_fields .LE. 0) cycle
+        filename = trim(Ice%ocean_fluxes%bc(n)%ice_restart_file)
+        do l = 1, num_ice_bc_restart
+           if(trim(filename) == ice_bc_restart_file(l)) exit
+        end do
+        if(l>num_ice_bc_restart) then
+           num_ice_bc_restart = num_ice_bc_restart + 1
+           ice_bc_restart_file(l) = trim(filename)
+        end if
+        filename = 'INPUT/'//trim(filename)
         other_fields_exist = .false.
         do m = 1, Ice%ocean_fluxes%bc(n)%num_fields  !{
-          if (field_exist(Ice%ocean_fluxes%bc(n)%ice_file_in,                           &
-                          Ice%ocean_fluxes%bc(n)%field(m)%name)) then
+          fieldname = trim(Ice%ocean_fluxes%bc(n)%field(m)%name)
+          id_restart = register_restart_field(Ice_bc_restart(l), ice_bc_restart_file(l), &
+                       fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%domain    )
+          if (field_exist(filename, fieldname) ) then
             other_fields_exist = .true.
             write (stdout(),*) trim(note_header), ' Reading restart info for ',         &
-                 trim(Ice%ocean_fluxes%bc(n)%field(m)%name), ' from ',                  &
-                 trim(Ice%ocean_fluxes%bc(n)%ice_file_in)
-            call read_data(Ice%ocean_fluxes%bc(n)%ice_file_in,                          &
-                 Ice%ocean_fluxes%bc(n)%field(m)%name,                                  &
-                 Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%domain)
+                 trim(fieldname), ' from ',  trim(filename)
+            call read_data(filename, fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%domain)
           elseif (other_fields_exist) then
             call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
-                 trim(Ice%ocean_fluxes%bc(n)%field(m)%name) // ' in file ' //           &
-                 trim(Ice%ocean_fluxes%bc(n)%ice_file_in))
+                 trim(fieldname) // ' in file ' //trim(filename))
           endif
         enddo  !} m
       enddo  !} n
     endif
-    if ( Ocean%pe ) then
+    if ( Ocean%is_ocean_pe ) then
       call mpp_set_current_pelist(Ocean%pelist)
+      allocate(Ocn_bc_restart(Ocean%fields%num_bcs))
+      allocate(ocn_bc_restart_file(Ocean%fields%num_bcs))
       do n = 1, Ocean%fields%num_bcs  !{
+        if(Ocean%fields%bc(n)%num_fields .LE. 0) cycle
+        filename = trim(Ocean%fields%bc(n)%ocean_restart_file)
+        do l = 1, num_ocn_bc_restart
+           if(trim(filename) == ocn_bc_restart_file(l)) exit
+        end do
+        if(l>num_ocn_bc_restart) then
+           num_ocn_bc_restart = num_ocn_bc_restart + 1
+           ocn_bc_restart_file(l) = trim(filename)
+        end if
+        filename = 'INPUT/'//trim(filename)
         other_fields_exist = .false.
         do m = 1, Ocean%fields%bc(n)%num_fields  !{
-          if (field_exist(Ocean%fields%bc(n)%ocean_file_in,                &
-                          Ocean%fields%bc(n)%field(m)%name)) then
+          fieldname = trim(Ocean%fields%bc(n)%field(m)%name)
+          id_restart = register_restart_field(Ocn_bc_restart(l), Ocn_bc_restart_file(l), &
+                       fieldname, Ocean%fields%bc(n)%field(m)%values, Ocean%domain    )
+          if (field_exist(filename, fieldname) ) then
             other_fields_exist = .true.
             write (stdout(),*) trim(note_header), ' Reading restart info for ',         &
-                 trim(Ocean%fields%bc(n)%field(m)%name), ' from ',         &
-                 trim(Ocean%fields%bc(n)%ocean_file_in)
-            call read_data(Ocean%fields%bc(n)%ocean_file_in,               &
-                 Ocean%fields%bc(n)%field(m)%name,                         &
-                 Ocean%fields%bc(n)%field(m)%values, Ocean%domain)
+                 trim(fieldname), ' from ', trim(filename)
+            call read_data(filename, fieldname, Ocean%fields%bc(n)%field(m)%values, Ocean%domain)
           elseif (other_fields_exist) then
             call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
-                 trim(Ocean%fields%bc(n)%field(m)%name) // ' in file ' //  &
-                 trim(Ocean%fields%bc(n)%ocean_file_in))
+                 trim(fieldname) // ' in file ' //trim(filename))
           endif
         enddo  !} m
       enddo  !} n
@@ -1037,17 +1119,9 @@ contains
 
   subroutine coupler_end
 
-    integer :: unit, date(6)
-    integer :: m
-    integer :: n
 !-----------------------------------------------------------------------
 
     call mpp_set_current_pelist()
-
-!----- compute current date ------
-
-    call get_date (Time, date(1), date(2), date(3),  &
-         date(4), date(5), date(6))
 
 !----- check time versus expected ending time ----
 
@@ -1058,38 +1132,49 @@ contains
 !the call to fms_io_exit has been moved here
 !this will work for serial code or concurrent (disjoint pelists)
 !but will fail on overlapping but unequal pelists
-    if( Ocean%pe )then
+    if( Ocean%is_ocean_pe )then
         call mpp_set_current_pelist(Ocean%pelist)
-!        call write_ice_ocean_boundary('RESTART/coupler_fluxes.res.nc', &
-!                                      ice_ocean_boundary,Ocean)
-        call ocean_model_end (Ocean)
-        do n = 1, Ocean%fields%num_bcs  !{
-          do m = 1, Ocean%fields%bc(n)%num_fields  !{
-            call write_data(Ocean%fields%bc(n)%ocean_file_out,     &
-                 Ocean%fields%bc(n)%field(m)%name,                 &
-                 Ocean%fields%bc(n)%field(m)%values, Ocean%domain)
-          enddo  !} m
-        enddo  !} n
+        call ocean_model_end (Ocean, Ocean_state, Time)
     end if
     if( Atm%pe )then
         call mpp_set_current_pelist(Atm%pelist)
         call atmos_model_end (Atm)
         call  land_model_end (Atmos_land_boundary, Land)
         call   ice_model_end (Ice)
-        do n = 1, Ice%ocean_fluxes%num_bcs  !{
-          do m = 1, Ice%ocean_fluxes%bc(n)%num_fields  !{
-            call write_data(Ice%ocean_fluxes%bc(n)%ice_file_out,                &
-                 Ice%ocean_fluxes%bc(n)%field(m)%name,                          &
-                 Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%domain)
-          enddo  !} m
-        enddo  !} n
     end if
+
+    !----- write restart file ------
+    call coupler_restart(Time, Time_restart_current)
+
     call fms_io_exit
     call mpp_set_current_pelist()
 
-!----- write restart file ------
+!-----------------------------------------------------------------------
 
-    call mpp_open( unit, 'RESTART/coupler.res', nohdrs=.TRUE. )
+  end subroutine coupler_end
+
+  !--- writing restart file that contains running time and restart file writing time.
+  subroutine coupler_restart(Time_run, Time_res, time_stamp)
+    type(time_type),   intent(in)           :: Time_run, Time_res
+    character(len=*), intent(in),  optional :: time_stamp
+    character(len=128)                      :: file_run, file_res
+    integer :: yr, mon, day, hr, min, sec, date(6), unit
+
+    call mpp_set_current_pelist()
+
+    ! write restart file
+    if(present(time_stamp)) then
+       file_run = 'RESTART/'//trim(time_stamp)//'.coupler.res'
+       file_res = 'RESTART/'//trim(time_stamp)//'.coupler.intermediate.res'
+    else
+       file_run = 'RESTART/coupler.res'
+       file_res = 'RESTART/coupler.intermediate.res'
+    endif
+
+    !----- compute current date ------
+    call get_date (Time_run, date(1), date(2), date(3),  &
+                   date(4), date(5), date(6))
+    call mpp_open( unit, file_run, nohdrs=.TRUE. )
     if ( mpp_pe().EQ.mpp_root_pe() )then
         write( unit, '(i6,8x,a)' )calendar_type, &
              '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
@@ -1101,9 +1186,33 @@ contains
     end if
     call mpp_close(unit)
 
-!-----------------------------------------------------------------------
+    if(Time_res > Time_start) then
+       call mpp_open( unit, file_res, nohdrs=.TRUE. )
+       if ( mpp_pe().EQ.mpp_root_pe() )then
+          call get_date(Time_res ,yr,mon,day,hr,min,sec)
+          write( unit, '(6i6,8x,a)' )yr,mon,day,hr,min,sec, &
+               'Current intermediate restart time: year, month, day, hour, minute, second'
+       end if
+       call mpp_close(unit)     
+    end if
 
-  end subroutine coupler_end
+    if( Ocean%is_ocean_pe )then
+        call mpp_set_current_pelist(Ocean%pelist)
+        do n = 1, num_ocn_bc_restart
+           call save_restart(Ocn_bc_restart(n), time_stamp)
+        enddo
+    endif
+    if( Atm%pe )then
+        call mpp_set_current_pelist(Atm%pelist)
+        do n = 1, num_ice_bc_restart
+           call save_restart(Ice_bc_restart(n), time_stamp)
+        enddo
+    endif
+
+
+  end subroutine coupler_restart
+
+!--------------------------------------------------------------------------
 
   subroutine coupler_chksum(id, timestep)
 
@@ -1182,7 +1291,7 @@ contains
 
     !endif
 
-    !if( Ocean%pe )then
+    !if( Ocean%is_ocean_pe )then
         !call mpp_set_current_pelist(Ocean%pelist)
 
     write(stdout(),*) 'BEGIN CHECKSUM(Ice):: ', id, timestep
