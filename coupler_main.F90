@@ -136,7 +136,7 @@ program coupler_main
   use time_manager_mod,        only: operator (*), THIRTY_DAY_MONTHS, JULIAN
   use time_manager_mod,        only: NOLEAP, NO_CALENDAR, INVALID_CALENDAR
   use time_manager_mod,        only: date_to_string, increment_date
-  use time_manager_mod,        only: operator(>=), operator(<=)
+  use time_manager_mod,        only: operator(>=), operator(<=), operator(==)
 
   use fms_mod,                 only: open_namelist_file, field_exist, file_exist, check_nml_error
   use fms_mod,                 only: uppercase, error_mesg, write_version_number
@@ -198,7 +198,7 @@ program coupler_main
   use flux_exchange_mod,       only: flux_land_to_ice
   use flux_exchange_mod,       only: flux_ice_to_ocean
   use flux_exchange_mod,       only: flux_ocean_to_ice
-  use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks, flux_ice_to_ocean_stocks
+  use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
 
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
@@ -207,7 +207,7 @@ program coupler_main
   use mpp_mod,                 only: stderr, stdlog, mpp_error, NOTE, FATAL, WARNING
   use mpp_mod,                 only: mpp_set_current_pelist, mpp_declare_pelist
 
-  use mpp_io_mod,              only: mpp_open, mpp_close
+  use mpp_io_mod,              only: mpp_open, mpp_close, mpp_io_clock_on
   use mpp_io_mod,              only: MPP_NATIVE, MPP_RDONLY, MPP_DELETE
 
   use mpp_domains_mod,         only: mpp_broadcast_domain
@@ -218,8 +218,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 16.0.4.2.2.1.2.1.2.2 2008/10/15 11:39:54 z1l Exp $'
-  character(len=128) :: tag = '$Name: perth_2008_10 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 17.0.2.1 2009/08/28 19:28:02 nnz Exp $'
+  character(len=128) :: tag = '$Name: quebec_200910 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -436,7 +436,7 @@ character(len=256), parameter   :: note_header =                                
 
      if(check_stocks >= 0) then
         call mpp_set_current_pelist()
-        call flux_init_stocks(Atm, Land, Ice, Ocean_state)
+        call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
      endif
 
   do nc = 1, num_cpld_calls
@@ -447,7 +447,7 @@ character(len=256), parameter   :: note_header =                                
      call mpp_set_current_pelist()
 
      ! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
-     ! points when running concurrently. The calls as placed next to each other in
+     ! points when running concurrently. The calls are placed next to each other in
      ! concurrent mode to avoid multiple synchronizations within the main loop.
      ! This is only possible in the serial case when use_lag_fluxes.
      call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
@@ -460,7 +460,7 @@ character(len=256), parameter   :: note_header =                                
      ! To print the value of frazil heat flux at the right time the following block
      ! needs to sit here rather than at the end of the coupler loop.
      if(check_stocks > 0) then
-        if(check_stocks*(nc/check_stocks) == nc) then
+        if(check_stocks*((nc-1)/check_stocks) == nc-1 .AND. nc > 1) then
            call mpp_set_current_pelist()
            call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
         endif
@@ -559,6 +559,11 @@ character(len=256), parameter   :: note_header =                                
           call update_ocean_model( Ice_ocean_boundary, Ocean_state,  Ocean, &
                                    Time_ocean, Time_step_cpld )
 
+        ! Get stocks from "Ice_ocean_boundary" and add them to Ocean stocks.
+        ! This call is just for record keeping of stocks transfer and
+        ! does not modify either Ocean or Ice_ocean_boundary
+        call flux_ocean_from_ice_stocks(Ocean_state, Ocean, Ice_ocean_boundary)
+
         Time_ocean = Time_ocean +  Time_step_cpld
 
         !-----------------------------------------------------------------------
@@ -593,7 +598,7 @@ character(len=256), parameter   :: note_header =                                
 
   enddo
 
-  if(check_stocks == 0) then
+  if(check_stocks >= 0) then
      call mpp_set_current_pelist()
      call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
   endif
@@ -612,7 +617,6 @@ character(len=256), parameter   :: note_header =                                
   if(do_chksum) call coupler_chksum('coupler_end-', nc)
   call coupler_end
 
-  call diag_manager_end (Time)
   call mpp_clock_end(termClock)
 
   call print_memuse_stats( 'Memory HiWaterMark', always=.TRUE. )
@@ -647,7 +651,7 @@ contains
     character(len=256), parameter   :: note_header =                                &
          '==>Note from ' // trim(mod_name) // '(' // trim(sub_name) // '):'
 
-    integer :: unit,  ierr, io,    m, i
+    integer :: unit,  ierr, io,    m, i, outunit, logunit
     integer :: date(6)
     type (time_type) :: Run_length
     character(len=9) :: month
@@ -678,7 +682,18 @@ contains
        ierr = check_nml_error (io, 'coupler_nml')
     enddo
 10  call mpp_close(unit)
-
+    outunit = stdout()
+    logunit = stdlog()
+    
+!---- when concurrent is set true and mpp_io_nml io_clock_on is set true, the model
+!---- will crash with error message "MPP_CLOCK_BEGIN: cannot change pelist context of a clock",
+!---- so need to make sure it will not happen
+    if(concurrent) then
+       if(mpp_io_clock_on()) then
+          call error_mesg ('program coupler', 'when coupler_nml variable concurrent is set to true, '// &
+              'mpp_io_nml variable io_clock_non can not be set to true.', FATAL )
+       endif
+    endif
 !----- read date and calendar type from restart file -----
 
     if( file_exist('INPUT/coupler.res') )then
@@ -801,8 +816,8 @@ contains
        if( concurrent )then
           call mpp_error( NOTE, 'coupler_init: Running with CONCURRENT coupling.' )
 
-          write( stdlog(),'(a)' )'Using concurrent coupling...'
-          write( stdlog(),'(a,4i4)' ) &
+          write( logunit,'(a)' )'Using concurrent coupling...'
+          write( logunit,'(a,4i4)' ) &
                'atmos_pe_start, atmos_pe_end, ocean_pe_start, ocean_pe_end=', &
                Atm%pelist(1)  , Atm%pelist(atmos_npes), Ocean%pelist(1), Ocean%pelist(ocean_npes) 
        else
@@ -821,12 +836,12 @@ contains
          call mpp_error( WARNING, 'coupler_init: pelists not yet implemented for land.' )
 
 !----- write namelist to logfile -----
-    if( mpp_pe() == mpp_root_pe() )write( stdlog(), nml=coupler_nml )
+    if( mpp_pe() == mpp_root_pe() )write( logunit, nml=coupler_nml )
 
 !----- write current/initial date actually used to logfile file -----
 
     if ( mpp_pe().EQ.mpp_root_pe() ) &
-         write( stdlog(), 16 )date(1),trim(month_name(date(2))),date(3:6)
+         write( logunit, 16 )date(1),trim(month_name(date(2))),date(3:6)
 16  format ('  current date used = ',i4,1x,a,2i3,2(':',i2.2),' gmt') 
 
 !----- check the value of layout and setup the maskmap for domain layout.
@@ -930,7 +945,7 @@ contains
        Time_restart = increment_date(Time_restart, restart_interval(1), restart_interval(2), &
             restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
        if(Time_restart <= Time) call mpp_error(FATAL, &
-            '==>Error from program ocean_solo: The first intermediate restart time is no larger than the start time')
+            '==>Error from program coupler: The first intermediate restart time is no larger than the start time')
     end if
 
 !-----------------------------------------------------------------------
@@ -1040,6 +1055,7 @@ contains
 
     if ( Atm%pe ) then
       call mpp_set_current_pelist(Atm%pelist)
+      outunit = stdout()
       allocate(Ice_bc_restart(Ice%ocean_fluxes%num_bcs))
       allocate(ice_bc_restart_file(Ice%ocean_fluxes%num_bcs))
       do n = 1, Ice%ocean_fluxes%num_bcs  !{
@@ -1058,20 +1074,30 @@ contains
           fieldname = trim(Ice%ocean_fluxes%bc(n)%field(m)%name)
           id_restart = register_restart_field(Ice_bc_restart(l), ice_bc_restart_file(l), &
                        fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%domain    )
-          if (field_exist(filename, fieldname) ) then
+          if (field_exist(filename, fieldname, Ice%domain) ) then
             other_fields_exist = .true.
-            write (stdout(),*) trim(note_header), ' Reading restart info for ',         &
+            write (outunit,*) trim(note_header), ' Reading restart info for ',         &
                  trim(fieldname), ' from ',  trim(filename)
             call read_data(filename, fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%domain)
           elseif (other_fields_exist) then
             call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
                  trim(fieldname) // ' in file ' //trim(filename))
+!
+!NOTE: The above logic is inadequate. What if there are a few fields and only the last fieldname exists in the file?
+!      In that case the last one is read and non-existance of the rest will be ignored.
+!      It would be better to give a warning as follows instead of the above elseif block.
+!          else 
+!            call mpp_error(WARNING, trim(error_header) // ' Couldn''t find field ' // &
+!                 trim(fieldname) // ' in file ' //trim(filename) //                   &
+!                '! Initializing the field to zero.')
+!            Ice%ocean_fluxes%bc(n)%field(m)%values = 0.0
           endif
         enddo  !} m
       enddo  !} n
     endif
     if ( Ocean%is_ocean_pe ) then
       call mpp_set_current_pelist(Ocean%pelist)
+      outunit = stdout()
       allocate(Ocn_bc_restart(Ocean%fields%num_bcs))
       allocate(ocn_bc_restart_file(Ocean%fields%num_bcs))
       do n = 1, Ocean%fields%num_bcs  !{
@@ -1090,14 +1116,20 @@ contains
           fieldname = trim(Ocean%fields%bc(n)%field(m)%name)
           id_restart = register_restart_field(Ocn_bc_restart(l), Ocn_bc_restart_file(l), &
                        fieldname, Ocean%fields%bc(n)%field(m)%values, Ocean%domain    )
-          if (field_exist(filename, fieldname) ) then
+          if (field_exist(filename, fieldname, Ocean%domain) ) then
             other_fields_exist = .true.
-            write (stdout(),*) trim(note_header), ' Reading restart info for ',         &
+            write (outunit,*) trim(note_header), ' Reading restart info for ',         &
                  trim(fieldname), ' from ', trim(filename)
             call read_data(filename, fieldname, Ocean%fields%bc(n)%field(m)%values, Ocean%domain)
           elseif (other_fields_exist) then
             call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
                  trim(fieldname) // ' in file ' //trim(filename))
+!NOTE: see the NOTE above.
+!          else 
+!            call mpp_error(WARNING, trim(error_header) // ' Couldn''t find field ' // &
+!                 trim(fieldname) // ' in file ' //trim(filename) //                   &
+!                 '! Initializing the field to zero.')
+!            Ocean%fields%bc(n)%field(m)%values = 0.0 
           endif
         enddo  !} m
       enddo  !} n
@@ -1147,6 +1179,7 @@ contains
     call coupler_restart(Time, Time_restart_current)
 
     call fms_io_exit
+    call diag_manager_end (Time)
     call mpp_set_current_pelist()
 
 !-----------------------------------------------------------------------
@@ -1224,7 +1257,7 @@ contains
     end type tracer_ind_type
     integer                            :: n_atm_tr, n_lnd_tr, n_exch_tr
     integer                            :: n_atm_tr_tot, n_lnd_tr_tot
-    integer                            :: i, tr, n, m
+    integer                            :: i, tr, n, m, outunit
     type(tracer_ind_type), allocatable :: tr_table(:)
     character(32) :: tr_name
 
@@ -1252,57 +1285,58 @@ contains
 101 FORMAT("CHECKSUM::",A16,a,'%',a," = ",Z20)
 
     if( Atm%pe )then
-        call mpp_set_current_pelist(Atm%pelist)
+       call mpp_set_current_pelist(Atm%pelist)
 
-    write(stdout(),*) 'BEGIN CHECKSUM(Atm):: ', id, timestep
-    write(stdout(),100) 'atm%t_bot', mpp_chksum(atm%t_bot)
-    write(stdout(),100) 'atm%z_bot', mpp_chksum(atm%z_bot)
-    write(stdout(),100) 'atm%p_bot', mpp_chksum(atm%p_bot)
-    write(stdout(),100) 'atm%u_bot', mpp_chksum(atm%u_bot)
-    write(stdout(),100) 'atm%v_bot', mpp_chksum(atm%v_bot)
-    write(stdout(),100) 'atm%p_surf', mpp_chksum(atm%p_surf)
-    write(stdout(),100) 'atm%gust', mpp_chksum(atm%gust)
-    do tr = 1,n_exch_tr
-       n = tr_table(tr)%atm
-       if(n /= NO_TRACER ) then
-          call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
-          write(stdout(),100) 'atm%'//trim(tr_name), mpp_chksum(Atm%tr_bot(:,:,n))
-       endif
-    enddo
-
-    write(stdout(),100) 'land%t_surf', mpp_chksum(land%t_surf)
-    write(stdout(),100) 'land%t_ca', mpp_chksum(land%t_ca)
-    write(stdout(),100) 'land%rough_mom', mpp_chksum(land%rough_mom)
-    write(stdout(),100) 'land%rough_heat', mpp_chksum(land%rough_heat)
-    write(stdout(),100) 'land%rough_scale', mpp_chksum(land%rough_scale)
-    do tr = 1,n_exch_tr
-       n = tr_table(tr)%lnd
-       if(n /= NO_TRACER ) then
-          call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
-          write(stdout(),100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,:,n))
-       endif
-    enddo
-
-    write(stdout(),100) 'ice%t_surf', mpp_chksum(ice%t_surf)
-    write(stdout(),100) 'ice%rough_mom', mpp_chksum(ice%rough_mom)
-    write(stdout(),100) 'ice%rough_heat', mpp_chksum(ice%rough_heat)
-    write(stdout(),100) 'ice%rough_moist', mpp_chksum(ice%rough_moist)
-    write(stdout(),*) 'STOP CHECKSUM(Atm):: ', id, timestep
-
+       outunit = stdout()
+       write(outunit,*) 'BEGIN CHECKSUM(Atm):: ', id, timestep
+       write(outunit,100) 'atm%t_bot', mpp_chksum(atm%t_bot)
+       write(outunit,100) 'atm%z_bot', mpp_chksum(atm%z_bot)
+       write(outunit,100) 'atm%p_bot', mpp_chksum(atm%p_bot)
+       write(outunit,100) 'atm%u_bot', mpp_chksum(atm%u_bot)
+       write(outunit,100) 'atm%v_bot', mpp_chksum(atm%v_bot)
+       write(outunit,100) 'atm%p_surf', mpp_chksum(atm%p_surf)
+       write(outunit,100) 'atm%gust', mpp_chksum(atm%gust)
+       do tr = 1,n_exch_tr
+          n = tr_table(tr)%atm
+          if(n /= NO_TRACER ) then
+             call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
+             write(outunit,100) 'atm%'//trim(tr_name), mpp_chksum(Atm%tr_bot(:,:,n))
+          endif
+       enddo
+   
+       write(outunit,100) 'land%t_surf', mpp_chksum(land%t_surf)
+       write(outunit,100) 'land%t_ca', mpp_chksum(land%t_ca)
+       write(outunit,100) 'land%rough_mom', mpp_chksum(land%rough_mom)
+       write(outunit,100) 'land%rough_heat', mpp_chksum(land%rough_heat)
+       write(outunit,100) 'land%rough_scale', mpp_chksum(land%rough_scale)
+       do tr = 1,n_exch_tr
+          n = tr_table(tr)%lnd
+          if(n /= NO_TRACER ) then
+             call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
+             write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,:,n))
+          endif
+       enddo
+   
+       write(outunit,100) 'ice%t_surf', mpp_chksum(ice%t_surf)
+       write(outunit,100) 'ice%rough_mom', mpp_chksum(ice%rough_mom)
+       write(outunit,100) 'ice%rough_heat', mpp_chksum(ice%rough_heat)
+       write(outunit,100) 'ice%rough_moist', mpp_chksum(ice%rough_moist)
+       write(outunit,*) 'STOP CHECKSUM(Atm):: ', id, timestep
+   
     !endif
 
     !if( Ocean%is_ocean_pe )then
         !call mpp_set_current_pelist(Ocean%pelist)
 
-    write(stdout(),*) 'BEGIN CHECKSUM(Ice):: ', id, timestep
-    do n = 1, ice%ocean_fields%num_bcs  !{
-       do m = 1, ice%ocean_fields%bc(n)%num_fields  !{
-          !write(stdout(),101) 'ice%', m, n, mpp_chksum(Ice%ocean_fields%bc(n)%field(m)%values)
-          write(stdout(),101) 'ice%',trim(ice%ocean_fields%bc(n)%name), &
-               trim(ice%ocean_fields%bc(n)%field(m)%name), mpp_chksum(Ice%ocean_fields%bc(n)%field(m)%values)
-       enddo  !} m
-    enddo  !} n
-    write(stdout(),*) 'STOP CHECKSUM(Ice):: ', id, timestep
+       write(outunit,*) 'BEGIN CHECKSUM(Ice):: ', id, timestep
+       do n = 1, ice%ocean_fields%num_bcs  !{
+          do m = 1, ice%ocean_fields%bc(n)%num_fields  !{
+             !write(outunit,101) 'ice%', m, n, mpp_chksum(Ice%ocean_fields%bc(n)%field(m)%values)
+             write(outunit,101) 'ice%',trim(ice%ocean_fields%bc(n)%name), &
+                  trim(ice%ocean_fields%bc(n)%field(m)%name), mpp_chksum(Ice%ocean_fields%bc(n)%field(m)%values)
+          enddo  !} m
+       enddo  !} n
+       write(outunit,*) 'STOP CHECKSUM(Ice):: ', id, timestep
 
     endif
 

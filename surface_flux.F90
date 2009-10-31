@@ -197,8 +197,8 @@ end interface
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 15.0 2007/08/14 03:58:56 fms Exp $'
-character(len=*), parameter :: tagname = '$Name: perth_2008_10 $'
+character(len=*), parameter :: version = '$Id: surface_flux.F90,v 17.0 2009/07/21 03:01:22 fms Exp $'
+character(len=*), parameter :: tagname = '$Name: quebec_200910 $'
    
 logical :: do_init = .true.
 
@@ -731,7 +731,8 @@ subroutine surface_flux_init
   ! write version number
   call write_version_number(version, tagname)
 
-  if ( mpp_pe() == mpp_root_pe() )  write (stdlog(), nml=surface_flux_nml)
+  unit = stdlog()
+  if ( mpp_pe() == mpp_root_pe() )  write (unit, nml=surface_flux_nml)
   
   if(.not. use_virtual_temp) d608 = 0.0
   
