@@ -160,6 +160,10 @@ module flux_exchange_mod
                     
   use mpp_domains_mod, only: mpp_get_compute_domain, mpp_get_compute_domains, &
                              mpp_global_sum, mpp_redistribute, operator(.EQ.)
+  use mpp_domains_mod, only: mpp_get_global_domain, mpp_get_data_domain
+  use mpp_domains_mod, only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
+  use mpp_domains_mod, only: mpp_deallocate_domain, mpp_copy_domain, domain2d
+
   use mpp_io_mod,      only: mpp_close, mpp_open, MPP_MULTI, MPP_SINGLE, MPP_OVERWR
 
 !model_boundary_data_type contains all model fields at the boundary.
@@ -257,8 +261,8 @@ private
      flux_ocean_from_ice_stocks
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 16.0.6.1.2.1.4.2.6.5.2.1.2.1 2009/07/31 19:01:53 jgj Exp $'
-  character(len=128) :: tag = '$Name: quebec_200910 $'
+  character(len=128) :: version = '$Id: flux_exchange.F90,v 18.0.4.1 2010/03/29 20:41:16 jgj Exp $'
+  character(len=128) :: tag = '$Name: riga_201004 $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -281,7 +285,7 @@ character(len=4), parameter :: mod_name = 'flux'
      id_del_h,  id_del_m,  id_del_q,  id_rough_scale,         &
      id_t_ca,   id_q_surf, id_q_atm, id_z_atm, id_p_atm, id_gust, &
      id_t_ref_land, id_rh_ref_land, id_u_ref_land, id_v_ref_land, &
-     id_q_ref,  id_q_ref_land, id_q_flux_land
+     id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip
 
 integer :: id_co2_atm_dvmr, id_co2_surf_dvmr
 
@@ -525,8 +529,15 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
   character(len=64),  parameter   :: grid_file = 'INPUT/grid_spec.nc'  
   character(len=256)              :: atm_mosaic_file, tile_file 
 
-  integer :: unit, ierr, io,  i, j
-  integer :: nlon, nlat, siz(4)
+  type(domain2d) :: domain2
+  integer        :: isg, ieg, jsg, jeg
+  integer        :: isc, iec, jsc, jec
+  integer        :: isd, ied, jsd, jed
+  integer        :: isc2, iec2, jsc2, jec2
+  integer        :: nxg, nyg, ioff, joff
+  integer        :: unit, ierr, io,  i, j
+  integer        :: nlon, nlat, siz(4)
+  integer        :: outunit, logunit
   real, dimension(:,:), allocatable :: tmpx(:,:), tmpy(:,:)
   real, dimension(:),   allocatable :: atmlonb, atmlatb
   integer :: is, ie, js, je, kd
@@ -559,6 +570,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 !-----------------------------------------------------------------------
 !----- read namelist -------
 
+    outunit = stdout(); logunit = stdlog()
     unit = open_namelist_file()
     ierr=1; do while (ierr /= 0)
        read  (unit, nml=flux_exchange_nml, iostat=io, end=10)
@@ -568,7 +580,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 
 !----- write namelist to logfile -----
     call write_version_number (version, tag)
-    if( mpp_pe() == mpp_root_pe() )write( stdlog(), nml=flux_exchange_nml )
+    if( mpp_pe() == mpp_root_pe() )write( logunit, nml=flux_exchange_nml )
 
 !----- find out number of atmospheric prognostic tracers and index of specific 
 !      humidity in the tracer table
@@ -620,12 +632,12 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
       endif
     endif  !}
   enddo  !} n
-  write(stdout(),*) trim(note_header), ' Number of exchanged tracers = ', n_exch_tr
-  write(stdlog(),*) trim(note_header), ' Number of exchanged tracers = ', n_exch_tr
+  write(outunit,*) trim(note_header), ' Number of exchanged tracers = ', n_exch_tr
+  write(logunit,*) trim(note_header), ' Number of exchanged tracers = ', n_exch_tr
   do i = 1,n_exch_tr
      call get_tracer_names( MODEL_ATMOS, tr_table(i)%atm, tr_name )
-     write(stdout(),*)'Tracer field name :'//trim(tr_name)
-     write(stdlog(),*)'Tracer field name :'//trim(tr_name)
+     write(outunit,*)'Tracer field name :'//trim(tr_name)
+     write(logunit,*)'Tracer field name :'//trim(tr_name)
   enddo
 
   ! find out which tracer is specific humidity
@@ -643,7 +655,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
   ! jgj: find out which exchange tracer is co2
      if(lowercase(tr_name)=='co2') then
         ico2 = i
-        write(stdout(),*)'Exchange tracer index for '//trim(tr_name),' : ',ico2
+        write(outunit,*)'Exchange tracer index for '//trim(tr_name),' : ',ico2
      endif
   enddo
 
@@ -675,16 +687,25 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
        !
        ! check atmosphere and grid_spec.nc have same atmosphere lat/lon boundaries
        !
+       call mpp_get_global_domain(Atm%domain, isg, ieg, jsg, jeg, xsize=nxg, ysize=nyg)
+       call mpp_get_compute_domain(Atm%domain, isc, iec, jsc, jec)
+       call mpp_get_data_domain(Atm%domain, isd, ied, jsd, jed)
+       if(size(Atm%lon_bnd,1) .NE. iec-isc+2 .OR. size(Atm%lon_bnd,2) .NE. jec-jsc+2) then
+          call error_mesg ('flux_exchange_mod',  &
+              'size of Atm%lon_bnd does not match the Atm computational domain', FATAL)          
+       endif
+       ioff = lbound(Atm%lon_bnd,1) - isc
+       joff = lbound(Atm%lon_bnd,2) - jsc
        if(field_exist(grid_file, "AREA_ATM" ) ) then  ! old grid
           call field_size(grid_file, "AREA_ATM", siz)
           nlon = siz(1)
           nlat = siz(2)          
-
-          if (nlon+1/=size(Atm%glon_bnd,1).or.nlat+1/=size(Atm%glon_bnd,2)) then
+          
+          if (nlon /= nxg .or. nlat /= nyg) then
              if (mpp_pe()==mpp_root_pe()) then
                 print *, 'grid_spec.nc has', nlon, 'longitudes,', nlat, 'latitudes; ', &
-                     'atmosphere has', size(Atm%glon_bnd,1)-1, 'longitudes,', &
-                     size(Atm%glat_bnd,2)-1, 'latitudes (see xba.dat and yba.dat)'
+                     'atmosphere has', nxg, 'longitudes,', &
+                     nyg, 'latitudes (see xba.dat and yba.dat)'
              end if
              !   <ERROR MSG="grid_spec.nc incompatible with atmosphere resolution" STATUS="FATAL">
              !      The atmosphere grid size from file grid_spec.nc is not compatible with the atmosphere 
@@ -693,39 +714,32 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
              call error_mesg ('flux_exchange_mod',  &
                   'grid_spec.nc incompatible with atmosphere resolution', FATAL)
           end if
-          allocate( atmlonb(size(Atm%glon_bnd,1)) )
-          allocate( atmlatb(size(Atm%glon_bnd,2)) )
+          allocate( atmlonb(isg:ieg+1) )
+          allocate( atmlatb(jsg:jeg+1) )
           call read_data(grid_file, 'xba', atmlonb, no_domain=.true. )
           call read_data(grid_file, 'yba', atmlatb, no_domain=.true. )
-          if (maxval(abs(atmlonb-Atm%glon_bnd(:,1)*45/atan(1.0)))>bound_tol) then
-             if (mpp_pe() == mpp_root_pe()) then
-                print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY'
-                do i=1,size(atmlonb(:))
-                   print *,atmlonb(i),Atm%glon_bnd(i,1)*45/atan(1.0)
-                end do
-             end if
-             !   <ERROR MSG="grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)" STATUS="FATAL">
-             !      longitude from file grid_spec.nc ( from field yba ) is different from the longitude from atmosphere model.
-             !   </ERROR>
-             call error_mesg ('flux_exchange_mod', &
-                  'grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)'&
-                  , FATAL)
-          end if
 
-          if (maxval(abs(atmlatb-Atm%glat_bnd(1,:)*45/atan(1.0)))>bound_tol) then
-             if (mpp_pe() == mpp_root_pe()) then
-                print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY'
-                do i=1,size(atmlatb(:))
-                   print *,atmlatb(i),Atm%glat_bnd(i,1)*45/atan(1.0)
-                end do
-             end if
-             !   <ERROR MSG="grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)" STATUS="FATAL">
-             !      latitude from file grid_spec.nc ( from field yba ) is different from the latitude from atmosphere model.
-             !   </ERROR>
-             call error_mesg ('flux_exchange_mod', &
-                  'grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)'&
-                  , FATAL)
-          end if
+          do i=isc, iec+1
+             if(abs(atmlonb(i)-Atm%lon_bnd(i+ioff,jsc+joff)*45/atan(1.0))>bound_tol) then
+                print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY at i= ',i, ': ', &
+                     atmlonb(i),  Atm%lon_bnd(i+ioff,jsc+joff)*45/atan(1.0)
+                call error_mesg ('flux_exchange_mod', &
+                     'grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)'&
+                     , FATAL)
+             endif
+          enddo
+          !   <ERROR MSG="grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)" STATUS="FATAL">
+          !      longitude from file grid_spec.nc ( from field yba ) is different from the longitude from atmosphere model.
+          !   </ERROR>
+          do j=jsc, jec+1
+             if(abs(atmlatb(j)-Atm%lat_bnd(isc+ioff,j+joff)*45/atan(1.0))>bound_tol) then
+                print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY at j= ',j, ': ', &
+                     atmlatb(j),  Atm%lat_bnd(isc+ioff, j+joff)*45/atan(1.0)
+                call error_mesg ('flux_exchange_mod', &
+                     'grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)'&
+                     , FATAL)
+             endif
+          enddo
           deallocate(atmlonb, atmlatb)
         else if(field_exist(grid_file, "atm_mosaic_file" ) ) then  ! mosaic grid file.
            call read_data(grid_file, 'atm_mosaic_file', atm_mosaic_file)
@@ -738,16 +752,35 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
                 'flux_exchange_mod: atmos supergrid latitude size can not be divided by 2')
            nlon = nlon/2
            nlat = nlat/2
-           allocate(tmpx(nlon*2+1, nlat*2+1), tmpy(nlon*2+1, nlat*2+1))
-           call read_data( tile_file, 'x', tmpx, no_domain=.true.)
-           call read_data( tile_file, 'y', tmpy, no_domain=.true.)     
-           do j = 1, nlat+1
-              do i = 1, nlon+1
-                 if (abs(tmpx(2*i-1,2*j-1)-Atm%glon_bnd(i,j)*45/atan(1.0))>bound_tol) then
-                    if (mpp_pe() == mpp_root_pe()) then
-                       print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY at i= ',i, ', j= ', j, ': ', &
-                            tmpx(2*i-1,2*j-1),  Atm%glon_bnd(i,j)*45/atan(1.0)
-                    end if
+           if (nlon /= nxg .or. nlat /= nyg) then
+             if (mpp_pe()==mpp_root_pe()) then
+                print *, 'atmosphere mosaic tile has', nlon, 'longitudes,', nlat, 'latitudes; ', &
+                     'atmosphere has', nxg, 'longitudes,', nyg, 'latitudes'
+             end if
+            call error_mesg ('flux_exchange_mod',  &
+                  'atmosphere mosaic tile grid file incompatible with atmosphere resolution', FATAL)
+           end if
+
+           call mpp_copy_domain(Atm%domain, domain2)
+           call mpp_set_compute_domain(domain2, 2*isc-1, 2*iec+1, 2*jsc-1, 2*jec+1, 2*(iec-isc)+3, 2*(jec-jsc)+3 )
+           call mpp_set_data_domain   (domain2, 2*isd-1, 2*ied+1, 2*jsd-1, 2*jed+1, 2*(ied-isd)+3, 2*(jed-jsd)+3 )   
+           call mpp_set_global_domain (domain2, 2*isg-1, 2*ieg+1, 2*jsg-1, 2*jeg+1, 2*(ieg-isg)+3, 2*(jeg-jsg)+3 )   
+           call mpp_get_compute_domain(domain2, isc2, iec2, jsc2, jec2)
+           if(isc2 .NE. 2*isc-1 .OR. iec2 .NE. 2*iec+1 .OR. jsc2 .NE. 2*jsc-1 .OR. jec2 .NE. 2*jec+1) then
+              call mpp_error(FATAL, 'flux_exchange_mod: supergrid domain is not set properly')
+           endif
+
+           allocate(tmpx(isc2:iec2,jsc2:jec2), tmpy(isc2:iec2,jsc2:jec2) )
+
+           call read_data( tile_file, 'x', tmpx, domain2)
+           call read_data( tile_file, 'y', tmpy, domain2)     
+           call mpp_deallocate_domain(domain2)
+
+           do j = jsc, jec+1
+              do i = isc, iec+1
+                 if (abs(tmpx(2*i-1,2*j-1)-Atm%lon_bnd(i+ioff,j+joff)*45/atan(1.0))>bound_tol) then
+                    print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY at i= ',i, ', j= ', j, ': ', &
+                         tmpx(2*i-1,2*j-1),  Atm%lon_bnd(i+ioff,j+joff)*45/atan(1.0)
                     !   <ERROR MSG="grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)" STATUS="FATAL">
                     !      longitude from file grid_spec.nc ( from field xba ) is different from the longitude from atmosphere model.
                     !   </ERROR>
@@ -755,11 +788,9 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
                          'grid_spec.nc incompatible with atmosphere longitudes (see '//trim(tile_file)//')'&
                          ,FATAL)
                  end if
-                 if (abs(tmpy(2*i-1,2*j-1)-Atm%glat_bnd(i,j)*45/atan(1.0))>bound_tol) then
-                    if (mpp_pe() == mpp_root_pe()) then
-                       print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY at i= ',i, ', j= ', j, ': ', &
-                            tmpy(2*i-1,2*j-1),  Atm%glat_bnd(i,j)*45/atan(1.0)
-                    end if
+                 if (abs(tmpy(2*i-1,2*j-1)-Atm%lat_bnd(i+ioff,j+joff)*45/atan(1.0))>bound_tol) then
+                    print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY at i= ',i, ', j= ', j, ': ', &
+                         tmpy(2*i-1,2*j-1),  Atm%lat_bnd(i+ioff,j+joff)*45/atan(1.0)
                     !   <ERROR MSG="grid_spec.nc incompatible with atmosphere latitudes (see grid_spec.nc)" STATUS="FATAL">
                     !      latgitude from file grid_spec.nc is different from the latitude from atmosphere model.
                     !   </ERROR>
@@ -1140,8 +1171,10 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
        ex_q_star,     &
        ex_cd_q,       &
        ex_ref, ex_ref_u, ex_ref_v, ex_u10, &
+       ex_ref2,       &
        ex_t_ref,      &
        ex_qs_ref,     &
+       ex_qs_ref_cmip,     &
        ex_del_m,      &
        ex_del_h,      &
        ex_del_q,      &
@@ -1821,12 +1854,13 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
      if ( id_tr_atm(tr) > 0 ) then
         call get_from_xgrid (diag_atm, 'ATM', ex_tr_atm(:,tr), xmap_sfc)
         used = send_data ( id_tr_atm(tr), diag_atm, Time )
+     endif
 !!jgj: add dryvmr co2_atm
-        if ( id_co2_atm_dvmr > 0 .and. lowercase(trim(tr_name))=='co2') then
-           ex_co2_atm_dvmr = (ex_tr_atm(:,tr) / (1.0 - ex_tr_atm(:,isphum))) * WTMAIR/WTMCO2
-           call get_from_xgrid (diag_atm, 'ATM', ex_co2_atm_dvmr, xmap_sfc)
-           used = send_data ( id_co2_atm_dvmr, diag_atm, Time )
-        endif
+! - slm Mar 25 2010: moved to resolve interdependence of diagnostic fields
+     if ( id_co2_atm_dvmr > 0 .and. lowercase(trim(tr_name))=='co2') then
+        ex_co2_atm_dvmr = (ex_tr_atm(:,tr) / (1.0 - ex_tr_atm(:,isphum))) * WTMAIR/WTMCO2
+        call get_from_xgrid (diag_atm, 'ATM', ex_co2_atm_dvmr, xmap_sfc)
+        used = send_data ( id_co2_atm_dvmr, diag_atm, Time )
      endif
   enddo
 
@@ -1857,6 +1891,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
        id_u_ref > 0 .or. id_v_ref  > 0 .or. id_wind_ref > 0 .or. &
        id_q_ref > 0 .or. id_q_ref_land > 0 .or. &
        id_t_ref_land > 0 .or. id_rh_ref_land > 0 .or. &
+       id_rh_ref_cmip >0 .or. &
        id_u_ref_land > 0 .or. id_v_ref_land  > 0 ) then
      
      zrefm = z_ref_mom
@@ -1871,6 +1906,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
 
      !    ------- reference relative humidity -----------
      if ( id_rh_ref > 0 .or. id_rh_ref_land > 0 .or. &
+          id_rh_ref_cmip > 0 .or. &
           id_q_ref > 0 .or. id_q_ref_land >0 ) then
         ex_ref = 1.0e-06
         where (ex_avail) &
@@ -1888,9 +1924,12 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
         where (ex_avail) &
            ex_t_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
         call compute_qs (ex_t_ref, ex_p_surf, ex_qs_ref, q = ex_ref)
+        call compute_qs (ex_t_ref, ex_p_surf, ex_qs_ref_cmip,  &
+                         q = ex_ref, es_over_liq_and_ice = .true.)
         where (ex_avail) 
 ! remove cap on relative humidity -- this mod requested by cjg, ljd
 !RSH       ex_ref    = MIN(100.,100.*ex_ref/ex_qs_ref)
+           ex_ref2   = 100.*ex_ref/ex_qs_ref_cmip
            ex_ref    = 100.*ex_ref/ex_qs_ref
         endwhere
 
@@ -1902,6 +1941,10 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
         if(id_rh_ref > 0) then
            call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
            used = send_data ( id_rh_ref, diag_atm, Time )
+        endif
+        if(id_rh_ref_cmip > 0) then
+           call get_from_xgrid (diag_atm, 'ATM', ex_ref2, xmap_sfc)
+           used = send_data ( id_rh_ref_cmip, diag_atm, Time )
         endif
      endif
 
@@ -2874,8 +2917,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
   integer       :: n
   real          :: from_dq 
 
-  real, dimension(:,:), allocatable :: ocean_cell_area, wet
-  integer :: isc,iec,jsc,jec
+
 !Balaji
   call mpp_clock_begin(cplOcnClock)
   call mpp_clock_begin(fluxOceanIceClock)
@@ -3039,7 +3081,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
     type(ice_data_type), optional   :: Ice
     type(ocean_state_type), optional, pointer :: Ocn_state
 
-    real :: ref_value, tmp
+    real :: ref_value
     integer :: i, ier
 
 
@@ -3106,7 +3148,6 @@ subroutine flux_init_stocks(Time, Atm, Lnd, Ice, Ocn_state)
   type(ocean_state_type), pointer :: Ocn_state
 
   integer i, ier
-  real :: tmp
 
   stocks_file=stdout()
 ! Divert output file for stocks if requested 
@@ -3380,12 +3421,13 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
      if ( id_tr_surf(tr) > 0 ) then
         call get_from_xgrid (diag_atm, 'ATM', ex_tr_surf_new(:,tr), xmap_sfc)
         used = send_data ( id_tr_surf(tr), diag_atm, Time )
+     endif
 !!jgj:  add dryvmr co2_surf
-        if ( id_co2_surf_dvmr > 0 .and. lowercase(trim(tr_name))=='co2') then
-          ex_co2_surf_dvmr = (ex_tr_surf_new(:,tr) / (1.0 - ex_tr_surf_new(:,isphum))) * WTMAIR/WTMCO2
-          call get_from_xgrid (diag_atm, 'ATM', ex_co2_surf_dvmr, xmap_sfc)
-          used = send_data ( id_co2_surf_dvmr, diag_atm, Time )
-        endif
+! - slm Mar 25, 2010: moved to resolve interdependence of diagnostic fields
+     if ( id_co2_surf_dvmr > 0 .and. lowercase(trim(tr_name))=='co2') then
+       ex_co2_surf_dvmr = (ex_tr_surf_new(:,tr) / (1.0 - ex_tr_surf_new(:,isphum))) * WTMAIR/WTMCO2
+       call get_from_xgrid (diag_atm, 'ATM', ex_co2_surf_dvmr, xmap_sfc)
+       used = send_data ( id_co2_surf_dvmr, diag_atm, Time )
      endif
   enddo
 
@@ -3402,11 +3444,15 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
   endif
 
   !------- tracer fluxes ------------
+  ! tr_mol_flux diagnostic will be correct for co2 tracer only. 
+  ! will need update code to use correct molar mass for tracers other than co2
   do tr=1,n_exch_tr
-     if ( id_tr_flux(tr) > 0 ) then
+     if ( id_tr_flux(tr) > 0 .or. id_tr_mol_flux(tr) > 0 ) then
         call get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr), xmap_sfc)
-        used = send_data ( id_tr_flux(tr), diag_atm, Time )
-        used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
+        if (id_tr_flux(tr) > 0 ) &
+            used = send_data ( id_tr_flux(tr), diag_atm, Time )
+        if (id_tr_mol_flux(tr) > 0 ) &
+            used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
      endif
   enddo
 
@@ -3895,6 +3941,10 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
        register_diag_field ( mod_name, 'rh_ref',     atmos_axes, Time,   &
        'relative humidity at '//label_zh, 'percent' )
 
+  id_rh_ref_cmip = &
+       register_diag_field ( mod_name, 'rh_ref_cmip',     atmos_axes, Time,   &
+       'relative humidity at '//label_zh, 'percent' )
+
   id_u_ref      = &
        register_diag_field ( mod_name, 'u_ref',      atmos_axes, Time, &
        'zonal wind component at '//label_zm,  'm/s', &
@@ -3964,14 +4014,19 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
           trim(longname)//' at the surface', trim(units))
      id_tr_flux(tr) = register_diag_field(mod_name, trim(name)//'_flux', atmos_axes, Time, &
           'flux of '//trim(longname), trim(units)//' kg air/(m2 s)')
-     id_tr_mol_flux(tr) = register_diag_field(mod_name, trim(name)//'_mol_flux', atmos_axes, Time, &
-          'flux of '//trim(longname), 'mol CO2/(m2 s)')
 !! add dryvmr co2_surf and co2_atm
      if ( lowercase(trim(name))=='co2') then
+! - slm Mar 25, 2010: moved registration of mol_flux inside 'if' to disable 
+! saving incorrect results (mol fluxes for other tracers computed with CO2 molar 
+! mass)
+       id_tr_mol_flux(tr) = register_diag_field(mod_name, trim(name)//'_mol_flux', atmos_axes, Time, &
+            'flux of '//trim(longname), 'mol CO2/(m2 s)')
        id_co2_atm_dvmr = register_diag_field (mod_name, trim(name)//'_atm_dvmr', atmos_axes, Time, &
             trim(longname)//' at btm level', 'mol CO2 /mol air')
        id_co2_surf_dvmr = register_diag_field (mod_name, trim(name)//'_surf_dvmr', atmos_axes, Time, &
             trim(longname)//' at the surface', 'mol CO2 /mol air')
+     else
+       id_tr_mol_flux(tr) = -1
      endif
   enddo
 
@@ -4050,7 +4105,9 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
 
   real, allocatable, dimension(:,:) :: ice_data, ocn_data
   real :: ice_sum, area_weighted_sum, non_area_weighted_sum
-  
+  integer :: outunit
+
+  outunit = stdout()
   allocate(ice_data(size(Ice%flux_q,1), size(Ice%flux_q,2) ) )
   allocate(ocn_data(size(Ice_Ocean_Boundary%q_flux,1), size(Ice_Ocean_Boundary%q_flux,2) ) )
   call random_number(ice_data)
@@ -4064,12 +4121,12 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
   call flux_ice_to_ocean_redistribute( Ice, Ocean, ice_data, ocn_data, Ice_Ocean_Boundary%xtype, .true.)
   area_weighted_sum = sum(ocn_data*ocean%area)
   call mpp_sum(area_weighted_sum)  
-  write(stdout(),*)"NOTE from flux_exchange_mod: check for flux conservation for flux_ice_to_ocean"
-  write(stdout(),*)"***** The global area sum of random number on ice domain (input data) is ", ice_sum
-  write(stdout(),*)"***** The global area sum of data after flux_ice_to_ocean_redistribute with "// &
+  write(outunit,*)"NOTE from flux_exchange_mod: check for flux conservation for flux_ice_to_ocean"
+  write(outunit,*)"***** The global area sum of random number on ice domain (input data) is ", ice_sum
+  write(outunit,*)"***** The global area sum of data after flux_ice_to_ocean_redistribute with "// &
        "do_area_weighted_flux = false is ", non_area_weighted_sum, &
        " and the difference from global input area sum = ", ice_sum - non_area_weighted_sum
-  write(stdout(),*)"***** The global area sum of data after flux_ice_to_ocean_redistribute with "// &
+  write(outunit,*)"***** The global area sum of data after flux_ice_to_ocean_redistribute with "// &
        "do_area_weighted_flux = true is ", area_weighted_sum, &
        " and the difference from global input area sum = ", ice_sum - area_weighted_sum
 

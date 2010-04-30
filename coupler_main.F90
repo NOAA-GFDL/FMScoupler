@@ -146,7 +146,7 @@ program coupler_main
   use fms_io_mod,              only: fms_io_exit
   use fms_io_mod,              only: restart_file_type, register_restart_field, save_restart
 
-  use diag_manager_mod,        only: diag_manager_init, diag_manager_end
+  use diag_manager_mod,        only: diag_manager_init, diag_manager_end, diag_grid_end
   use diag_manager_mod,        only: DIAG_OCEAN, DIAG_OTHER, DIAG_ALL, get_base_date
 
   use field_manager_mod,       only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE
@@ -218,8 +218,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 17.0.2.1 2009/08/28 19:28:02 nnz Exp $'
-  character(len=128) :: tag = '$Name: quebec_200910 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 18.0 2010/03/02 23:35:50 fms Exp $'
+  character(len=128) :: tag = '$Name: riga_201004 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -229,7 +229,7 @@ program coupler_main
   type   (ice_data_type) :: Ice
   ! allow members of ocean type to be aliased (ap)
   type (ocean_public_type), target :: Ocean
-  type (ocean_state_type),  pointer :: Ocean_state
+  type (ocean_state_type),  pointer :: Ocean_state => NULL()
 
   type(atmos_land_boundary_type)     :: Atmos_land_boundary
   type(atmos_ice_boundary_type)      :: Atmos_ice_boundary
@@ -393,7 +393,7 @@ program coupler_main
   character(len=80) :: text
   character(len=48), parameter                    :: mod_name = 'coupler_main_mod'
  
-  integer :: ensemble_id = 1 
+  integer :: ensemble_id = 1 , outunit
   integer, allocatable :: ensemble_pelist(:, :) 
 
 !
@@ -577,7 +577,8 @@ character(len=256), parameter   :: note_header =                                
         Time_restart = increment_date(Time, restart_interval(1), restart_interval(2), &
              restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
         timestamp = date_to_string(time_restart_current)
-        write(stdout(),*) '=> NOTE from program coupler: intermediate restart file is written and ', &
+        outunit= stdout()
+        write(outunit,*) '=> NOTE from program coupler: intermediate restart file is written and ', &
              trim(timestamp),' is appended as prefix to each restart file name'
         if( Atm%pe )then        
            call atmos_model_restart(Atm, timestamp)
@@ -1055,7 +1056,6 @@ contains
 
     if ( Atm%pe ) then
       call mpp_set_current_pelist(Atm%pelist)
-      outunit = stdout()
       allocate(Ice_bc_restart(Ice%ocean_fluxes%num_bcs))
       allocate(ice_bc_restart_file(Ice%ocean_fluxes%num_bcs))
       do n = 1, Ice%ocean_fluxes%num_bcs  !{
@@ -1082,22 +1082,12 @@ contains
           elseif (other_fields_exist) then
             call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
                  trim(fieldname) // ' in file ' //trim(filename))
-!
-!NOTE: The above logic is inadequate. What if there are a few fields and only the last fieldname exists in the file?
-!      In that case the last one is read and non-existance of the rest will be ignored.
-!      It would be better to give a warning as follows instead of the above elseif block.
-!          else 
-!            call mpp_error(WARNING, trim(error_header) // ' Couldn''t find field ' // &
-!                 trim(fieldname) // ' in file ' //trim(filename) //                   &
-!                '! Initializing the field to zero.')
-!            Ice%ocean_fluxes%bc(n)%field(m)%values = 0.0
           endif
         enddo  !} m
       enddo  !} n
     endif
     if ( Ocean%is_ocean_pe ) then
       call mpp_set_current_pelist(Ocean%pelist)
-      outunit = stdout()
       allocate(Ocn_bc_restart(Ocean%fields%num_bcs))
       allocate(ocn_bc_restart_file(Ocean%fields%num_bcs))
       do n = 1, Ocean%fields%num_bcs  !{
@@ -1124,12 +1114,6 @@ contains
           elseif (other_fields_exist) then
             call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
                  trim(fieldname) // ' in file ' //trim(filename))
-!NOTE: see the NOTE above.
-!          else 
-!            call mpp_error(WARNING, trim(error_header) // ' Couldn''t find field ' // &
-!                 trim(fieldname) // ' in file ' //trim(filename) //                   &
-!                 '! Initializing the field to zero.')
-!            Ocean%fields%bc(n)%field(m)%values = 0.0 
           endif
         enddo  !} m
       enddo  !} n
@@ -1142,6 +1126,10 @@ contains
 
     call mpp_open( unit, 'RESTART/file' )
     call mpp_close(unit, MPP_DELETE)
+
+    ! Call to daig_grid_end to free up memory used during regional
+    ! output setup
+    CALL diag_grid_end()
 
 !-----------------------------------------------------------------------
     call print_memuse_stats('coupler_init')

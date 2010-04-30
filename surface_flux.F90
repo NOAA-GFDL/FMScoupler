@@ -191,14 +191,14 @@ public  surface_flux
 interface surface_flux
 !    module procedure surface_flux_0d
     module procedure surface_flux_1d
-!    module procedure surface_flux_2d
+!    module procedure surface_flux_2d  
 end interface
 ! </INTERFACE>
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 17.0 2009/07/21 03:01:22 fms Exp $'
-character(len=*), parameter :: tagname = '$Name: quebec_200910 $'
+character(len=*), parameter :: version = '$Id: surface_flux.F90,v 18.0 2010/03/02 23:35:57 fms Exp $'
+character(len=*), parameter :: tagname = '$Name: riga_201004 $'
    
 logical :: do_init = .true.
 
@@ -267,6 +267,8 @@ real    :: gust_min              =  0.0
 logical :: ncar_ocean_flux       = .false.
 logical :: ncar_ocean_flux_orig  = .false. ! for backwards compatibility 
 logical :: raoult_sat_vap        = .false.
+logical :: do_simple             = .false.
+
 
 namelist /surface_flux_nml/ no_neg_q,             &
                             use_virtual_temp,     &
@@ -277,7 +279,8 @@ namelist /surface_flux_nml/ no_neg_q,             &
                             use_mixing_ratio,     &
                             ncar_ocean_flux,      &
                             ncar_ocean_flux_orig, &
-                            raoult_sat_vap
+                            raoult_sat_vap,       &
+                            do_simple       
    
 
 
@@ -396,7 +399,10 @@ subroutine surface_flux_1d (                                           &
   if(use_mixing_ratio) then
     ! surface mixing ratio at saturation
     q_sat   = d622*e_sat /(p_surf-e_sat )  
-    q_sat1  = d622*e_sat1/(p_surf-e_sat1)     
+    q_sat1  = d622*e_sat1/(p_surf-e_sat1)  
+  elseif(do_simple) then                  !rif:(09/02/09)
+    q_sat   = d622*e_sat / p_surf
+    q_sat1  = d622*e_sat1/ p_surf   
   else
     ! surface specific humidity at saturation
     q_sat   = d622*e_sat /(p_surf-d378*e_sat )  
