@@ -218,8 +218,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 18.0 2010/03/02 23:35:50 fms Exp $'
-  character(len=128) :: tag = '$Name: riga_201004 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 18.0.4.1 2010/04/27 14:55:42 wfc Exp $'
+  character(len=128) :: tag = '$Name: riga_201006 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -390,6 +390,10 @@ program coupler_main
 
   integer :: initClock, mainClock, termClock
 
+  integer :: newClock0, newClock1, newClock2, newClock3, newClock4, newClock5, newClock6, newClock7, &
+             newClock8, newClock9, newClock10, newClock11, newClock12, newClock13, newClock14, newClocka, &
+             newClockb, newClockc, newClockd, newClocke, newClockf, newClockg, newClockh
+
   character(len=80) :: text
   character(len=48), parameter                    :: mod_name = 'coupler_main_mod'
  
@@ -439,10 +443,46 @@ character(len=256), parameter   :: note_header =                                
         call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
      endif
 
+if( Atm%pe )then
+ call mpp_set_current_pelist(Atm%pelist)
+ newClock1 = mpp_clock_id( 'generate_sfc_xgrid' )
+endif
+call mpp_set_current_pelist()
+newClock2 = mpp_clock_id( 'flux_ocean_to_ice' )
+newClock3 = mpp_clock_id( 'flux_ice_to_ocean' )
+newClock4 = mpp_clock_id( 'flux_check_stocks' ) 
+if( Atm%pe )then
+ call mpp_set_current_pelist(Atm%pelist)
+ newClock5 = mpp_clock_id( 'ATM' )
+ newClock6  = mpp_clock_id( '  ATM: update_ice_model_slow_up' )
+ newClock7  = mpp_clock_id( '  ATM: atmos loop' )
+ newClocka  = mpp_clock_id( '     A-L: atmos_tracer_driver_gather_data' )
+ newClockb  = mpp_clock_id( '     A-L: sfc_boundary_layer' )
+ newClockc  = mpp_clock_id( '     A-L: udpate_atmos_model_down' )
+ newClockd  = mpp_clock_id( '     A-L: flux_down_from_atmos' )
+ newClocke  = mpp_clock_id( '     A-L: update_land_model_fast' )
+ newClockf  = mpp_clock_id( '     A-L: update_ice_model_fast' )
+ newClockg  = mpp_clock_id( '     A-L: flux_up_to_atmos' )
+ newClockh  = mpp_clock_id( '     A-L: update_atmos_model_up' )
+ newClock8  = mpp_clock_id( '  ATM: update_land_model_slow' )
+ newClock9  = mpp_clock_id( '  ATM: flux_land_to_ice' )
+ newClock10 = mpp_clock_id( '  ATM: update_ice_model_slow_dn' )
+ newClock11 = mpp_clock_id( '  ATM: flux_ice_to_ocean_stocks' )
+endif
+if( Ocean%is_ocean_pe )then
+ call mpp_set_current_pelist(Ocean%pelist)
+ newClock12 = mpp_clock_id( 'OCN' )
+endif
+call mpp_set_current_pelist()
+newClock13 = mpp_clock_id( 'intermediate restart' )
+newClock14 = mpp_clock_id( 'final flux_check_stocks' )
+
   do nc = 1, num_cpld_calls
      if( Atm%pe )then
         call mpp_set_current_pelist(Atm%pelist)
+call mpp_clock_begin(newClock1)
         call generate_sfc_xgrid( Land, Ice )
+call mpp_clock_end(newClock1)
      end if
      call mpp_set_current_pelist()
 
@@ -450,13 +490,19 @@ character(len=256), parameter   :: note_header =                                
      ! points when running concurrently. The calls are placed next to each other in
      ! concurrent mode to avoid multiple synchronizations within the main loop.
      ! This is only possible in the serial case when use_lag_fluxes.
+call mpp_clock_begin(newClock2)
      call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
+call mpp_clock_end(newClock2)
 
+call mpp_clock_begin(newClock3)
      ! Update Ice_ocean_boundary; first iteration is supplied by restart     
      if( use_lag_fluxes )then
         call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
      end if
+call mpp_clock_end(newClock3)
 
+call mpp_clock_begin(newClock4)
+     ! Update Ice_ocean_boundary; first iteration is supplied by restart     
      ! To print the value of frazil heat flux at the right time the following block
      ! needs to sit here rather than at the end of the coupler loop.
      if(check_stocks > 0) then
@@ -465,84 +511,113 @@ character(len=256), parameter   :: note_header =                                
            call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
         endif
      endif
+call mpp_clock_end(newClock4)
 
      if( Atm%pe )then
         call mpp_set_current_pelist(Atm%pelist)
+call mpp_clock_begin(newClock5)
+call mpp_clock_begin(newClock6)
         if (do_ice) call update_ice_model_slow_up( Ocean_ice_boundary, Ice )
+call mpp_clock_end(newClock6)
 
         !-----------------------------------------------------------------------
         !   ------ atmos/fast-land/fast-ice integration loop -------
 
-
+call mpp_clock_begin(newClock7)
         do na = 1, num_atmos_calls
 
            Time_atmos = Time_atmos + Time_step_atmos
 
+call mpp_clock_begin(newClocka)
            if (do_atmos) then
               call atmos_tracer_driver_gather_data(Atm%fields, Atm%tr_bot)
            endif
+call mpp_clock_end(newClocka)
 
+call mpp_clock_begin(newClockb)
            if (do_flux) then
               !if(do_chksum) call coupler_chksum('sfc-', (nc-1)*num_atmos_calls+na)
               call sfc_boundary_layer( REAL(dt_atmos), Time_atmos, &
                    Atm, Land, Ice, Land_ice_atmos_boundary )
               !if(do_chksum) call coupler_chksum('sfc+', (nc-1)*num_atmos_calls+na)
            end if
+call mpp_clock_end(newClockb)
 
            !      ---- atmosphere down ----
 
+call mpp_clock_begin(newClockc)
            if (do_atmos) &
                 call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
+call mpp_clock_end(newClockc)
 
+call mpp_clock_begin(newClockd)
            call flux_down_from_atmos( Time_atmos, Atm, Land, Ice, &
                 Land_ice_atmos_boundary, &
                 Atmos_land_boundary, &
                 Atmos_ice_boundary )
-
+call mpp_clock_end(newClockd)
 
            !      --------------------------------------------------------------
 
            !      ---- land model ----
 
+call mpp_clock_begin(newClocke)
            if (do_land) &
                 call update_land_model_fast( Atmos_land_boundary, Land )
+call mpp_clock_end(newClocke)
 
            !      ---- ice model ----
+call mpp_clock_begin(newClockf)
            if (do_ice) &
                 call update_ice_model_fast( Atmos_ice_boundary, Ice )
+call mpp_clock_end(newClockf)
 
            !      --------------------------------------------------------------
            !      ---- atmosphere up ----
 
+call mpp_clock_begin(newClockg)
            call flux_up_to_atmos( Time_atmos, Land, Ice, Land_ice_atmos_boundary, &
                 & Atmos_land_boundary, Atmos_ice_boundary )
+call mpp_clock_end(newClockg)
 
+call mpp_clock_begin(newClockh)
            if (do_atmos) &
                 call update_atmos_model_up( Land_ice_atmos_boundary, Atm )
+call mpp_clock_end(newClockh)
 
            !--------------
 
         enddo
+call mpp_clock_end(newClock7)
 
+call mpp_clock_begin(newClock8)
         !   ------ end of atmospheric time step loop -----
         if (do_land) call update_land_model_slow(Atmos_land_boundary,Land)
         !-----------------------------------------------------------------------
+call mpp_clock_end(newClock8)
 
         !
         !     need flux call to put runoff and p_surf on ice grid
         !
+call mpp_clock_begin(newClock9)
         call flux_land_to_ice( Time, Land, Ice, Land_ice_boundary )
+call mpp_clock_end(newClock9)
 
         Atmos_ice_boundary%p = 0.0 ! call flux_atmos_to_ice_slow ?
 
         !   ------ slow-ice model ------
 
         if (do_ice) then 
+call mpp_clock_begin(newClock10)
            call update_ice_model_slow_dn( Atmos_ice_boundary, &
                 & Land_ice_boundary, Ice )
+call mpp_clock_end(newClock10)
+call mpp_clock_begin(newClock11)
            call flux_ice_to_ocean_stocks(Ice)
+call mpp_clock_end(newClock11)
         endif
         Time = Time_atmos
+call mpp_clock_end(newClock5)
      end if                     !Atm%pe block
 
      if( .NOT.use_lag_fluxes )then !this will serialize
@@ -552,6 +627,7 @@ character(len=256), parameter   :: note_header =                                
 
      if( Ocean%is_ocean_pe )then
         call mpp_set_current_pelist(Ocean%pelist)
+call mpp_clock_begin(newClock12)
 
         ! update_ocean_model since fluxes don't change here
 
@@ -569,8 +645,10 @@ character(len=256), parameter   :: note_header =                                
         !-----------------------------------------------------------------------
         Time = Time_ocean
 
+call mpp_clock_end(newClock12)
      end if
 
+!rabcall mpp_clock_begin(newClock13)
      !--- write out intermediate restart file when needed.
      if( Time >= Time_restart ) then
         Time_restart_current = Time
@@ -595,14 +673,18 @@ character(len=256), parameter   :: note_header =                                
      if(do_chksum) call coupler_chksum('MAIN_LOOP+', nc)
      write( text,'(a,i4)' )'Main loop at coupling timestep=', nc
      call print_memuse_stats(text)
+!rabcall mpp_clock_end(newClock13)
 
 
   enddo
 
+     call mpp_set_current_pelist()
+call mpp_clock_begin(newClock14)
   if(check_stocks >= 0) then
      call mpp_set_current_pelist()
      call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
   endif
+call mpp_clock_end(newClock14)
 
 ! Need final update of Ice_ocean_boundary for concurrent restart
 !  if( concurrent )then
