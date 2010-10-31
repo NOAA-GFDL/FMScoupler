@@ -156,7 +156,8 @@ module flux_exchange_mod
   use mpp_mod,         only: mpp_npes, mpp_pe, mpp_root_pe, &
        mpp_error, stderr, stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
        mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, &
-       CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase
+       CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
+       input_nml_file
                     
   use mpp_domains_mod, only: mpp_get_compute_domain, mpp_get_compute_domains, &
                              mpp_global_sum, mpp_redistribute, operator(.EQ.)
@@ -261,8 +262,8 @@ private
      flux_ocean_from_ice_stocks
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 18.0.4.1 2010/03/29 20:41:16 jgj Exp $'
-  character(len=128) :: tag = '$Name: riga_201006 $'
+  character(len=128) :: version = '$Id: flux_exchange.F90,v 18.0.4.1.4.1.2.1 2010/09/10 19:15:11 nnz Exp $'
+  character(len=128) :: tag = '$Name: riga_201012 $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -568,15 +569,19 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
     call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
 
 !-----------------------------------------------------------------------
+    outunit = stdout(); logunit = stdlog()
 !----- read namelist -------
 
-    outunit = stdout(); logunit = stdlog()
+#ifdef INTERNAL_FILE_NML
+      read (input_nml_file, flux_exchange_nml, iostat=io)
+#else
     unit = open_namelist_file()
     ierr=1; do while (ierr /= 0)
        read  (unit, nml=flux_exchange_nml, iostat=io, end=10)
        ierr = check_nml_error (io, 'flux_exchange_nml')
     enddo
 10  call mpp_close(unit)
+#endif
 
 !----- write namelist to logfile -----
     call write_version_number (version, tag)

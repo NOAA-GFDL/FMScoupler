@@ -44,6 +44,7 @@ use             fms_mod, only: file_exist, check_nml_error, open_namelist_file, 
 use   monin_obukhov_mod, only: mo_drag, mo_profile
 use  sat_vapor_pres_mod, only: escomp, descomp
 use       constants_mod, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
+use             mpp_mod, only: input_nml_file
 
 implicit none
 private
@@ -197,8 +198,8 @@ end interface
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 18.0 2010/03/02 23:35:57 fms Exp $'
-character(len=*), parameter :: tagname = '$Name: riga_201006 $'
+character(len=*), parameter :: version = '$Id: surface_flux.F90,v 18.0.4.1 2010/08/31 14:38:01 z1l Exp $'
+character(len=*), parameter :: tagname = '$Name: riga_201012 $'
    
 logical :: do_init = .true.
 
@@ -724,6 +725,9 @@ subroutine surface_flux_init
   integer :: unit, ierr, io
 
   ! read namelist
+#ifdef INTERNAL_FILE_NML
+      read (input_nml_file, surface_flux_nml, iostat=io)
+#else
   if ( file_exist('input.nml')) then
      unit = open_namelist_file ()
      ierr=1; 
@@ -733,6 +737,7 @@ subroutine surface_flux_init
      enddo
 10   call close_file (unit)
   endif
+#endif
 
   ! write version number
   call write_version_number(version, tagname)
