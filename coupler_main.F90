@@ -229,8 +229,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 18.0.4.1.4.1.2.1 2010/08/31 14:38:01 z1l Exp $'
-  character(len=128) :: tag = '$Name: riga_201012 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 18.0.4.1.4.1.2.1.2.1 2011/02/02 18:28:24 pjp Exp $'
+  character(len=128) :: tag = '$Name: riga_201104 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -267,7 +267,7 @@ program coupler_main
 
 ! ----- coupled model initial date -----
 
-  integer :: date_init(6)
+  integer :: date_init(6) = (/ 0, 0, 0, 0, 0, 0 /)
   integer :: calendar_type = INVALID_CALENDAR
 
 !-----------------------------------------------------------------------

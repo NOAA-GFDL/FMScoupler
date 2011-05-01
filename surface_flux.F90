@@ -199,7 +199,7 @@ end interface
 !-----------------------------------------------------------------------
 
 character(len=*), parameter :: version = '$Id: surface_flux.F90,v 18.0.4.1 2010/08/31 14:38:01 z1l Exp $'
-character(len=*), parameter :: tagname = '$Name: riga_201012 $'
+character(len=*), parameter :: tagname = '$Name: riga_201104 $'
    
 logical :: do_init = .true.
 
