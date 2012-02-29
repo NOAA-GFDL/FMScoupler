@@ -262,8 +262,8 @@ private
      flux_ocean_from_ice_stocks
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 18.0.4.1.4.1.2.1 2010/09/10 19:15:11 nnz Exp $'
-  character(len=128) :: tag = '$Name: riga_201104 $'
+  character(len=128) :: version = '$Id: flux_exchange.F90,v 19.0 2012/01/06 20:36:31 fms Exp $'
+  character(len=128) :: tag = '$Name: siena_201202 $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -924,6 +924,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
         allocate( land_ice_atmos_boundary%b_star(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%q_star(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%rough_mom(is:ie,js:je) )
+        allocate( land_ice_atmos_boundary%frac_open_sea(is:ie,js:je) )
 ! initialize boundary values for override experiments (mjh)
         land_ice_atmos_boundary%t=273.0
         land_ice_atmos_boundary%albedo=0.0
@@ -942,6 +943,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
         land_ice_atmos_boundary%b_star=0.0
         land_ice_atmos_boundary%q_star=0.0
         land_ice_atmos_boundary%rough_mom=0.01
+        land_ice_atmos_boundary%frac_open_sea=0.0
 
 ! allocate fields for extra tracers
 ! The first call is no longer necessary, the fluxes will be passed by the land module
@@ -1183,7 +1185,8 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
        ex_del_m,      &
        ex_del_h,      &
        ex_del_q,      &
-       ex_seawater
+       ex_seawater,   &
+       ex_frac_open_sea
 
   real, dimension(n_xgrid_sfc,n_exch_tr) :: ex_tr_atm
 ! jgj: added for co2_atm diagnostic
@@ -1191,6 +1194,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   real, dimension(size(Land_Ice_Atmos_Boundary%t,1),size(Land_Ice_Atmos_Boundary%t,2)) :: diag_atm
   real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2), size(Land%t_ca,3)) :: diag_land
   real, dimension(size(Ice%t_surf,1),size(Ice%t_surf,2),size(Ice%t_surf,3)) :: sea
+  real, dimension(size(Ice%albedo,1),size(Ice%albedo,2),size(Ice%albedo,3)) ::  tmp_open_sea
   real    :: zrefm, zrefh
   logical :: used
   character(32) :: tr_name ! tracer name
@@ -1308,6 +1312,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   ex_cd_t = 0.0
   ex_cd_m = 0.0
   ex_cd_q = 0.0
+  ex_frac_open_sea =0.
 !-----------------------------------------------------------------------
 !Balaji: data_override stuff moved from coupler_main
   call data_override ('ATM', 't_bot',  Atm%t_bot , Time)
@@ -1397,28 +1402,29 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   ! [4] put all the qantities we need onto exchange grid
   ! [4.1] put atmosphere quantities onto exchange grid
   if (do_forecast) then
-    call put_to_xgrid (Atm%Surf_diff%sst_miz , 'ATM', ex_t_surf_miz, xmap_sfc, remap_method=remap_method)
+    call put_to_xgrid (Atm%Surf_diff%sst_miz , 'ATM', ex_t_surf_miz, xmap_sfc, remap_method=remap_method, complete=.false.)
   endif
-  call put_to_xgrid (Atm%t_bot , 'ATM', ex_t_atm , xmap_sfc, remap_method=remap_method)
-  call put_to_xgrid (Atm%z_bot , 'ATM', ex_z_atm , xmap_sfc, remap_method=remap_method)
-  call put_to_xgrid (Atm%p_bot , 'ATM', ex_p_atm , xmap_sfc, remap_method=remap_method)
-  call put_to_xgrid (Atm%u_bot , 'ATM', ex_u_atm , xmap_sfc, remap_method=remap_method)
-  call put_to_xgrid (Atm%v_bot , 'ATM', ex_v_atm , xmap_sfc, remap_method=remap_method)
-  call put_to_xgrid (Atm%p_surf, 'ATM', ex_p_surf, xmap_sfc, remap_method=remap_method)
-  call put_to_xgrid (Atm%slp,    'ATM', ex_slp,    xmap_sfc, remap_method=remap_method)
-  call put_to_xgrid (Atm%gust,   'ATM', ex_gust,   xmap_sfc, remap_method=remap_method)
-
 ! put atmosphere bottom layer tracer data onto exchange grid
   do tr = 1,n_exch_tr
      call put_to_xgrid (Atm%tr_bot(:,:,tr_table(tr)%atm) , 'ATM', ex_tr_atm(:,tr), xmap_sfc, &
-          remap_method=remap_method)
+          remap_method=remap_method, complete=.false.)
   enddo
   do n = 1, Atm%fields%num_bcs  !{
     do m = 1, Atm%fields%bc(n)%num_fields  !{
       call put_to_xgrid (Atm%fields%bc(n)%field(m)%values, 'ATM',            &
-           ex_gas_fields_atm%bc(n)%field(m)%values, xmap_sfc, remap_method=remap_method)
+           ex_gas_fields_atm%bc(n)%field(m)%values, xmap_sfc, remap_method=remap_method, complete=.false.)
     enddo  !} m
   enddo  !} n
+
+  call put_to_xgrid (Atm%t_bot , 'ATM', ex_t_atm , xmap_sfc, remap_method=remap_method, complete=.false.)
+  call put_to_xgrid (Atm%z_bot , 'ATM', ex_z_atm , xmap_sfc, remap_method=remap_method, complete=.false.)
+  call put_to_xgrid (Atm%p_bot , 'ATM', ex_p_atm , xmap_sfc, remap_method=remap_method, complete=.false.)
+  call put_to_xgrid (Atm%u_bot , 'ATM', ex_u_atm , xmap_sfc, remap_method=remap_method, complete=.false.)
+  call put_to_xgrid (Atm%v_bot , 'ATM', ex_v_atm , xmap_sfc, remap_method=remap_method, complete=.false.)
+  call put_to_xgrid (Atm%p_surf, 'ATM', ex_p_surf, xmap_sfc, remap_method=remap_method, complete=.false.)
+  call put_to_xgrid (Atm%slp,    'ATM', ex_slp,    xmap_sfc, remap_method=remap_method, complete=.false.)
+  call put_to_xgrid (Atm%gust,   'ATM', ex_gust,   xmap_sfc, remap_method=remap_method, complete=.true.)
+
   ! slm, Mar 20 2002: changed order in whith the data transferred from ice and land 
   ! grids, to fill t_ca first with t_surf over ocean and then with t_ca from 
   ! land, where it is different from t_surf. It is mostly to simplify 
@@ -1443,6 +1449,10 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   call put_to_xgrid (Ice%albedo_nir_dif, 'OCN', ex_albedo_nir_dif, xmap_sfc)
   call put_to_xgrid (Ice%u_surf,      'OCN', ex_u_surf,      xmap_sfc)
   call put_to_xgrid (Ice%v_surf,      'OCN', ex_v_surf,      xmap_sfc)
+
+  tmp_open_sea        = 0.
+  tmp_open_sea(:,:,1) = 1.
+  call put_to_xgrid ( tmp_open_sea,  'OCN', ex_frac_open_sea,   xmap_sfc)
 
   do n = 1, ice%ocean_fields%num_bcs  !{
     do m = 1, ice%ocean_fields%bc(n)%num_fields  !{
@@ -1664,26 +1674,27 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   ex_t_surf4 = ex_t_surf ** 4
 
   ! [6.2] put relevant quantities onto atmospheric boundary
-  call get_from_xgrid (Land_Ice_Atmos_Boundary%t,         'ATM', ex_t_surf4  ,  xmap_sfc)
-  call get_from_xgrid (Land_Ice_Atmos_Boundary%albedo,    'ATM', ex_albedo   ,  xmap_sfc)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%t,         'ATM', ex_t_surf4  ,  xmap_sfc, complete=.false.)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%frac_open_sea,'ATM',ex_frac_open_sea, xmap_sfc)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%albedo,    'ATM', ex_albedo   ,  xmap_sfc, complete=.false.)
   call get_from_xgrid (Land_Ice_Atmos_Boundary%albedo_vis_dir,    'ATM',   &
-                       ex_albedo_vis_dir   ,  xmap_sfc)
+                       ex_albedo_vis_dir   ,  xmap_sfc, complete=.false.)
   call get_from_xgrid (Land_Ice_Atmos_Boundary%albedo_nir_dir,    'ATM',   &
-                       ex_albedo_nir_dir   ,  xmap_sfc)
+                       ex_albedo_nir_dir   ,  xmap_sfc, complete=.false.)
   call get_from_xgrid (Land_Ice_Atmos_Boundary%albedo_vis_dif,    'ATM',   &
-                       ex_albedo_vis_dif   ,  xmap_sfc)
+                       ex_albedo_vis_dif   ,  xmap_sfc, complete=.false.)
   call get_from_xgrid (Land_Ice_Atmos_Boundary%albedo_nir_dif,    'ATM',   &
-                       ex_albedo_nir_dif   ,  xmap_sfc)
-  call get_from_xgrid (Land_Ice_Atmos_Boundary%rough_mom, 'ATM', ex_rough_mom,  xmap_sfc)
-  call get_from_xgrid (Land_Ice_Atmos_Boundary%land_frac, 'ATM', ex_land_frac,  xmap_sfc)
+                       ex_albedo_nir_dif   ,  xmap_sfc, complete=.false.)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%rough_mom, 'ATM', ex_rough_mom,  xmap_sfc, complete=.false.)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%land_frac, 'ATM', ex_land_frac,  xmap_sfc, complete=.false.)
 
-  call get_from_xgrid (Land_Ice_Atmos_Boundary%u_flux,    'ATM', ex_flux_u,     xmap_sfc)
-  call get_from_xgrid (Land_Ice_Atmos_Boundary%v_flux,    'ATM', ex_flux_v,     xmap_sfc)
-  call get_from_xgrid (Land_Ice_Atmos_Boundary%dtaudu,    'ATM', ex_dtaudu_atm, xmap_sfc)
-  call get_from_xgrid (Land_Ice_Atmos_Boundary%dtaudv,    'ATM', ex_dtaudv_atm, xmap_sfc)
-  call get_from_xgrid (Land_Ice_Atmos_Boundary%u_star,    'ATM', ex_u_star    , xmap_sfc)
-  call get_from_xgrid (Land_Ice_Atmos_Boundary%b_star,    'ATM', ex_b_star    , xmap_sfc)
-  call get_from_xgrid (Land_Ice_Atmos_Boundary%q_star,    'ATM', ex_q_star    , xmap_sfc)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%u_flux,    'ATM', ex_flux_u,     xmap_sfc, complete=.false.)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%v_flux,    'ATM', ex_flux_v,     xmap_sfc, complete=.false.)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%dtaudu,    'ATM', ex_dtaudu_atm, xmap_sfc, complete=.false.)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%dtaudv,    'ATM', ex_dtaudv_atm, xmap_sfc, complete=.false.)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%u_star,    'ATM', ex_u_star    , xmap_sfc, complete=.false.)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%b_star,    'ATM', ex_b_star    , xmap_sfc, complete=.false.)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%q_star,    'ATM', ex_q_star    , xmap_sfc, complete=.true.)
 
   if (do_forecast) then
      call get_from_xgrid (Ice%t_surf, 'OCN', ex_t_surf,  xmap_sfc)
@@ -1717,38 +1728,36 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   ! on exchange grid
   ! allocate ( ex_old_albedo(n_xgrid_sfc)  )
   ! ex_old_albedo = ex_albedo
-  
+ 
 !!  STILL NEEDED   ????
 !! IS THIS CORRECT ??
   allocate ( ex_albedo_fix(n_xgrid_sfc) )
-  ex_albedo_fix = 0.
-  call put_to_xgrid (Land_Ice_Atmos_Boundary%albedo, 'ATM',  ex_albedo_fix, xmap_sfc)
-  ex_albedo_fix = (1.0-ex_albedo) / (1.0-ex_albedo_fix)
-
   allocate ( ex_albedo_vis_dir_fix(n_xgrid_sfc) )
-  ex_albedo_vis_dir_fix = 0.
-  call put_to_xgrid (Land_Ice_Atmos_Boundary%albedo_vis_dir, 'ATM',  &
-           ex_albedo_vis_dir_fix, xmap_sfc)
-  ex_albedo_vis_dir_fix = (1.0-ex_albedo_vis_dir) /  &
-(1.0-ex_albedo_vis_dir_fix)
   allocate ( ex_albedo_nir_dir_fix(n_xgrid_sfc) )
-  ex_albedo_nir_dir_fix = 0.
-  call put_to_xgrid (Land_Ice_Atmos_Boundary%albedo_nir_dir, 'ATM', &
- ex_albedo_nir_dir_fix, xmap_sfc)
-  ex_albedo_nir_dir_fix = (1.0-ex_albedo_nir_dir) /  &
-(1.0-ex_albedo_nir_dir_fix)
   allocate ( ex_albedo_vis_dif_fix(n_xgrid_sfc) )
-  ex_albedo_vis_dif_fix = 0.
-  call put_to_xgrid (Land_Ice_Atmos_Boundary%albedo_vis_dif, 'ATM',   &
-        ex_albedo_vis_dif_fix, xmap_sfc)
-   ex_albedo_vis_dif_fix = (1.0-ex_albedo_vis_dif) /   &
-       (1.0-ex_albedo_vis_dif_fix)
   allocate ( ex_albedo_nir_dif_fix(n_xgrid_sfc) )
+
+  ex_albedo_fix = 0.
+  ex_albedo_vis_dir_fix = 0.
+  ex_albedo_nir_dir_fix = 0.
+  ex_albedo_vis_dif_fix = 0.
   ex_albedo_nir_dif_fix = 0.
+
+
+  call put_to_xgrid (Land_Ice_Atmos_Boundary%albedo, 'ATM',  ex_albedo_fix, xmap_sfc, complete=.false.)
+  call put_to_xgrid (Land_Ice_Atmos_Boundary%albedo_vis_dir, 'ATM',  &
+           ex_albedo_vis_dir_fix, xmap_sfc, complete=.false.)
+  call put_to_xgrid (Land_Ice_Atmos_Boundary%albedo_nir_dir, 'ATM', &
+           ex_albedo_nir_dir_fix, xmap_sfc, complete=.false.)
+  call put_to_xgrid (Land_Ice_Atmos_Boundary%albedo_vis_dif, 'ATM',   &
+           ex_albedo_vis_dif_fix, xmap_sfc, complete=.false.)
   call put_to_xgrid (Land_Ice_Atmos_Boundary%albedo_nir_dif, 'ATM',  &
- ex_albedo_nir_dif_fix, xmap_sfc)
-  ex_albedo_nir_dif_fix = (1.0-ex_albedo_nir_dif) /   &
-       (1.0-ex_albedo_nir_dif_fix)
+           ex_albedo_nir_dif_fix, xmap_sfc, complete=.true.)
+  ex_albedo_fix = (1.0-ex_albedo) / (1.0-ex_albedo_fix)
+  ex_albedo_vis_dir_fix = (1.0-ex_albedo_vis_dir) / (1.0-ex_albedo_vis_dir_fix)
+  ex_albedo_nir_dir_fix = (1.0-ex_albedo_nir_dir) / (1.0-ex_albedo_nir_dir_fix)
+  ex_albedo_vis_dif_fix = (1.0-ex_albedo_vis_dif) / (1.0-ex_albedo_vis_dif_fix)
+  ex_albedo_nir_dif_fix = (1.0-ex_albedo_nir_dif) / (1.0-ex_albedo_nir_dif_fix)
 
 #ifdef SCM
   if (do_specified_albedo .and. do_specified_land) then
@@ -2185,23 +2194,23 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
 !---- put atmosphere quantities onto exchange grid ----
 
   if(sw1way_bug) then
-     call put_to_xgrid (Atm%flux_sw, 'ATM', ex_flux_sw, xmap_sfc)
-     call put_to_xgrid (Atm%flux_sw_vis, 'ATM', ex_flux_sw_vis, xmap_sfc)
+     call put_to_xgrid (Atm%flux_sw, 'ATM', ex_flux_sw, xmap_sfc, complete=.false.)
+     call put_to_xgrid (Atm%flux_sw_vis, 'ATM', ex_flux_sw_vis, xmap_sfc, complete=.false.)
   end if
   ex_flux_sw_dir     = 0.0
   ex_flux_sw_vis_dir = 0.0
   ex_flux_sw_dif     = 0.0
   ex_flux_sw_vis_dif = 0.0
   ex_flux_lwd        = 0.0                           
-  call put_to_xgrid (Atm%flux_sw_dir, 'ATM', ex_flux_sw_dir, xmap_sfc)
-  call put_to_xgrid (Atm%flux_sw_vis_dir, 'ATM', ex_flux_sw_vis_dir, xmap_sfc)
-  call put_to_xgrid (Atm%flux_sw_dif, 'ATM', ex_flux_sw_dif, xmap_sfc)
-  call put_to_xgrid (Atm%flux_sw_vis_dif, 'ATM', ex_flux_sw_vis_dif, xmap_sfc)
-  call put_to_xgrid (Atm%flux_sw_down_vis_dir, 'ATM', ex_flux_sw_down_vis_dir, xmap_sfc)
-  call put_to_xgrid (Atm%flux_sw_down_total_dir, 'ATM', ex_flux_sw_down_total_dir, xmap_sfc)
-  call put_to_xgrid (Atm%flux_sw_down_vis_dif, 'ATM', ex_flux_sw_down_vis_dif, xmap_sfc)
-  call put_to_xgrid (Atm%flux_sw_down_total_dif, 'ATM', ex_flux_sw_down_total_dif, xmap_sfc)
-  call put_to_xgrid (Atm%flux_lw, 'ATM', ex_flux_lwd, xmap_sfc, remap_method=remap_method)
+  call put_to_xgrid (Atm%flux_sw_dir, 'ATM', ex_flux_sw_dir, xmap_sfc, complete=.false.)
+  call put_to_xgrid (Atm%flux_sw_vis_dir, 'ATM', ex_flux_sw_vis_dir, xmap_sfc, complete=.false.)
+  call put_to_xgrid (Atm%flux_sw_dif, 'ATM', ex_flux_sw_dif, xmap_sfc, complete=.false.)
+  call put_to_xgrid (Atm%flux_sw_vis_dif, 'ATM', ex_flux_sw_vis_dif, xmap_sfc, complete=.false.)
+  call put_to_xgrid (Atm%flux_sw_down_vis_dir, 'ATM', ex_flux_sw_down_vis_dir, xmap_sfc, complete=.false.)
+  call put_to_xgrid (Atm%flux_sw_down_total_dir, 'ATM', ex_flux_sw_down_total_dir, xmap_sfc, complete=.false.)
+  call put_to_xgrid (Atm%flux_sw_down_vis_dif, 'ATM', ex_flux_sw_down_vis_dif, xmap_sfc, complete=.false.)
+  call put_to_xgrid (Atm%flux_sw_down_total_dif, 'ATM', ex_flux_sw_down_total_dif, xmap_sfc, complete=.false.)
+
   !  ccc = conservation_check(Atm%lprec, 'ATM', xmap_sfc)
   !  if (mpp_pe()== mpp_root_pe()) print *,'LPREC', ccc
 
@@ -2209,15 +2218,16 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
 !!$     call put_to_xgrid (Atm%lprec * AREA_ATM_MODEL,   'ATM', ex_lprec, xmap_sfc)
 !!$     call put_to_xgrid (Atm%fprec * AREA_ATM_MODEL,   'ATM', ex_fprec, xmap_sfc)
 !!$  else
-     call put_to_xgrid (Atm%lprec,   'ATM', ex_lprec, xmap_sfc)
-     call put_to_xgrid (Atm%fprec,   'ATM', ex_fprec, xmap_sfc)
-     call put_to_xgrid (Atm%t_bot,   'ATM', ex_tprec, xmap_sfc)
+     call put_to_xgrid (Atm%lprec,   'ATM', ex_lprec, xmap_sfc, complete=.false.)
+     call put_to_xgrid (Atm%fprec,   'ATM', ex_fprec, xmap_sfc, complete=.false.)
+     call put_to_xgrid (Atm%t_bot,   'ATM', ex_tprec, xmap_sfc, complete=.false.)
 !!$  endif
 
-  call put_to_xgrid (Atm%coszen,  'ATM', ex_coszen, xmap_sfc)
+  call put_to_xgrid (Atm%coszen,  'ATM', ex_coszen, xmap_sfc, complete=.true.)
 
+  call put_to_xgrid (Atm%flux_lw, 'ATM', ex_flux_lwd, xmap_sfc, remap_method=remap_method, complete=.false.)
   if(ex_u_star_smooth_bug) then
-     call put_to_xgrid (Atmos_boundary%u_star, 'ATM', ex_u_star_smooth, xmap_sfc, remap_method=remap_method)
+     call put_to_xgrid (Atmos_boundary%u_star, 'ATM', ex_u_star_smooth, xmap_sfc, remap_method=remap_method, complete=.false.)
      ex_u_star = ex_u_star_smooth
   endif
 
@@ -2227,8 +2237,8 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
 ! implicit corrections are filtered through the atmospheric grid not the
 ! stresses themselves
   ex_delta_u = 0.0; ex_delta_v = 0.0
-  call put_to_xgrid (Atm%Surf_Diff%delta_u, 'ATM', ex_delta_u, xmap_sfc, remap_method=remap_method)
-  call put_to_xgrid (Atm%Surf_Diff%delta_v, 'ATM', ex_delta_v, xmap_sfc, remap_method=remap_method)
+  call put_to_xgrid (Atm%Surf_Diff%delta_u, 'ATM', ex_delta_u, xmap_sfc, remap_method=remap_method, complete=.false.)
+  call put_to_xgrid (Atm%Surf_Diff%delta_v, 'ATM', ex_delta_v, xmap_sfc, remap_method=remap_method, complete=.true.)
 
   ! MOD update stresses using atmos delta's but derivatives on exchange grid
   ex_flux_u = ex_flux_u + ex_delta_u*ex_dtaudu_atm
@@ -2290,15 +2300,15 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
 !-----------------------------------------------------------------------
 !----- adjust fluxes for implicit dependence on atmosphere ----
 
-
-  call put_to_xgrid (Atm%Surf_Diff%dtmass , 'ATM', ex_dtmass , xmap_sfc )
-  call put_to_xgrid (Atm%Surf_Diff%delta_t, 'ATM', ex_delta_t, xmap_sfc )
-  call put_to_xgrid (Atm%Surf_Diff%dflux_t, 'ATM', ex_dflux_t, xmap_sfc )
   do tr = 1,n_exch_tr
      n = tr_table(tr)%atm
-     call put_to_xgrid (Atm%Surf_Diff%delta_tr(:,:,n), 'ATM', ex_delta_tr(:,tr), xmap_sfc )
-     call put_to_xgrid (Atm%Surf_Diff%dflux_tr(:,:,n), 'ATM', ex_dflux_tr(:,tr), xmap_sfc )
+     call put_to_xgrid (Atm%Surf_Diff%delta_tr(:,:,n), 'ATM', ex_delta_tr(:,tr), xmap_sfc, complete=.false. )
+     call put_to_xgrid (Atm%Surf_Diff%dflux_tr(:,:,n), 'ATM', ex_dflux_tr(:,tr), xmap_sfc, complete=.false. )
   enddo
+
+  call put_to_xgrid (Atm%Surf_Diff%dtmass , 'ATM', ex_dtmass , xmap_sfc, complete=.false. )
+  call put_to_xgrid (Atm%Surf_Diff%delta_t, 'ATM', ex_delta_t, xmap_sfc, complete=.false. )
+  call put_to_xgrid (Atm%Surf_Diff%dflux_t, 'ATM', ex_dflux_t, xmap_sfc, complete=.true. )
 
   cp_inv = 1.0/cp_air
 

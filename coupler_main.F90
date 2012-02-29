@@ -229,8 +229,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 18.0.4.1.4.1.2.1.2.1 2011/02/02 18:28:24 pjp Exp $'
-  character(len=128) :: tag = '$Name: riga_201104 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 19.0 2012/01/06 20:36:29 fms Exp $'
+  character(len=128) :: tag = '$Name: siena_201202 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -335,6 +335,10 @@ program coupler_main
 !   remainder from NPES.
 !  If both are set non-zero they must add up to NPES.
 !  </DATA> 
+!  <DATA NAME="atmos_nthreads, ocean_nthreads" TYPE="integer">
+!  We set here the number of OpenMP threads to use
+!  separately for each component (default 1)
+!  </DATA> 
 !  <DATA NAME="use_lag_fluxes" TYPE="logical">
 !  If true, then mom4 is forced with SBCs from one coupling timestep ago
 !  If false, then mom4 is forced with most recent SBCs.
@@ -381,6 +385,7 @@ program coupler_main
 
 
   integer ::atmos_npes=0, ocean_npes=0, ice_npes=0, land_npes=0
+  integer :: atmos_nthreads=1, ocean_nthreads=1
   logical :: do_atmos =.true., do_land =.true., do_ice =.true., do_ocean=.true.
   logical :: do_flux =.true.
   logical :: concurrent=.FALSE.
@@ -396,7 +401,8 @@ program coupler_main
   namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, months, days, hours,      &
                          minutes, seconds, dt_cpld, dt_atmos, do_atmos,              &
                          do_land, do_ice, do_ocean, do_flux, atmos_npes, ocean_npes, &
-                         ice_npes, land_npes, concurrent, use_lag_fluxes, do_chksum, &
+                         ice_npes, land_npes, atmos_nthreads, ocean_nthreads, &
+                         concurrent, use_lag_fluxes, do_chksum, &
                          n_mask, layout_mask, mask_list, check_stocks, restart_interval
 
   integer :: initClock, mainClock, termClock
@@ -801,6 +807,8 @@ contains
     integer :: date_restart(6)
     character(len=64)  :: filename, fieldname
     integer :: id_restart, l
+    integer :: omp_get_thread_num, omp_get_num_threads
+    integer :: get_cpu_affinity, base_cpu
 !-----------------------------------------------------------------------
 
 !----- write version to logfile -------
@@ -818,6 +826,13 @@ contains
     enddo
 10  call mpp_close(unit)
 #endif
+
+    if(ocean_nthreads /= 1) then
+       call error_mesg ('coupler_init', 'OpenMP threading is not currently available for the ocean, '// &
+            'Resetting variable ocean_nthreads to 1.', NOTE )
+        ocean_nthreads = 1
+    endif
+
 
     outunit = stdout()
     logunit = stdlog()
@@ -928,6 +943,9 @@ contains
 
     !Set up and declare all the needed pelists
     call ensemble_pelist_setup(concurrent, atmos_npes, ocean_npes, Atm%pelist, Ocean%pelist)
+
+!set up affinities based on threads
+
     ensemble_id = get_ensemble_id() 
  
     allocate(ensemble_pelist(1:ensemble_size,1:npes))   
@@ -939,8 +957,24 @@ contains
     Land%pe = Atm%pe
  
     !Why is the following needed?
-    if( Atm%pe )            call mpp_set_current_pelist( Atm%pelist   )
-    if( Ocean%is_ocean_pe ) call mpp_set_current_pelist( Ocean%pelist )
+    if( Atm%pe )then
+!$      call omp_set_num_threads(atmos_nthreads)
+        call mpp_set_current_pelist( Atm%pelist )
+!$      base_cpu = get_cpu_affinity()
+!$OMP PARALLEL
+!$        call set_cpu_affinity( base_cpu + omp_get_thread_num() )
+!$OMP END PARALLEL
+    end if
+
+    if( Ocean%is_ocean_pe )then
+       call mpp_set_current_pelist( Ocean%pelist )
+!           call omp_set_num_threads(ocean_nthreads)
+!           base_cpu = get_cpu_affinity()
+!   !$OMP PARALLEL
+!           call set_cpu_affinity( base_cpu + omp_get_thread_num() )
+!   !$OMP END PARALLEL
+       end if
+    call mpp_set_current_pelist()
     
     !Write out messages on root PEs
     if(mpp_pe().EQ.mpp_root_pe() )then
