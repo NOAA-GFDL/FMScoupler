@@ -230,7 +230,7 @@ program coupler_main
 !-----------------------------------------------------------------------
 
   character(len=128) :: version = '$Id: coupler_main.F90,v 19.0 2012/01/06 20:36:29 fms Exp $'
-  character(len=128) :: tag = '$Name: siena_201202 $'
+  character(len=128) :: tag = '$Name: siena_201203 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
