@@ -229,8 +229,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 19.0 2012/01/06 20:36:29 fms Exp $'
-  character(len=128) :: tag = '$Name: siena_201203 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 19.0.4.2 2012/04/04 14:59:30 wfc Exp $'
+  character(len=128) :: tag = '$Name: siena_201204 $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -475,7 +475,7 @@ if( Atm%pe )then
  newClock7  = mpp_clock_id( '  ATM: atmos loop' )
  newClocka  = mpp_clock_id( '     A-L: atmos_tracer_driver_gather_data' )
  newClockb  = mpp_clock_id( '     A-L: sfc_boundary_layer' )
- newClockc  = mpp_clock_id( '     A-L: udpate_atmos_model_down' )
+ newClockc  = mpp_clock_id( '     A-L: update_atmos_model_down' )
  newClockd  = mpp_clock_id( '     A-L: flux_down_from_atmos' )
  newClocke  = mpp_clock_id( '     A-L: update_land_model_fast' )
  newClockf  = mpp_clock_id( '     A-L: update_ice_model_fast' )
@@ -789,7 +789,7 @@ contains
     character(len=256), parameter   :: note_header =                                &
          '==>Note from ' // trim(mod_name) // '(' // trim(sub_name) // '):'
 
-    integer :: unit,  ierr, io,    m, i, outunit, logunit
+    integer :: unit,  ierr, io,    m, i, outunit, logunit, errunit
     integer :: date(6)
     type (time_type) :: Run_length
     character(len=9) :: month
@@ -809,7 +809,21 @@ contains
     integer :: id_restart, l
     integer :: omp_get_thread_num, omp_get_num_threads
     integer :: get_cpu_affinity, base_cpu
+    character(len=8)  :: walldate
+    character(len=10) :: walltime
+    character(len=5)  :: wallzone
+    integer           :: wallvalues(8)
 !-----------------------------------------------------------------------
+
+    outunit = stdout()
+    errunit = stderr()
+    logunit = stdlog()
+    
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Entering coupler_init at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
 
 !----- write version to logfile -------
     call write_version_number(version, tag)
@@ -834,9 +848,6 @@ contains
     endif
 
 
-    outunit = stdout()
-    logunit = stdlog()
-    
 !---- when concurrent is set true and mpp_io_nml io_clock_on is set true, the model
 !---- will crash with error message "MPP_CLOCK_BEGIN: cannot change pelist context of a clock",
 !---- so need to make sure it will not happen
@@ -912,7 +923,17 @@ contains
     !NOTE: if the ensemble_size=1 the input/output files will not be renamed.
     !
     
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Starting initializing ensemble_manager at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
     call ensemble_manager_init() ! init pelists for ensembles
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Finished initializing ensemble_manager at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
     ens_siz = get_ensemble_size()   
     ensemble_size = ens_siz(1)      
     npes = ens_siz(2)              
@@ -1064,8 +1085,18 @@ contains
         call mpp_set_current_pelist(Ocean%pelist)
         if(ocean_npes /= npes)diag_model_subset = DIAG_OCEAN  ! change diag_model_subset from DIAG_ALL
     end if
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Starting to initialize diag_manager at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
     call diag_manager_init(DIAG_MODEL_SUBSET=diag_model_subset)   ! initialize diag_manager for processor subset output
     call print_memuse_stats( 'diag_manager_init' )
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Finished initializing diag_manager at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
 !-----------------------------------------------------------------------
 !------ reset pelist to "full group" ------
 
@@ -1112,7 +1143,7 @@ contains
 
     Time_restart_current = Time
     if(ALL(restart_interval ==0)) then
-       Time_restart = increment_date(Time_end, 1, 0, 0, 0, 0, 0)   ! no intermediate restart
+       Time_restart = increment_date(Time_end, 0, 0, 10, 0, 0, 0)   ! no intermediate restart
     else
        Time_restart = set_date(date_restart(1), date_restart(2), date_restart(3),  &
                                date_restart(4), date_restart(5), date_restart(6) )
@@ -1175,50 +1206,140 @@ contains
 !       before the individual models are initialized.
 !
 
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Starting to initialize tracer_manager at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
     call tracer_manager_init
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Finished initializing tracer_manager at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
 !
 !       Initialize the coupler types
 !
 
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Starting to initialize coupler_types at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
     call coupler_types_init
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Finished initializing coupler_types at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
 
 !-----------------------------------------------------------------------
 !------ initialize component models ------
 !------ grid info now comes from grid_spec file
 
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Beginning to initialize component models at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
     if( Atm%pe )then
         call mpp_set_current_pelist(Atm%pelist)
 !---- atmosphere ----
+        if( mpp_pe().EQ.mpp_root_pe() ) then
+          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+          write(errunit,*) 'Starting to initialize atmospheric model at '&
+                           //trim(walldate)//' '//trim(walltime)
+        endif
         call atmos_model_init( Atm, Time_init, Time, Time_step_atmos )
+        if( mpp_pe().EQ.mpp_root_pe() ) then
+          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+          write(errunit,*) 'Finished initializing atmospheric model at '&
+                           //trim(walldate)//' '//trim(walltime)
+        endif
         call print_memuse_stats( 'atmos_model_init' )
 
 !---- land ----------
+        if( mpp_pe().EQ.mpp_root_pe() ) then
+          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+          write(errunit,*) 'Starting to initialize land model at '&
+                           //trim(walldate)//' '//trim(walltime)
+        endif
         call land_model_init( Atmos_land_boundary, Land, Time_init, Time, &
              Time_step_atmos, Time_step_cpld )
+        if( mpp_pe().EQ.mpp_root_pe() ) then
+          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+          write(errunit,*) 'Finished initializing land model at '&
+                           //trim(walldate)//' '//trim(walltime)
+        endif
         call print_memuse_stats( 'land_model_init' )
 
 !---- ice -----------
+        if( mpp_pe().EQ.mpp_root_pe() ) then
+          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+          write(errunit,*) 'Starting to initialize ice model at '&
+                           //trim(walldate)//' '//trim(walltime)
+        endif
         call ice_model_init( Ice, Time_init, Time, Time_step_atmos, Time_step_cpld )
+        if( mpp_pe().EQ.mpp_root_pe() ) then
+          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+          write(errunit,*) 'Finished initializing ice model at '&
+                           //trim(walldate)//' '//trim(walltime)
+        endif
         call print_memuse_stats( 'ice_model_init' )
         call data_override_init(Atm_domain_in = Atm%domain, Ice_domain_in = Ice%domain, Land_domain_in=Land%domain)
     end if
     if( Ocean%is_ocean_pe )then
         call mpp_set_current_pelist(Ocean%pelist)
 !---- ocean ---------
+        if( mpp_pe().EQ.mpp_root_pe() ) then
+          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+          write(errunit,*) 'Starting to initialize ocean model at '&
+                           //trim(walldate)//' '//trim(walltime)
+        endif
         call ocean_model_init( Ocean, Ocean_state, Time_init, Time )
+        if( mpp_pe().EQ.mpp_root_pe() ) then
+          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+          write(errunit,*) 'Finished initializing ocean model at '&
+                           //trim(walldate)//' '//trim(walltime)
+        endif
         call print_memuse_stats( 'ocean_model_init' )
+        if( mpp_pe().EQ.mpp_root_pe() ) then
+          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+          write(errunit,*) 'Starting to initialize data_override at '&
+                           //trim(walldate)//' '//trim(walltime)
+        endif
         call data_override_init(Ocean_domain_in = Ocean%domain )
+        if( mpp_pe().EQ.mpp_root_pe() ) then
+          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+          write(errunit,*) 'Finished initializing data_override at '&
+                           //trim(walldate)//' '//trim(walltime)
+        endif
     end if
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Finished initializing component models at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
     call mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
 
     call mpp_broadcast_domain(Ice%domain)
     call mpp_broadcast_domain(Ocean%domain)
 !-----------------------------------------------------------------------
 !---- initialize flux exchange module ----
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Starting to initialize flux_exchange at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
     call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
          atmos_ice_boundary, land_ice_atmos_boundary, &
          land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
          dt_atmos=dt_atmos, dt_cpld=dt_cpld)
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Finsihed initializing flux_exchange at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
 
     Time_atmos = Time
     Time_ocean = Time
@@ -1305,18 +1426,22 @@ contains
     CALL diag_grid_end()
 
 !-----------------------------------------------------------------------
-    if(do_chksum) then
-      if (Atm%pe) then 
-        call mpp_set_current_pelist(Atm%pelist)
-        call atmos_ice_land_chksum('coupler_init+', 0)
-      endif
-      if (Ocean%is_ocean_pe) then 
-        call mpp_set_current_pelist(Ocean%pelist)
-        call ocean_chksum('coupler_init+', nc)
-      endif
-      call mpp_set_current_pelist()
-    endif  
+    if (Atm%pe) then 
+      call mpp_set_current_pelist(Atm%pelist)
+      call atmos_ice_land_chksum('coupler_init+', 0)
+    endif
+    if (Ocean%is_ocean_pe) then 
+      call mpp_set_current_pelist(Ocean%pelist)
+      call ocean_chksum('coupler_init+', nc)
+    endif
+    call mpp_set_current_pelist()
     call print_memuse_stats('coupler_init')
+
+    if( mpp_pe().EQ.mpp_root_pe() ) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Exiting coupler_init at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
   end subroutine coupler_init
 
 !#######################################################################
@@ -1325,6 +1450,14 @@ contains
 
 !-----------------------------------------------------------------------
 
+    if (Atm%pe) then 
+      call mpp_set_current_pelist(Atm%pelist)
+      call atmos_ice_land_chksum('coupler_end', 0)
+    endif
+    if (Ocean%is_ocean_pe) then 
+      call mpp_set_current_pelist(Ocean%pelist)
+      call ocean_chksum('coupler_end', 0)
+    endif
     call mpp_set_current_pelist()
 
 !----- check time versus expected ending time ----

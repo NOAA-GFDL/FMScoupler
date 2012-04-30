@@ -262,8 +262,8 @@ private
      flux_ocean_from_ice_stocks
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 19.0 2012/01/06 20:36:31 fms Exp $'
-  character(len=128) :: tag = '$Name: siena_201203 $'
+  character(len=128) :: version = '$Id: flux_exchange.F90,v 19.0.2.1 2012/01/23 13:44:56 Zhi.Liang Exp $'
+  character(len=128) :: tag = '$Name: siena_201204 $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -1260,6 +1260,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
        ex_dedq_surf_forland(n_xgrid_sfc)  )
 #endif
 
+  ex_p_surf = 1
 ! Actual allocation of exchange fields for ocean_ice boundary
   do n = 1, ex_gas_fields_ice%num_bcs  !{
     do m = 1, ex_gas_fields_ice%bc(n)%num_fields  !{
