@@ -262,8 +262,8 @@ private
      flux_ocean_from_ice_stocks
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 19.0.2.1 2012/01/23 13:44:56 Zhi.Liang Exp $'
-  character(len=128) :: tag = '$Name: siena_201204 $'
+  character(len=128) :: version = '$Id: flux_exchange.F90,v 19.0.8.1.2.1 2012/06/01 19:06:23 William.Cooke Exp $'
+  character(len=128) :: tag = '$Name: siena_201207 $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -1031,6 +1031,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
     allocate( ice_ocean_boundary%runoff_hflx   (is:ie,js:je) )
     allocate( ice_ocean_boundary%calving_hflx  (is:ie,js:je) )
     allocate( ice_ocean_boundary%p        (is:ie,js:je) )
+    allocate( ice_ocean_boundary%mi       (is:ie,js:je) )
 
 !
 ! allocate fields for extra tracers
@@ -2778,6 +2779,9 @@ subroutine flux_ice_to_ocean ( Time, Ice, Ocean, Ice_Ocean_Boundary )
   if(ASSOCIATED(Ice_Ocean_Boundary%p     ) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
       Ice%p_surf, Ice_Ocean_Boundary%p     , Ice_Ocean_Boundary%xtype, .FALSE. )
 
+  if(ASSOCIATED(Ice_Ocean_Boundary%mi    ) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
+      Ice%mi,     Ice_Ocean_Boundary%mi    , Ice_Ocean_Boundary%xtype, .FALSE. )
+
   ! Extra fluxes
   do n = 1, Ice_Ocean_Boundary%fluxes%num_bcs  !{
      do m = 1, Ice_Ocean_Boundary%fluxes%bc(n)%num_fields  !{
@@ -2852,6 +2856,8 @@ subroutine flux_ice_to_ocean ( Time, Ice, Ocean, Ice_Ocean_Boundary )
       call data_override('OCN', 'runoff_hflx',    Ice_Ocean_Boundary%runoff_hflx   , Time )
       call data_override('OCN', 'calving_hflx',   Ice_Ocean_Boundary%calving_hflx  , Time )
       call data_override('OCN', 'p',         Ice_Ocean_Boundary%p        , Time )
+      call data_override('OCN', 'mi',        Ice_Ocean_Boundary%mi       , Time )
+
 
 ! Extra fluxes
       do n = 1, Ice_Ocean_Boundary%fluxes%num_bcs  !{
