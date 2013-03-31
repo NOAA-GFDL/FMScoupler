@@ -198,8 +198,8 @@ end interface
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 19.0 2012/01/06 20:36:33 fms Exp $'
-character(len=*), parameter :: tagname = '$Name: siena_201211 $'
+character(len=*), parameter :: version = '$Id: surface_flux.F90,v 19.0.8.1 2013/02/25 15:22:38 Zhi.Liang Exp $'
+character(len=*), parameter :: tagname = '$Name: siena_201303 $'
    
 logical :: do_init = .true.
 
@@ -727,6 +727,7 @@ subroutine surface_flux_init
   ! read namelist
 #ifdef INTERNAL_FILE_NML
       read (input_nml_file, surface_flux_nml, iostat=io)
+      ierr = check_nml_error(io,'surface_flux_nml')
 #else
   if ( file_exist('input.nml')) then
      unit = open_namelist_file ()

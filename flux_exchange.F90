@@ -262,8 +262,8 @@ private
      flux_ocean_from_ice_stocks
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 19.0.8.1.2.1 2012/06/01 19:06:23 William.Cooke Exp $'
-  character(len=128) :: tag = '$Name: siena_201211 $'
+  character(len=128) :: version = '$Id: flux_exchange.F90,v 19.0.8.1.2.1.6.1 2013/02/25 15:22:38 Zhi.Liang Exp $'
+  character(len=128) :: tag = '$Name: siena_201303 $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -574,6 +574,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 
 #ifdef INTERNAL_FILE_NML
       read (input_nml_file, flux_exchange_nml, iostat=io)
+      ierr = check_nml_error (io, 'flux_exchange_nml')
 #else
     unit = open_namelist_file()
     ierr=1; do while (ierr /= 0)
