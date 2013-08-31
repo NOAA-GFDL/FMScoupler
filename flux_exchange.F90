@@ -263,7 +263,7 @@ private
 
 !-----------------------------------------------------------------------
   character(len=128) :: version = '$Id: flux_exchange.F90,v 19.0.8.1.2.1.6.1 2013/02/25 15:22:38 Zhi.Liang Exp $'
-  character(len=128) :: tag = '$Name: siena_201305 $'
+  character(len=128) :: tag = '$Name: siena_201308 $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
