@@ -1,31 +1,27 @@
-! ============================================================================
-module surface_flux_mod
-!-----------------------------------------------------------------------
-!                   GNU General Public License                        
-!                                                                      
-! This program is free software; you can redistribute it and/or modify it and  
-! are expected to follow the terms of the GNU General Public License  
-! as published by the Free Software Foundation; either version 2 of   
-! the License, or (at your option) any later version.                 
-!                                                                      
-! MOM is distributed in the hope that it will be useful, but WITHOUT    
-! ANY WARRANTY; without even the implied warranty of MERCHANTABILITY  
-! or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public    
-! License for more details.                                           
-!                                                                      
-! For the full text of the GNU General Public License,                
-! write to: Free Software Foundation, Inc.,                           
-!           675 Mass Ave, Cambridge, MA 02139, USA.                   
-! or see:   http://www.gnu.org/licenses/gpl.html                      
-!-----------------------------------------------------------------------
-!
-! <CONTACT EMAIL="Stephen.Klein@noaa.gov">Steve Klein  </CONTACT>
-! <CONTACT EMAIL="Isaac.Held@noaa.gov"> Isaac Held </CONTACT>
-! <CONTACT EMAIL="Bruce.Wyman@noaa.gov"> Bruce Wyman </CONTACT >
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!                                                                   !!
+!!                   GNU General Public License                      !!
+!!                                                                   !!
+!! This file is part of the Flexible Modeling System (FMS).          !!
+!!                                                                   !!
+!! FMS is free software; you can redistribute it and/or modify it    !!
+!! under the terms of the GNU General Public License as published by !!
+!! the Free Software Foundation, either version 3 of the License, or !!
+!! (at your option) any later version.                               !!
+!!                                                                   !!
+!! FMS is distributed in the hope that it will be useful,            !!
+!! but WITHOUT ANY WARRANTY; without even the implied warranty of    !!
+!! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the      !!
+!! GNU General Public License for more details.                      !!
+!!                                                                   !!
+!! You should have received a copy of the GNU General Public License !!
+!! along with FMS. if not, see: http://www.gnu.org/licenses/gpl.txt  !!
+!!                                                                   !!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-! <REVIEWER EMAIL="V.Balaji@noaa.gov"> V. Balaji </REVIEWER>
-! <REVIEWER EMAIL="Sergey.Malyshev@noaa.gov"> Sergey Malyshev </REVIEWER>
-! <REVIEWER EMAIL="Elena.Shevliakova@noaa.gov"> Elena Shevliakova </REVIEWER>
+module surface_flux_mod
+!
+! <CONTACT EMAIL="GFDL.Climate.Model.Info@noaa.gov">GFDL </CONTACT>
 !
 ! <HISTORY SRC="http://www.gfdl.noaa.gov/fms-cgi-bin/cvsweb.cgi/FMS/"/>
 !
@@ -192,14 +188,14 @@ public  surface_flux
 interface surface_flux
 !    module procedure surface_flux_0d
     module procedure surface_flux_1d
-!    module procedure surface_flux_2d  
+    module procedure surface_flux_2d  
 end interface
 ! </INTERFACE>
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 19.0.8.1 2013/02/25 15:22:38 Zhi.Liang Exp $'
-character(len=*), parameter :: tagname = '$Name: siena_201309 $'
+character(len=*), parameter :: version = '$Id: surface_flux.F90,v 20.0 2013/12/13 23:27:45 fms Exp $'
+character(len=*), parameter :: tagname = '$Name: tikal $'
    
 logical :: do_init = .true.
 
@@ -756,8 +752,8 @@ end subroutine surface_flux_init
 
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
 ! Over-ocean fluxes following Large and Yeager (used in NCAR models)           !
-! Original  code: Michael.Winton@noaa.gov
-! Update Jul2007: Stephen.Griffies@noaa.gov (ch and ce exchange coeff bugfix)  
+! Original  code: GFDL.Climate.Model.Info@noaa.gov
+! Update Jul2007: GFDL.Climate.Model.Info@noaa.gov (ch and ce exchange coeff bugfix)  
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
 !
 subroutine ncar_ocean_fluxes (u_del, t, ts, q, qs, z, avail, &

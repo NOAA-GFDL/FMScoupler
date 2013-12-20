@@ -229,8 +229,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 19.0.4.2.4.1.4.1.8.3 2013/02/27 16:07:24 Zhi.Liang Exp $'
-  character(len=128) :: tag = '$Name: siena_201309 $'
+  character(len=128) :: version = '$Id: coupler_main.F90,v 20.0 2013/12/13 23:27:07 fms Exp $'
+  character(len=128) :: tag = '$Name: tikal $'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -722,7 +722,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
         if( Atm%pe )then        
            call atmos_model_restart(Atm, timestamp)
            call land_model_restart(timestamp)
-           call ice_model_restart(timestamp)
+           call ice_model_restart(Ice, timestamp)
         endif
         if( Ocean%is_ocean_pe) then
            call ocean_model_restart(Ocean_state, timestamp)
@@ -955,8 +955,8 @@ contains
         if( atmos_npes+ocean_npes.NE.npes ) &
              call mpp_error( FATAL, 'coupler_init: atmos_npes+ocean_npes must equal npes for concurrent coupling.' )
     else                        !serial timestepping
-        if( atmos_npes.EQ.0 )atmos_npes = npes
-        if( ocean_npes.EQ.0 )ocean_npes = npes
+        if( (atmos_npes.EQ.0) .and. (do_atmos .or. do_land .or. do_ice) ) atmos_npes = npes
+        if( (ocean_npes.EQ.0) .and. (do_ocean) ) ocean_npes = npes
         if( max(atmos_npes,ocean_npes).EQ.npes )then !overlapping pelists
             ! do nothing
         else                    !disjoint pelists
@@ -969,7 +969,6 @@ contains
     if( ice_npes  == 0 ) ice_npes  = atmos_npes    
     if(land_npes > atmos_npes) call mpp_error(FATAL, 'coupler_init: land_npes > atmos_npes')
     if(ice_npes  > atmos_npes) call mpp_error(FATAL, 'coupler_init: ice_npes > atmos_npes')
-
 
     allocate( Atm%pelist  (atmos_npes) )
     allocate( Ocean%pelist(ocean_npes) )
@@ -1040,9 +1039,15 @@ contains
        write( text,'(a,2i6,a,i2.2)' )'Atmos PE range: ', Atm%pelist(1)  , Atm%pelist(atmos_npes)  ,&
             ' ens_', ensemble_id
        call mpp_error( NOTE, 'coupler_init: '//trim(text) )
-       write( text,'(a,2i6,a,i2.2)' )'Ocean PE range: ', Ocean%pelist(1), Ocean%pelist(ocean_npes), &
-            ' ens_', ensemble_id
-       call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+       if (ocean_npes .gt. 0) then   ! only if ocean is active (cjg)
+         write( text,'(a,2i6,a,i2.2)' )'Ocean PE range: ', Ocean%pelist(1), Ocean%pelist(ocean_npes), &
+              ' ens_', ensemble_id
+         call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+       else
+         write( text,'(a,i2.2)' )'Ocean PE range is not set (do_ocean=.false. and concurrent=.false.) for ens_', &
+               ensemble_id
+         call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+       end if
        write( text,'(a,2i6,a,i2.2)' )'Land PE range: ', Land%pelist(1)  , Land%pelist(land_npes)  ,&
             ' ens_', ensemble_id
        call mpp_error( NOTE, 'coupler_init: '//trim(text) )
