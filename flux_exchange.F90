@@ -262,8 +262,8 @@ private
      flux_ocean_from_ice_stocks
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 20.0 2013/12/13 23:27:41 fms Exp $'
-  character(len=128) :: tag = '$Name: tikal $'
+  character(len=128) :: version = '$Id: flux_exchange.F90,v 20.0.2.1 2013/12/20 21:28:05 z1l Exp $'
+  character(len=128) :: tag = '$Name: testing $'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -824,7 +824,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
         ! exchange grid indices
         X1_GRID_ATM = 1; X1_GRID_ICE = 2; X1_GRID_LND = 3;
         call generate_sfc_xgrid( Land, Ice )
-        if (n_xgrid_sfc.eq.1) write (*,'(a,i4,6x,a)') 'PE = ', mpp_pe(), 'Surface exchange size equals one.'
+        if (n_xgrid_sfc.eq.1) write (*,'(a,i6,6x,a)') 'PE = ', mpp_pe(), 'Surface exchange size equals one.'
 
         if (do_runoff) then
            call setup_xmap(xmap_runoff, (/ 'LND', 'OCN' /),       &
@@ -833,7 +833,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
            ! exchange grid indices
            X2_GRID_LND = 1; X2_GRID_ICE = 2;
            n_xgrid_runoff = max(xgrid_count(xmap_runoff),1)
-           if (n_xgrid_runoff.eq.1) write (*,'(a,i4,6x,a)') 'PE = ', mpp_pe(), 'Runoff  exchange size equals one.'
+           if (n_xgrid_runoff.eq.1) write (*,'(a,i6,6x,a)') 'PE = ', mpp_pe(), 'Runoff  exchange size equals one.'
         endif
 
 !-----------------------------------------------------------------------
