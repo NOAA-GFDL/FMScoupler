@@ -724,7 +724,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 
      !--------------
      if(do_chksum) call coupler_chksum('MAIN_LOOP+', nc)
-     write( text,'(a,i4)' )'Main loop at coupling timestep=', nc
+     write( text,'(a,i6)' )'Main loop at coupling timestep=', nc
      call print_memuse_stats(text)
 !rabcall mpp_clock_end(newClock13)
 
@@ -1049,7 +1049,7 @@ contains
           call mpp_error( NOTE, 'coupler_init: Running with CONCURRENT coupling.' )
 
           write( logunit,'(a)' )'Using concurrent coupling...'
-          write( logunit,'(a,4i4)' ) &
+          write( logunit,'(a,4i6)' ) &
                'atmos_pe_start, atmos_pe_end, ocean_pe_start, ocean_pe_end=', &
                Atm%pelist(1)  , Atm%pelist(atmos_npes), Ocean%pelist(1), Ocean%pelist(ocean_npes) 
        else
