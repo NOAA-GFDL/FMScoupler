@@ -262,8 +262,8 @@ private
      flux_ocean_from_ice_stocks
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 20.0.2.1 2013/12/20 21:28:05 z1l Exp $'
-  character(len=128) :: tag = '$Name: testing $'
+  character(len=128) :: version = '$Id$'
+  character(len=128) :: tag = '$Name$'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
