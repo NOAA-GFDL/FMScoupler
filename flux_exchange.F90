@@ -262,8 +262,8 @@ private
      flux_ocean_from_ice_stocks
 
 !-----------------------------------------------------------------------
-  character(len=128) :: version = '$Id: flux_exchange.F90,v 20.0 2013/12/13 23:27:41 fms Exp $'
-  character(len=128) :: tag = '$Name: tikal $'
+  character(len=128) :: version = '$Id$'
+  character(len=128) :: tag = '$Name$'
 !-----------------------------------------------------------------------
 !---- exchange grid maps -----
 
@@ -525,10 +525,6 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
   integer, optional,                 intent(in)    :: dt_atmos, dt_cpld
 
   character(len=64), parameter    :: sub_name = 'flux_exchange_init'
-  character(len=256), parameter   :: error_header = '==>Error from ' // trim(module_name) //   &
-                                                    '(' // trim(sub_name) // '):'
-  character(len=256), parameter   :: warn_header = '==>Warning from ' // trim(module_name) //  &
-                                                   '(' // trim(sub_name) // '):'
   character(len=256), parameter   :: note_header = '==>Note from ' // trim(module_name) //     &
                                                    '(' // trim(sub_name) // '):'
   character(len=64),  parameter   :: grid_file = 'INPUT/grid_spec.nc'  
@@ -730,9 +726,9 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
           call read_data(grid_file, 'yba', atmlatb, no_domain=.true. )
 
           do i=isc, iec+1
-             if(abs(atmlonb(i)-Atm%lon_bnd(i+ioff,jsc+joff)*45/atan(1.0))>bound_tol) then
+             if(abs(atmlonb(i)-Atm%lon_bnd(i+ioff,jsc+joff)*45.0/atan(1.0))>bound_tol) then
                 print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY at i= ',i, ': ', &
-                     atmlonb(i),  Atm%lon_bnd(i+ioff,jsc+joff)*45/atan(1.0)
+                     atmlonb(i),  Atm%lon_bnd(i+ioff,jsc+joff)*45.0/atan(1.0)
                 call error_mesg ('flux_exchange_mod', &
                      'grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)'&
                      , FATAL)
@@ -742,9 +738,9 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
           !      longitude from file grid_spec.nc ( from field yba ) is different from the longitude from atmosphere model.
           !   </ERROR>
           do j=jsc, jec+1
-             if(abs(atmlatb(j)-Atm%lat_bnd(isc+ioff,j+joff)*45/atan(1.0))>bound_tol) then
+             if(abs(atmlatb(j)-Atm%lat_bnd(isc+ioff,j+joff)*45.0/atan(1.0))>bound_tol) then
                 print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY at j= ',j, ': ', &
-                     atmlatb(j),  Atm%lat_bnd(isc+ioff, j+joff)*45/atan(1.0)
+                     atmlatb(j),  Atm%lat_bnd(isc+ioff, j+joff)*45.0/atan(1.0)
                 call error_mesg ('flux_exchange_mod', &
                      'grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)'&
                      , FATAL)
@@ -788,9 +784,9 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 
            do j = jsc, jec+1
               do i = isc, iec+1
-                 if (abs(tmpx(2*i-1,2*j-1)-Atm%lon_bnd(i+ioff,j+joff)*45/atan(1.0))>bound_tol) then
+                 if (abs(tmpx(2*i-1,2*j-1)-Atm%lon_bnd(i+ioff,j+joff)*45.0/atan(1.0))>bound_tol) then
                     print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY at i= ',i, ', j= ', j, ': ', &
-                         tmpx(2*i-1,2*j-1),  Atm%lon_bnd(i+ioff,j+joff)*45/atan(1.0)
+                         tmpx(2*i-1,2*j-1),  Atm%lon_bnd(i+ioff,j+joff)*45.0/atan(1.0)
                     !   <ERROR MSG="grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)" STATUS="FATAL">
                     !      longitude from file grid_spec.nc ( from field xba ) is different from the longitude from atmosphere model.
                     !   </ERROR>
@@ -798,9 +794,9 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
                          'grid_spec.nc incompatible with atmosphere longitudes (see '//trim(tile_file)//')'&
                          ,FATAL)
                  end if
-                 if (abs(tmpy(2*i-1,2*j-1)-Atm%lat_bnd(i+ioff,j+joff)*45/atan(1.0))>bound_tol) then
+                 if (abs(tmpy(2*i-1,2*j-1)-Atm%lat_bnd(i+ioff,j+joff)*45.0/atan(1.0))>bound_tol) then
                     print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY at i= ',i, ', j= ', j, ': ', &
-                         tmpy(2*i-1,2*j-1),  Atm%lat_bnd(i+ioff,j+joff)*45/atan(1.0)
+                         tmpy(2*i-1,2*j-1),  Atm%lat_bnd(i+ioff,j+joff)*45.0/atan(1.0)
                     !   <ERROR MSG="grid_spec.nc incompatible with atmosphere latitudes (see grid_spec.nc)" STATUS="FATAL">
                     !      latgitude from file grid_spec.nc is different from the latitude from atmosphere model.
                     !   </ERROR>
@@ -824,7 +820,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
         ! exchange grid indices
         X1_GRID_ATM = 1; X1_GRID_ICE = 2; X1_GRID_LND = 3;
         call generate_sfc_xgrid( Land, Ice )
-        if (n_xgrid_sfc.eq.1) write (*,'(a,i4,6x,a)') 'PE = ', mpp_pe(), 'Surface exchange size equals one.'
+        if (n_xgrid_sfc.eq.1) write (*,'(a,i6,6x,a)') 'PE = ', mpp_pe(), 'Surface exchange size equals one.'
 
         if (do_runoff) then
            call setup_xmap(xmap_runoff, (/ 'LND', 'OCN' /),       &
@@ -833,7 +829,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
            ! exchange grid indices
            X2_GRID_LND = 1; X2_GRID_ICE = 2;
            n_xgrid_runoff = max(xgrid_count(xmap_runoff),1)
-           if (n_xgrid_runoff.eq.1) write (*,'(a,i4,6x,a)') 'PE = ', mpp_pe(), 'Runoff  exchange size equals one.'
+           if (n_xgrid_runoff.eq.1) write (*,'(a,i6,6x,a)') 'PE = ', mpp_pe(), 'Runoff  exchange size equals one.'
         endif
 
 !-----------------------------------------------------------------------
@@ -1019,24 +1015,24 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 !AMIP ocean needs no input fields
 !choice of fields will eventually be done at runtime
 !via field_manager
-    allocate( ice_ocean_boundary%u_flux   (is:ie,js:je) ) ; ice_ocean_boundary%u_flux = 0.0
-    allocate( ice_ocean_boundary%v_flux   (is:ie,js:je) ) ; ice_ocean_boundary%v_flux = 0.0
-    allocate( ice_ocean_boundary%t_flux   (is:ie,js:je) ) ; ice_ocean_boundary%t_flux = 0.0
-    allocate( ice_ocean_boundary%q_flux   (is:ie,js:je) ) ; ice_ocean_boundary%q_flux = 0.0
-    allocate( ice_ocean_boundary%salt_flux(is:ie,js:je) ) ; ice_ocean_boundary%salt_flux = 0.0
-    allocate( ice_ocean_boundary%lw_flux  (is:ie,js:je) ) ; ice_ocean_boundary%lw_flux = 0.0
+    allocate( ice_ocean_boundary%u_flux   (is:ie,js:je) ) ;         ice_ocean_boundary%u_flux = 0.0
+    allocate( ice_ocean_boundary%v_flux   (is:ie,js:je) ) ;         ice_ocean_boundary%v_flux = 0.0
+    allocate( ice_ocean_boundary%t_flux   (is:ie,js:je) ) ;         ice_ocean_boundary%t_flux = 0.0
+    allocate( ice_ocean_boundary%q_flux   (is:ie,js:je) ) ;         ice_ocean_boundary%q_flux = 0.0
+    allocate( ice_ocean_boundary%salt_flux(is:ie,js:je) ) ;         ice_ocean_boundary%salt_flux = 0.0
+    allocate( ice_ocean_boundary%lw_flux  (is:ie,js:je) ) ;         ice_ocean_boundary%lw_flux = 0.0
     allocate( ice_ocean_boundary%sw_flux_vis_dir  (is:ie,js:je) ) ; ice_ocean_boundary%sw_flux_vis_dir = 0.0
     allocate( ice_ocean_boundary%sw_flux_vis_dif  (is:ie,js:je) ) ; ice_ocean_boundary%sw_flux_vis_dif = 0.0
     allocate( ice_ocean_boundary%sw_flux_nir_dir  (is:ie,js:je) ) ; ice_ocean_boundary%sw_flux_nir_dir = 0.0
     allocate( ice_ocean_boundary%sw_flux_nir_dif  (is:ie,js:je) ) ; ice_ocean_boundary%sw_flux_nir_dif = 0.0
-    allocate( ice_ocean_boundary%lprec    (is:ie,js:je) ) ; ice_ocean_boundary%lprec = 0.0
-    allocate( ice_ocean_boundary%fprec    (is:ie,js:je) ) ; ice_ocean_boundary%fprec = 0.0
-    allocate( ice_ocean_boundary%runoff   (is:ie,js:je) ) ; ice_ocean_boundary%runoff = 0.0
-    allocate( ice_ocean_boundary%calving  (is:ie,js:je) ) ; ice_ocean_boundary%calving = 0.0
-    allocate( ice_ocean_boundary%runoff_hflx   (is:ie,js:je) ) ; ice_ocean_boundary%runoff_hflx = 0.0
-    allocate( ice_ocean_boundary%calving_hflx  (is:ie,js:je) ) ; ice_ocean_boundary%calving_hflx = 0.0
-    allocate( ice_ocean_boundary%p        (is:ie,js:je) ) ; ice_ocean_boundary%p = 0.0
-    allocate( ice_ocean_boundary%mi       (is:ie,js:je) ) ; ice_ocean_boundary%mi = 0.0
+    allocate( ice_ocean_boundary%lprec    (is:ie,js:je) ) ;         ice_ocean_boundary%lprec = 0.0
+    allocate( ice_ocean_boundary%fprec    (is:ie,js:je) ) ;         ice_ocean_boundary%fprec = 0.0
+    allocate( ice_ocean_boundary%runoff   (is:ie,js:je) ) ;         ice_ocean_boundary%runoff = 0.0
+    allocate( ice_ocean_boundary%calving  (is:ie,js:je) ) ;         ice_ocean_boundary%calving = 0.0
+    allocate( ice_ocean_boundary%runoff_hflx   (is:ie,js:je) ) ;    ice_ocean_boundary%runoff_hflx = 0.0
+    allocate( ice_ocean_boundary%calving_hflx  (is:ie,js:je) ) ;    ice_ocean_boundary%calving_hflx = 0.0
+    allocate( ice_ocean_boundary%p        (is:ie,js:je) ) ;         ice_ocean_boundary%p = 0.0
+    allocate( ice_ocean_boundary%mi       (is:ie,js:je) ) ;         ice_ocean_boundary%mi = 0.0
 
 !
 ! allocate fields for extra tracers
@@ -1094,10 +1090,10 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 
     ! required by stock_move, all fluxes used to update stocks will be zero if dt_atmos,
     ! and dt_cpld are absent
-    Dt_atm = 0
-    Dt_cpl = 0
-    if(present(dt_atmos)) Dt_atm = dt_atmos
-    if(present(dt_cpld )) Dt_cpl = dt_cpld
+    Dt_atm = 0.0
+    Dt_cpl = 0.0
+    if(present(dt_atmos)) Dt_atm = real(dt_atmos)
+    if(present(dt_cpld )) Dt_cpl = real(dt_cpld)
  
     !z1l check the flux conservation.
     if(debug_stocks) call check_flux_conservation(Ice, Ocean, Ice_Ocean_Boundary)
@@ -1276,7 +1272,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
        ex_dedq_surf_forland(n_xgrid_sfc)  )
 #endif
 
-  ex_p_surf = 1
+  ex_p_surf = 1.0
 ! Actual allocation of exchange fields for ocean_ice boundary
   do n = 1, ex_gas_fields_ice%num_bcs  !{
     do m = 1, ex_gas_fields_ice%bc(n)%num_fields  !{
@@ -1555,7 +1551,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
        ex_dhdt_surf, ex_dedt_surf, ex_dfdtr_surf(:,isphum),  ex_drdt_surf,        &
        ex_dhdt_atm,  ex_dfdtr_atm(:,isphum),  ex_dtaudu_atm, ex_dtaudv_atm,       &
        dt,                                                             &
-       ex_land, ex_seawater .gt. 0,  ex_avail                          )
+       ex_land, ex_seawater .gt. 0.0,  ex_avail                          )
 
 #ifdef SCM
 ! Option to override surface fluxes for SCM
@@ -1573,7 +1569,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
        ex_dhdt_surf, ex_dedt_surf, ex_dfdtr_surf(:,isphum),  ex_drdt_surf,        &
        ex_dhdt_atm,  ex_dfdtr_atm(:,isphum),  ex_dtaudu_atm, ex_dtaudv_atm,       &
        dt,                                                                        &
-       ex_land, ex_seawater .gt. 0,  ex_avail,                                    &
+       ex_land, ex_seawater .gt. 0.0,  ex_avail,                                    &
        ex_dhdt_surf_forland,  ex_dedt_surf_forland,  ex_dedq_surf_forland  )
 
   endif
@@ -1626,7 +1622,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
          ! on ocean or ice cells, flux is explicit therefore we zero derivatives. 
          ex_dfdtr_atm(i,m)  = 0.0
          ex_dfdtr_surf(i,m) = 0.0
-         if (ex_seawater(i)>0) then
+         if (ex_seawater(i)>0.0) then
             ! jgj: convert to kg co2/m2/sec for atm
             ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(ind_flux)%values(i) * ex_gas_fluxes%bc(n)%mol_wt * 1.0e-03
          else 
@@ -2055,7 +2051,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   ! topographic roughness scale
   if(id_rough_scale>0) then
      call get_from_xgrid (diag_atm, 'ATM',&
-          (log(ex_z_atm/ex_rough_mom+1)/log(ex_z_atm/ex_rough_scale+1))**2, xmap_sfc)
+          (log(ex_z_atm/ex_rough_mom+1.0)/log(ex_z_atm/ex_rough_scale+1.0))**2, xmap_sfc)
      used = send_data(id_rough_scale, diag_atm, Time)
   endif
 
@@ -2533,19 +2529,19 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   call data_override('ICE', 'sw_flux_vis_dif',Ice_boundary%sw_flux_vis_dif, Time)
   call data_override('ICE', 'sw_flux_vis_dir_dn',Ice_boundary%sw_flux_vis_dir, Time, override=ov)
   if (ov) then
-    Ice_boundary%sw_flux_vis_dir = Ice_boundary%sw_flux_vis_dir*(1-Ice%albedo_vis_dir)
+    Ice_boundary%sw_flux_vis_dir = Ice_boundary%sw_flux_vis_dir*(1.0-Ice%albedo_vis_dir)
   endif
   call data_override('ICE', 'sw_flux_vis_dif_dn',Ice_boundary%sw_flux_vis_dif, Time, override=ov)
   if (ov) then
-    Ice_boundary%sw_flux_vis_dif = Ice_boundary%sw_flux_vis_dif*(1-Ice%albedo_vis_dif)
+    Ice_boundary%sw_flux_vis_dif = Ice_boundary%sw_flux_vis_dif*(1.0-Ice%albedo_vis_dif)
   endif
   call data_override('ICE', 'sw_flux_nir_dir_dn',Ice_boundary%sw_flux_nir_dir, Time, override=ov)
   if (ov) then
-    Ice_boundary%sw_flux_nir_dir = Ice_boundary%sw_flux_nir_dir*(1-Ice%albedo_nir_dir)
+    Ice_boundary%sw_flux_nir_dir = Ice_boundary%sw_flux_nir_dir*(1.0-Ice%albedo_nir_dir)
   endif
   call data_override('ICE', 'sw_flux_nir_dif_dn',Ice_boundary%sw_flux_nir_dif, Time, override=ov)
   if (ov) then
-    Ice_boundary%sw_flux_nir_dif = Ice_boundary%sw_flux_nir_dif*(1-Ice%albedo_nir_dif)
+    Ice_boundary%sw_flux_nir_dif = Ice_boundary%sw_flux_nir_dif*(1.0-Ice%albedo_nir_dif)
   endif
   call data_override('ICE', 'lprec',  Ice_boundary%lprec,   Time)
   call data_override('ICE', 'fprec',  Ice_boundary%fprec,   Time)
@@ -3081,7 +3077,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
 
   if(Ice%pe) then
      ! frazil (already in J/m^2 so no need to multiply by Dt_cpl)
-     from_dq = 4*PI*Radius*Radius * &
+     from_dq = 4.0*PI*Radius*Radius * &
          & SUM( ice_cell_area * Ocean_Ice_Boundary%frazil )
      Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
      Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
@@ -3122,7 +3118,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
     do i = 1, NELEMS
 
        if(present(Atm)) then
-          ref_value = 0
+          ref_value = 0.0
           call Atm_stock_pe(Atm, index=i, value=ref_value)        
           if(i==ISTOCK_WATER .and. Atm%pe ) then
              ! decrease the Atm stock by the precip adjustment to reflect the fact that
@@ -3140,19 +3136,19 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
        endif
 
        if(present(Lnd)) then
-          ref_value = 0
+          ref_value = 0.0
           call Lnd_stock_pe(Lnd, index=i, value=ref_value)
           Lnd_stock(i)%q_now = ref_value
        endif
 
        if(present(Ice)) then
-          ref_value = 0
+          ref_value = 0.0
           call Ice_stock_pe(Ice, index=i, value=ref_value)
           Ice_stock(i)%q_now = ref_value
        endif
 
        if(present(Ocn_state)) then
-          ref_value = 0
+          ref_value = 0.0
           call Ocean_stock_pe(Ocn_state, index=i, value=ref_value)
           Ocn_stock(i)%q_now = ref_value
        endif
@@ -3381,10 +3377,10 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
      ! tracers is zero
      do i = 1, size(ex_avail(:))
         if(.not.ex_avail(i)) cycle
-        if (ex_dfdtr_surf(i,tr)/=0) then
+        if (ex_dfdtr_surf(i,tr)/=0.0) then
            ex_dt_tr_surf(i,tr) = -ex_flux_tr(i,tr)/ex_dfdtr_surf(i,tr)
         else
-           ex_dt_tr_surf(i,tr) = 0
+           ex_dt_tr_surf(i,tr) = 0.0
         endif
         ex_tr_surf_new(i,tr) = ex_tr_surf(i,tr)+ex_dt_tr_surf(i,tr)
      enddo
@@ -3652,19 +3648,19 @@ end subroutine flux_up_to_atmos
     ! fluxes from ice -> ocean, integrate over surface and in time 
 
     ! precip - evap
-    from_dq = 4*PI*Radius*Radius * Dt_cpl * &
+    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
          & SUM( ice_cell_area * (Ice%lprec+Ice%fprec-Ice%flux_q) )
     Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) = Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) + from_dq
 
     ! river
-    from_dq = 4*PI*Radius*Radius * Dt_cpl * &
+    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
          & SUM( ice_cell_area * (Ice%runoff + Ice%calving) )
     Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) + from_dq
 
     ! sensible heat + shortwave + longwave + latent heat
-    from_dq = 4*PI*Radius*Radius * Dt_cpl * &
+    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
          & SUM( ice_cell_area * ( &
          &   Ice%flux_sw_vis_dir+Ice%flux_sw_vis_dif &
          & + Ice%flux_sw_nir_dir+Ice%flux_sw_nir_dif + Ice%flux_lw &
@@ -3674,14 +3670,14 @@ end subroutine flux_up_to_atmos
 
     ! heat carried by river + pme (assuming reference temperature of 0 degC and river/pme temp = surface temp)
     ! Note: it does not matter what the ref temperature is but it must be consistent with that in OCN and ICE
-    from_dq = 4*PI*Radius*Radius * Dt_cpl * &
+    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
          & SUM( ice_cell_area * ( &
          & (Ice%lprec+Ice%fprec-Ice%flux_q + Ice%runoff+Ice%calving)*CP_OCEAN*(Ice%t_surf(:,:,1) - 273.15)) )
     Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
 
     !SALT flux
-    from_dq = Dt_cpl* SUM( ice_cell_area * ( -Ice%flux_salt )) *4*PI*Radius*Radius
+    from_dq = Dt_cpl* SUM( ice_cell_area * ( -Ice%flux_salt )) *4.0*PI*Radius*Radius
     Ice_stock(ISTOCK_SALT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_SALT)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_SALT)%dq(ISTOCK_TOP   ) = Ocn_stock(ISTOCK_SALT)%dq(ISTOCK_TOP   ) + from_dq
 
@@ -4120,7 +4116,7 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
        return
     endif
 
-    where(area /= 0) 
+    where(area /= 0.0) 
        data = data / area
     end where
 
@@ -4144,11 +4140,11 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
   call random_number(ice_data)
   ice_sum = sum(ice_data*ice%area)
   call mpp_sum(ice_sum)
-  ocn_data = 0
+  ocn_data = 0.0
   call flux_ice_to_ocean_redistribute( Ice, Ocean, ice_data, ocn_data, Ice_Ocean_Boundary%xtype, .false.)
   non_area_weighted_sum = sum(ocn_data*ocean%area)
   call mpp_sum(non_area_weighted_sum)
-  ocn_data = 0
+  ocn_data = 0.0
   call flux_ice_to_ocean_redistribute( Ice, Ocean, ice_data, ocn_data, Ice_Ocean_Boundary%xtype, .true.)
   area_weighted_sum = sum(ocn_data*ocean%area)
   call mpp_sum(area_weighted_sum)  

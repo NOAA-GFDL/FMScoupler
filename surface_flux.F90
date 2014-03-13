@@ -194,8 +194,8 @@ end interface
 
 !-----------------------------------------------------------------------
 
-character(len=*), parameter :: version = '$Id: surface_flux.F90,v 20.0 2013/12/13 23:27:45 fms Exp $'
-character(len=*), parameter :: tagname = '$Name: tikal $'
+character(len=*), parameter :: version = '$Id$'
+character(len=*), parameter :: tagname = '$Name$'
    
 logical :: do_init = .true.
 
