@@ -909,6 +909,8 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 !allocate land_ice_atmos_boundary
         call mpp_get_compute_domain( Atm%domain, is, ie, js, je )
         allocate( land_ice_atmos_boundary%t(is:ie,js:je) )
+        allocate( land_ice_atmos_boundary%t_ref(is:ie,js:je) )  ! cjg: PBL depth mods
+        allocate( land_ice_atmos_boundary%q_ref(is:ie,js:je) )  ! cjg: PBL depth mods
         allocate( land_ice_atmos_boundary%albedo(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%albedo_vis_dir(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%albedo_nir_dir(is:ie,js:je) )
@@ -928,6 +930,8 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
         allocate( land_ice_atmos_boundary%frac_open_sea(is:ie,js:je) )
 ! initialize boundary values for override experiments (mjh)
         land_ice_atmos_boundary%t=273.0
+        land_ice_atmos_boundary%t_ref=273.0   ! cjg: PBL depth mods
+        land_ice_atmos_boundary%q_ref=0.0     ! cjg: PBL depth mods
         land_ice_atmos_boundary%albedo=0.0
         land_ice_atmos_boundary%albedo_vis_dir=0.0
         land_ice_atmos_boundary%albedo_nir_dir=0.0
@@ -1913,18 +1917,18 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
 
   !-----------------------------------------------------------------------
   !--------- diagnostics for fields at reference level ---------
-  
-  if ( id_t_ref > 0 .or. id_rh_ref > 0 .or. &
-       id_u_ref > 0 .or. id_v_ref  > 0 .or. id_wind_ref > 0 .or. &
-       id_q_ref > 0 .or. id_q_ref_land > 0 .or. &
-       id_t_ref_land > 0 .or. id_rh_ref_land > 0 .or. &
-       id_rh_ref_cmip >0 .or. &
-       id_u_ref_land > 0 .or. id_v_ref_land  > 0 ) then
+!cjg  
+!  if ( id_t_ref > 0 .or. id_rh_ref > 0 .or. &
+!       id_u_ref > 0 .or. id_v_ref  > 0 .or. id_wind_ref > 0 .or. &
+!       id_q_ref > 0 .or. id_q_ref_land > 0 .or. &
+!       id_t_ref_land > 0 .or. id_rh_ref_land > 0 .or. &
+!       id_rh_ref_cmip >0 .or. &
+!       id_u_ref_land > 0 .or. id_v_ref_land  > 0 ) then
      
      zrefm = z_ref_mom
      zrefh = z_ref_heat
      !      ---- optimize calculation ----
-     if ( id_t_ref <= 0 ) zrefh = zrefm
+!cjg     if ( id_t_ref <= 0 ) zrefh = zrefm
      
      call mo_profile ( zrefm, zrefh, ex_z_atm,   ex_rough_mom, &
           ex_rough_heat, ex_rough_moist,          &
@@ -1932,12 +1936,13 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
           ex_del_m, ex_del_h, ex_del_q, ex_avail  )
 
      !    ------- reference relative humidity -----------
-     if ( id_rh_ref > 0 .or. id_rh_ref_land > 0 .or. &
-          id_rh_ref_cmip > 0 .or. &
-          id_q_ref > 0 .or. id_q_ref_land >0 ) then
+!cjg     if ( id_rh_ref > 0 .or. id_rh_ref_land > 0 .or. &
+!cjg          id_rh_ref_cmip > 0 .or. &
+!cjg          id_q_ref > 0 .or. id_q_ref_land >0 ) then
         ex_ref = 1.0e-06
         where (ex_avail) &
            ex_ref   = ex_tr_surf(:,isphum) + (ex_tr_atm(:,isphum)-ex_tr_surf(:,isphum)) * ex_del_q
+        call get_from_xgrid (Land_Ice_Atmos_Boundary%q_ref, 'ATM', ex_ref,   xmap_sfc, complete=.false.)  ! cjg
         if(id_q_ref > 0) then
            call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
            used = send_data(id_q_ref,diag_atm,Time)
@@ -1953,6 +1958,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
         call compute_qs (ex_t_ref, ex_p_surf, ex_qs_ref, q = ex_ref)
         call compute_qs (ex_t_ref, ex_p_surf, ex_qs_ref_cmip,  &
                          q = ex_ref, es_over_liq_and_ice = .true.)
+        call get_from_xgrid (Land_Ice_Atmos_Boundary%t_ref, 'ATM', ex_t_ref, xmap_sfc, complete=.false.)  ! cjg
         where (ex_avail) 
 ! remove cap on relative humidity -- this mod requested by cjg, ljd
 !RSH       ex_ref    = MIN(100.,100.*ex_ref/ex_qs_ref)
@@ -1973,7 +1979,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
            call get_from_xgrid (diag_atm, 'ATM', ex_ref2, xmap_sfc)
            used = send_data ( id_rh_ref_cmip, diag_atm, Time )
         endif
-     endif
+!cjg  endif
 
      !    ------- reference temp -----------
      if ( id_t_ref > 0 .or. id_t_ref_land > 0 ) then
@@ -2047,7 +2053,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
         used = send_data ( id_del_q, diag_atm, Time )
      endif
 
-  endif
+!cjg  endif
   ! topographic roughness scale
   if(id_rough_scale>0) then
      call get_from_xgrid (diag_atm, 'ATM',&
