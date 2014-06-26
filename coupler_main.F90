@@ -991,13 +991,13 @@ contains
 !$OMP END PARALLEL
     end if
 
-    if( Ocean%is_ocean_pe )then
+    if( concurrent .AND. Ocean%is_ocean_pe )then
+!$           call omp_set_num_threads(ocean_nthreads)
        call mpp_set_current_pelist( Ocean%pelist )
-!           call omp_set_num_threads(ocean_nthreads)
-!           base_cpu = get_cpu_affinity()
-!   !$OMP PARALLEL
-!           call set_cpu_affinity( base_cpu + omp_get_thread_num() )
-!   !$OMP END PARALLEL
+!$           base_cpu = get_cpu_affinity()
+!$OMP PARALLEL
+!$           call set_cpu_affinity( base_cpu + omp_get_thread_num() )
+!$OMP END PARALLEL
        end if
 
    !--- initialization clock
