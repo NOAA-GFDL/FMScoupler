@@ -837,13 +837,6 @@ contains
 10  call mpp_close(unit)
 #endif
 
-    if(ocean_nthreads /= 1) then
-       call error_mesg ('coupler_init', 'OpenMP threading is not currently available for the ocean, '// &
-            'Resetting variable ocean_nthreads to 1.', NOTE )
-        ocean_nthreads = 1
-    endif
-
-
 !---- when concurrent is set true and mpp_io_nml io_clock_on is set true, the model
 !---- will crash with error message "MPP_CLOCK_BEGIN: cannot change pelist context of a clock",
 !---- so need to make sure it will not happen
