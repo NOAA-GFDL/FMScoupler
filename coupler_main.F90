@@ -1063,6 +1063,7 @@ contains
 !$  call omp_set_nested(.TRUE.)
     if( Atm%pe )then
         call mpp_set_current_pelist( Atm%pelist )
+!$      if (.not.do_concurrent_radiation) radiation_nthreads=atmos_nthreads
 !$      if (do_concurrent_radiation) conc_nthreads=2
 !$      call omp_set_num_threads(conc_nthreads)
 !$      base_cpu = get_cpu_affinity()
