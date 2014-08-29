@@ -232,8 +232,8 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id: coupler_main.F90,v 19.0.4.2.4.1.4.1 2012/05/15 17:57:31 z1l Exp $'
-  character(len=128) :: tag = '$Name: siena_201211 $'
+  character(len=128) :: version = '$Id$'
+  character(len=128) :: tag = '$Name$'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -914,13 +914,6 @@ contains
 10  call mpp_close(unit)
 #endif
 
-    if(ocean_nthreads /= 1) then
-       call error_mesg ('coupler_init', 'OpenMP threading is not currently available for the ocean, '// &
-            'Resetting variable ocean_nthreads to 1.', NOTE )
-        ocean_nthreads = 1
-    endif
-
-
 !---- when concurrent is set true and mpp_io_nml io_clock_on is set true, the model
 !---- will crash with error message "MPP_CLOCK_BEGIN: cannot change pelist context of a clock",
 !---- so need to make sure it will not happen
@@ -1088,14 +1081,14 @@ contains
 !$      call omp_set_num_threads(atmos_nthreads)
     end if
 
-    if( Ocean%is_ocean_pe )then
-       call mpp_set_current_pelist( Ocean%pelist )
-!           call omp_set_num_threads(ocean_nthreads)
-!           base_cpu = get_cpu_affinity()
-!   !$OMP PARALLEL
-!           call set_cpu_affinity( base_cpu + omp_get_thread_num() )
-!   !$OMP END PARALLEL
-       end if
+    if( concurrent .AND. Ocean%is_ocean_pe )then
+!$     call mpp_set_current_pelist( Ocean%pelist )
+       call omp_set_num_threads(ocean_nthreads)
+!$     base_cpu = get_cpu_affinity()
+!$OMP PARALLEL
+!$     call set_cpu_affinity( base_cpu + omp_get_thread_num() )
+!$OMP END PARALLEL
+    end if
     
    !--- initialization clock
     if( Atm%pe )then
