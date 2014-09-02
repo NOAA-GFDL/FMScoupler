@@ -1038,25 +1038,6 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
     allocate( ice_ocean_boundary%p        (is:ie,js:je) ) ;         ice_ocean_boundary%p = 0.0
     allocate( ice_ocean_boundary%mi       (is:ie,js:je) ) ;         ice_ocean_boundary%mi = 0.0
 
-    ice_ocean_boundary%u_flux(:,:) = 0.0
-    ice_ocean_boundary%v_flux(:,:) = 0.0
-    ice_ocean_boundary%t_flux(:,:) = 0.0
-    ice_ocean_boundary%q_flux(:,:) = 0.0
-    ice_ocean_boundary%salt_flux(:,:) = 0.0
-    ice_ocean_boundary%lw_flux(:,:) = 0.0
-    ice_ocean_boundary%sw_flux_vis_dir(:,:) = 0.0
-    ice_ocean_boundary%sw_flux_vis_dif(:,:) = 0.0
-    ice_ocean_boundary%sw_flux_nir_dir(:,:) = 0.0
-    ice_ocean_boundary%sw_flux_nir_dif(:,:) = 0.0
-    ice_ocean_boundary%lprec(:,:) = 0.0
-    ice_ocean_boundary%fprec(:,:) = 0.0
-    ice_ocean_boundary%runoff(:,:) = 0.0
-    ice_ocean_boundary%calving(:,:) = 0.0
-    ice_ocean_boundary%runoff_hflx(:,:) = 0.0
-    ice_ocean_boundary%calving_hflx(:,:) = 0.0
-    ice_ocean_boundary%p(:,:) = 0.0
-    ice_ocean_boundary%mi(:,:) = 0.0
-
     ! Copy the stagger indication variables from the ice processors the ocean 
     ! PEs and vice versa.  The defaults are large negative numbers, so the
     ! global max here picks out only values that have been set on active PEs.
