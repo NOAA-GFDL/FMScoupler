@@ -186,7 +186,7 @@
 !! evap        | kg/m2/s         | evaporation rate
 !! lwflx       | w/m2            | net (down-up) longwave flux
 !!
-!! \section Configuration
+!! \section flux_exchange_config Flux Exchange Configuration
 !!
 !! flux_exchange_mod is configured via the flux_exchange_nml namelist in the `input.nml` file.
 !! The following table are the available namelist variables.

@@ -17,10 +17,10 @@
 ! or see:   http://www.gnu.org/licenses/gpl.html
 !-----------------------------------------------------------------------
 !
-!> \brief  coupler_main couples component models for atmosphere, ocean,
-!! land and sea ice on independent grids.  It also controls the time integration.
+!> \mainpage
 !!
-!! \license This program is released under the GNU General Public License
+!! \brief  coupler_main couples component models for atmosphere, ocean,
+!! land and sea ice on independent grids.  It also controls the time integration.
 !!
 !! \author Bruce Wyman <Bruce.Wyman@noaa.gov>
 !! \author V. Balaji <V.Balaji@noaa.gov>
@@ -45,6 +45,15 @@
 !! tridiagonal vertical diffusion equations are solved. Exchange between sea
 !! ice and ocean occurs once every slow timestep.
 !!
+!! \section coupler_namelists  Namelists
+!!
+!! The three components of coupler: coupler_main, flux_exchange_mod, and surface_flux_mod
+!! are configured through three namelists
+!! * \ref coupler_config "coupler_nml"
+!! * \ref flux_exchange_config "flux_exchange_nml"
+!! * \ref surface_flux_config "surface_flux_nml"
+!!
+!!
 !! \note
 !! -# If no value is set for current_date, start_date, or calendar (or default value
 !!     specified) then the value from restart file "INPUT/coupler.res" will be used.
@@ -52,23 +61,6 @@
 !! -# The actual run length will be the sum of months, days, hours, minutes, and
 !!     seconds. A run length of zero is not a valid option.
 !! -# The run length must be an intergal multiple of the coupling timestep dt_cpld.
-!!
-!! \throw FATAL, "no namelist value for current_date"
-!!     A namelist value for current_date must be given if no restart file for
-!!     coupler_main (INPUT/coupler.res) is found.
-!! \throw FATAL, "invalid namelist value for calendar"
-!!     The value of calendar must be 'julian', 'noleap', or 'thirty_day'.
-!!     See the namelist documentation.
-!! \throw FATAL, "no namelist value for calendar"
-!!     If no restart file is present, then a namelist value for calendar
-!!     must be specified.
-!! \throw FATAL, "initial time is greater than current time"
-!!     If a restart file is present, then the namelist value for either
-!!     current_date or start_date was incorrectly set.
-!! \throw FATAL, "run length must be multiple of ocean time step"
-!!     There must be an even number of ocean time steps for the requested run length.
-!! \throw FATAL, "final time does not match expected ending time"
-!!     This error should probably not occur because of checks done at initialization time.
 !!
 !! \section Main Program Example
 !!
@@ -101,8 +93,8 @@
 !!    call OCEAN
 !! END DO
 !! ~~~~~~~~~~
-!!
-!! \section Configuration
+
+!> \page coupler_config Coupler Configuration
 !!
 !! coupler_main is configured via the coupler_nml namelist in the `input.nml` file.
 !! The following table are the available namelist variables.
@@ -124,7 +116,7 @@
 !! | atmos_npes, ocean_npes   | integer               | none            | If concurrent is set to true, we use these to set the list of PEs on which each component runs. At least one of them must be set to a number between 0 and NPES. If exactly one of these two is set non-zero, the other is set to the remainder from NPES. If both are set non-zero they must add up to NPES. |
 !! | atmos_nthreads, ocean_nthreads | integer         | 1               | We set here the number of OpenMP threads to use separately for each component (default 1) |
 !! | use_lag_fluxes           | logical               | .TRUE.          | If true, then mom4 is forced with SBCs from one coupling timestep ago If false, then mom4 is forced with most recent SBCs. For a leapfrog MOM coupling with dt_cpld=dt_ocean, lag fluxes can be shown to be stable and current fluxes to be unconditionally unstable. For dt_cpld>dt_ocean there is probably sufficient damping. use_lag_fluxes is set to TRUE by default. |
-!! | restart_interval         | integer, dimension(6) | 0               | The time interval that write out intermediate restart file. The format is (yr,mo,day,hr,min,sec). When restart_interval is all zero, no intermediate restart file will be written out. |
+!! | restart_interval         | integer, dimension(6) | (/0,0,0,0,0,0/) | The time interval that write out intermediate restart file. The format is (yr,mo,day,hr,min,sec). When restart_interval is all zero, no intermediate restart file will be written out. |
 !!
 !! \note
 !! -# If no value is set for current_date, start_date, or calendar (or default value specified) then the value from restart
@@ -132,6 +124,23 @@
 !! -# The actual run length will be the sum of months, days, hours, minutes, and seconds. A run length of zero is not a
 !!    valid option.
 !! -# The run length must be an intergal multiple of the coupling timestep dt_cpld.
+
+!> \throw FATAL, "no namelist value for current_date"
+!!     A namelist value for current_date must be given if no restart file for
+!!     coupler_main (INPUT/coupler.res) is found.
+!! \throw FATAL, "invalid namelist value for calendar"
+!!     The value of calendar must be 'julian', 'noleap', or 'thirty_day'.
+!!     See the namelist documentation.
+!! \throw FATAL, "no namelist value for calendar"
+!!     If no restart file is present, then a namelist value for calendar
+!!     must be specified.
+!! \throw FATAL, "initial time is greater than current time"
+!!     If a restart file is present, then the namelist value for either
+!!     current_date or start_date was incorrectly set.
+!! \throw FATAL, "run length must be multiple of ocean time step"
+!!     There must be an even number of ocean time steps for the requested run length.
+!! \throw FATAL, "final time does not match expected ending time"
+!!     This error should probably not occur because of checks done at initialization time.
 program coupler_main
 
   use constants_mod,           only: constants_init

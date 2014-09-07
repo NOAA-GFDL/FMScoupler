@@ -21,7 +21,7 @@
 
 !> \brief Driver program for the calculation of fluxes on the exchange grids
 !!
-!! \section Configuration
+!! \section surface_flux_config Surface Flux Configuration
 !!
 !! surface_flux_mod is configured via the surface_flux_nml namelist in the `input.nml` file.
 !! The following table are the available namelist variables.
