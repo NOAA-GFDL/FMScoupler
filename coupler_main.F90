@@ -376,7 +376,6 @@ program coupler_main
 
   integer :: atmos_npes=0, ocean_npes=0, ice_npes=0, land_npes=0
   integer :: atmos_nthreads=1, ocean_nthreads=1, radiation_nthreads=1
-  integer :: nxblock=1, nyblock=1
   logical :: do_atmos =.true., do_land =.true., do_ice =.true., do_ocean=.true.
   logical :: do_flux =.true.
   logical :: concurrent=.FALSE.
@@ -387,14 +386,12 @@ program coupler_main
   integer :: check_stocks = 0 ! -1: never 0: at end of run only n>0: every n coupled steps
 
   namelist /coupler_nml/ current_date, calendar, force_date_from_namelist,         &
-                         months, days, hours, minutes, seconds,                    &
-                         dt_cpld, dt_atmos, do_atmos,                              &
-                         do_land, do_ice, do_ocean, do_flux,                       &
+                         months, days, hours, minutes, seconds, dt_cpld, dt_atmos, &
+                         do_atmos, do_land, do_ice, do_ocean, do_flux,             &
                          atmos_npes, ocean_npes, ice_npes, land_npes,              &
                          atmos_nthreads, ocean_nthreads, radiation_nthreads,       &
-                         nxblock, nyblock, concurrent, use_lag_fluxes,             &
-                         do_concurrent_radiation, check_stocks, restart_interval,  &
-                         do_debug, do_chksum  
+                         concurrent, do_concurrent_radiation, use_lag_fluxes,      &
+                         check_stocks, restart_interval, do_debug, do_chksum
 
 
   integer :: initClock, mainClock, termClock
@@ -1347,8 +1344,7 @@ contains
         call mpp_clock_begin(id_atmos_model_init)
 
         call atmos_model_init( Atm, Time_init, Time, Time_step_atmos, &
-                               do_concurrent_radiation, &
-                               nxblock, nyblock)
+                               do_concurrent_radiation)
 
         call mpp_clock_end(id_atmos_model_init)
 
