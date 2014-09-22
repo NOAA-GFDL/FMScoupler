@@ -216,7 +216,7 @@ program coupler_main
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
   use mpp_mod,                 only: mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_chksum
-  use mpp_mod,                 only: mpp_init, mpp_pe, mpp_npes, mpp_root_pe
+  use mpp_mod,                 only: mpp_init, mpp_pe, mpp_npes, mpp_root_pe, mpp_sync
   use mpp_mod,                 only: stderr, stdlog, mpp_error, NOTE, FATAL, WARNING
   use mpp_mod,                 only: mpp_set_current_pelist, mpp_declare_pelist
   use mpp_mod,                 only: input_nml_file
@@ -453,25 +453,29 @@ newClock4 = mpp_clock_id( 'flux_check_stocks' )
 if( Atm%pe )then
  call mpp_set_current_pelist(Atm%pelist)
  newClock5 = mpp_clock_id( 'ATM' )
- newClock6  = mpp_clock_id( '  ATM: update_ice_model_slow_up' )
- newClock7  = mpp_clock_id( '  ATM: atmos loop' )
- newClocka  = mpp_clock_id( '     A-L: atmos_tracer_driver_gather_data' )
- newClockb  = mpp_clock_id( '     A-L: sfc_boundary_layer' )
- newClockl  = mpp_clock_id( '     A-L: update_atmos_model_dynamics ')
- if (.not. do_concurrent_radiation) newClockj  = mpp_clock_id( '     A-L: serial radiation ' )
- newClockc  = mpp_clock_id( '     A-L: update_atmos_model_down' )
- newClockd  = mpp_clock_id( '     A-L: flux_down_from_atmos' )
- newClocke  = mpp_clock_id( '     A-L: update_land_model_fast' )
- newClockf  = mpp_clock_id( '     A-L: update_ice_model_fast' )
- newClockg  = mpp_clock_id( '     A-L: flux_up_to_atmos' )
- newClockh  = mpp_clock_id( '     A-L: update_atmos_model_up' )
- if (do_concurrent_radiation) newClockj  = mpp_clock_id( '     A-L: concurrent radiation ' )
- newClocki  = mpp_clock_id( '     A-L: concurrent atmos (update_atmos...)' )
- newClockk  = mpp_clock_id( '     A-L: update_atmos_model_state ')
- newClock8  = mpp_clock_id( '  ATM: update_land_model_slow' )
- newClock9  = mpp_clock_id( '  ATM: flux_land_to_ice' )
- newClock10 = mpp_clock_id( '  ATM: update_ice_model_slow_dn' )
- newClock11 = mpp_clock_id( '  ATM: flux_ice_to_ocean_stocks' )
+ newClock6  = mpp_clock_id( ' ATM: update_ice_model_slow_up' )
+ newClock7  = mpp_clock_id( ' ATM: atmos loop' )
+ newClocka  = mpp_clock_id( '  A-L: atmos_tracer_driver_gather_data' )
+ newClockb  = mpp_clock_id( '  A-L: sfc_boundary_layer' )
+ newClockl  = mpp_clock_id( '  A-L: update_atmos_model_dynamics')
+ if (.not. do_concurrent_radiation) then
+   newClockj  = mpp_clock_id( '  A-L: serial radiation' )
+ endif
+ newClockc  = mpp_clock_id( '  A-L: update_atmos_model_down' )
+ newClockd  = mpp_clock_id( '  A-L: flux_down_from_atmos' )
+ newClocke  = mpp_clock_id( '  A-L: update_land_model_fast' )
+ newClockf  = mpp_clock_id( '  A-L: update_ice_model_fast' )
+ newClockg  = mpp_clock_id( '  A-L: flux_up_to_atmos' )
+ newClockh  = mpp_clock_id( '  A-L: update_atmos_model_up' )
+ if (do_concurrent_radiation) then
+   newClockj  = mpp_clock_id( '  A-L: concurrent radiation' )
+   newClocki  = mpp_clock_id( '  A-L: concurrent atmos' )
+ endif
+ newClockk  = mpp_clock_id( '  A-L: update_atmos_model_state')
+ newClock8  = mpp_clock_id( ' ATM: update_land_model_slow' )
+ newClock9  = mpp_clock_id( ' ATM: flux_land_to_ice' )
+ newClock10 = mpp_clock_id( ' ATM: update_ice_model_slow_dn' )
+ newClock11 = mpp_clock_id( ' ATM: flux_ice_to_ocean_stocks' )
 endif
 if( Ocean%is_ocean_pe )then
  call mpp_set_current_pelist(Ocean%pelist)
@@ -679,12 +683,12 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 !$            omp_sec(2) = omp_sec(2) + (omp_get_wtime() - dsec)
 !---CANNOT PUT AN MPP_CHKSUM HERE AS IT REQUIRES THE ABILITY TO HAVE TWO DIFFERENT OPENMP THREADS
 !---INSIDE OF MPI AT THE SAME TIME WHICH IS NOT CURRENTLY ALLOWED 
-!              if(do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(conc)', (nc-1)*num_atmos_calls+na)
-      if (do_debug)  call print_memuse_stats( 'update concurrent rad')
+!              if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(conc)', (nc-1)*num_atmos_calls+na)
+               if (do_debug)  call print_memuse_stats( 'update concurrent rad')
 !$OMP END PARALLEL
             endif
 !$        endif
-!$          imb_sec(omp_get_thread_num()+1) = imb_sec(omp_get_thread_num()+1) - omp_get_wtime()
+!$        imb_sec(omp_get_thread_num()+1) = imb_sec(omp_get_thread_num()+1) - omp_get_wtime()
 !$OMP END PARALLEL
 !$        imb_sec(1) = imb_sec(1) + omp_get_wtime()
 !$        if (do_concurrent_radiation) imb_sec(2) = imb_sec(2) + omp_get_wtime()
@@ -692,8 +696,8 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 
           call mpp_clock_begin(newClockk)
           call update_atmos_model_state( Atm ) 
-      if (do_debug)  call print_memuse_stats( 'update state')
-          if(do_chksum) call atmos_ice_land_chksum('update_atmos_model_state+', (nc-1)*num_atmos_calls+na)
+          if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_state+', (nc-1)*num_atmos_calls+na)
+          if (do_debug)  call print_memuse_stats( 'update state')
           call mpp_clock_end(newClockk)
 
         enddo ! end of na (fast loop)
@@ -802,8 +806,10 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
      write( text,'(a,i6)' )'Main loop at coupling timestep=', nc
      call print_memuse_stats(text)
      outunit= stdout()
-     if (mpp_pe() == mpp_root_pe() .and. Atm%pe) write(outunit,102) 'At coupling step ', nc,' of ',num_cpld_calls, &
+     if (mpp_pe() == mpp_root_pe() .and. Atm%pe .and. do_concurrent_radiation) then
+            write(outunit,102) 'At coupling step ', nc,' of ',num_cpld_calls, &
                 ' Atm & Rad (imbalance): ',omp_sec(1),' (',imb_sec(1),')  ',omp_sec(2),' (',imb_sec(2),')'
+     endif
      omp_sec(:)=0.
      imb_sec(:)=0.
      call flush(outunit)
@@ -1076,8 +1082,8 @@ contains
 !$      endif
 !$OMP END PARALLEL
 !$      call omp_set_num_threads(atmos_nthreads)
-    end if
-
+    endif
+     
     if( concurrent .AND. Ocean%is_ocean_pe )then
 !$           call omp_set_num_threads(ocean_nthreads)
        call mpp_set_current_pelist( Ocean%pelist )
