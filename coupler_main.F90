@@ -591,7 +591,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 !$OMP PARALLEL NUM_THREADS(1) DEFAULT(shared) PRIVATE(dsec)
 !$          call omp_set_num_threads(atmos_nthreads)
 !$          dsec=omp_get_wtime()
-            call mpp_clock_begin(newClocki)
+            if (do_concurrent_radiation) call mpp_clock_begin(newClocki)
 
             !      ---- atmosphere dynamics ----
             if (do_atmos) then
@@ -667,7 +667,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
       if (do_debug)  call print_memuse_stats( 'update up')
 
             !--------------
-            call mpp_clock_end(newClocki)
+            if (do_concurrent_radiation) call mpp_clock_end(newClocki)
 !$          omp_sec(1) = omp_sec(1) + (omp_get_wtime() - dsec)
 !$OMP END PARALLEL
 !$        endif
