@@ -155,7 +155,7 @@ module flux_exchange_mod
 
   use mpp_mod,         only: mpp_npes, mpp_pe, mpp_root_pe, &
        mpp_error, stderr, stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
-       mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, &
+       mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
        CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
        input_nml_file
                     
@@ -1051,6 +1051,14 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
     allocate( ice_ocean_boundary%p        (is:ie,js:je) ) ;         ice_ocean_boundary%p = 0.0
     allocate( ice_ocean_boundary%mi       (is:ie,js:je) ) ;         ice_ocean_boundary%mi = 0.0
 
+    ! Copy the stagger indication variables from the ice processors the ocean 
+    ! PEs and vice versa.  The defaults are large negative numbers, so the
+    ! global max here picks out only values that have been set on active PEs.
+    call mpp_max(Ice%flux_uv_stagger)
+    call mpp_max(Ocean%stagger)
+    ice_ocean_boundary%wind_stagger = Ice%flux_uv_stagger
+    ocean_ice_boundary%stagger = Ocean%stagger
+
 !
 ! allocate fields for extra tracers
 !
@@ -1103,8 +1111,6 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
        nk_ice = size(Ice%part_size,3)
     endif
 
- 
-
     ! required by stock_move, all fluxes used to update stocks will be zero if dt_atmos,
     ! and dt_cpld are absent
     Dt_atm = 0.0
@@ -1114,7 +1120,6 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
  
     !z1l check the flux conservation.
     if(debug_stocks) call check_flux_conservation(Ice, Ocean, Ice_Ocean_Boundary)
-
 
 !Balaji
     cplOcnClock = mpp_clock_id( 'Ice-ocean coupler', flags=clock_flag_default, grain=CLOCK_COMPONENT )
