@@ -320,10 +320,10 @@ real, parameter :: d378 = 1.0-d622
 !   <DATA NAME="do_runoff"  TYPE="logical"  DEFAULT=".TRUE.">
 !    Turns on/off the land runoff interpolation to the ocean.
 !   </DATA>
-!   <DATA NAME="nblocks" TYPE="integer", DEFAULT="1">
+!   <DATA NAME="nblocks" TYPE="integer" >
 !    Specify number of blocks that n_xgrid_sfc is divided into. The main
-!    purpose is for Openmp implementation. Normally you may set 
-!    nblocks to be coupler_nml atmos_nthreads.
+!    purpose is for Openmp implementation. The default value is the same as
+!    number of threads for atmosphere pelist.
 !   </DATA>
 
 
@@ -553,7 +553,9 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
   integer :: is, ie, js, je, kd
   character(32) :: tr_name
   logical       :: found
+  character(len=256) :: errmsg
 
+  integer              :: omp_get_num_threads, nthreads
   integer              :: n, npes_atm, npes_ocn, npes_all
   integer, allocatable :: pelist(:)
 
@@ -577,6 +579,13 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
     call atmos_tracer_flux_init
     call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
 
+    nthreads = 1
+! assign nblocks to number of threads.
+!$OMP PARALLEL
+!$  nthreads = omp_get_num_threads()
+!$OMP END PARALLEL
+    nblocks = nthreads
+
 !-----------------------------------------------------------------------
     outunit = stdout(); logunit = stdlog()
 !----- read namelist -------
@@ -599,6 +608,12 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 
     if(nblocks<1) call error_mesg ('flux_exchange_mod',  &
         'flux_exchange_nml nblocks must be positive', FATAL)
+    if(nblocks .NE. nthreads) then
+       write(errmsg, '(a,i3,a,i3)')'flux_exchange_nml nblocks is set to ', nblocks, &
+           ' is different from the default value (number of threads) = ', nthreads
+       call error_mesg ('flux_exchange_mod', errmsg, NOTE)
+    endif
+
     allocate(block_start(nblocks), block_end(nblocks))
 
 !----- find out number of atmospheric prognostic tracers and index of specific 
