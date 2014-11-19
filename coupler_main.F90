@@ -497,7 +497,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
      if(do_chksum) then
        if (Atm%pe) then 
          call mpp_set_current_pelist(Atm%pelist)
-         call atmos_ice_land_chksum('MAIN_LOOP-', nc)
+         call atmos_ice_land_chksum('MAIN_LOOP-', nc, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
        endif
        if (Ocean%is_ocean_pe) then 
          call mpp_set_current_pelist(Ocean%pelist)
@@ -517,7 +519,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
        call coupler_chksum('flux_ocn2ice+', nc)
        if (Atm%pe) then 
          call mpp_set_current_pelist(Atm%pelist)
-         call atmos_ice_land_chksum('fluxocn2ice+', nc)
+         call atmos_ice_land_chksum('fluxocn2ice+', nc, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
        endif
        if (Ocean%is_ocean_pe) then 
          call mpp_set_current_pelist(Ocean%pelist)
@@ -555,14 +559,18 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
         endif
         if(ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
         call mpp_clock_end(newClock6)
-        if(do_chksum) call atmos_ice_land_chksum('update_ice_slow_up+', nc)
+        if(do_chksum) call atmos_ice_land_chksum('update_ice_slow_up+', nc, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
 
         !-----------------------------------------------------------------------
         !   ------ atmos/fast-land/fast-ice integration loop -------
 
         call mpp_clock_begin(newClock7)
         do na = 1, num_atmos_calls
-          if(do_chksum) call atmos_ice_land_chksum('top_of_atmos_loop-', (nc-1)*num_atmos_calls+na)
+          if(do_chksum) call atmos_ice_land_chksum('top_of_atmos_loop-', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
 
           Time_atmos = Time_atmos + Time_step_atmos
 
@@ -576,7 +584,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
             call mpp_clock_begin(newClockb)
             call sfc_boundary_layer( REAL(dt_atmos), Time_atmos, &
                  Atm, Land, Ice, Land_ice_atmos_boundary )
-            if(do_chksum)  call atmos_ice_land_chksum('sfc+', (nc-1)*num_atmos_calls+na)
+            if(do_chksum)  call atmos_ice_land_chksum('sfc+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
             call mpp_clock_end(newClockb)
           end if
 
@@ -599,7 +609,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
               call update_atmos_model_dynamics( Atm )
               call mpp_clock_end(newClockl)
             endif
-            if(do_chksum) call atmos_ice_land_chksum('update_atmos_model_dynamics', (nc-1)*num_atmos_calls+na)
+            if(do_chksum) call atmos_ice_land_chksum('update_atmos_model_dynamics', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
       if (do_debug)  call print_memuse_stats( 'update dyn')
 
             !      ---- SERIAL atmosphere radiation ----
@@ -608,7 +620,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
               call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
               call mpp_clock_end(newClockj)
             endif
-            if(do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(ser)', (nc-1)*num_atmos_calls+na)
+            if(do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(ser)', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
       if (do_debug)  call print_memuse_stats( 'update serial rad')
 
             !      ---- atmosphere down ----
@@ -617,7 +631,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
               call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
               call mpp_clock_end(newClockc)
             endif
-            if(do_chksum) call atmos_ice_land_chksum('update_atmos_down+', (nc-1)*num_atmos_calls+na)
+            if(do_chksum) call atmos_ice_land_chksum('update_atmos_down+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
       if (do_debug)  call print_memuse_stats( 'update down')
 
             call mpp_clock_begin(newClockd)
@@ -626,7 +642,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
                                        Atmos_land_boundary, &
                                        Atmos_ice_boundary )
             call mpp_clock_end(newClockd)
-            if(do_chksum) call atmos_ice_land_chksum('flux_down_from_atmos+', (nc-1)*num_atmos_calls+na)
+            if(do_chksum) call atmos_ice_land_chksum('flux_down_from_atmos+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
 
             !      --------------------------------------------------------------
             !      ---- land model ----
@@ -637,7 +655,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
             endif
             if(land_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
             call mpp_clock_end(newClocke)
-            if(do_chksum) call atmos_ice_land_chksum('update_land_fast+', (nc-1)*num_atmos_calls+na)
+            if(do_chksum) call atmos_ice_land_chksum('update_land_fast+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
       if (do_debug)  call print_memuse_stats( 'update land')
 
             !      ---- ice model ----
@@ -648,7 +668,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
             endif
             if(ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
             call mpp_clock_end(newClockf)
-            if(do_chksum) call atmos_ice_land_chksum('update_ice_fast+', (nc-1)*num_atmos_calls+na)
+            if(do_chksum) call atmos_ice_land_chksum('update_ice_fast+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
       if (do_debug)  call print_memuse_stats( 'update ice')
 
             !      --------------------------------------------------------------
@@ -657,13 +679,17 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
             call flux_up_to_atmos( Time_atmos, Land, Ice, Land_ice_atmos_boundary, &
                  & Atmos_land_boundary, Atmos_ice_boundary )
             call mpp_clock_end(newClockg)
-            if(do_chksum) call atmos_ice_land_chksum('flux_up2atmos+', (nc-1)*num_atmos_calls+na)
+            if(do_chksum) call atmos_ice_land_chksum('flux_up2atmos+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
 
             call mpp_clock_begin(newClockh)
             if (do_atmos) &
                 call update_atmos_model_up( Land_ice_atmos_boundary, Atm)
             call mpp_clock_end(newClockh)
-            if(do_chksum) call atmos_ice_land_chksum('update_atmos_up+', (nc-1)*num_atmos_calls+na)
+            if(do_chksum) call atmos_ice_land_chksum('update_atmos_up+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
       if (do_debug)  call print_memuse_stats( 'update up')
 
             !--------------
@@ -683,7 +709,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 !$            omp_sec(2) = omp_sec(2) + (omp_get_wtime() - dsec)
 !---CANNOT PUT AN MPP_CHKSUM HERE AS IT REQUIRES THE ABILITY TO HAVE TWO DIFFERENT OPENMP THREADS
 !---INSIDE OF MPI AT THE SAME TIME WHICH IS NOT CURRENTLY ALLOWED 
-!              if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(conc)', (nc-1)*num_atmos_calls+na)
+!              if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(conc)', (nc-1)*num_atmos_calls+na, &
+!                   Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, &
+!                   Ocean_ice_boundary, Atmos_land_boundary)
                if (do_debug)  call print_memuse_stats( 'update concurrent rad')
 !$OMP END PARALLEL
             endif
@@ -696,7 +724,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 
           call mpp_clock_begin(newClockk)
           call update_atmos_model_state( Atm ) 
-          if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_state+', (nc-1)*num_atmos_calls+na)
+          if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_state+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
           if (do_debug)  call print_memuse_stats( 'update state')
           call mpp_clock_end(newClockk)
 
@@ -713,7 +743,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
         if(land_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
         !-----------------------------------------------------------------------
         call mpp_clock_end(newClock8)
-        if(do_chksum) call atmos_ice_land_chksum('update_land_slow+', nc)
+        if(do_chksum) call atmos_ice_land_chksum('update_land_slow+', nc, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
 
         !
         !     need flux call to put runoff and p_surf on ice grid
@@ -721,7 +753,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
         call mpp_clock_begin(newClock9)
         call flux_land_to_ice( Time, Land, Ice, Land_ice_boundary )
         call mpp_clock_end(newClock9)
-        if(do_chksum) call atmos_ice_land_chksum('fluxlnd2ice+', nc)
+        if(do_chksum) call atmos_ice_land_chksum('fluxlnd2ice+', nc, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
 
         Atmos_ice_boundary%p = 0.0 ! call flux_atmos_to_ice_slow ?
 
@@ -736,7 +770,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
            endif
            if(ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
            call mpp_clock_end(newClock10)
-           if(do_chksum) call atmos_ice_land_chksum('update_ice_slow_dn+', nc)
+           if(do_chksum) call atmos_ice_land_chksum('update_ice_slow_dn+', nc, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
 
            call mpp_clock_begin(newClock11)
            if( Ice%pe ) then
@@ -745,7 +781,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
            endif
            if(ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
            call mpp_clock_end(newClock11)
-           if(do_chksum) call atmos_ice_land_chksum('fluxice2ocn_stocks+', nc)
+           if(do_chksum) call atmos_ice_land_chksum('fluxice2ocn_stocks+', nc, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
         endif
         Time = Time_atmos
         call mpp_clock_end(newClock5)
@@ -1547,7 +1585,9 @@ contains
 !-----------------------------------------------------------------------
     if (Atm%pe) then 
       call mpp_set_current_pelist(Atm%pelist)
-      call atmos_ice_land_chksum('coupler_init+', 0)
+      call atmos_ice_land_chksum('coupler_init+', 0, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
     endif
     if (Ocean%is_ocean_pe) then 
       call mpp_set_current_pelist(Ocean%pelist)
@@ -1571,7 +1611,9 @@ contains
 
     if (Atm%pe) then 
       call mpp_set_current_pelist(Atm%pelist)
-      call atmos_ice_land_chksum('coupler_end', 0)
+      call atmos_ice_land_chksum('coupler_end', 0, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
     endif
     if (Ocean%is_ocean_pe) then 
       call mpp_set_current_pelist(Ocean%pelist)
@@ -1778,10 +1820,18 @@ contains
 
   !#######################################################################
 
-  subroutine atmos_ice_land_chksum(id, timestep)
-
+  subroutine atmos_ice_land_chksum(id, timestep, Atm, Land, Ice, &
+                   Land_ice_atmos_boundary, Atmos_ice_boundary, &
+                   Ocean_ice_boundary, Atmos_land_boundary)
     character(len=*), intent(in) :: id
     integer         , intent(in) :: timestep
+    type (atmos_data_type), intent(in) :: Atm
+    type  (land_data_type), intent(in) :: Land
+    type   (ice_data_type), intent(in) :: Ice
+    type(land_ice_atmos_boundary_type), intent(in) :: Land_ice_atmos_boundary
+    type(atmos_ice_boundary_type), intent(in)      :: Atmos_ice_boundary
+    type(ocean_ice_boundary_type), intent(in)      :: Ocean_ice_boundary
+    type(atmos_land_boundary_type), intent(in)     :: Atmos_land_boundary
 
 ! This subroutine calls subroutine that will print out checksums of the elements 
 ! of the appropriate type. 
