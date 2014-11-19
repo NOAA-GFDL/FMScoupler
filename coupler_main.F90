@@ -503,7 +503,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
        endif
        if (Ocean%is_ocean_pe) then 
          call mpp_set_current_pelist(Ocean%pelist)
-         call ocean_chksum('MAIN_LOOP-', nc)
+         call ocean_chksum('MAIN_LOOP-', nc, Ocean, Ice_ocean_boundary)
        endif
        call mpp_set_current_pelist()
      endif  
@@ -798,14 +798,14 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
         call mpp_set_current_pelist(Ocean%pelist)
         call mpp_clock_begin(newClock12)
 
-        if (do_chksum) call ocean_chksum('update_ocean_model-', nc)
+        if (do_chksum) call ocean_chksum('update_ocean_model-', nc, Ocean, Ice_ocean_boundary)
         ! update_ocean_model since fluxes don't change here
 
         if (do_ocean) &
           call update_ocean_model( Ice_ocean_boundary, Ocean_state,  Ocean, &
                                    Time_ocean, Time_step_cpld )
 
-        if (do_chksum) call ocean_chksum('update_ocean_model+', nc)
+        if (do_chksum) call ocean_chksum('update_ocean_model+', nc, Ocean, Ice_ocean_boundary)
         ! Get stocks from "Ice_ocean_boundary" and add them to Ocean stocks.
         ! This call is just for record keeping of stocks transfer and
         ! does not modify either Ocean or Ice_ocean_boundary
@@ -1591,7 +1591,7 @@ contains
     endif
     if (Ocean%is_ocean_pe) then 
       call mpp_set_current_pelist(Ocean%pelist)
-      call ocean_chksum('coupler_init+', nc)
+      call ocean_chksum('coupler_init+', nc, Ocean, Ice_ocean_boundary)
     endif
     call mpp_set_current_pelist()
     call print_memuse_stats('coupler_init')
@@ -1617,7 +1617,7 @@ contains
     endif
     if (Ocean%is_ocean_pe) then 
       call mpp_set_current_pelist(Ocean%pelist)
-      call ocean_chksum('coupler_end', 0)
+      call ocean_chksum('coupler_end', 0, Ocean, Ice_ocean_boundary)
     endif
     call mpp_set_current_pelist()
 
@@ -1866,10 +1866,14 @@ contains
 
   end subroutine atmos_ice_land_chksum
 
-  subroutine ocean_chksum(id, timestep)
-
+  subroutine ocean_chksum(id, timestep, Ocean, Ice_ocean_boundary)
     character(len=*), intent(in) :: id
     integer         , intent(in) :: timestep
+    type (ocean_public_type), inten(in) :: Ocean
+    type(ice_ocean_boundary_type), intent(in) :: Ice_ocean_boundary
+
+!-----------------------------------------------------------------------
+! ----- coupled model time -----
 
 ! This subroutine calls subroutine that will print out checksums of the elements 
 ! of the appropriate type. 
