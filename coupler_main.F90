@@ -1869,7 +1869,7 @@ contains
   subroutine ocean_chksum(id, timestep, Ocean, Ice_ocean_boundary)
     character(len=*), intent(in) :: id
     integer         , intent(in) :: timestep
-    type (ocean_public_type), inten(in) :: Ocean
+    type (ocean_public_type), intent(in) :: Ocean
     type(ice_ocean_boundary_type), intent(in) :: Ice_ocean_boundary
 
 !-----------------------------------------------------------------------
