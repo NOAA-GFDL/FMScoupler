@@ -1224,7 +1224,7 @@ contains
       write(errunit,*) 'Starting to initialize diag_manager at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
-    call diag_manager_init(DIAG_MODEL_SUBSET=diag_model_subset)   ! initialize diag_manager for processor subset output
+    call diag_manager_init(DIAG_MODEL_SUBSET=diag_model_subset, TIME_INIT=date)   ! initialize diag_manager for processor subset output
     call print_memuse_stats( 'diag_manager_init' )
     if( mpp_pe().EQ.mpp_root_pe() ) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
