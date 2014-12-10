@@ -595,6 +595,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 !$OMP&       DEFAULT(NONE)  &
 !$OMP&       SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
 !$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
+!$OMP&       SHARED(Ocean_ice_boundary) &
 !$OMP&       SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
 !$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl) 
 !$        if (omp_get_thread_num() == 0) then
