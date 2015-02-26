@@ -858,7 +858,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 !----- initialize diagnostic fields -----
 !----- all fields will be output on the atmospheric grid -----
 
-        call diag_field_init ( Time, Atm%axes(1:2), Land%axes )
+        call diag_field_init ( Time, Atm%axes(1:2), Land%axes, Land%pe )
         ni_atm = size(Atm%lon_bnd,1)-1 ! to dimension "diag_atm"
         nj_atm = size(Atm%lon_bnd,2)-1 ! in flux_ocean_to_ice
 
@@ -4032,11 +4032,12 @@ end subroutine put_logical_to_real
 
 !#######################################################################
 
-subroutine diag_field_init ( Time, atmos_axes, land_axes )
+subroutine diag_field_init ( Time, atmos_axes, land_axes, land_pe )
 
   type(time_type), intent(in) :: Time
   integer,         intent(in) :: atmos_axes(2)
   integer,         intent(in) :: land_axes(2)
+  logical,         intent(in) :: land_pe
 
   integer :: iref
   character(len=6) :: label_zm, label_zh
@@ -4228,22 +4229,24 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
        'ref height interp factor for moisture','none' )
 
   ! + slm Jun 02, 2002 -- diagnostics of reference values over the land
-  id_t_ref_land = &
-       register_diag_field ( mod_name, 't_ref_land', Land_axes, Time, &
-       'temperature at '//trim(label_zh)//' over land', 'deg_k' , &
-       range=trange, missing_value =  -100.0)
-  id_rh_ref_land= &
-       register_diag_field ( mod_name, 'rh_ref_land', Land_axes, Time,   &
-       'relative humidity at '//trim(label_zh)//' over land', 'percent',       &
-       missing_value=-999.0)
-  id_u_ref_land = &
-       register_diag_field ( mod_name, 'u_ref_land',  Land_axes, Time, &
-       'zonal wind component at '//trim(label_zm)//' over land',  'm/s', &
-       range=vrange, missing_value=-999.0 )
-  id_v_ref_land = &
-       register_diag_field ( mod_name, 'v_ref_land',  Land_axes, Time,     &
-       'meridional wind component at '//trim(label_zm)//' over land', 'm/s', &
-       range=vrange, missing_value = -999.0 )
+  if( land_pe ) then
+     id_t_ref_land = &
+          register_diag_field ( mod_name, 't_ref_land', Land_axes, Time, &
+          'temperature at '//trim(label_zh)//' over land', 'deg_k' , &
+          range=trange, missing_value =  -100.0)
+     id_rh_ref_land= &
+          register_diag_field ( mod_name, 'rh_ref_land', Land_axes, Time,   &
+          'relative humidity at '//trim(label_zh)//' over land', 'percent',       &
+          missing_value=-999.0)
+     id_u_ref_land = &
+          register_diag_field ( mod_name, 'u_ref_land',  Land_axes, Time, &
+          'zonal wind component at '//trim(label_zm)//' over land',  'm/s', &
+          range=vrange, missing_value=-999.0 )
+     id_v_ref_land = &
+          register_diag_field ( mod_name, 'v_ref_land',  Land_axes, Time,     &
+          'meridional wind component at '//trim(label_zm)//' over land', 'm/s', &
+          range=vrange, missing_value = -999.0 )
+  endif
   ! - slm Jun 02, 2002
   id_q_ref = &
        register_diag_field ( mod_name, 'q_ref', atmos_axes, Time,     &
@@ -4289,8 +4292,10 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes )
 
   id_q_flux = register_diag_field( mod_name, 'evap',       atmos_axes, Time, &
          'evaporation rate',        'kg/m2/s'  )
-  id_q_flux_land = register_diag_field( mod_name, 'evap_land', land_axes, Time, &
-         'evaporation rate over land',        'kg/m2/s', missing_value=-1.0 )
+  if(land_pe) then
+     id_q_flux_land = register_diag_field( mod_name, 'evap_land', land_axes, Time, &
+            'evaporation rate over land',        'kg/m2/s', missing_value=-1.0 )
+  endif
 
   end subroutine diag_field_init
 
