@@ -548,10 +548,19 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 !$OMP&       DEFAULT(NONE)  &
 !$OMP&       SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
 !$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
+!$OMP&       SHARED(Ocean_ice_boundary) &
 !$OMP&       SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
 !$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
 !$        if (omp_get_thread_num() == 0) then
-!$OMP PARALLEL NUM_THREADS(1) DEFAULT(shared) PRIVATE(dsec)
+!$OMP PARALLEL &
+!$OMP&       NUM_THREADS(1) &
+!$OMP&       DEFAULT(NONE) &
+!$OMP&       PRIVATE(dsec) &
+!$OMP&       SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
+!$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
+!$OMP&       SHARED(Ocean_ice_boundary) &
+!$OMP&       SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
+!$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl) 
 !$          call omp_set_num_threads(atmos_nthreads)
 !$          dsec=omp_get_wtime()
             if (do_concurrent_radiation) call mpp_clock_begin(newClocki)
@@ -653,7 +662,13 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 !$        if (omp_get_thread_num() == max(0,omp_get_num_threads()-1)) then
             !      ---- atmosphere radiation ----
             if (do_concurrent_radiation) then
-!$OMP PARALLEL NUM_THREADS(1) DEFAULT(shared) PRIVATE(dsec)
+!$OMP PARALLEL &
+!$OMP&       NUM_THREADS(1) &
+!$OMP&       DEFAULT(NONE) &
+!$OMP&       PRIVATE(dsec) &
+!$OMP&       SHARED(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Ocean_ice_boundary, Atmos_land_boundary) &
+!$OMP&       SHARED(do_chksum, do_debug, omp_sec, num_atmos_calls, na, radiation_nthreads) &
+!$OMP&       SHARED(newClockj)
 !$            call omp_set_num_threads(radiation_nthreads)
 !$            dsec=omp_get_wtime()
               call mpp_clock_begin(newClockj)
