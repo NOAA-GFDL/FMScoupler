@@ -113,8 +113,10 @@
 !! | dt_cpld                  | integer               | 0               | Time step in seconds for coupling between ocean and atmospheric models: must be an integral multiple of dt_atmos and dt_ocean. This is the "slow" timestep. |
 !! | do_atmos, do_ocean, do_ice, do_land, do_flux | logical | .TRUE.    | If true (default), that particular model component (atmos, etc.) is run. If false, the execution of that component is skipped. This is used when ALL the output fields sent by that component to the coupler have been overridden using the data_override feature. For advanced users only: if you're not sure, you should leave these values at TRUE. |
 !! | concurrent               | logical               | .FALSE.         | If true, the ocean executes concurrently with the atmosphere-land-ocean on a separate set of PEs. If false (default), the execution is serial: call atmos... followed by call ocean... If using concurrent execution, you must set one of atmos_npes and ocean_npes, see below. |
+!! | do_concurrent_radiation  | logical               | .FALSE.         ! If true then radiation is done concurrently 
 !! | atmos_npes, ocean_npes   | integer               | none            | If concurrent is set to true, we use these to set the list of PEs on which each component runs. At least one of them must be set to a number between 0 and NPES. If exactly one of these two is set non-zero, the other is set to the remainder from NPES. If both are set non-zero they must add up to NPES. |
 !! | atmos_nthreads, ocean_nthreads | integer         | 1               | We set here the number of OpenMP threads to use separately for each component (default 1) |
+!! | radiation_nthreads       | integer               | 1               | Number of threads to use for the concurrent radiation
 !! | use_lag_fluxes           | logical               | .TRUE.          | If true, then mom4 is forced with SBCs from one coupling timestep ago If false, then mom4 is forced with most recent SBCs. For a leapfrog MOM coupling with dt_cpld=dt_ocean, lag fluxes can be shown to be stable and current fluxes to be unconditionally unstable. For dt_cpld>dt_ocean there is probably sufficient damping. use_lag_fluxes is set to TRUE by default. |
 !! | restart_interval         | integer, dimension(6) | (/0,0,0,0,0,0/) | The time interval that write out intermediate restart file. The format is (yr,mo,day,hr,min,sec). When restart_interval is all zero, no intermediate restart file will be written out. |
 !! | do_debug                 | logical               | .FALSE.         | If .TRUE. print additional debugging messages |
@@ -321,6 +323,7 @@ program coupler_main
   integer :: land_npes=0 !< The number of MPI tasks to use for the land
   integer :: atmos_nthreads=1 !< Number of OpenMP threads to use in the atmosphere
   integer :: ocean_nthreads=1 !< Number of OpenMP threads to use in the ocean
+  integer :: radiation_nthreads=1 !< Number of threads to use for the radiation.
   logical :: do_atmos =.true. !< Indicates if this component should be executed.  If .FALSE., then execution is skipped.  This is used
                               !! This is used when ALL the output fields sent by this component to the coupler have been overridden
                               !! using the data_override feature.  This is for advanced users only.
@@ -330,6 +333,7 @@ program coupler_main
   logical :: do_flux =.true. !< See do_atmos
   logical :: concurrent=.FALSE. !< If .TRUE., the ocean executes concurrently with the atmosphere-land-ice on a separate set of PEs.
                                 !! If .FALSE., the execution is serial: call atmos... followed by call ocean...
+  logical :: do_concurrent_radiation=.FALSE. !< If .TRUE. then radiation is done concurrently
   logical :: use_lag_fluxes=.TRUE. !< If .TRUE., then mom4 is forced with SBCs from one coupling timestep ago.  If .FALSE., then mom4
                                    !! if forced with most recent SBCs.  For a leapfrog MOM coupling with dt_cpld=dt_ocean, lag fluxes
                                    !! can be shown to be stable and current fluxes to be unconditionally unstable.  For dt_cpld>gt_ocean
