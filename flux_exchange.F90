@@ -335,11 +335,10 @@ real, parameter :: d378 = 1.0-d622
   logical :: debug_stocks = .FALSE.
   logical :: divert_stocks_report = .FALSE.
   logical :: do_runoff = .TRUE.
-  logical :: do_forecast = .false.
   integer :: nblocks = 1
 
 namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug, sw1way_bug, &
-         do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks
+         do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, nblocks
 ! </NAMELIST>
 
   integer              :: my_nblocks = 1
@@ -853,6 +852,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 
 !! call diag_integral_field_init ('prec', 'f6.3')
         call diag_integral_field_init ('evap', 'f6.3')
+        call diag_integral_field_init ('t_surf', 'f10.3') !miz
 
 !-----------------------------------------------------------------------
 !----- initialize diagnostic fields -----
@@ -939,6 +939,8 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
         allocate( land_ice_atmos_boundary%u_star(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%b_star(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%q_star(is:ie,js:je) )
+        allocate( land_ice_atmos_boundary%shflx(is:ie,js:je) )!miz
+        allocate( land_ice_atmos_boundary%lhflx(is:ie,js:je) )!miz
         allocate( land_ice_atmos_boundary%rough_mom(is:ie,js:je) )
         allocate( land_ice_atmos_boundary%frac_open_sea(is:ie,js:je) )
 ! initialize boundary values for override experiments (mjh)
@@ -960,6 +962,8 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
         land_ice_atmos_boundary%u_star=0.0
         land_ice_atmos_boundary%b_star=0.0
         land_ice_atmos_boundary%q_star=0.0
+        land_ice_atmos_boundary%shflx=0.0
+        land_ice_atmos_boundary%lhflx=0.0
         land_ice_atmos_boundary%rough_mom=0.01
         land_ice_atmos_boundary%frac_open_sea=0.0
 
@@ -1457,9 +1461,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
 
   ! [4] put all the qantities we need onto exchange grid
   ! [4.1] put atmosphere quantities onto exchange grid
-  if (do_forecast) then
-    call put_to_xgrid (Atm%Surf_diff%sst_miz , 'ATM', ex_t_surf_miz, xmap_sfc, remap_method=remap_method, complete=.false.)
-  endif
+
 ! put atmosphere bottom layer tracer data onto exchange grid
   do tr = 1,n_exch_tr
      call put_to_xgrid (Atm%tr_bot(:,:,tr_table(tr)%atm) , 'ATM', ex_tr_atm(:,tr), xmap_sfc, &
@@ -1523,10 +1525,6 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
 
   ! [4.3] put land quantities onto exchange grid ----
   call some(xmap_sfc, ex_land, 'LND')
-  if (do_forecast) then
-    call put_to_xgrid (Land%t_surf,     'LND', ex_t_surf_miz,  xmap_sfc)
-    ex_t_ca(:) = ex_t_surf_miz(:)
-  end if
 
   call put_to_xgrid (Land%t_surf,     'LND', ex_t_surf,      xmap_sfc)
   call put_to_xgrid (Land%t_ca,       'LND', ex_t_ca,        xmap_sfc)
@@ -1575,10 +1573,6 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
        endif
   endif
 #endif
-
-  if (do_forecast) then
-     ex_t_surf = ex_t_surf_miz
-  end if
 
   ! [5] compute explicit fluxes and tendencies at all available points ---
   call some(xmap_sfc, ex_avail)
@@ -1801,10 +1795,6 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   call get_from_xgrid (Land_Ice_Atmos_Boundary%u_star,    'ATM', ex_u_star    , xmap_sfc, complete=.false.)
   call get_from_xgrid (Land_Ice_Atmos_Boundary%b_star,    'ATM', ex_b_star    , xmap_sfc, complete=.false.)
   call get_from_xgrid (Land_Ice_Atmos_Boundary%q_star,    'ATM', ex_q_star    , xmap_sfc, complete=.true.)
-
-  if (do_forecast) then
-     call get_from_xgrid (Ice%t_surf, 'OCN', ex_t_surf,  xmap_sfc)
-  end if
 
   call mpp_get_compute_domain( Atm%domain, isc, iec, jsc, jec )
 !$OMP parallel do default(none) shared(isc,iec,jsc,jec,Land_Ice_Atmos_Boundary ) &
@@ -3571,15 +3561,6 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
       endif
     enddo
 
-    if (do_forecast) then
-      do i = is, ie
-        if(ex_avail(i) .and. (.not.ex_land(i))) then
-          ex_dt_t_ca  (i) = 0.
-          ex_dt_t_surf(i) = 0.
-        endif
-      enddo
-    end if
-
     !-----------------------------------------------------------------------
     !-----  adjust fluxes and atmospheric increments for 
     !-----  implicit dependence on surface temperature -----
@@ -3655,6 +3636,8 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
   !---- get mean quantites on atmospheric grid ----
 
   call get_from_xgrid (Land_Ice_Atmos_Boundary%dt_t, 'ATM', ex_delta_t_n, xmap_sfc)
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%shflx,'ATM', ex_flux_t    , xmap_sfc) !miz
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%lhflx,'ATM', ex_flux_tr(:,isphum), xmap_sfc)!miz
 
   !=======================================================================
   !-------------------- diagnostics section ------------------------------
@@ -3726,6 +3709,8 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
           Land%tile_size, Time, mask=Land%mask)
   endif
   call sum_diag_integral_field ('evap', evap_atm*86400.)
+  call get_from_xgrid (diag_atm, 'ATM', ex_t_surf_new, xmap_sfc) !miz
+  call sum_diag_integral_field ('t_surf', diag_atm)              !miz
 
   ! compute stock changes
 
