@@ -219,7 +219,8 @@ module flux_exchange_mod
   use ocean_model_mod,            only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
   use coupler_types_mod,          only: coupler_type_copy
   use coupler_types_mod,          only: ind_psurf, ind_u10
-  use atmos_tracer_driver_mod,    only: atmos_tracer_flux_init
+  use atmos_tracer_driver_mod,    only: atmos_tracer_flux_init, & 
+            atmos_tracer_has_surf_setl_flux, get_atmos_tracer_surf_setl_flux
 
   use field_manager_mod,          only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE
   use tracer_manager_mod,         only: get_tracer_index
@@ -2293,7 +2294,12 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
        ex_lprec, ex_fprec,      &
        ex_tprec, & ! temperature of precipitation, currently equal to atm T
        ex_u_star_smooth,        &
-       ex_coszen
+       ex_coszen, &
+       ex_setl_flux, & ! tracer sedimentation flux from the lowest atm layer (positive down)
+       ex_dsetl_dtr    ! and its derivative w.r.t. the tracer concentration
+  real :: setl_flux(size(Atm%tr_bot,1),size(Atm%tr_bot,2))
+  real :: dsetl_dtr(size(Atm%tr_bot,1),size(Atm%tr_bot,2))
+
 
   real, dimension(n_xgrid_sfc) :: ex_gamma  , ex_dtmass,  &
        ex_delta_t, ex_delta_u, ex_delta_v, ex_dflux_t
@@ -2547,7 +2553,31 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
       endif
     enddo ! i = is, ie
   enddo !  l = 1, my_nblocks
+  do tr = 1,n_exch_tr
+     ! Add sedimentation flux. Has to be here (instead of sfc_boundary_layer sub)
+     ! because of time stepping order: sedimentation fluxes are calculated in 
+     ! update_atmos_model_down (in atmos_tracer_driver), but sfc_boundary_layer 
+     ! is called before that.
+     if (atmos_tracer_has_surf_setl_flux(tr_table(tr)%atm)) then
+        call get_atmos_tracer_surf_setl_flux (tr_table(tr)%atm, setl_flux, dsetl_dtr)
+        call put_to_xgrid(setl_flux, 'ATM', ex_setl_flux, xmap_sfc)
+        call put_to_xgrid(dsetl_dtr, 'ATM', ex_dsetl_dtr, xmap_sfc)
+        where (ex_avail)
+           ! minus sign is because sedimentation is positive down
+           ex_flux_tr(:,tr)   = ex_flux_tr(:,tr)   - ex_setl_flux(:)
+           ex_dfdtr_atm(:,tr) = ex_dfdtr_atm(:,tr) - ex_dsetl_dtr(:)
+        end where
+     endif
+     where(ex_avail)
+        ex_gamma   =  1.0 / (1.0 - ex_dtmass*(ex_dflux_tr(:,tr) + ex_dfdtr_atm(:,tr)))
 
+        ex_e_tr_n(:,tr)      =  ex_dtmass*ex_dfdtr_surf(:,tr)*ex_gamma
+        ex_f_tr_delt_n(:,tr) = (ex_delta_tr(:,tr)+ex_dtmass*ex_flux_tr(:,tr))*ex_gamma
+
+        ex_flux_tr(:,tr)     =  ex_flux_tr(:,tr) + ex_dfdtr_atm(:,tr)*ex_f_tr_delt_n(:,tr)
+        ex_dfdtr_surf(:,tr)  =  ex_dfdtr_surf(:,tr) + ex_dfdtr_atm(:,tr)*ex_e_tr_n(:,tr)
+     endwhere
+  enddo
 !-----------------------------------------------------------------------
 !---- output fields on the land grid -------
 
