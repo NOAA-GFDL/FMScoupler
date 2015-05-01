@@ -2113,19 +2113,18 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
 !cjg  endif
 
   !    ------- reference temp -----------
-  if ( id_t_ref > 0 .or. id_t_ref_land > 0 ) then
-     where (ex_avail) &
-        ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
-     if (id_t_ref_land > 0) then
-        call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
-        used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
-             Land%tile_size, Time, mask = Land%mask )
-     endif
-     if ( id_t_ref > 0 ) then
-        call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
-        used = send_data ( id_t_ref, diag_atm, Time )
-     endif
+  where (ex_avail) &
+     ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
+  if (id_t_ref_land > 0) then
+     call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
+     used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+          Land%tile_size, Time, mask = Land%mask )
   endif
+  call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
+  if ( id_t_ref > 0 ) then
+     used = send_data ( id_t_ref, diag_atm, Time )
+  endif
+  call sum_diag_integral_field ('t_ref',  diag_atm)
 
   !    ------- reference u comp -----------
   if ( id_u_ref > 0 .or. id_u_ref_land > 0) then
@@ -3674,10 +3673,11 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
   !-------------------- diagnostics section ------------------------------
 
   !------- new surface temperature -----------
+  call get_from_xgrid (diag_atm, 'ATM', ex_t_surf_new, xmap_sfc)
   if ( id_t_surf > 0 ) then
-     call get_from_xgrid (diag_atm, 'ATM', ex_t_surf_new, xmap_sfc)
      used = send_data ( id_t_surf, diag_atm, Time )
   endif
+  call sum_diag_integral_field ('t_surf', diag_atm)
 
 
   ! + slm, Mar 27 2002
@@ -3740,9 +3740,6 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
           Land%tile_size, Time, mask=Land%mask)
   endif
   call sum_diag_integral_field ('evap', evap_atm*86400.)
-  call get_from_xgrid (diag_atm, 'ATM', ex_t_surf_new, xmap_sfc) !miz
-  call sum_diag_integral_field ('t_surf', diag_atm)              !miz
-  call sum_diag_integral_field ('t_ref',  diag_atm)              !miz
 
   ! compute stock changes
 
