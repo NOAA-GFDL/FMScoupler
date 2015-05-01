@@ -854,6 +854,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 !! call diag_integral_field_init ('prec', 'f6.3')
         call diag_integral_field_init ('evap', 'f6.3')
         call diag_integral_field_init ('t_surf', 'f10.3') !miz
+        call diag_integral_field_init ('t_ref',  'f10.3') !miz
 
 !-----------------------------------------------------------------------
 !----- initialize diagnostic fields -----
@@ -3741,6 +3742,7 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
   call sum_diag_integral_field ('evap', evap_atm*86400.)
   call get_from_xgrid (diag_atm, 'ATM', ex_t_surf_new, xmap_sfc) !miz
   call sum_diag_integral_field ('t_surf', diag_atm)              !miz
+  call sum_diag_integral_field ('t_ref',  diag_atm)              !miz
 
   ! compute stock changes
 
