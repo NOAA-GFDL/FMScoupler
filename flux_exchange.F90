@@ -2625,6 +2625,23 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   call put_to_xgrid (Atm%Surf_Diff%delta_t, 'ATM', ex_delta_t, xmap_sfc, complete=.false. )
   call put_to_xgrid (Atm%Surf_Diff%dflux_t, 'ATM', ex_dflux_t, xmap_sfc, complete=.true. )
 
+  ! Get sedimentation flux. Has to be here (instead of sfc_boundary_layer sub)
+  ! because of time stepping order: sedimentation fluxes are calculated in 
+  ! update_atmos_model_down (in atmos_tracer_driver), but sfc_boundary_layer 
+  ! is called before that.
+  do tr = 1,n_exch_tr
+     if (atmos_tracer_has_surf_setl_flux(tr_table(tr)%atm)) then
+        call get_atmos_tracer_surf_setl_flux (tr_table(tr)%atm, setl_flux, dsetl_dtr)
+        call put_to_xgrid(setl_flux, 'ATM', ex_setl_flux, xmap_sfc)
+        call put_to_xgrid(dsetl_dtr, 'ATM', ex_dsetl_dtr, xmap_sfc)
+        where (ex_avail)
+           ! minus sign is because sedimentation is positive down
+           ex_flux_tr(:,tr)   = ex_flux_tr(:,tr)   - ex_setl_flux(:)
+           ex_dfdtr_atm(:,tr) = ex_dfdtr_atm(:,tr) - ex_dsetl_dtr(:)
+        end where
+     endif
+  enddo
+
   cp_inv = 1.0/cp_air
 
 !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_flux_lw,ex_flux_lwd, &
@@ -2678,31 +2695,6 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
       endif
     enddo ! i = is, ie
   enddo !  l = 1, my_nblocks
-  do tr = 1,n_exch_tr
-     ! Add sedimentation flux. Has to be here (instead of sfc_boundary_layer sub)
-     ! because of time stepping order: sedimentation fluxes are calculated in 
-     ! update_atmos_model_down (in atmos_tracer_driver), but sfc_boundary_layer 
-     ! is called before that.
-     if (atmos_tracer_has_surf_setl_flux(tr_table(tr)%atm)) then
-        call get_atmos_tracer_surf_setl_flux (tr_table(tr)%atm, setl_flux, dsetl_dtr)
-        call put_to_xgrid(setl_flux, 'ATM', ex_setl_flux, xmap_sfc)
-        call put_to_xgrid(dsetl_dtr, 'ATM', ex_dsetl_dtr, xmap_sfc)
-        where (ex_avail)
-           ! minus sign is because sedimentation is positive down
-           ex_flux_tr(:,tr)   = ex_flux_tr(:,tr)   - ex_setl_flux(:)
-           ex_dfdtr_atm(:,tr) = ex_dfdtr_atm(:,tr) - ex_dsetl_dtr(:)
-        end where
-     endif
-     where(ex_avail)
-        ex_gamma   =  1.0 / (1.0 - ex_dtmass*(ex_dflux_tr(:,tr) + ex_dfdtr_atm(:,tr)))
-
-        ex_e_tr_n(:,tr)      =  ex_dtmass*ex_dfdtr_surf(:,tr)*ex_gamma
-        ex_f_tr_delt_n(:,tr) = (ex_delta_tr(:,tr)+ex_dtmass*ex_flux_tr(:,tr))*ex_gamma
-
-        ex_flux_tr(:,tr)     =  ex_flux_tr(:,tr) + ex_dfdtr_atm(:,tr)*ex_f_tr_delt_n(:,tr)
-        ex_dfdtr_surf(:,tr)  =  ex_dfdtr_surf(:,tr) + ex_dfdtr_atm(:,tr)*ex_e_tr_n(:,tr)
-     endwhere
-  enddo
 !-----------------------------------------------------------------------
 !---- output fields on the land grid -------
 
