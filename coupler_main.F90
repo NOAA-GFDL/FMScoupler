@@ -1272,7 +1272,7 @@ contains
 
     call mpp_close(unit)
 
-20  format (i,5i4,2x,a3)
+20  format (i6,5i4,2x,a3)
 
 !-----------------------------------------------------------------------
 !----- compute the time steps ------
