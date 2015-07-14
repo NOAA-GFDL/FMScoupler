@@ -99,28 +99,163 @@
 !! coupler_main is configured via the coupler_nml namelist in the `input.nml` file.
 !! The following table contains the available namelist variables.
 !!
-!! | Variable Name            | Type                  | Default Value   | Description |
-!! | ------------------------ | --------------------- | --------------- | ----------- |
-!! | current_date             | integer, dimension(6) | (/0,0,0,0,0,0/) | The date that the current integration starts with. |
-!! | force_date_from_namelist | logical               | .FALSE.         | Flag that determines whether the namelist variable current_date should override the date in the restart file INPUT/coupler.res. If the restart file does not exist then force_date_from_namelist has not effect, the value of current_date will be used. |
-!! | calendar                 | character(len=17)     | ''              | The calendar type used by the current integration. Valid values are consistent with the time_manager module: 'julian', 'noleap', or 'thirty_day'. The value 'no_calendar' can not be used because the time_manager's date  function are used. All values must be lowercase. |
-!! | months                   | integer               | 0               | The number of months that the current integration will be run for.  |
-!! | days                     | integer               | 0               | The number of days that the current integration will be run for.  |
-!! | hours                    | integer               | 0               | The number of hours that the current integration will be run for.  |
-!! | minutes                  | integer               | 0               | The number of minutes that the current integration will be run for.  |
-!! | seconds                  | integer               | 0               | The number of seconds that the current integration will be run for.  |
-!! | dt_atmos                 | integer               | 0               | Atmospheric model time step in seconds, including the fast coupling with land and sea ice.  |
-!! | dt_cpld                  | integer               | 0               | Time step in seconds for coupling between ocean and atmospheric models: must be an integral multiple of dt_atmos and dt_ocean. This is the "slow" timestep. |
-!! | do_atmos, do_ocean, do_ice, do_land, do_flux | logical | .TRUE.    | If true (default), that particular model component (atmos, etc.) is run. If false, the execution of that component is skipped. This is used when ALL the output fields sent by that component to the coupler have been overridden using the data_override feature. For advanced users only: if you're not sure, you should leave these values at TRUE. |
-!! | concurrent               | logical               | .FALSE.         | If true, the ocean executes concurrently with the atmosphere-land-ocean on a separate set of PEs. If false (default), the execution is serial: call atmos... followed by call ocean... If using concurrent execution, you must set one of atmos_npes and ocean_npes, see below. |
-!! | do_concurrent_radiation  | logical               | .FALSE.         ! If true then radiation is done concurrently 
-!! | atmos_npes, ocean_npes   | integer               | none            | If concurrent is set to true, we use these to set the list of PEs on which each component runs. At least one of them must be set to a number between 0 and NPES. If exactly one of these two is set non-zero, the other is set to the remainder from NPES. If both are set non-zero they must add up to NPES. |
-!! | atmos_nthreads, ocean_nthreads | integer         | 1               | We set here the number of OpenMP threads to use separately for each component (default 1) |
-!! | radiation_nthreads       | integer               | 1               | Number of threads to use for the concurrent radiation
-!! | use_lag_fluxes           | logical               | .TRUE.          | If true, then mom4 is forced with SBCs from one coupling timestep ago If false, then mom4 is forced with most recent SBCs. For a leapfrog MOM coupling with dt_cpld=dt_ocean, lag fluxes can be shown to be stable and current fluxes to be unconditionally unstable. For dt_cpld>dt_ocean there is probably sufficient damping. use_lag_fluxes is set to TRUE by default. |
-!! | restart_interval         | integer, dimension(6) | (/0,0,0,0,0,0/) | The time interval that write out intermediate restart file. The format is (yr,mo,day,hr,min,sec). When restart_interval is all zero, no intermediate restart file will be written out. |
-!! | do_debug                 | logical               | .FALSE.         | If .TRUE. print additional debugging messages |
-!! | do_chksum                | logical               | .FALSE.         | Turns on/off checksum of certain variables |
+!! <table>
+!!   <tr>
+!!     <th>Variable Name</th>
+!!     <th>Type</th>
+!!     <th>Default Value</th>
+!!     <th>Description</th>
+!!   </tr>
+!!   <tr>
+!!     <td>current_date</td>
+!!     <td>integer, dimension(6)</td>
+!!     <td>(/0,0,0,0,0,0/)</td>
+!!     <td>The date that the current integration starts with.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>force_date_from_namelist</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>Flag that determines whether the namelist variable current_date should
+!!       override the date in the restart file INPUT/coupler.res. If the restart
+!!       file does not exist then force_date_from_namelist has not effect, the
+!!       value of current_date will be used.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>calendar</td>
+!!     <td>character(len=17)</td>
+!!     <td>''</td>
+!!     <td>The calendar type used by the current integration. Valid values are
+!!       consistent with the time_manager module: 'julian', 'noleap', or
+!!       'thirty_day'. The value 'no_calendar' can not be used because the
+!!       time_manager's date function are used. All values must be
+!!       lowercase.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>months</td>
+!!     <td>integer</td>
+!!     <td>0</td>
+!!     <td>The number of months that the current integration will be run for.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>days</td>
+!!     <td>integer</td>
+!!     <td>0</td>
+!!     <td>The number of days that the current integration will be run for.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>hours</td>
+!!     <td>integer</td>
+!!     <td>0</td>
+!!     <td>The number of hours that the current integration will be run for.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>minutes</td>
+!!     <td>integer</td>
+!!     <td>0</td>
+!!     <td>The number of minutes that the current integration will be run for.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>seconds</td>
+!!     <td>integer</td>
+!!     <td>0</td>
+!!     <td>The number of seconds that the current integration will be run for.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>dt_atmos</td>
+!!     <td>integer</td>
+!!     <td>0</td>
+!!     <td>Atmospheric model time step in seconds, including the fast coupling
+!!       with land and sea ice.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>dt_cpld</td>
+!!     <td>integer</td>
+!!     <td>0</td>
+!!     <td>Time step in seconds for coupling between ocean and atmospheric models:
+!!       must be an integral multiple of dt_atmos and dt_ocean. This is the
+!!       "slow" timestep.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_atmos, do_ocean, do_ice, do_land, do_flux</td>
+!!     <td>logical</td>
+!!     <td>.TRUE.</td>
+!!     <td>If true (default), that particular model component (atmos, etc.) is
+!!       run. If false, the execution of that component is skipped. This is used
+!!       when ALL the output fields sent by that component to the coupler have
+!!       been overridden using the data_override feature. For advanced users
+!!       only: if you're not sure, you should leave these values at TRUE.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>concurrent</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>If true, the ocean executes concurrently with the atmosphere-land-ocean
+!!       on a separate set of PEs. If false (default), the execution is serial:
+!!       call atmos... followed by call ocean... If using concurrent execution,
+!!       you must set one of atmos_npes and ocean_npes, see below.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_concurrent_radiation</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>If true then radiation is done concurrently.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>atmos_npes, ocean_npes</td>
+!!     <td>integer</td>
+!!     <td>none</td>
+!!     <td>If concurrent is set to true, we use these to set the list of PEs on
+!!       which each component runs. At least one of them must be set to a number
+!!       between 0 and NPES. If exactly one of these two is set non-zero, the
+!!       other is set to the remainder from NPES. If both are set non-zero they
+!!       must add up to NPES.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>atmos_nthreads, ocean_nthreads</td>
+!!     <td>integer</td>
+!!     <td>1</td>
+!!     <td>We set here the number of OpenMP threads to use separately for each
+!!       component.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>radiation_nthreads</td>
+!!     <td>integer</td>
+!!     <td>1</td>
+!!     <td>Number of threads to use for the concurrent radiation.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>use_lag_fluxes</td>
+!!     <td>logical</td>
+!!     <td>.TRUE.</td>
+!!     <td>If true, then mom4 is forced with SBCs from one coupling timestep ago
+!!       If false, then mom4 is forced with most recent SBCs. For a leapfrog MOM
+!!       coupling with dt_cpld=dt_ocean, lag fluxes can be shown to be stable
+!!       and current fluxes to be unconditionally unstable. For dt_cpld>dt_ocean
+!!       there is probably sufficient damping. use_lag_fluxes is set to TRUE by
+!!       default.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>restart_interval</td>
+!!     <td>integer, dimension(6)</td>
+!!     <td>(/0,0,0,0,0,0/)</td>
+!!     <td>The time interval that write out intermediate restart file. The format
+!!       is (yr,mo,day,hr,min,sec). When restart_interval is all zero, no
+!!       intermediate restart file will be written out.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_debug</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>If .TRUE. print additional debugging messages.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_chksum</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>Turns on/off checksum of certain variables.</td>
+!!   </tr>
+!! </table>
 !!
 !! \note
 !! -# If no value is set for current_date, start_date, or calendar (or default value specified) then the value from restart
