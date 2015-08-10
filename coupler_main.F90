@@ -891,7 +891,7 @@ contains
     character(len=64)  :: filename, fieldname
     integer :: id_restart, l
     integer :: omp_get_thread_num, omp_get_num_threads
-    integer :: get_cpu_affinity, base_cpu
+    integer :: get_cpu_affinity, base_cpu, ocean_omp_threads
     character(len=8)  :: walldate
     character(len=10) :: walltime
     character(len=5)  :: wallzone
@@ -1420,6 +1420,17 @@ contains
         call mpp_clock_begin(id_ocean_model_init)
         call ocean_model_init( Ocean, Ocean_state, Time_init, Time )
         call mpp_clock_end(id_ocean_model_init)
+!---- make sure coupler_nml ocean_nthreads match OCEAN_OMP_THREADS from MOM6 MOM_input
+!---- omp_set_num_threads(OCEAN_OMP_THREADS) is called in MOM6 ocean_model_init
+!$OMP   PARALLEL default(none) shared(ocean_omp_threads)
+!$OMP   SINGLE
+!$      ocean_omp_threads = omp_get_num_threads()
+!$OMP   END SINGLE
+!$OMP   END PARALLEL
+        if( ocean_nthreads .NE. ocean_omp_threads ) then
+           call mpp_error(FATAL, 'ERROR in coupler_init: coupler_nml ocean_nthreads=',ocean_nthreads, &
+                ' does not match MOM_input OCEAN_OMP_THREADS=',ocean_omp_threads )
+        endif
         if( mpp_pe().EQ.mpp_root_pe() ) then
           call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
           write(errunit,*) 'Finished initializing ocean model at '&
