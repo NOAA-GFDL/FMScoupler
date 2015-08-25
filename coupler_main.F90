@@ -1227,15 +1227,18 @@ contains
 !$      call omp_set_num_threads(atmos_nthreads)
     endif
 
-    if( concurrent .AND. Ocean%is_ocean_pe )then
+    if( Ocean%is_ocean_pe )then
+      if(concurrent) then
 !$           call omp_set_num_threads(ocean_nthreads)
        call mpp_set_current_pelist( Ocean%pelist )
 !$           base_cpu = get_cpu_affinity()
 !$OMP PARALLEL
 !$           call set_cpu_affinity( base_cpu + omp_get_thread_num() )
 !$OMP END PARALLEL
+       else
+          ocean_nthreads = atmos_nthreads
        end if
-
+    endif
    !--- initialization clock
     if( Atm%pe )then
        call mpp_set_current_pelist(Atm%pelist)
@@ -1562,10 +1565,10 @@ contains
 !$      ocean_omp_threads = omp_get_num_threads()
 !$OMP   END SINGLE
 !$OMP   END PARALLEL
-        if( ocean_nthreads .NE. ocean_omp_threads ) then
-           call mpp_error(FATAL, 'ERROR in coupler_init: coupler_nml ocean_nthreads=',ocean_nthreads, &
-                ' does not match MOM_input OCEAN_OMP_THREADS=',ocean_omp_threads )
-        endif
+!$        if( ocean_nthreads .NE. ocean_omp_threads ) then
+!$           call mpp_error(FATAL, 'ERROR in coupler_init: coupler_nml ocean_nthreads=',ocean_nthreads, &
+!$                ' does not match MOM_input OCEAN_OMP_THREADS=',ocean_omp_threads )
+!$        endif
         if( mpp_pe().EQ.mpp_root_pe() ) then
           call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
           write(errunit,*) 'Finished initializing ocean model at '&
