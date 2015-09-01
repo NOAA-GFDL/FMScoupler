@@ -26,19 +26,92 @@
 !! surface_flux_mod is configured via the surface_flux_nml namelist in the `input.nml` file.
 !! The following table are the available namelist variables.
 !!
-!! | Variable Name        | Type    | Default Value | Description |
-!! | -------------------- | ------- | ------------- | ----------- |
-!! | no_neg_q             | logical | .FALSE.       | If q_atm_in (specific humidity) is negative (because of numerical truncation), then override with 0. |
-!! | use_virtual_temp     | logical | .TRUE.        | If true, use virtual potential temp to calculate the stability of the surface layer. if false, use potential temp. |
-!! | alt_gustiness        | logical | .FALSE.       | An alternative formulation for gustiness calculation. A minimum bound on the wind speed used influx calculations, with the bound equal to gust_const |
-!! | old_dtaudv           | logical | .FALSE.       | The derivative of surface wind stress w.r.t. the zonal wind and meridional wind are approximated by the same tendency. |
-!! | use_mixing_ratio     | logical | .FALSE.       | An option to provide capability to run the Manabe Climate form of the surface flux (coded for legacy purposes). |
-!! | gust_const           | real    | 1.0           | Constant for alternative gustiness calculation. |
-!! | gust_min             | real    | 0.0           | Minimum gustiness used when alt_gustiness = false. |
-!! | ncar_ocean_flux      | logical | .FALSE.       | Use NCAR climate model turbulent flux calculation described by Large and Yeager, NCAR Technical Document, 2004 |
-!! | ncar_ocean_flux_orig | logical | .FALSE.       | Use NCAR climate model turbulent flux calculation described by Large and Yeager, NCAR Technical Document, 2004, using the original GFDL implementation, which contains a bug in the specification of the exchange coefficient for the sensible heat.  This option is available for legacy purposes, and is not recommended for new experiments. |
-!! | raoult_sat_vap       | logical | .FALSE.       | Reduce saturation vapor pressures to account for seawater salinity. |
-!! | do_simple            | logical | .FALSE.       | |
+!! <table>
+!!   <tr>
+!!     <th>Variable Name</th>
+!!     <th>Type</th>
+!!     <th>Default Value</th>
+!!     <th>Description</th>
+!!   </tr>
+!!   <tr>
+!!     <td>no_neg_q</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>If q_atm_in (specific humidity) is negative (because of numerical
+!!       truncation), then override with 0.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>use_virtual_temp</td>
+!!     <td>logical</td>
+!!     <td>.TRUE.</td>
+!!     <td>If true, use virtual potential temp to calculate the stability of the
+!!       surface layer. if false, use potential temp.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>alt_gustiness</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>An alternative formulation for gustiness calculation. A minimum bound
+!!       on the wind speed used influx calculations, with the bound equal to
+!!       gust_const.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>old_dtaudv</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>The derivative of surface wind stress w.r.t. the zonal wind and
+!!       meridional wind are approximated by the same tendency.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>use_mixing_ratio</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>An option to provide capability to run the Manabe Climate form of the
+!!       surface flux (coded for legacy purposes). </td>
+!!   </tr>
+!!   <tr>
+!!     <td>gust_const</td>
+!!     <td>real</td>
+!!     <td>1.0</td>
+!!     <td>Constant for alternative gustiness calculation.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>gust_min</td>
+!!     <td>real</td>
+!!     <td>0.0</td>
+!!     <td>Minimum gustiness used when alt_gustiness = false.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>ncar_ocean_flux</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>Use NCAR climate model turbulent flux calculation described by Large
+!!       and Yeager, NCAR Technical Document, 2004.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>ncar_ocean_flux_orig</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>Use NCAR climate model turbulent flux calculation described by Large
+!!       and Yeager, NCAR Technical Document, 2004, using the original GFDL
+!!       implementation, which contains a bug in the specification of the exchange
+!!       coefficient for the sensible heat.  This option is available for legacy
+!!       purposes, and is not recommended for new experiments.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>raoult_sat_vap</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>Reduce saturation vapor pressures to account for seawater
+!!     salinity.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_simple</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td></td>
+!!   </tr>
+!! </table
 module surface_flux_mod
 
 use             fms_mod, only: FATAL, close_file, mpp_pe, mpp_root_pe, write_version_number
