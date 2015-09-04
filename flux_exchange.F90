@@ -501,7 +501,7 @@ module flux_exchange_mod
        ice_cell_area => cell_area
   use    land_model_mod, only:  land_data_type, atmos_land_boundary_type
 
-  use  surface_flux_mod, only: surface_flux
+  use  surface_flux_mod, only: surface_flux, surface_flux_init
   use monin_obukhov_mod, only: mo_profile     
 
   use xgrid_mod, only: xmap_type, setup_xmap, set_frac_area, &
@@ -1085,6 +1085,8 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
            n_xgrid_runoff = max(xgrid_count(xmap_runoff),1)
            if (n_xgrid_runoff.eq.1) write (*,'(a,i6,6x,a)') 'PE = ', mpp_pe(), 'Runoff  exchange size equals one.'
         endif
+
+        call surface_flux_init()
 
 !-----------------------------------------------------------------------
 

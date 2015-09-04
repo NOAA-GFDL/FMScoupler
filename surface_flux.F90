@@ -114,18 +114,18 @@
 !! </table
 module surface_flux_mod
 
-use             fms_mod, only: FATAL, close_file, mpp_pe, mpp_root_pe, write_version_number
+use             fms_mod, only: close_file, mpp_pe, mpp_root_pe, write_version_number
 use             fms_mod, only: file_exist, check_nml_error, open_namelist_file, stdlog
-use   monin_obukhov_mod, only: mo_drag, mo_profile
+use   monin_obukhov_mod, only: mo_drag, mo_profile, monin_obukhov_init
 use  sat_vapor_pres_mod, only: escomp, descomp
 use       constants_mod, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
-use             mpp_mod, only: input_nml_file
+use             mpp_mod, only: input_nml_file, FATAL, mpp_error
 
 implicit none
 private
 
 ! ==== public interface ======================================================
-public  surface_flux
+public  surface_flux, surface_flux_init
 ! ==== end of public interface ===============================================
 
 !> \brief For the calculation of fluxes on the exchange grids.
@@ -143,7 +143,7 @@ end interface
 character(len=*), parameter :: version = '$Id$'
 character(len=*), parameter :: tagname = '$Name$'
 
-logical :: do_init = .true.
+logical :: module_is_initialized = .false.
 
 real, parameter :: d622   = rdgas/rvgas
 real, parameter :: d378   = 1.-d622
@@ -266,7 +266,8 @@ subroutine surface_flux_1d (                                           &
   integer :: i, nbad
 
 
-  if (do_init) call surface_flux_init
+  if (.not. module_is_initialized) &
+     call mpp_error(FATAL, "surface_flux_1d: surface_flux_init is not called")
 
   !---- use local value of surf temp ----
 
@@ -687,7 +688,9 @@ subroutine surface_flux_init
 
   if(.not. use_virtual_temp) d608 = 0.0
 
-  do_init = .false.
+  call monin_obukhov_init()
+
+  module_is_initialized = .true.
 
 end subroutine surface_flux_init
 
