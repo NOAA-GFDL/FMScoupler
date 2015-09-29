@@ -631,9 +631,16 @@ real, parameter :: d378 = 1.0-d622
   logical :: do_runoff = .TRUE. !< Turns on/off the land runoff interpolation to the ocean
   logical :: do_forecast = .false.
   integer :: nblocks = 1
+  logical :: partition_fprec_from_lprec = .FALSE.  ! option for ATM override experiments where liquid+frozen precip are combined
+                                                   ! This option will convert liquid precip to snow when t_ref is less than
+                                                   ! tfreeze parameter                
+  real, parameter    :: tfreeze = 273.15
+  logical :: scale_precip_2d = .false.
+  real, allocatable, dimension(:,:) :: frac_precip
 
 namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug, sw1way_bug, &
-         do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks
+     do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks, &
+     partition_fprec_from_lprec, scale_precip_2d
 
   integer              :: my_nblocks = 1
   integer, allocatable :: block_start(:), block_end(:)
@@ -962,6 +969,12 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
        !
        call mpp_get_global_domain(Atm%domain, isg, ieg, jsg, jeg, xsize=nxg, ysize=nyg)
        call mpp_get_compute_domain(Atm%domain, isc, iec, jsc, jec)
+
+       if (scale_precip_2d) then
+       	  allocate(frac_precip(isc:iec,jsc:jec))	
+	  frac_precip=0.0
+       endif
+
        call mpp_get_data_domain(Atm%domain, isd, ied, jsd, jed)
        if(size(Atm%lon_bnd,1) .NE. iec-isc+2 .OR. size(Atm%lon_bnd,2) .NE. jec-jsc+2) then
           call error_mesg ('flux_exchange_mod',  &
@@ -2502,10 +2515,11 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   logical :: used
   logical :: ov
   integer :: ier
-
+  integer :: is_atm, ie_atm, js_atm, je_atm, i, j
+  
   character(32) :: tr_name ! name of the tracer
   integer :: tr, n, m ! tracer indices
-  integer :: is, ie, l, i
+  integer :: is, ie, l
 
 !Balaji
   call mpp_clock_begin(cplClock)
@@ -2525,6 +2539,29 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   call data_override ('ATM', 'flux_sw_vis_dif',  Atm%flux_sw_vis_dif, Time)
   call data_override ('ATM', 'flux_lw',  Atm%flux_lw, Time)
   call data_override ('ATM', 'lprec',    Atm%lprec,   Time)
+
+  if (scale_precip_2d) then
+      call mpp_get_compute_domain(Atm%Domain, is_atm, ie_atm, js_atm, je_atm)
+      call data_override ('ATM', 'precip_scale2d',    frac_precip,   Time)	
+      do j=js_atm,je_atm
+         do i=is_atm, ie_atm
+                Atm%lprec(i,j) = Atm%lprec(i,j)*frac_precip(i,j)
+         enddo
+      enddo
+  endif
+
+  if (partition_fprec_from_lprec .and. Atm%pe) then
+      call mpp_get_compute_domain(Atm%Domain, is_atm, ie_atm, js_atm, je_atm)
+      do j=js_atm,je_atm
+         do i=is_atm, ie_atm
+            if (Atm%t_bot(i,j) < tfreeze) then
+                Atm%fprec(i,j) = Atm%lprec(i,j)
+                Atm%lprec(i,j) = 0.0
+            endif
+         enddo
+      enddo
+  endif
+  
   call data_override ('ATM', 'fprec',    Atm%fprec,   Time)
   call data_override ('ATM', 'coszen',   Atm%coszen,  Time)
   call data_override ('ATM', 'dtmass',   Atm%Surf_Diff%dtmass, Time)
