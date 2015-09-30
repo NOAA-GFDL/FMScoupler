@@ -265,6 +265,20 @@
 !!       purpose is for Openmp implementation. Normally you may set nblocks to be
 !!       coupler_nml atmos_nthreads.</td>
 !!   </tr>
+!!   <tr>
+!!     <td>partition_fprec_from_lprec</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>Option for ATM override experiments where liquid+frozen precip are combined.
+!!         This option will convert liquid precip to snow when t_ref is less than tfreeze parameter</td>
+!!   </tr>
+!!   <tr>
+!!     <td>scale_precip_2d</td>
+!!     <td>logical</td>
+!!     <td>.false.</td>
+!!     <td>Option to scale the Atm%lprec.
+!!         If this varible is set to .true. Atm%lprec will be rescaled by a field read from the data_table</td>
+!!   </tr>
 !!
 !! \section main_example Main Program Example
 !!
