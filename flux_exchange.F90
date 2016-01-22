@@ -1,3 +1,6 @@
+
+module flux_exchange_mod
+
 !-----------------------------------------------------------------------
 !                   GNU General Public License                        !                                                                      
 ! This program is free software; you can redistribute it and/or modify it and  
@@ -482,7 +485,6 @@
 !!                                             ! ocean MODEL GRID (m/s)
 !!                         Ocean%frazil        ! frazil at temperature points on the ocean MODEL GRID
 !! ~~~~~~~~~~
-module flux_exchange_mod
 
   use mpp_mod,         only: mpp_npes, mpp_pe, mpp_root_pe, &
        mpp_error, stderr, stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
@@ -529,7 +531,10 @@ module flux_exchange_mod
        sum_diag_integral_field
 
   use  diag_manager_mod, only: register_diag_field,  &
-       register_static_field, send_data, send_tile_averaged_data
+       register_static_field, send_data, send_tile_averaged_data, &
+       diag_field_add_attribute, get_diag_field_id, &
+       DIAG_FIELD_NOT_FOUND
+  use diag_data_mod,         only: CMOR_MISSING_VALUE
 
   use  time_manager_mod, only: time_type
 
@@ -623,6 +628,12 @@ character(len=4), parameter :: mod_name = 'flux'
 integer :: id_co2_atm_dvmr, id_co2_surf_dvmr
 
 integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:)
+
+! id's for cmip specific fields
+  integer :: id_tas, id_uas, id_vas, id_ts, id_psl, &
+             id_sfcWind, id_tauu, id_tauv, &
+             id_hurs, id_huss, id_evspsbl, id_hfls, id_hfss, &
+             id_rhs, id_sftlf, id_tos, id_sic, id_tslsi
 
 logical :: first_static = .true.
 logical :: do_init = .true.
@@ -2149,6 +2160,9 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
      if ( id_land_mask > 0 ) then
         used = send_data ( id_land_mask, Land_Ice_Atmos_Boundary%land_frac, Time )
      endif
+     if ( id_sftlf > 0 ) then
+        used = send_data ( id_sftlf, 100.*Land_Ice_Atmos_Boundary%land_frac, Time )
+     endif
 
      first_static = .false.
   endif
@@ -2263,9 +2277,10 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   endif
 
   ! - bw, Sep 17, 2007
-  if ( id_slp > 0 ) then
+  if ( id_slp > 0 .or. id_psl > 0 ) then
      call get_from_xgrid (diag_atm, 'ATM', ex_slp, xmap_sfc)
-     used = send_data ( id_slp, diag_atm, Time )
+     if ( id_slp > 0 ) used = send_data ( id_slp, diag_atm, Time )
+     if ( id_psl > 0 ) used = send_data ( id_psl, diag_atm, Time )
   endif
 
   !-----------------------------------------------------------------------
@@ -2310,6 +2325,9 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   if(id_q_ref > 0) then
     used = send_data(id_q_ref,Land_Ice_Atmos_Boundary%q_ref,Time)
   endif
+  if(id_huss > 0) then
+    used = send_data(id_huss,Land_Ice_Atmos_Boundary%q_ref,Time)
+  endif
   if(id_q_ref_land > 0) then
     call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
     used = send_tile_averaged_data(id_q_ref_land, diag_land, &
@@ -2351,9 +2369,11 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
     call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
     used = send_data ( id_rh_ref, diag_atm, Time )
   endif
-  if(id_rh_ref_cmip > 0) then
+  if(id_rh_ref_cmip > 0 .or. id_hurs > 0 .or. id_rhs > 0) then
     call get_from_xgrid (diag_atm, 'ATM', ex_ref2, xmap_sfc)
-    used = send_data ( id_rh_ref_cmip, diag_atm, Time )
+    if (id_rh_ref_cmip > 0) used = send_data ( id_rh_ref_cmip, diag_atm, Time )
+    if (id_hurs > 0)        used = send_data ( id_hurs, diag_atm, Time )
+    if (id_rhs  > 0)        used = send_data ( id_rhs,  diag_atm, Time )
   endif
 !cjg  endif
 
@@ -2366,13 +2386,13 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
           Land%tile_size, Time, mask = Land%mask )
   endif
   call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
-  if ( id_t_ref > 0 ) then
-     used = send_data ( id_t_ref, diag_atm, Time )
-  endif
+  if ( id_t_ref > 0 ) used = send_data ( id_t_ref, diag_atm, Time )
+  if ( id_tas > 0 )   used = send_data ( id_tas, diag_atm, Time )
+
   call sum_diag_integral_field ('t_ref',  diag_atm)
 
   !    ------- reference u comp -----------
-  if ( id_u_ref > 0 .or. id_u_ref_land > 0) then
+  if ( id_u_ref > 0 .or. id_u_ref_land > 0 .or. id_uas > 0) then
      where (ex_avail) &
         ex_ref = ex_u_surf + (ex_u_atm-ex_u_surf) * ex_del_m
      if ( id_u_ref_land > 0 ) then
@@ -2380,14 +2400,15 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
         used = send_tile_averaged_data ( id_u_ref_land, diag_land, &
              Land%tile_size, Time, mask = Land%mask )
      endif
-     if ( id_u_ref > 0 ) then
+     if ( id_u_ref > 0 .or. id_uas > 0 ) then
         call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
-        used = send_data ( id_u_ref, diag_atm, Time )
+        if ( id_u_ref > 0 ) used = send_data ( id_u_ref, diag_atm, Time )
+        if ( id_uas > 0 )   used = send_data ( id_uas, diag_atm, Time )
      endif
   endif
 
   !    ------- reference v comp -----------
-  if ( id_v_ref > 0 .or. id_v_ref_land > 0 ) then
+  if ( id_v_ref > 0 .or. id_v_ref_land > 0 .or. id_vas > 0 ) then
      where (ex_avail) &
         ex_ref = ex_v_surf + (ex_v_atm-ex_v_surf) * ex_del_m
      if ( id_v_ref_land > 0 ) then
@@ -2395,19 +2416,21 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
         used = send_tile_averaged_data ( id_v_ref_land, diag_land, &
              Land%tile_size, Time, mask = Land%mask )
      endif
-     if ( id_v_ref > 0 ) then
+     if ( id_v_ref > 0 .or. id_vas > 0 ) then
         call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
-        used = send_data ( id_v_ref, diag_atm, Time )
+        if ( id_v_ref > 0 ) used = send_data ( id_v_ref, diag_atm, Time )
+        if ( id_vas   > 0 ) used = send_data ( id_vas, diag_atm, Time )
      endif
   endif
 
   !    ------- reference-level absolute wind -----------
-  if ( id_wind_ref > 0 ) then
+  if ( id_wind_ref > 0 .or. id_sfcWind > 0 ) then
      where (ex_avail) &
         ex_ref = sqrt((ex_u_surf + (ex_u_atm-ex_u_surf) * ex_del_m)**2 &
                      +(ex_v_surf + (ex_v_atm-ex_v_surf) * ex_del_m)**2)
      call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
-     used = send_data ( id_wind_ref, diag_atm, Time )
+     if ( id_wind_ref > 0 ) used = send_data ( id_wind_ref, diag_atm, Time )
+     if ( id_sfcWind  > 0 ) used = send_data ( id_sfcWind, diag_atm, Time )
   endif
 
   !    ------- interp factor for heat ------
@@ -3062,9 +3085,11 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
 
   !------- zonal wind stress -----------
   used = send_data ( id_u_flux, Atmos_boundary%u_flux, Time )
+  used = send_data ( id_tauu,  -Atmos_boundary%u_flux, Time )
 
   !------- meridional wind stress -----------
   used = send_data ( id_v_flux, Atmos_boundary%v_flux, Time )
+  used = send_data ( id_tauv,  -Atmos_boundary%v_flux, Time )
 
 !Balaji
   call mpp_clock_end(fluxAtmDnClock)
@@ -3328,7 +3353,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
   real, dimension(nxc_ice, nyc_ice, nk_ice) :: ice_frac
   real, dimension(nxc_ocn, nyc_ocn )        :: tmp
   real, dimension(n_xgrid_sfc)              :: ex_ice_frac
-  real, dimension(ni_atm, nj_atm)           :: diag_atm
+  real, dimension(ni_atm, nj_atm)           :: diag_atm, ocean_frac
   logical :: used
   integer       :: m
   integer       :: n
@@ -3448,13 +3473,31 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
 
    call mpp_set_current_pelist()
   
-  if ( id_ice_mask > 0 ) then
+  if ( id_ice_mask > 0 .or. id_sic ) then
      ice_frac        = 1.
      ice_frac(:,:,1) = 0.
      ex_ice_frac     = 0.
      call put_to_xgrid (ice_frac, 'OCN', ex_ice_frac, xmap_sfc)
      call get_from_xgrid (diag_atm, 'ATM', ex_ice_frac, xmap_sfc)
-     used = send_data ( id_ice_mask, diag_atm, Time )
+     if ( id_ice_mask > 0 ) used = send_data ( id_ice_mask, diag_atm, Time )
+
+     ! ice concentration for only the ocean part of the atmos grid box
+     ! normalize ice fraction over entire atmos grid box by the
+     ! fraction of atmos grid box that is ocean
+     if ( id_sic ) then
+       ice_frac = 1.
+       ex_ice_frac = 0.
+       call put_to_xgrid (ice_frac, 'OCN', ex_ice_frac, xmap_sfc)
+       call get_from_xgrid (ocean_frac, 'ATM', ex_ice_frac, xmap_sfc)
+       where (ocean_frac > 0.0) 
+         diag_atm = min(100., 100.*(diag_atm/ocean_frac))
+         ocean_frac = 1.0 
+       elsewhere
+         diag_atm = 0.0 
+         ocean_frac = 0.0 
+       endwhere
+       used = send_data ( id_sic, diag_atm, Time, rmask=ocean_frac )
+     endif
   endif
 
   if(Ice%pe) then
@@ -3646,7 +3689,11 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
        ex_dt_t_surf,  &
        ex_delta_t_n,  &
        ex_t_ca_new,   &
-       ex_dt_t_ca
+       ex_dt_t_ca,    &
+       ex_icetemp,    &
+       ex_land_frac,  &
+       ex_temp
+
   real, dimension(n_xgrid_sfc,n_exch_tr) :: &
        ex_tr_surf_new,    & ! updated tracer values at the surface
        ex_dt_tr_surf,     & ! tendency of tracers at the surface
@@ -3656,9 +3703,10 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
        ex_co2_surf_dvmr   ! updated CO2 tracer values at the surface (dry vmr)
 
   real, dimension(size(Land_Ice_Atmos_Boundary%dt_t,1),size(Land_Ice_Atmos_Boundary%dt_t,2)) :: diag_atm, &
-       evap_atm
+       evap_atm, frac_atm
   real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2), size(Land_boundary%lprec,3)) :: data_lnd, diag_land
   real, dimension(size(Ice_boundary%lprec,1), size(Ice_boundary%lprec,2), size(Ice_boundary%lprec,3)) :: data_ice
+  real, dimension(size(Ice%albedo,1),size(Ice%albedo,2),size(Ice%albedo,3)) ::  icegrid
   logical :: used
 
   integer :: tr       ! tracer index
@@ -3795,7 +3843,49 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
   if ( id_t_surf > 0 ) then
      used = send_data ( id_t_surf, diag_atm, Time )
   endif
+  if ( id_ts > 0 ) then
+     used = send_data ( id_ts, diag_atm, Time )
+  endif
   call sum_diag_integral_field ('t_surf', diag_atm)
+
+  !------- new surface temperature only over open ocean -----------
+  if ( id_tos > 0 ) then
+    ex_icetemp = 0.0
+    icegrid = 0.0; icegrid(:,:,1) = 1.0
+    call put_to_xgrid ( icegrid, 'OCN', ex_icetemp, xmap_sfc)
+    ex_temp = ex_t_surf_new * ex_icetemp
+    call get_from_xgrid (diag_atm, 'ATM', ex_temp, xmap_sfc)
+    call get_from_xgrid (frac_atm, 'ATM', ex_icetemp, xmap_sfc)
+    where (frac_atm > 0.0)
+      diag_atm = (diag_atm/frac_atm) - tfreeze
+      frac_atm = 1.0
+    elsewhere
+      diag_atm = 0.0
+      frac_atm = 0.0
+    endwhere
+    used = send_data ( id_tos, diag_atm, Time, rmask=frac_atm )
+  endif
+
+  !------- new surface temperature only over land and sea-ice -----------
+  if ( id_tslsi > 0 ) then
+    ex_land_frac = 0.0
+    call put_logical_to_real (Land%mask, 'LND', ex_land_frac, xmap_sfc)
+    icegrid = 1.0; icegrid(:,:,1) = 0.
+    ex_icetemp = 0.
+    call put_to_xgrid (icegrid, 'OCN', ex_icetemp, xmap_sfc)
+    ex_icetemp = ex_icetemp + ex_land_frac
+    ex_temp = ex_t_surf_new * ex_icetemp
+    call get_from_xgrid (diag_atm, 'ATM', ex_temp, xmap_sfc)
+    call get_from_xgrid (frac_atm, 'ATM', ex_icetemp, xmap_sfc)
+    where (frac_atm > 0.0)
+      diag_atm = diag_atm/frac_atm
+      frac_atm = 1.0
+    elsewhere
+      diag_atm = 0.0
+      frac_atm = 0.0
+    endwhere
+    used = send_data ( id_tslsi, diag_atm, Time, rmask=frac_atm )
+  endif
 
 
   ! + slm, Mar 27 2002
@@ -3824,9 +3914,10 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
   enddo
 
   !------- sensible heat flux -----------
-  if ( id_t_flux > 0 ) then
+  if ( id_t_flux > 0 .or. id_hfss > 0 ) then
      call get_from_xgrid (diag_atm, 'ATM', ex_flux_t, xmap_sfc)
-     used = send_data ( id_t_flux, diag_atm, Time )
+     if ( id_t_flux > 0 ) used = send_data ( id_t_flux, diag_atm, Time )
+     if ( id_hfss   > 0 ) used = send_data ( id_hfss, diag_atm, Time )
   endif
 
   !------- net longwave flux -----------
@@ -3851,7 +3942,9 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
   !-----------------------------------------------------------------------
   !---- accumulate global integral of evaporation (mm/day) -----
   call get_from_xgrid (evap_atm, 'ATM', ex_flux_tr(:,isphum), xmap_sfc)
-  if( id_q_flux > 0 ) used = send_data ( id_q_flux, evap_atm, Time)
+  if( id_q_flux > 0 )  used = send_data ( id_q_flux, evap_atm, Time)
+  if( id_evspsbl > 0 ) used = send_data ( id_evspsbl, evap_atm, Time)
+  if( id_hfls > 0 )    used = send_data ( id_hfls, HLF*evap_atm, Time)
   if( id_q_flux_land > 0 ) then
      call get_from_xgrid (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
      used = send_tile_averaged_data(id_q_flux_land, diag_land, &
@@ -4160,6 +4253,7 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes, land_pe )
   character(len=32)  :: name, units ! name of the tracer
   character(len=128) :: longname    ! long name of the tracer
   integer            :: tr          ! tracer index
+  integer            :: area_id
 !-----------------------------------------------------------------------
 !  initializes diagnostic fields that may be output from this module
 !  (the id numbers may be referenced anywhere in this module)
@@ -4409,6 +4503,141 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes, land_pe )
   id_q_flux_land = register_diag_field( mod_name, 'evap_land', land_axes, Time, &
          'evaporation rate over land',        'kg/m2/s', missing_value=-1.0 )
   endif
+
+!--------------------------------------------------------------------
+!    retrieve the diag_manager id for the area diagnostic,
+!    needed for cmorizing various diagnostics.
+!--------------------------------------------------------------------
+      area_id = get_diag_field_id ('dynamics', 'area')
+      if (area_id .eq. DIAG_FIELD_NOT_FOUND) call error_mesg &
+         ('diag_field_init in flux_exchange_mod', &
+          'diagnostic field "dynamics", "area" is not in the diag_table', NOTE)
+
+!-----------------------------------------------------------------------
+!  register cmip variable names
+!-----------------------------------------------------------------------
+! NOTE: add extra dimension reference level fields?  height2m, height10m
+!       for now we will handle this with an attribute
+
+  id_tas      = &
+       register_diag_field ( mod_name, 'tas', atmos_axes, Time, &
+       'Near-Surface Air Temperature', 'K' , &
+       standard_name = 'air_temperature', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE, range=trange )
+  if ( id_tas > 0 ) call diag_field_add_attribute( id_tas, 'height', z_ref_heat )
+
+  id_uas      = &
+       register_diag_field ( mod_name, 'uas', atmos_axes, Time, &
+       'Eastward Near-Surface Wind', 'm s-1', &
+       standard_name = 'eastward_wind', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE, range=vrange )
+  if ( id_uas > 0 ) call diag_field_add_attribute( id_uas, 'height', z_ref_mom )
+
+  id_vas      = &
+       register_diag_field ( mod_name, 'vas', atmos_axes, Time, &
+       'Northward Near-Surface Wind', 'm s-1', &
+       standard_name = 'northward_wind', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE, range=vrange )
+  if ( id_vas > 0 ) call diag_field_add_attribute( id_vas, 'height', z_ref_mom )
+
+  id_sfcWind = &
+       register_diag_field ( mod_name, 'sfcWind', atmos_axes, Time, &
+       'Near-Surface Wind Speed', 'm s-1', &
+       standard_name = 'wind_speed', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE, range=vrange )
+  if ( id_sfcWind > 0 ) call diag_field_add_attribute( id_sfcWind, 'height', z_ref_mom )
+
+  id_huss = &
+       register_diag_field ( mod_name, 'huss', atmos_axes, Time, &
+       'Near-Surface Specific Humidity', '1', &
+       standard_name = 'specific_humidity', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE )
+  if ( id_huss > 0 ) call diag_field_add_attribute( id_huss, 'height', z_ref_heat )
+
+  id_hurs = &
+       register_diag_field ( mod_name, 'hurs', atmos_axes, Time, &
+       'Near-Surface Relative Humidity', '%', &
+       standard_name = 'relative_humidity', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE )
+  if ( id_hurs > 0 ) call diag_field_add_attribute( id_hurs, 'height', z_ref_heat )
+
+  id_rhs = &
+       register_diag_field ( mod_name, 'rhs', atmos_axes, Time, &
+       'Near-Surface Relative Humidity', '%', &
+       standard_name = 'relative_humidity', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE )
+  if ( id_rhs > 0 ) call diag_field_add_attribute( id_rhs, 'height', z_ref_heat )
+
+  id_ts = &
+       register_diag_field ( mod_name, 'ts', atmos_axes, Time, &
+       'Surface Temperature', 'K', &
+       standard_name = 'surface_temperature', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE, range=trange )
+
+  id_psl = &
+       register_diag_field ( mod_name, 'psl', atmos_axes, Time, &
+       'Sea Level Pressure', 'Pa', &
+       standard_name = 'air_pressure_at_sea_level', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE )
+
+  id_tauu = &
+       register_diag_field ( mod_name, 'tauu', atmos_axes, Time, &
+       'Surface Downward Eastward Wind Stress', 'Pa', &
+       standard_name = 'surface_downward_eastward_stress', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE )
+
+  id_tauv = &
+       register_diag_field ( mod_name, 'tauv', atmos_axes, Time, &
+       'Surface Downward Northward Wind Stress', 'Pa', &
+       standard_name = 'surface_downward_northward_stress', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE )
+
+  id_hfss = &
+       register_diag_field ( mod_name, 'hfss', atmos_axes, Time, &
+       'Surface Upward Sensible Heat Flux', 'W m-2', &
+       standard_name = 'surface_upward_sensible_heat_flux', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE )
+
+  id_hfls = &
+       register_diag_field ( mod_name, 'hfls', atmos_axes, Time, &
+       'Surface Upward Latent Heat Flux', 'W m-2', &
+       standard_name = 'surface_upward_latent_heat_flux', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE )
+  if ( id_hfls > 0 ) call diag_field_add_attribute( id_hfls, 'comment', 'Lv*evap' )
+
+  id_evspsbl = &
+       register_diag_field( mod_name, 'evspsbl', atmos_axes, Time, &
+       'Evaporation', 'kg m-2 s-1', &
+       standard_name = 'water_evaporation_flux', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE )
+
+  id_sftlf = &
+       register_static_field ( mod_name, 'sftlf', atmos_axes,  &
+       'Land Area Fraction', '%', &
+       standard_name = 'land_area_fraction', area=area_id, &
+       interp_method = "conserve_order1" )
+
+  id_tslsi = &
+       register_diag_field ( mod_name, 'tslsi', atmos_axes, Time,  &
+       'Surface Temperature Where Land or Sea Ice', 'K', &
+       standard_name = 'surface_temperature', area=area_id, &
+       mask_variant=.true., missing_value=CMOR_MISSING_VALUE )
+
+  id_tos = &
+       register_diag_field ( mod_name, 'tos', atmos_axes, Time,  &
+       'Sea Surface Temperature', 'C', &
+       standard_name = 'sea_surface_temperature', area=area_id, &
+       mask_variant=.true., missing_value=CMOR_MISSING_VALUE )
+
+  id_sic = &
+       register_diag_field ( mod_name, 'sic', atmos_axes, Time,  &
+       'Sea Ice Area Fraction', '%', &
+       standard_name = 'sea_ice_area_fraction', area=area_id, &
+       missing_value=CMOR_MISSING_VALUE )
+  if ( id_sic > 0 ) call diag_field_add_attribute( id_sic, 'comment', &
+       'averaged over the ocean portion of grid box' )
+
+!-----------------------------------------------------------------------
 
   end subroutine diag_field_init
 
