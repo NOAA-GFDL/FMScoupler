@@ -2629,7 +2629,7 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   
   character(32) :: tr_name ! name of the tracer
   integer :: tr, n, m ! tracer indices
-  integer :: is, ie, l
+  integer :: is, ie, l, i
 
 !Balaji
   call mpp_clock_begin(cplClock)
@@ -3944,7 +3944,6 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
      used = send_data ( id_ts, diag_atm, Time )
   endif
   call sum_diag_integral_field ('t_surf', diag_atm)
-#endif
   !------- new surface temperature only over open ocean -----------
   if ( id_tos > 0 ) then
     ex_icetemp = 0.0
@@ -3983,6 +3982,7 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
     endwhere
     used = send_data ( id_tslsi, diag_atm, Time, rmask=frac_atm )
   endif
+#endif
 
 
   ! + slm, Mar 27 2002
