@@ -2624,7 +2624,7 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   logical :: ov
   integer :: ier
 #ifndef use_AM3_physics
-  integer :: is_atm, ie_atm, js_atm, je_atm, i, j
+  integer :: is_atm, ie_atm, js_atm, je_atm, j
 #endif
   
   character(32) :: tr_name ! name of the tracer
