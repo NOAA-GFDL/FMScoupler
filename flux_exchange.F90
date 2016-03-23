@@ -538,7 +538,7 @@ module flux_exchange_mod
 
   use  time_manager_mod, only: time_type
 
-  use sat_vapor_pres_mod, only: compute_qs
+  use sat_vapor_pres_mod, only: compute_qs, sat_vapor_pres_init
 
   use      constants_mod, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, PI, CP_OCEAN, &
                                 WTMCO2, WTMC
@@ -842,7 +842,9 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
   integer :: is, ie, js, je, kd
   character(32) :: tr_name
   logical       :: found
+  character(len=256) :: errmsg
 
+  integer              :: omp_get_num_threads, nthreads
   integer              :: n, npes_atm, npes_ocn, npes_all
   integer, allocatable :: pelist(:)
 
@@ -865,6 +867,14 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
     call ocean_model_flux_init(Ocean_state)
     call atmos_tracer_flux_init
     call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
+    call sat_vapor_pres_init()
+
+    nthreads = 1
+! assign nblocks to number of threads.
+!$OMP PARALLEL
+!$  nthreads = omp_get_num_threads()
+!$OMP END PARALLEL
+    nblocks = nthreads
 
 !-----------------------------------------------------------------------
     outunit = stdout(); logunit = stdlog()
@@ -887,6 +897,12 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
     if( mpp_pe() == mpp_root_pe() )write( logunit, nml=flux_exchange_nml )
     if(nblocks<1) call error_mesg ('flux_exchange_mod',  &
         'flux_exchange_nml nblocks must be positive', FATAL)
+    if(nblocks .NE. nthreads) then
+       write(errmsg, '(a,i3,a,i3)')'flux_exchange_nml nblocks is set to ', nblocks, &
+           ' is different from the default value (number of threads) = ', nthreads
+       call error_mesg ('flux_exchange_mod', errmsg, NOTE)
+    endif
+
     allocate(block_start(nblocks), block_end(nblocks))
 
 !----- find out number of atmospheric prognostic tracers and index of specific 
