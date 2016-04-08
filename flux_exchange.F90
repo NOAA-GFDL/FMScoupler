@@ -511,8 +511,7 @@ module flux_exchange_mod
   use ocean_model_mod, only: ocean_public_type, ice_ocean_boundary_type
   use ocean_model_mod, only: ocean_state_type
   use ice_model_mod,   only: ice_data_type, land_ice_boundary_type, &
-       ocean_ice_boundary_type, atmos_ice_boundary_type, Ice_stock_pe, &
-       ice_cell_area => cell_area
+       ocean_ice_boundary_type, atmos_ice_boundary_type, Ice_stock_pe
   use    land_model_mod, only:  land_data_type, atmos_land_boundary_type
 
   use  surface_flux_mod, only: surface_flux, surface_flux_init
@@ -1152,7 +1151,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
         
 !allocate atmos_ice_boundary
         call mpp_get_compute_domain( Ice%domain, is, ie, js, je )
-        kd = size(Ice%ice_mask,3)
+        kd = size(Ice%part_size,3)
         allocate( atmos_ice_boundary%u_flux(is:ie,js:je,kd) )
         allocate( atmos_ice_boundary%v_flux(is:ie,js:je,kd) )
         allocate( atmos_ice_boundary%u_star(is:ie,js:je,kd) )
@@ -1366,7 +1365,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 !
 
     call mpp_get_compute_domain( Ice%domain, is, ie, js, je )
-    kd = size(Ice%ice_mask,3)
+    kd = size(Ice%part_size,3)
     call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
          'ice_flux', Ice%axes, Time, suffix = '_ice')
 
@@ -3461,8 +3460,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
 
   if(Ice%pe) then
      ! frazil (already in J/m^2 so no need to multiply by Dt_cpl)
-     from_dq = 4.0*PI*Radius*Radius * &
-         & SUM( ice_cell_area * Ocean_Ice_Boundary%frazil )
+     from_dq = SUM( Ice%area * Ocean_Ice_Boundary%frazil )
      Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
      Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
   endif
@@ -4006,20 +4004,17 @@ end subroutine flux_up_to_atmos
     ! fluxes from ice -> ocean, integrate over surface and in time 
 
     ! precip - evap
-    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
-         & SUM( ice_cell_area * (Ice%lprec+Ice%fprec-Ice%flux_q) )
+    from_dq = Dt_cpl * SUM( Ice%area * (Ice%lprec+Ice%fprec-Ice%flux_q) )
     Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) = Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) + from_dq
 
     ! river
-    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
-         & SUM( ice_cell_area * (Ice%runoff + Ice%calving) )
+    from_dq = Dt_cpl * SUM( Ice%area * (Ice%runoff + Ice%calving) )
     Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) + from_dq
 
     ! sensible heat + shortwave + longwave + latent heat
-    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
-         & SUM( ice_cell_area * ( &
+    from_dq = Dt_cpl * SUM( Ice%area * ( &
          &   Ice%flux_sw_vis_dir+Ice%flux_sw_vis_dif &
          & + Ice%flux_sw_nir_dir+Ice%flux_sw_nir_dif + Ice%flux_lw &
          & - (Ice%fprec + Ice%calving)*HLF - Ice%flux_t - Ice%flux_q*HLV) )
@@ -4028,14 +4023,13 @@ end subroutine flux_up_to_atmos
 
     ! heat carried by river + pme (assuming reference temperature of 0 degC and river/pme temp = surface temp)
     ! Note: it does not matter what the ref temperature is but it must be consistent with that in OCN and ICE
-    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
-         & SUM( ice_cell_area * ( &
+    from_dq = Dt_cpl * SUM( Ice%area * ( &
          & (Ice%lprec+Ice%fprec-Ice%flux_q + Ice%runoff+Ice%calving)*CP_OCEAN*(Ice%t_surf(:,:,1) - 273.15)) )
     Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
 
     !SALT flux
-    from_dq = Dt_cpl* SUM( ice_cell_area * ( -Ice%flux_salt )) *4.0*PI*Radius*Radius
+    from_dq = Dt_cpl* SUM( Ice%area * ( -Ice%flux_salt ))
     Ice_stock(ISTOCK_SALT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_SALT)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_SALT)%dq(ISTOCK_TOP   ) = Ocn_stock(ISTOCK_SALT)%dq(ISTOCK_TOP   ) + from_dq
 
