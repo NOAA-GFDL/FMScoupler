@@ -476,6 +476,9 @@ program coupler_main
   logical :: do_chksum=.FALSE.
   logical :: do_debug=.FALSE.
   integer :: check_stocks = 0 ! -1: never 0: at end of run only n>0: every n coupled steps
+  logical :: use_hyper_thread = .false.
+  integer :: ncores_per_node = 0
+  logical :: debug_affinity = .false.
 
   namelist /coupler_nml/ current_date, calendar, force_date_from_namelist,         &
                          months, days, hours, minutes, seconds, dt_cpld, dt_atmos, &
@@ -483,7 +486,8 @@ program coupler_main
                          atmos_npes, ocean_npes, ice_npes, land_npes,              &
                          atmos_nthreads, ocean_nthreads, radiation_nthreads,       &
                          concurrent, do_concurrent_radiation, use_lag_fluxes,      &
-                         check_stocks, restart_interval, do_debug, do_chksum
+                         check_stocks, restart_interval, do_debug, do_chksum,      &
+                         use_hyper_thread, ncores_per_node, debug_affinity
 
 
   integer :: initClock, mainClock, termClock
@@ -1026,7 +1030,7 @@ contains
     character(len=64)  :: filename, fieldname
     integer :: id_restart, l
     integer :: omp_get_thread_num, omp_get_num_threads
-    integer :: get_cpu_affinity, base_cpu, ocean_omp_threads
+    integer :: get_cpu_affinity, base_cpu, base_cpu_r, adder
     character(len=8)  :: walldate
     character(len=10) :: walltime
     character(len=5)  :: wallzone
@@ -1069,6 +1073,12 @@ contains
               'mpp_io_nml variable io_clock_non can not be set to true.', FATAL )
        endif
     endif
+
+!---- ncores_per_node must be set when use_hyper_thread = .true.
+    if(use_hyper_thread .and. ncores_per_node == 0) then
+      call error_mesg ('program copuler', 'coupler_nml ncores_per_node must be set when use_hyper_thread=true', FATAL)
+    endif
+
 !----- read date and calendar type from restart file -----
 
     if( file_exist('INPUT/coupler.res') )then
@@ -1209,36 +1219,51 @@ contains
 !$OMP PARALLEL
 !$      if (omp_get_thread_num() == 0 ) then
 !$        call omp_set_num_threads(atmos_nthreads)
-!$OMP PARALLEL       !!!!atmos_nthreads nested parallel
-!$        call set_cpu_affinity( base_cpu + omp_get_thread_num() )
-!rab!$        write(6,*) mpp_pe()," atmos  ",get_cpu_affinity(), base_cpu, omp_get_thread_num()
-!rab!$        call flush(6)
+!$OMP PARALLEL private(adder)      !!!!atmos_nthreads nested parallel
+!$        if (use_hyper_thread) then
+!$          if (mod(omp_get_thread_num(),2) == 0) then
+!$            adder = omp_get_thread_num()/2
+!$          else
+!$            adder = ncores_per_node + omp_get_thread_num()/2
+!$          endif
+!$        else
+!$          adder = omp_get_thread_num()
+!$        endif
+!$       call set_cpu_affinity (base_cpu + adder)
+!$        if (debug_affinity) then
+!$          write(6,*) " atmos  ", get_cpu_affinity(), adder, omp_get_thread_num()
+!$          call flush(6)
+!$        endif
 !$OMP END PARALLEL   !!!!end atmos_nthreads nested parallel
 !$      endif
 !$      if (omp_get_thread_num() == 1 ) then
 !$        call omp_set_num_threads(radiation_nthreads)
-!$OMP PARALLEL       !!!!radiation_nthreads nested parallel
-!$        call set_cpu_affinity( base_cpu + atmos_nthreads + omp_get_thread_num() )
-!rab!$        write(6,*) mpp_pe()," rad    ",get_cpu_affinity(), base_cpu, omp_get_thread_num()
-!rab!$        call flush(6)
+!$        if (use_hyper_thread) then
+!$          base_cpu_r = atmos_nthreads/2 + mod(atmos_nthreads,2)
+!$        else
+!$          base_cpu_r = atmos_nthreads
+!$        endif
+!$OMP PARALLEL private(adder)       !!!!radiation_nthreads nested parallel
+!$        if (use_hyper_thread) then
+!$          if (mod(omp_get_thread_num()+mod(atmos_nthreads,2),2) == 0) then
+!$            adder = base_cpu_r + omp_get_thread_num()/2
+!$          else
+!$            adder = base_cpu_r + ncores_per_node + omp_get_thread_num()/2 - mod(atmos_nthreads,2)
+!$          endif
+!$        else
+!$          adder = base_cpu_r + omp_get_thread_num()
+!$        endif
+!$        call set_cpu_affinity (base_cpu + adder)
+!$        if (debug_affinity) then
+!$          write(6,*) " rad    ", get_cpu_affinity(), base_cpu_r, adder, omp_get_thread_num()
+!$          call flush(6)
+!$        endif
 !$OMP END PARALLEL   !!!!end radiation_nthreads nested parallel
 !$      endif
 !$OMP END PARALLEL
 !$      call omp_set_num_threads(atmos_nthreads)
     endif
 
-    if( Ocean%is_ocean_pe )then
-      if(concurrent) then
-!$           call omp_set_num_threads(ocean_nthreads)
-       call mpp_set_current_pelist( Ocean%pelist )
-!$           base_cpu = get_cpu_affinity()
-!$OMP PARALLEL
-!$           call set_cpu_affinity( base_cpu + omp_get_thread_num() )
-!$OMP END PARALLEL
-       else
-          ocean_nthreads = atmos_nthreads
-       end if
-    endif
    !--- initialization clock
     if( Atm%pe )then
        call mpp_set_current_pelist(Atm%pelist)
@@ -1558,17 +1583,33 @@ contains
         call mpp_clock_begin(id_ocean_model_init)
         call ocean_model_init( Ocean, Ocean_state, Time_init, Time )
         call mpp_clock_end(id_ocean_model_init)
-!---- make sure coupler_nml ocean_nthreads match OCEAN_OMP_THREADS from MOM6 MOM_input
-!---- omp_set_num_threads(OCEAN_OMP_THREADS) is called in MOM6 ocean_model_init
-!$OMP   PARALLEL default(none) shared(ocean_omp_threads)
-!$OMP   SINGLE
-!$      ocean_omp_threads = omp_get_num_threads()
-!$OMP   END SINGLE
-!$OMP   END PARALLEL
-!$        if( ocean_nthreads .NE. ocean_omp_threads ) then
-!$           call mpp_error(FATAL, 'ERROR in coupler_init: coupler_nml ocean_nthreads=',ocean_nthreads, &
-!$                ' does not match MOM_input OCEAN_OMP_THREADS=',ocean_omp_threads )
+
+     if(concurrent) then
+!$           call omp_set_num_threads(ocean_nthreads)
+       call mpp_set_current_pelist( Ocean%pelist )
+!$           base_cpu = get_cpu_affinity()
+!$OMP PARALLEL private(adder)    
+!$        if (use_hyper_thread) then
+!$          if (mod(omp_get_thread_num(),2) == 0) then
+!$            adder = omp_get_thread_num()/2
+!$          else
+!$            adder = ncores_per_node + omp_get_thread_num()/2
+!$          endif
+!$        else
+!$          adder = omp_get_thread_num()
 !$        endif
+!$       call set_cpu_affinity (base_cpu + adder)
+!$        if (debug_affinity) then
+!$          write(6,*) " ocean  ", get_cpu_affinity(), adder, omp_get_thread_num()
+!$          call flush(6)
+!$        endif
+!$OMP END PARALLEL  
+       else
+          ocean_nthreads = atmos_nthreads
+          call omp_set_num_threads(ocean_nthreads)
+       end if
+
+
         if( mpp_pe().EQ.mpp_root_pe() ) then
           call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
           write(errunit,*) 'Finished initializing ocean model at '&
