@@ -1606,7 +1606,7 @@ contains
 !$OMP END PARALLEL  
        else
           ocean_nthreads = atmos_nthreads
-          call omp_set_num_threads(ocean_nthreads)
+!$        call omp_set_num_threads(ocean_nthreads)
        end if
 
 
