@@ -3568,7 +3568,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
 
    call mpp_set_current_pelist()
   
-  if ( id_ice_mask > 0 .or. id_sic ) then
+  if ( id_ice_mask > 0 .or. id_sic > 0) then
      ice_frac        = 1.
      ice_frac(:,:,1) = 0.
      ex_ice_frac     = 0.
@@ -3579,7 +3579,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
      ! ice concentration for only the ocean part of the atmos grid box
      ! normalize ice fraction over entire atmos grid box by the
      ! fraction of atmos grid box that is ocean
-     if ( id_sic ) then
+     if ( id_sic > 0) then
        ice_frac = 1.
        ex_ice_frac = 0.
        call put_to_xgrid (ice_frac, 'OCN', ex_ice_frac, xmap_sfc)
