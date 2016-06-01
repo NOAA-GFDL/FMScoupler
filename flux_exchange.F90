@@ -566,6 +566,7 @@ module flux_exchange_mod
   use data_override_mod,          only: data_override
   use coupler_types_mod,          only: coupler_1d_bc_type
   use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init, atmos_ocean_fluxes_calc
+  use atmos_ocean_fluxes_mod,     only: atmos_ocean_dep_fluxes_calc
   use ocean_model_mod,            only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
   use coupler_types_mod,          only: coupler_type_copy
   use coupler_types_mod,          only: ind_psurf, ind_u10
@@ -750,6 +751,7 @@ logical, allocatable, dimension(:) :: &
      ex_avail,     &   !< true where data on exchange grid are available
      ex_land           !< true if exchange grid cell is over land
 real, allocatable, dimension(:) :: &
+     ex_seawater,   &
      ex_e_t_n,      &
      ex_f_t_delt_n
 
@@ -1530,7 +1532,6 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
        ex_del_m,      &
        ex_del_h,      &
        ex_del_q,      &
-       ex_seawater,   &
        ex_frac_open_sea
 
   real, dimension(n_xgrid_sfc,n_exch_tr) :: ex_tr_atm
@@ -1579,6 +1580,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
        ex_f_tr_delt_n (n_xgrid_sfc, n_exch_tr), &
        ex_e_tr_n      (n_xgrid_sfc, n_exch_tr), &
 
+       ex_seawater(n_xgrid_sfc),  &
 ! MOD these were moved from local ! so they can be passed to flux down
        ex_flux_u(n_xgrid_sfc),    &
        ex_flux_v(n_xgrid_sfc),    &
@@ -1776,6 +1778,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   enddo
   do n = 1, Atm%fields%num_bcs  !{
     do m = 1, Atm%fields%bc(n)%num_fields  !{
+      if(ex_gas_fields_atm%bc(n)%flux_type  .ne. 'air_sea_deposition') &
       call put_to_xgrid (Atm%fields%bc(n)%field(m)%values, 'ATM',            &
            ex_gas_fields_atm%bc(n)%field(m)%values, xmap_sfc, remap_method=remap_method, complete=.false.)
     enddo  !} m
@@ -1987,8 +1990,9 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
      do tr = 1,n_exch_tr
         if (tr==isphum) cycle
         do i = is,ie
-           ex_dfdtr_atm  (i,tr) = ex_dfdtr_atm  (i,isphum)
-           ex_dfdtr_surf (i,tr) = ex_dfdtr_surf (i,isphum)
+           ex_dfdtr_atm  (i,tr) =  ex_dfdtr_atm  (i,isphum)
+           ex_dfdtr_surf (i,tr) = -ex_dfdtr_atm (i,isphum)
+           !ex_dfdtr_surf (i,tr) = ex_dfdtr_surf (i,isphum)
            ex_flux_tr    (i,tr) = ex_dfdtr_surf(i,tr)*(ex_tr_surf(i,tr)-ex_tr_atm(i,tr))
         enddo
      enddo
@@ -2873,6 +2877,21 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
         end where
      endif
   enddo
+
+  !air-sea deposition fluxes
+  do n = 1, Atm%fields%num_bcs  !{
+   if(ex_gas_fields_atm%bc(n)%flux_type  .eq. 'air_sea_deposition') then
+    do m = 1, Atm%fields%bc(n)%num_fields  !{
+      call put_to_xgrid (Atm%fields%bc(n)%field(m)%values, 'ATM',            &
+           ex_gas_fields_atm%bc(n)%field(m)%values, xmap_sfc, remap_method=remap_method)
+    enddo  !} m
+   endif
+  enddo  !} n
+
+  ! Calculate ocean explicit flux here
+
+  call atmos_ocean_dep_fluxes_calc(ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes, ex_seawater)
+
 #endif
 
   cp_inv = 1.0/cp_air
@@ -4148,7 +4167,7 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
        ex_u_star   ,  &
        ex_wind     ,  &
        ex_z_atm    ,  &
-       
+  ex_seawater,&     
   ex_land        )
 
 #ifdef SCM
