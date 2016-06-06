@@ -575,6 +575,7 @@ module flux_exchange_mod
 #else
   use atmos_tracer_driver_mod,    only: atmos_tracer_flux_init, & 
             atmos_tracer_has_surf_setl_flux, get_atmos_tracer_surf_setl_flux
+  use atmos_tracer_driver_mod,    only: atmos_tracer_driver_gather_data_down
 #endif
 
   use field_manager_mod,          only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE
@@ -612,6 +613,7 @@ private
      flux_land_to_ice,     &
      flux_ice_to_ocean,    &
      flux_ocean_to_ice,    &
+     flux_atmos_to_ocean,  &
      flux_check_stocks,    &
      flux_init_stocks,     &
      flux_ice_to_ocean_stocks,&
@@ -1777,11 +1779,12 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
           remap_method=remap_method, complete=.false.)
   enddo
   do n = 1, Atm%fields%num_bcs  !{
+   if(ex_gas_fields_atm%bc(n)%flux_type  .ne. 'air_sea_deposition') then 
     do m = 1, Atm%fields%bc(n)%num_fields  !{
-      if(ex_gas_fields_atm%bc(n)%flux_type  .ne. 'air_sea_deposition') &
       call put_to_xgrid (Atm%fields%bc(n)%field(m)%values, 'ATM',            &
            ex_gas_fields_atm%bc(n)%field(m)%values, xmap_sfc, remap_method=remap_method, complete=.false.)
     enddo  !} m
+   endif
   enddo  !} n
 
   call put_to_xgrid (Atm%t_bot , 'ATM', ex_t_atm , xmap_sfc, remap_method=remap_method, complete=.false.)
@@ -2877,21 +2880,6 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
         end where
      endif
   enddo
-
-  !air-sea deposition fluxes
-  do n = 1, Atm%fields%num_bcs  !{
-   if(ex_gas_fields_atm%bc(n)%flux_type  .eq. 'air_sea_deposition') then
-    do m = 1, Atm%fields%bc(n)%num_fields  !{
-      call put_to_xgrid (Atm%fields%bc(n)%field(m)%values, 'ATM',            &
-           ex_gas_fields_atm%bc(n)%field(m)%values, xmap_sfc, remap_method=remap_method)
-    enddo  !} m
-   endif
-  enddo  !} n
-
-  ! Calculate ocean explicit flux here
-
-  call atmos_ocean_dep_fluxes_calc(ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes, ex_seawater)
-
 #endif
 
   cp_inv = 1.0/cp_air
@@ -3091,10 +3079,12 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
 
 ! Extra fluxes
   do n = 1, Ice_boundary%fluxes%num_bcs  !{
+   if(ex_gas_fluxes%bc(n)%flux_type  .ne. 'air_sea_deposition') then
     do m = 1, Ice_boundary%fluxes%bc(n)%num_fields  !{
       call get_from_xgrid (Ice_boundary%fluxes%bc(n)%field(m)%values, 'OCN',  &
            ex_gas_fluxes%bc(n)%field(m)%values, xmap_sfc)
     enddo  !} m
+   endif
   enddo  !} n
 
 !Balaji: data_override calls moved here from coupler_main
@@ -4206,6 +4196,57 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
 !-----------------------------------------------------------------------
 
 end subroutine flux_up_to_atmos
+subroutine flux_atmos_to_ocean(Time, Atm, Ice_boundary)
+  type(time_type),               intent(in)   :: Time         !< Current time
+  type(atmos_data_type),         intent(inout):: Atm          !< A derived data type to specify atmosphere boundary data
+  type(atmos_ice_boundary_type), intent(inout):: Ice_boundary !< A derived data type to specify properties and fluxes passed
+                                                                  !! from atmosphere to ice
+
+  integer :: n,m
+  logical :: used
+
+  call atmos_tracer_driver_gather_data_down(Atm%fields, Atm%tr_bot)
+
+  !air-sea deposition fluxes
+  do n = 1, Atm%fields%num_bcs  !{
+   !Do the string copies.
+   Atm%fields%bc(n)%flux_type = trim(ex_gas_fluxes%bc(n)%flux_type)
+   Atm%fields%bc(n)%implementation = trim(ex_gas_fluxes%bc(n)%implementation)
+   if(ex_gas_fields_atm%bc(n)%flux_type  .eq. 'air_sea_deposition') then
+    do m = 1, Atm%fields%bc(n)%num_fields  !{
+      call put_to_xgrid (Atm%fields%bc(n)%field(m)%values, 'ATM',            &
+           ex_gas_fields_atm%bc(n)%field(m)%values, xmap_sfc, remap_method=remap_method)
+    enddo  !} m
+   endif
+  enddo  !} n
+
+  ! Calculate ocean explicit flux here
+
+  call atmos_ocean_dep_fluxes_calc(ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes, ex_seawater)
+
+  !Niki: The following loop should be on Ice_boundary%fluxes but the problem is
+  !      Ice_boundary%fluxes%flux_type is not set. Perhaps the subroutine
+  !      call coupler_type_copy(ex_gas_fluxes, atmos_ice_boundary%fluxes,...)
+  !      does not copy the strings?
+  do n = 1, Ice_boundary%fluxes%num_bcs  !{
+     Ice_boundary%fluxes%bc(n)%flux_type = trim(ex_gas_fluxes%bc(n)%flux_type)
+     Ice_boundary%fluxes%bc(n)%implementation = trim(ex_gas_fluxes%bc(n)%implementation)
+     
+     if(Ice_boundary%fluxes%bc(n)%flux_type  .eq. 'air_sea_deposition') then
+        do m = 1, Ice_boundary%fluxes%bc(n)%num_fields  !{
+           call get_from_xgrid (Ice_boundary%fluxes%bc(n)%field(m)%values, 'OCN',  &
+                ex_gas_fluxes%bc(n)%field(m)%values, xmap_sfc)
+           
+           call data_override('ICE', Ice_boundary%fluxes%bc(n)%field(m)%name,     &
+              Ice_boundary%fluxes%bc(n)%field(m)%values, Time)
+           if ( Ice_boundary%fluxes%bc(n)%field(m)%id_diag > 0 ) then  !{
+              used = send_data(Ice_boundary%fluxes%bc(n)%field(m)%id_diag, Ice_boundary%fluxes%bc(n)%field(m)%values, Time )
+           endif  !}
+        enddo  !} m
+     endif
+  enddo  !} n
+
+end subroutine flux_atmos_to_ocean
 
 !#######################################################################
 !> \brief  Updates Ice and Ocean stocks.

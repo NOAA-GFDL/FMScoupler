@@ -365,6 +365,7 @@ program coupler_main
   use flux_exchange_mod,       only: flux_up_to_atmos
   use flux_exchange_mod,       only: flux_land_to_ice
   use flux_exchange_mod,       only: flux_ice_to_ocean
+  use flux_exchange_mod,       only: flux_atmos_to_ocean
   use flux_exchange_mod,       only: flux_ocean_to_ice
   use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
 
@@ -737,12 +738,6 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
               call mpp_clock_end(newClockc)
             endif
 
-           if (do_atmos) then
-!            call mpp_clock_begin(newClocka)
-            call atmos_tracer_driver_gather_data_down(Atm%fields, Atm%tr_bot)
-!            call mpp_clock_end(newClocka)
-          endif
-
             if(do_chksum) call atmos_ice_land_chksum('update_atmos_down+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
@@ -757,6 +752,8 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
             if(do_chksum) call atmos_ice_land_chksum('flux_down_from_atmos+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
+
+            call flux_atmos_to_ocean(Time_atmos, Atm, Atmos_ice_boundary)
 
             !      --------------------------------------------------------------
             !      ---- land model ----
