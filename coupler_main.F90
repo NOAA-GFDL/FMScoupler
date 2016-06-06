@@ -366,10 +366,11 @@ program coupler_main
   use flux_exchange_mod,       only: flux_land_to_ice
   use flux_exchange_mod,       only: flux_ice_to_ocean
   use flux_exchange_mod,       only: flux_atmos_to_ocean
+  use flux_exchange_mod,       only: flux_ex_arrays_dealloc
   use flux_exchange_mod,       only: flux_ocean_to_ice
   use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
 
-  use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data, atmos_tracer_driver_gather_data_down
+  use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
   use mpp_mod,                 only: mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_chksum
   use mpp_mod,                 only: mpp_init, mpp_pe, mpp_npes, mpp_root_pe, mpp_sync
@@ -753,7 +754,6 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
 
-            call flux_atmos_to_ocean(Time_atmos, Atm, Atmos_ice_boundary)
 
             !      --------------------------------------------------------------
             !      ---- land model ----
@@ -800,6 +800,10 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
       if (do_debug)  call print_memuse_stats( 'update up')
+
+            call flux_atmos_to_ocean(Time_atmos, Atm, Atmos_ice_boundary, Ice)
+
+            call flux_ex_arrays_dealloc
 
             !--------------
             if (do_concurrent_radiation) call mpp_clock_end(newClocki)

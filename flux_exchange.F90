@@ -529,6 +529,7 @@ module flux_exchange_mod
   use ocean_model_mod, only: ocean_state_type
   use ice_model_mod,   only: ice_data_type, land_ice_boundary_type, &
        ocean_ice_boundary_type, atmos_ice_boundary_type, Ice_stock_pe
+  use ice_model_mod,   only: update_ice_atm_deposition_flux
   use    land_model_mod, only:  land_data_type, atmos_land_boundary_type
 
   use  surface_flux_mod, only: surface_flux, surface_flux_init
@@ -614,6 +615,7 @@ private
      flux_ice_to_ocean,    &
      flux_ocean_to_ice,    &
      flux_atmos_to_ocean,  &
+     flux_ex_arrays_dealloc,&
      flux_check_stocks,    &
      flux_init_stocks,     &
      flux_ice_to_ocean_stocks,&
@@ -4121,7 +4123,16 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
        & delta_t=Dt_atm, &
        & to_side=ISTOCK_TOP, from_side=ISTOCK_TOP, &
        & radius=Radius, ier=ier, verbose='stock move EVAP*HLV (Ice->ATm) ')
+!Balaji
+  call mpp_clock_end(fluxAtmUpClock)
+  call mpp_clock_end(cplClock)
 
+!-----------------------------------------------------------------------
+
+end subroutine flux_up_to_atmos
+
+subroutine flux_ex_arrays_dealloc
+  integer :: m,n
   !=======================================================================
   !---- deallocate module storage ----
   deallocate ( &
@@ -4189,18 +4200,14 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
      enddo  !} m
   enddo  !} n
 
-!Balaji
-  call mpp_clock_end(fluxAtmUpClock)
-  call mpp_clock_end(cplClock)
+end subroutine flux_ex_arrays_dealloc
 
-!-----------------------------------------------------------------------
-
-end subroutine flux_up_to_atmos
-subroutine flux_atmos_to_ocean(Time, Atm, Ice_boundary)
+subroutine flux_atmos_to_ocean(Time, Atm, Ice_boundary, Ice)
   type(time_type),               intent(in)   :: Time         !< Current time
   type(atmos_data_type),         intent(inout):: Atm          !< A derived data type to specify atmosphere boundary data
   type(atmos_ice_boundary_type), intent(inout):: Ice_boundary !< A derived data type to specify properties and fluxes passed
                                                                   !! from atmosphere to ice
+  type(ice_data_type),           intent(inout):: Ice
 
   integer :: n,m
   logical :: used
@@ -4245,6 +4252,8 @@ subroutine flux_atmos_to_ocean(Time, Atm, Ice_boundary)
         enddo  !} m
      endif
   enddo  !} n
+
+  call update_ice_atm_deposition_flux( Ice_boundary, Ice )
 
 end subroutine flux_atmos_to_ocean
 
