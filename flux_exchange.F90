@@ -1371,7 +1371,12 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
     call mpp_max(Ice%flux_uv_stagger)
     call mpp_max(Ocean%stagger)
     ice_ocean_boundary%wind_stagger = Ice%flux_uv_stagger
-    ocean_ice_boundary%stagger = Ocean%stagger
+    if ( Ocean%stagger .gt. 0 ) then 
+      ocean_ice_boundary%stagger = Ocean%stagger
+    else
+      ! This is an AMIP run but we need a valid stagger value for the ice model.
+      ocean_ice_boundary%stagger = Ice%flux_uv_stagger
+    endif
 
 !
 ! allocate fields for extra tracers
