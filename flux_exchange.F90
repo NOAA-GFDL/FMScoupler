@@ -2211,7 +2211,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
         used = send_data ( id_land_mask, Land_Ice_Atmos_Boundary%land_frac, Time )
      endif
      if ( id_sftlf > 0 ) then
-        used = send_data ( id_sftlf, 100.*Land_Ice_Atmos_Boundary%land_frac, Time )
+        used = send_data ( id_sftlf, Land_Ice_Atmos_Boundary%land_frac, Time )
      endif
      ! near-surface heights
      if ( id_height2  > 0) used = send_data ( id_height2, z_ref_heat, Time )
@@ -3564,7 +3564,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
        call put_to_xgrid (ice_frac, 'OCN', ex_ice_frac, xmap_sfc)
        call get_from_xgrid (ocean_frac, 'ATM', ex_ice_frac, xmap_sfc)
        where (ocean_frac > 0.0) 
-         diag_atm = min(100., 100.*(diag_atm/ocean_frac))
+         diag_atm = min(1., diag_atm/ocean_frac) ! CMIP6 as fraction
          ocean_frac = 1.0 
        elsewhere
          diag_atm = 0.0 
@@ -3946,7 +3946,7 @@ subroutine flux_up_to_atmos ( Time, Land, Ice, Land_Ice_Atmos_Boundary, Land_bou
     call get_from_xgrid (diag_atm, 'ATM', ex_temp, xmap_sfc)
     call get_from_xgrid (frac_atm, 'ATM', ex_icetemp, xmap_sfc)
     where (frac_atm > 0.0)
-      diag_atm = (diag_atm/frac_atm) - tfreeze
+      diag_atm = (diag_atm/frac_atm) ! - tfreeze  CMIP6 in degK
       frac_atm = 1.0
     elsewhere
       diag_atm = 0.0
@@ -4655,7 +4655,7 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes, land_pe )
 
   id_huss = &
        register_diag_field ( mod_name, 'huss', atmos_axes, Time, &
-       'Near-Surface Specific Humidity', '1', &
+       'Near-Surface Specific Humidity', '1.0', &
        standard_name = 'specific_humidity', area=area_id, &
        missing_value=CMOR_MISSING_VALUE )
   if ( id_huss > 0 .and. id_height2 > 0 ) &
@@ -4722,7 +4722,7 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes, land_pe )
 
   id_sftlf = &
        register_static_field ( mod_name, 'sftlf', atmos_axes,  &
-       'Land Area Fraction', '%', &
+       'Fraction of the Grid Cell Occupied by Land', '1.0', &
        standard_name = 'land_area_fraction', area=area_id, &
        interp_method = "conserve_order1" )
 
@@ -4734,13 +4734,13 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes, land_pe )
 
   id_tos = &
        register_diag_field ( mod_name, 'tos', atmos_axes, Time,  &
-       'Sea Surface Temperature', 'C', &
+       'Sea Surface Temperature', 'K', &
        standard_name = 'sea_surface_temperature', area=area_id, &
        mask_variant=.true., missing_value=CMOR_MISSING_VALUE )
 
   id_sic = &
        register_diag_field ( mod_name, 'sic', atmos_axes, Time,  &
-       'Sea Ice Area Fraction', '%', &
+       'Sea Ice Area Fraction', '1.0', &
        standard_name = 'sea_ice_area_fraction', area=area_id, &
        missing_value=CMOR_MISSING_VALUE )
   if ( id_sic > 0 ) call diag_field_add_attribute( id_sic, 'comment', &
