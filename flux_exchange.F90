@@ -637,7 +637,7 @@ integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_fl
              id_sfcWind, id_tauu, id_tauv, &
              id_hurs, id_huss, id_evspsbl, id_hfls, id_hfss, &
              id_rhs, id_sftlf, id_tos, id_sic, id_tslsi, &
-             id_height2, id_height10
+             id_height2m, id_height10m
 
 logical :: first_static = .true.
 logical :: do_init = .true.
@@ -2214,8 +2214,8 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
         used = send_data ( id_sftlf, Land_Ice_Atmos_Boundary%land_frac, Time )
      endif
      ! near-surface heights
-     if ( id_height2  > 0) used = send_data ( id_height2, z_ref_heat, Time )
-     if ( id_height10 > 0) used = send_data ( id_height10, z_ref_mom, Time )
+     if ( id_height2m  > 0) used = send_data ( id_height2m, z_ref_heat, Time )
+     if ( id_height10m > 0) used = send_data ( id_height10m, z_ref_mom, Time )
 
      first_static = .false.
   endif
@@ -4605,20 +4605,20 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes, land_pe )
 ! NOTE: add extra dimension reference level fields?  height2m, height10m
 !       for now we will handle this with an attribute
 
-  id_height2 = &
-      register_static_field ( mod_name, 'height2', (/null_axis_id/), &
+  id_height2m = &
+      register_static_field ( mod_name, 'height2m', (/null_axis_id/), &
                              'Height', 'm', standard_name = 'height' )
-  if ( id_height2 > 0 ) then
-     call diag_field_add_attribute( id_height2, 'axis', 'Z' )
-     call diag_field_add_attribute( id_height2, 'positive', 'up' )
+  if ( id_height2m > 0 ) then
+     call diag_field_add_attribute( id_height2m, 'axis', 'Z' )
+     call diag_field_add_attribute( id_height2m, 'positive', 'up' )
   endif
 
-  id_height10 = &
-      register_static_field ( mod_name, 'height10', (/null_axis_id/), &
+  id_height10m = &
+      register_static_field ( mod_name, 'height10m', (/null_axis_id/), &
                              'Height', 'm', standard_name = 'height' )
-  if ( id_height10 > 0 ) then
-     call diag_field_add_attribute( id_height10, 'axis', 'Z' )
-     call diag_field_add_attribute( id_height10, 'positive', 'up' )
+  if ( id_height10m > 0 ) then
+     call diag_field_add_attribute( id_height10m, 'axis', 'Z' )
+     call diag_field_add_attribute( id_height10m, 'positive', 'up' )
   endif
 
   id_tas      = &
@@ -4626,56 +4626,56 @@ subroutine diag_field_init ( Time, atmos_axes, land_axes, land_pe )
        'Near-Surface Air Temperature', 'K' , &
        standard_name = 'air_temperature', area=area_id, &
        missing_value=CMOR_MISSING_VALUE, range=trange )
-  if ( id_tas > 0 .and. id_height2 > 0) &
-       call diag_field_add_attribute( id_tas, 'coordinates', 'height2' )
+  if ( id_tas > 0 .and. id_height2m > 0) &
+       call diag_field_add_attribute( id_tas, 'coordinates', 'height2m' )
 
   id_uas      = &
        register_diag_field ( mod_name, 'uas', atmos_axes, Time, &
        'Eastward Near-Surface Wind', 'm s-1', &
        standard_name = 'eastward_wind', area=area_id, &
        missing_value=CMOR_MISSING_VALUE, range=vrange )
-  if ( id_uas > 0 .and. id_height10 > 0) &
-       call diag_field_add_attribute( id_uas, 'coordinates', 'height10' )
+  if ( id_uas > 0 .and. id_height10m > 0) &
+       call diag_field_add_attribute( id_uas, 'coordinates', 'height10m' )
 
   id_vas      = &
        register_diag_field ( mod_name, 'vas', atmos_axes, Time, &
        'Northward Near-Surface Wind', 'm s-1', &
        standard_name = 'northward_wind', area=area_id, &
        missing_value=CMOR_MISSING_VALUE, range=vrange )
-  if ( id_vas > 0 .and. id_height10 > 0 ) &
-       call diag_field_add_attribute( id_vas, 'coordinates', 'height10' )
+  if ( id_vas > 0 .and. id_height10m > 0 ) &
+       call diag_field_add_attribute( id_vas, 'coordinates', 'height10m' )
 
   id_sfcWind = &
        register_diag_field ( mod_name, 'sfcWind', atmos_axes, Time, &
        'Near-Surface Wind Speed', 'm s-1', &
        standard_name = 'wind_speed', area=area_id, &
        missing_value=CMOR_MISSING_VALUE, range=vrange )
-  if ( id_sfcWind > 0 .and. id_height10 > 0 ) &
-       call diag_field_add_attribute( id_sfcWind, 'coordinates', 'height10' )
+  if ( id_sfcWind > 0 .and. id_height10m > 0 ) &
+       call diag_field_add_attribute( id_sfcWind, 'coordinates', 'height10m' )
 
   id_huss = &
        register_diag_field ( mod_name, 'huss', atmos_axes, Time, &
        'Near-Surface Specific Humidity', '1.0', &
        standard_name = 'specific_humidity', area=area_id, &
        missing_value=CMOR_MISSING_VALUE )
-  if ( id_huss > 0 .and. id_height2 > 0 ) &
-       call diag_field_add_attribute( id_huss, 'coordinates', 'height2' )
+  if ( id_huss > 0 .and. id_height2m > 0 ) &
+       call diag_field_add_attribute( id_huss, 'coordinates', 'height2m' )
 
   id_hurs = &
        register_diag_field ( mod_name, 'hurs', atmos_axes, Time, &
        'Near-Surface Relative Humidity', '%', &
        standard_name = 'relative_humidity', area=area_id, &
        missing_value=CMOR_MISSING_VALUE )
-  if ( id_hurs > 0 .and. id_height2 > 0 ) &
-       call diag_field_add_attribute( id_hurs, 'coordinates', 'height2' )
+  if ( id_hurs > 0 .and. id_height2m > 0 ) &
+       call diag_field_add_attribute( id_hurs, 'coordinates', 'height2m' )
 
   id_rhs = &
        register_diag_field ( mod_name, 'rhs', atmos_axes, Time, &
        'Near-Surface Relative Humidity', '%', &
        standard_name = 'relative_humidity', area=area_id, &
        missing_value=CMOR_MISSING_VALUE )
-  if ( id_rhs > 0 .and. id_height2 > 0 ) &
-       call diag_field_add_attribute( id_rhs, 'coordinates', 'height2' )
+  if ( id_rhs > 0 .and. id_height2m > 0 ) &
+       call diag_field_add_attribute( id_rhs, 'coordinates', 'height2m' )
 
   id_ts = &
        register_diag_field ( mod_name, 'ts', atmos_axes, Time, &
