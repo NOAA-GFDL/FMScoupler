@@ -683,7 +683,7 @@ contains
 
     character(len=64),  parameter   :: grid_file = 'INPUT/grid_spec.nc'
     integer        :: ierr, io
-    integer        :: logunit
+    integer        :: logunit, unit
     character(len=256) :: errmsg
     integer              :: omp_get_num_threads, nthreads
 
