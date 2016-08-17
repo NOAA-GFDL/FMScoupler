@@ -194,20 +194,6 @@ module flux_exchange_mod
 !! flux_exchange_mod is configured via the flux_exchange_nml namelist in the `input.nml` file.
 !! The following table are the available namelist variables.
 !!
-#ifdef use_AM3_physics
-!! | Variable Name         | Type    | Default Value | Description
-!! | --------------------- | ------- | ------------- | -----------
-!! | z_ref_heat            | real    | 2.0           | Reference height (meters) for temperature and relative humidity diagnostics (t_ref, rh_ref, del_h, del_q) |
-!! | z_ref_mom             | real    | 10.0          | Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m) |
-!! | ex_u_start_smooth_bug | logical | .FALSE.       | By default, the global exchange grid `u_star` will not be interpolated from atmospheric grid, this is different from Jakarta behavior and will change answers.  So to preserve Jakarta behavior and reproduce answers explicitly set this namelist variable to .true. in input.nml. |
-!! | sw1way_bug            | logical | .FALSE.       | |
-!! | do_area_weighted_flux | logical | .FALSE.       | |
-!! | debug_stocks          | logical | .FALSE.       | |
-!! | divert_stocks_report  | logical | .FALSE.       | |
-!! | do_runoff             | logical | .TRUE.        | Turns on/off the land runoff interpolation to the ocean |
-!! | do_forecast           | logical | .FALSE.       | |
-!! | nblocks               | integer | 1             | Specify number of blocks that n_xgrid_sfc is divided into. The main purpose is for Openmp implementation. Normally you may set nblocks to be coupler_nml atmos_nthreads. |
-#else
 !! <table>
 !!   <tr>
 !!     <th>Variable Name</th>
@@ -296,7 +282,6 @@ module flux_exchange_mod
 !!     <td>Option to scale the Atm%lprec.
 !!         If this varible is set to .true. Atm%lprec will be rescaled by a field read from the data_table</td>
 !!   </tr>
-#endif
 !!
 !! \section main_example Main Program Example
 !!
@@ -528,8 +513,7 @@ module flux_exchange_mod
   use ocean_model_mod, only: ocean_public_type, ice_ocean_boundary_type
   use ocean_model_mod, only: ocean_state_type
   use ice_model_mod,   only: ice_data_type, land_ice_boundary_type, &
-       ocean_ice_boundary_type, atmos_ice_boundary_type, Ice_stock_pe, &
-       ice_cell_area => cell_area
+       ocean_ice_boundary_type, atmos_ice_boundary_type, Ice_stock_pe
   use    land_model_mod, only:  land_data_type, atmos_land_boundary_type
 
   use  surface_flux_mod, only: surface_flux, surface_flux_init
@@ -676,28 +660,24 @@ real, parameter :: d378 = 1.0-d622
   logical :: do_runoff = .TRUE. !< Turns on/off the land runoff interpolation to the ocean
   logical :: do_forecast = .false.
   integer :: nblocks = 1
-#ifndef use_AM3_physics
-  logical :: partition_fprec_from_lprec = .FALSE.  ! option for ATM override experiments where liquid+frozen precip are combined
-                                                   ! This option will convert liquid precip to snow when t_ref is less than
-                                                   ! tfreeze parameter                
+
+  logical :: partition_fprec_from_lprec = .FALSE.  !< option for ATM override experiments where liquid+frozen precip are combined
+                                                   !! This option will convert liquid precip to snow when t_ref is less than
+                                                   !! tfreeze parameter                
   real, parameter    :: tfreeze = 273.15
   logical :: scale_precip_2d = .false.
   real, allocatable, dimension(:,:) :: frac_precip
-#endif
 
-namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug, sw1way_bug, &
-#ifdef use_AM3_physics
-         do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks
-#else
-     do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks, &
-     partition_fprec_from_lprec, scale_precip_2d
-#endif
+
+  namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug, sw1way_bug,&
+     & do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks,&
+     & partition_fprec_from_lprec, scale_precip_2d
 
   integer              :: my_nblocks = 1
   integer, allocatable :: block_start(:), block_end(:)
 
 ! ---- allocatable module storage --------------------------------------------
-real, allocatable, dimension(:) :: &
+  real, allocatable, dimension(:) :: &
      ! NOTE: T canopy is only differet from t_surf over vegetated land
      ex_t_surf,    &   !< surface temperature for radiation calc, degK
      ex_t_surf_miz,&   !< miz
@@ -1037,12 +1017,10 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
        call mpp_get_global_domain(Atm%domain, isg, ieg, jsg, jeg, xsize=nxg, ysize=nyg)
        call mpp_get_compute_domain(Atm%domain, isc, iec, jsc, jec)
 
-#ifndef use_AM3_physics
        if (scale_precip_2d) then
        	  allocate(frac_precip(isc:iec,jsc:jec))	
 	  frac_precip=0.0
        endif
-#endif
 
        call mpp_get_data_domain(Atm%domain, isd, ied, jsd, jed)
        if(size(Atm%lon_bnd,1) .NE. iec-isc+2 .OR. size(Atm%lon_bnd,2) .NE. jec-jsc+2) then
@@ -1195,7 +1173,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
         
 !allocate atmos_ice_boundary
         call mpp_get_compute_domain( Ice%domain, is, ie, js, je )
-        kd = size(Ice%ice_mask,3)
+        kd = size(Ice%part_size,3)
         allocate( atmos_ice_boundary%u_flux(is:ie,js:je,kd) )
         allocate( atmos_ice_boundary%v_flux(is:ie,js:je,kd) )
         allocate( atmos_ice_boundary%u_star(is:ie,js:je,kd) )
@@ -1417,7 +1395,7 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 !
 
     call mpp_get_compute_domain( Ice%domain, is, ie, js, je )
-    kd = size(Ice%ice_mask,3)
+    kd = size(Ice%part_size,3)
     call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
          'ice_flux', Ice%axes, Time, suffix = '_ice')
 
@@ -2639,9 +2617,7 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   logical :: used
   logical :: ov
   integer :: ier
-#ifndef use_AM3_physics
   integer :: is_atm, ie_atm, js_atm, je_atm, j
-#endif
   
   character(32) :: tr_name ! name of the tracer
   integer :: tr, n, m ! tracer indices
@@ -2666,7 +2642,6 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
   call data_override ('ATM', 'flux_lw',  Atm%flux_lw, Time)
   call data_override ('ATM', 'lprec',    Atm%lprec,   Time)
 
-#ifndef use_AM3_physics
   if (scale_precip_2d) then
       call mpp_get_compute_domain(Atm%Domain, is_atm, ie_atm, js_atm, je_atm)
       call data_override ('ATM', 'precip_scale2d',    frac_precip,   Time)	
@@ -2688,7 +2663,6 @@ subroutine flux_down_from_atmos (Time, Atm, Land, Ice, &
          enddo
       enddo
   endif
-#endif
   
   call data_override ('ATM', 'fprec',    Atm%fprec,   Time)
   call data_override ('ATM', 'coszen',   Atm%coszen,  Time)
@@ -3569,7 +3543,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
 
    call mpp_set_current_pelist()
   
-  if ( id_ice_mask > 0 .or. id_sic ) then
+  if ( id_ice_mask > 0 .or. id_sic > 0) then
      ice_frac        = 1.
      ice_frac(:,:,1) = 0.
      ex_ice_frac     = 0.
@@ -3580,7 +3554,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
      ! ice concentration for only the ocean part of the atmos grid box
      ! normalize ice fraction over entire atmos grid box by the
      ! fraction of atmos grid box that is ocean
-     if ( id_sic ) then
+     if ( id_sic > 0) then
        ice_frac = 1.
        ex_ice_frac = 0.
        call put_to_xgrid (ice_frac, 'OCN', ex_ice_frac, xmap_sfc)
@@ -3598,8 +3572,7 @@ subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
 
   if(Ice%pe) then
      ! frazil (already in J/m^2 so no need to multiply by Dt_cpl)
-     from_dq = 4.0*PI*Radius*Radius * &
-         & SUM( ice_cell_area * Ocean_Ice_Boundary%frazil )
+     from_dq = SUM( Ice%area * Ocean_Ice_Boundary%frazil )
      Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
      Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
   endif
@@ -4204,20 +4177,17 @@ end subroutine flux_up_to_atmos
     ! fluxes from ice -> ocean, integrate over surface and in time 
 
     ! precip - evap
-    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
-         & SUM( ice_cell_area * (Ice%lprec+Ice%fprec-Ice%flux_q) )
+    from_dq = Dt_cpl * SUM( Ice%area * (Ice%lprec+Ice%fprec-Ice%flux_q) )
     Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) = Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) + from_dq
 
     ! river
-    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
-         & SUM( ice_cell_area * (Ice%runoff + Ice%calving) )
+    from_dq = Dt_cpl * SUM( Ice%area * (Ice%runoff + Ice%calving) )
     Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) + from_dq
 
     ! sensible heat + shortwave + longwave + latent heat
-    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
-         & SUM( ice_cell_area * ( &
+    from_dq = Dt_cpl * SUM( Ice%area * ( &
          &   Ice%flux_sw_vis_dir+Ice%flux_sw_vis_dif &
          & + Ice%flux_sw_nir_dir+Ice%flux_sw_nir_dif + Ice%flux_lw &
          & - (Ice%fprec + Ice%calving)*HLF - Ice%flux_t - Ice%flux_q*HLV) )
@@ -4226,14 +4196,13 @@ end subroutine flux_up_to_atmos
 
     ! heat carried by river + pme (assuming reference temperature of 0 degC and river/pme temp = surface temp)
     ! Note: it does not matter what the ref temperature is but it must be consistent with that in OCN and ICE
-    from_dq = 4.0*PI*Radius*Radius * Dt_cpl * &
-         & SUM( ice_cell_area * ( &
+    from_dq = Dt_cpl * SUM( Ice%area * ( &
          & (Ice%lprec+Ice%fprec-Ice%flux_q + Ice%runoff+Ice%calving)*CP_OCEAN*(Ice%t_surf(:,:,1) - 273.15)) )
     Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
 
     !SALT flux
-    from_dq = Dt_cpl* SUM( ice_cell_area * ( -Ice%flux_salt )) *4.0*PI*Radius*Radius
+    from_dq = Dt_cpl* SUM( Ice%area * ( -Ice%flux_salt ))
     Ice_stock(ISTOCK_SALT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_SALT)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_SALT)%dq(ISTOCK_TOP   ) = Ocn_stock(ISTOCK_SALT)%dq(ISTOCK_TOP   ) + from_dq
 
