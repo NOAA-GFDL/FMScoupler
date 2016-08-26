@@ -2796,7 +2796,9 @@ contains
   integer :: n,m
   logical :: used
 
+#ifndef use_AM3_physics
   call atmos_tracer_driver_gather_data_down(Atm%fields, Atm%tr_bot)
+#endif
 
   !air-sea deposition fluxes
   do n = 1, Atm%fields%num_bcs  !{
