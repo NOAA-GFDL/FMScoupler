@@ -367,6 +367,7 @@ program coupler_main
   use flux_exchange_mod,       only: flux_ice_to_ocean
   use flux_exchange_mod,       only: flux_ocean_to_ice
   use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
+  use flux_exchange_mod,       only: flux_atmos_to_ocean, flux_ex_arrays_dealloc
 
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
@@ -796,6 +797,10 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
       if (do_debug)  call print_memuse_stats( 'update up')
+
+            call flux_atmos_to_ocean(Time_atmos, Atm, Atmos_ice_boundary, Ice)
+
+            call flux_ex_arrays_dealloc
 
             !--------------
             if (do_concurrent_radiation) call mpp_clock_end(newClocki)
