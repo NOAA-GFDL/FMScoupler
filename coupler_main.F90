@@ -704,7 +704,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 !$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&       SHARED(Ocean_ice_boundary) &
 !$OMP&       SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl) 
+!$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
 !$          call omp_set_num_threads(atmos_nthreads)
 !$          dsec=omp_get_wtime()
             if (do_concurrent_radiation) call mpp_clock_begin(newClocki)
@@ -737,6 +737,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
               call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
               call mpp_clock_end(newClockc)
             endif
+
             if(do_chksum) call atmos_ice_land_chksum('update_atmos_down+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
@@ -751,6 +752,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
             if(do_chksum) call atmos_ice_land_chksum('flux_down_from_atmos+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
+
 
             !      --------------------------------------------------------------
             !      ---- land model ----
@@ -845,6 +847,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
                    Ocean_ice_boundary, Atmos_land_boundary)
           if (do_debug)  call print_memuse_stats( 'update state')
           call mpp_clock_end(newClockk)
+
 
         enddo ! end of na (fast loop)
 
@@ -1593,7 +1596,7 @@ contains
 !$           call omp_set_num_threads(ocean_nthreads)
        call mpp_set_current_pelist( Ocean%pelist )
 !$           base_cpu = get_cpu_affinity()
-!$OMP PARALLEL private(adder)    
+!$OMP PARALLEL private(adder)
 !$        if (use_hyper_thread) then
 !$          if (mod(omp_get_thread_num(),2) == 0) then
 !$            adder = omp_get_thread_num()/2
@@ -1608,7 +1611,7 @@ contains
 !$          write(6,*) " ocean  ", get_cpu_affinity(), adder, omp_get_thread_num()
 !$          call flush(6)
 !$        endif
-!$OMP END PARALLEL  
+!$OMP END PARALLEL
        else
           ocean_nthreads = atmos_nthreads
 !$        call omp_set_num_threads(ocean_nthreads)
@@ -2070,4 +2073,4 @@ contains
   end subroutine ocean_chksum
 
 
-  end program coupler_main
+end program coupler_main
