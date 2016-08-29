@@ -5,6 +5,7 @@ module ice_ocean_flux_exchange_mod
   use mpp_mod,             only: CLOCK_COMPONENT, CLOCK_ROUTINE, mpp_sum, mpp_max
   use constants_mod,       only: HLF, HLV, CP_OCEAN
   use mpp_domains_mod,     only: mpp_get_compute_domain, operator(.EQ.), mpp_redistribute
+  use mpp_parameter_mod,   only: AGRID
   use fms_mod,             only: clock_flag_default
   use data_override_mod,   only: data_override
   use time_manager_mod,    only: time_type
@@ -44,7 +45,7 @@ contains
 
   subroutine ice_ocean_flux_exchange_init(Time, Ice, Ocean, Ocean_state, ice_ocean_boundary, &
                                           ocean_ice_boundary, Dt_cpl_in, debug_stocks_in,    &
-                                          do_area_weighted_flux_in, ex_gas_fields_ice, ex_gas_fluxes )
+                                          do_area_weighted_flux_in, ex_gas_fields_ice, ex_gas_fluxes, do_ocean )
 
     type(time_type),               intent(in)    :: Time !< The model's current time
     type(ice_data_type),           intent(inout) :: Ice !< A derived data type to specify ice boundary data
@@ -56,7 +57,7 @@ contains
     logical,                       intent(in)    :: debug_stocks_in
     logical,                       intent(in)    :: do_area_weighted_flux_in
     type(coupler_1d_bc_type),      intent(in)    :: ex_gas_fields_ice, ex_gas_fluxes
-
+    logical,                       intent(in)    :: do_ocean
     integer              :: is, ie, js, je, kd
 
     Dt_cpl = Dt_cpl_in
@@ -133,8 +134,11 @@ contains
     call mpp_max(Ice%flux_uv_stagger)
     call mpp_max(Ocean%stagger)
     ice_ocean_boundary%wind_stagger = Ice%flux_uv_stagger
-    ocean_ice_boundary%stagger = Ocean%stagger
-
+    if(do_ocean) then
+       ocean_ice_boundary%stagger = Ocean%stagger
+    else
+       ocean_ice_boundary%stagger = AGRID
+    endif
     !
     ! allocate fields for extra tracers
     !

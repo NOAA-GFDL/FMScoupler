@@ -1648,7 +1648,7 @@ contains
     call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
          atmos_ice_boundary, land_ice_atmos_boundary, &
          land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
-         dt_atmos=dt_atmos, dt_cpld=dt_cpld)
+         do_ocean, dt_atmos=dt_atmos, dt_cpld=dt_cpld)
     call mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
     call mpp_clock_end(id_flux_exchange_init)
     call mpp_set_current_pelist()

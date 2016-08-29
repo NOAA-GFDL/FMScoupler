@@ -660,7 +660,7 @@ contains
   subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
        atmos_ice_boundary, land_ice_atmos_boundary, &
        land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
-       dt_atmos, dt_cpld )
+       do_ocean, dt_atmos, dt_cpld )
 
     type(time_type),                   intent(in)     :: Time !< The model's current time
     type(atmos_data_type),             intent(inout)  :: Atm !< A derived data type to specify atmosphere boundary data
@@ -678,6 +678,7 @@ contains
     type(land_ice_boundary_type),      intent(inout) :: land_ice_boundary !< A derived data type to specify properties and fluxes passed from land to ice
     type(ice_ocean_boundary_type),     intent(inout) :: ice_ocean_boundary !< A derived data type to specify properties and fluxes passed from ice to ocean
     type(ocean_ice_boundary_type),     intent(inout) :: ocean_ice_boundary !< A derived data type to specify properties and fluxes passed from ocean to ice
+    logical,                           intent(in)    :: do_ocean
     integer, optional,                 intent(in)    :: dt_atmos !< Atmosphere time step in seconds
     integer, optional,                 intent(in)    :: dt_cpld !< Coupled time step in seconds
 
@@ -765,7 +766,7 @@ contains
 
     call mpp_set_current_pelist()
     call ice_ocean_flux_exchange_init(Time, Ice, Ocean, Ocean_state,ice_ocean_boundary, ocean_ice_boundary, &
-         Dt_cpl, debug_stocks, do_area_weighted_flux, ex_gas_fields_ice, ex_gas_fluxes )
+         Dt_cpl, debug_stocks, do_area_weighted_flux, ex_gas_fields_ice, ex_gas_fluxes, do_ocean )
 
     !---- done ----
     do_init = .false.
