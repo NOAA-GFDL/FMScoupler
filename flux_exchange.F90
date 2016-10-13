@@ -1366,15 +1366,14 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
     allocate( ice_ocean_boundary%p        (is:ie,js:je) ) ;         ice_ocean_boundary%p = 0.0
     allocate( ice_ocean_boundary%mi       (is:ie,js:je) ) ;         ice_ocean_boundary%mi = 0.0
     
-    if (Ice%Ice_state%do_icebergs) then
-      !These lines might not compile with SIS (rather than SIS2)
+    !Allocating iceberg fields, if the corresponding fields are assosiated in the sea ice model(s) 
       if (associated(Ice%ustar_berg)) &
         allocate( ice_ocean_boundary%ustar_berg  (is:ie,js:je) ) ;      ice_ocean_boundary%ustar_berg = 0.0
       if (associated(Ice%area_berg))  &
         allocate( ice_ocean_boundary%area_berg  (is:ie,js:je) ) ;       ice_ocean_boundary%area_berg = 0.0
       if (associated(Ice%mass_berg))  &
         allocate( ice_ocean_boundary%mass_berg  (is:ie,js:je) ) ;       ice_ocean_boundary%mass_berg = 0.0
-    endif
+
     ! Copy the stagger indication variables from the ice processors the ocean 
     ! PEs and vice versa.  The defaults are large negative numbers, so the
     ! global max here picks out only values that have been set on active PEs.
