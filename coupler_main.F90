@@ -339,6 +339,8 @@ program coupler_main
   use land_model_mod,          only: atm_lnd_bnd_type_chksum
   use land_model_mod,          only: land_data_type_chksum
   use land_model_mod,          only: land_model_restart
+  use land_model_mod,          only: pass_cplr2land_to_ug, pass_land2cplr_to_sg
+  use land_model_mod,          only: atmos_land_boundary_type_ug, land_data_type_ug
 
   use ice_model_mod,           only: ice_model_init, ice_model_end
   use ice_model_mod,           only: update_ice_model_slow_up
@@ -407,6 +409,8 @@ program coupler_main
   type(land_ice_boundary_type)       :: Land_ice_boundary
   type(ice_ocean_boundary_type)      :: Ice_ocean_boundary
   type(ocean_ice_boundary_type)      :: Ocean_ice_boundary
+  type(atmos_land_boundary_type_ug)  :: Atmos_land_boundary_ug
+  type  (land_data_type_ug)          :: Land_ug
 
 !-----------------------------------------------------------------------
 ! ----- coupled model time -----
@@ -693,7 +697,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 !$OMP&       PRIVATE(conc_nthreads) &
 !$OMP&       SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
 !$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
-!$OMP&       SHARED(Ocean_ice_boundary) &
+!$OMP&       SHARED(Ocean_ice_boundary,Atmos_land_boundary_ug,Land_ug) &
 !$OMP&       SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
 !$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
 !$        if (omp_get_thread_num() == 0) then
@@ -703,7 +707,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 !$OMP&       PRIVATE(dsec) &
 !$OMP&       SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
 !$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
-!$OMP&       SHARED(Ocean_ice_boundary) &
+!$OMP&       SHARED(Ocean_ice_boundary,Atmos_land_boundary_ug,Land_ug) &
 !$OMP&       SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
 !$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
 !$          call omp_set_num_threads(atmos_nthreads)
@@ -757,13 +761,15 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 
             !      --------------------------------------------------------------
             !      ---- land model ----
+            call pass_cplr2land_to_ug(Atmos_land_boundary, Atmos_land_boundary_ug)
             call mpp_clock_begin(newClocke)
             if (do_land .AND. land%pe) then
               if(land_npes .NE. atmos_npes) call mpp_set_current_pelist(Land%pelist)
-              call update_land_model_fast( Atmos_land_boundary, Land )
+              call update_land_model_fast( Atmos_land_boundary_ug, Land_ug )
             endif
             if(land_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
             call mpp_clock_end(newClocke)
+            call pass_land2cplr_to_sg(Land, Land_ug)
             if(do_chksum) call atmos_ice_land_chksum('update_land_fast+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
@@ -853,16 +859,17 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
         enddo ! end of na (fast loop)
 
         call mpp_clock_end(newClock7)
-
+        call pass_cplr2land_to_ug(Atmos_land_boundary, Atmos_land_boundary_ug)
         call mpp_clock_begin(newClock8)
         !   ------ end of atmospheric time step loop -----
         if (do_land .AND. Land%pe) then
            if(land_npes .NE. atmos_npes) call mpp_set_current_pelist(Land%pelist)
-           call update_land_model_slow(Atmos_land_boundary,Land)
+           call update_land_model_slow(Atmos_land_boundary,Land,Atmos_land_boundary_ug,Land_ug)
         endif
         if(land_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
         !-----------------------------------------------------------------------
         call mpp_clock_end(newClock8)
+        call pass_land2cplr_to_sg(Land, Land_ug)
         if(do_chksum) call atmos_ice_land_chksum('update_land_slow+', nc, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
@@ -1551,9 +1558,10 @@ contains
                            //trim(walldate)//' '//trim(walltime)
         endif
         call mpp_clock_begin(id_land_model_init)
-        call land_model_init( Atmos_land_boundary, Land, Time_init, Time, &
+        call land_model_init( Atmos_land_boundary, Land, Atmos_land_boundary_ug, Land_ug, Time_init, Time, &
              Time_step_atmos, Time_step_cpld )
         call mpp_clock_end(id_land_model_init)
+        call pass_land2cplr_to_sg(Land, Land_ug)
         if( mpp_pe().EQ.mpp_root_pe() ) then
           call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
           write(errunit,*) 'Finished initializing land model at '&
