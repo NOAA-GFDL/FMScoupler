@@ -518,6 +518,8 @@ contains
     !allocate land_ice_atmos_boundary
     call mpp_get_compute_domain( Atm%domain, is, ie, js, je )
     allocate( land_ice_atmos_boundary%t(is:ie,js:je) )
+    allocate( land_ice_atmos_boundary%u_ref(is:ie,js:je) )  ! bqx
+    allocate( land_ice_atmos_boundary%v_ref(is:ie,js:je) )  ! bqx
     allocate( land_ice_atmos_boundary%t_ref(is:ie,js:je) )  ! cjg: PBL depth mods
     allocate( land_ice_atmos_boundary%q_ref(is:ie,js:je) )  ! cjg: PBL depth mods
     allocate( land_ice_atmos_boundary%albedo(is:ie,js:je) )
@@ -543,6 +545,8 @@ contains
     allocate( land_ice_atmos_boundary%frac_open_sea(is:ie,js:je) )
     ! initialize boundary values for override experiments (mjh)
     land_ice_atmos_boundary%t=273.0
+    land_ice_atmos_boundary%u_ref=0.0   ! bqx
+    land_ice_atmos_boundary%v_ref=0.0   ! bqx
     land_ice_atmos_boundary%t_ref=273.0   ! cjg: PBL depth mods
     land_ice_atmos_boundary%q_ref=0.0     ! cjg: PBL depth mods
     land_ice_atmos_boundary%albedo=0.0
@@ -1237,6 +1241,9 @@ contains
     call get_from_xgrid (Land_Ice_Atmos_Boundary%u_star,    'ATM', ex_u_star    , xmap_sfc, complete=.false.)
     call get_from_xgrid (Land_Ice_Atmos_Boundary%b_star,    'ATM', ex_b_star    , xmap_sfc, complete=.false.)
     call get_from_xgrid (Land_Ice_Atmos_Boundary%q_star,    'ATM', ex_q_star    , xmap_sfc, complete=.true.)
+
+    call get_from_xgrid (Land_Ice_Atmos_Boundary%u_ref,     'ATM', ex_ref_u     , xmap_sfc, complete=.false.) !bqx
+    call get_from_xgrid (Land_Ice_Atmos_Boundary%v_ref,     'ATM', ex_ref_v     , xmap_sfc, complete=.false.) !bqx
 
 #ifdef use_AM3_physics
     if (do_forecast) then
