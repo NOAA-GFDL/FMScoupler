@@ -583,12 +583,6 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 
   do nc = 1, num_cpld_calls
      if(do_chksum) call coupler_chksum('top_of_coupled_loop+', nc)
-     if( Atm%pe )then
-        call mpp_set_current_pelist(Atm%pelist)
-        call mpp_clock_begin(newClock1)
-        call generate_sfc_xgrid( Land, Ice )
-        call mpp_clock_end(newClock1)
-     end if
      call mpp_set_current_pelist()
      if(do_chksum) then
        if (Atm%pe) then
@@ -658,6 +652,9 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
         if(do_chksum) call atmos_ice_land_chksum('update_ice_slow_up+', nc, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
+        call mpp_clock_begin(newClock1)
+        call generate_sfc_xgrid( Land, Ice )
+        call mpp_clock_end(newClock1)
 
         !-----------------------------------------------------------------------
         !   ------ atmos/fast-land/fast-ice integration loop -------
