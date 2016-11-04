@@ -3288,8 +3288,6 @@ contains
        endif
     endif
 
-
-
   end subroutine send_ice_mask_sic
 
   subroutine atm_stock_integrate(Atm, res)

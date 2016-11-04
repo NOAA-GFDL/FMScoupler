@@ -361,6 +361,7 @@ program coupler_main
   use flux_exchange_mod,       only: flux_exchange_init
   use flux_exchange_mod,       only: sfc_boundary_layer
   use flux_exchange_mod,       only: generate_sfc_xgrid
+  use flux_exchange_mod,       only: send_ice_mask_sic
   use flux_exchange_mod,       only: flux_down_from_atmos
   use flux_exchange_mod,       only: flux_up_to_atmos
   use flux_exchange_mod,       only: flux_land_to_ice
@@ -655,6 +656,8 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
         call mpp_clock_begin(newClock1)
         call generate_sfc_xgrid( Land, Ice )
         call mpp_clock_end(newClock1)
+
+        call send_ice_mask_sic(Time)
 
         !-----------------------------------------------------------------------
         !   ------ atmos/fast-land/fast-ice integration loop -------

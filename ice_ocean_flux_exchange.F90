@@ -24,7 +24,7 @@ module ice_ocean_flux_exchange_mod
 
   public :: ice_ocean_flux_exchange_init, &
        flux_ice_to_ocean,    &
-       ocean_to_ice_flux_exchange,    & 
+       flux_ocean_to_ice,    & 
        flux_ice_to_ocean_stocks,&
        flux_ocean_from_ice_stocks
 
@@ -353,7 +353,7 @@ contains
   !!
   !! \throw FATAL, "Ocean_Ice_Boundary%xtype must be DIRECT or REDIST."
   !!    The value of variable xtype of ice_ocean_boundary_type data must be DIRECT or REDIST.
-  subroutine ocean_to_ice_flux_exchange ( Time, Ocean, Ice, Ocean_Ice_Boundary )
+  subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
 
     type(time_type),                 intent(in)  :: Time !< Current time
     type(ocean_public_type),         intent(in)  :: Ocean !< A derived data type to specify ocean boundary data
@@ -431,7 +431,7 @@ contains
           enddo  !} m
        enddo  !} n
     case DEFAULT
-       call mpp_error( FATAL, 'ocean_to_ice_flux_exchange: Ocean_Ice_Boundary%xtype must be DIRECT or REDIST.' )
+       call mpp_error( FATAL, 'flux_ocean_to_ice: Ocean_Ice_Boundary%xtype must be DIRECT or REDIST.' )
     end select
     if( Ice%pe )then
        call mpp_set_current_pelist(Ice%pelist)
@@ -493,7 +493,7 @@ contains
     call mpp_clock_end(cplOcnClock)
     !-----------------------------------------------------------------------
 
-  end subroutine ocean_to_ice_flux_exchange
+  end subroutine flux_ocean_to_ice
 
 
   !#######################################################################
