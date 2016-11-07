@@ -1229,6 +1229,8 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
 !allocate land_ice_atmos_boundary
         call mpp_get_compute_domain( Atm%domain, is, ie, js, je )
         allocate( land_ice_atmos_boundary%t(is:ie,js:je) )
+        allocate( land_ice_atmos_boundary%u_ref(is:ie,js:je) )  ! bqx
+        allocate( land_ice_atmos_boundary%v_ref(is:ie,js:je) )  ! bqx
         allocate( land_ice_atmos_boundary%t_ref(is:ie,js:je) )  ! cjg: PBL depth mods
         allocate( land_ice_atmos_boundary%q_ref(is:ie,js:je) )  ! cjg: PBL depth mods
         allocate( land_ice_atmos_boundary%albedo(is:ie,js:je) )
@@ -1254,6 +1256,8 @@ subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
         allocate( land_ice_atmos_boundary%frac_open_sea(is:ie,js:je) )
 ! initialize boundary values for override experiments (mjh)
         land_ice_atmos_boundary%t=273.0
+        land_ice_atmos_boundary%u_ref=0.0   ! bqx
+        land_ice_atmos_boundary%v_ref=0.0   ! bqx
         land_ice_atmos_boundary%t_ref=273.0   ! cjg: PBL depth mods
         land_ice_atmos_boundary%q_ref=0.0     ! cjg: PBL depth mods
         land_ice_atmos_boundary%albedo=0.0
@@ -1952,6 +1956,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
            ex_u10(i) = sqrt(ex_ref_u(i)**2 + ex_ref_v(i)**2)
         endif
      enddo
+
      do n = 1, ex_gas_fields_atm%num_bcs  !{
         if (atm%fields%bc(n)%use_10m_wind_speed) then  !{
            if (.not. ex_gas_fields_atm%bc(n)%field(ind_u10)%override) then  !{
@@ -2094,6 +2099,9 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   call get_from_xgrid (Land_Ice_Atmos_Boundary%u_star,    'ATM', ex_u_star    , xmap_sfc, complete=.false.)
   call get_from_xgrid (Land_Ice_Atmos_Boundary%b_star,    'ATM', ex_b_star    , xmap_sfc, complete=.false.)
   call get_from_xgrid (Land_Ice_Atmos_Boundary%q_star,    'ATM', ex_q_star    , xmap_sfc, complete=.true.)
+
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%u_ref, 'ATM', ex_ref_u, xmap_sfc, complete=.false.)  ! bqx
+  call get_from_xgrid (Land_Ice_Atmos_Boundary%v_ref, 'ATM', ex_ref_v, xmap_sfc, complete=.true.)  ! bqx
 
 #ifdef use_AM3_physics
   if (do_forecast) then
@@ -2454,6 +2462,7 @@ subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundar
   if ( id_tas > 0 )   used = send_data ( id_tas, diag_atm, Time )
   call sum_diag_integral_field ('t_ref',  diag_atm)
 #endif
+
 
   !    ------- reference u comp -----------
   if ( id_u_ref > 0 .or. id_u_ref_land > 0 .or. id_uas > 0) then
