@@ -68,7 +68,7 @@
 !! DO slow time steps (ocean)
 !!    call flux_ocean_to_ice
 !!
-!!    call ICE_SLOW_UP
+!!    call set_ice_surface_fields
 !!
 !!    DO fast time steps (atmos)
 !!       call flux_calculation
@@ -86,7 +86,7 @@
 !!       call ATMOS_UP
 !!    END DO
 !!
-!!    call ICE_SLOW_DN
+!!    call ICE_SLOW
 !!
 !!    call flux_ice_to_ocean
 !!
@@ -341,17 +341,21 @@ program coupler_main
   use land_model_mod,          only: land_model_restart
 
   use ice_model_mod,           only: ice_model_init, ice_model_end
-  use ice_model_mod,           only: update_ice_model_slow_up
+!  use ice_model_mod,           only: update_ice_model_slow_up
+!  use ice_model_mod,           only: update_ice_model_slow_dn
   use ice_model_mod,           only: update_ice_model_fast
-  use ice_model_mod,           only: update_ice_model_slow_dn
   use ice_model_mod,           only: ice_data_type, land_ice_boundary_type
   use ice_model_mod,           only: ocean_ice_boundary_type, atmos_ice_boundary_type
   use ice_model_mod,           only: ice_model_restart
   use ice_model_mod,           only: ice_data_type_chksum, ocn_ice_bnd_type_chksum
   use ice_model_mod,           only: atm_ice_bnd_type_chksum, lnd_ice_bnd_type_chksum
+  use ice_model_mod,           only: unpack_ocean_ice_boundary, exchange_slow_to_fast_ice
+  use ice_model_mod,           only: set_ice_surface_fields
+  use ice_model_mod,           only: ice_model_fast_cleanup, unpack_land_ice_boundary
+  use ice_model_mod,           only: exchange_fast_to_slow_ice, update_ice_model_slow
 
-  use ocean_model_mod,         only: update_ocean_model, ocean_model_init
-  use ocean_model_mod,         only: ocean_model_end, ocean_public_type, ocean_state_type, ice_ocean_boundary_type
+  use ocean_model_mod,         only: update_ocean_model, ocean_model_init,  ocean_model_end
+  use ocean_model_mod,         only: ocean_public_type, ocean_state_type, ice_ocean_boundary_type
   use ocean_model_mod,         only: ocean_model_restart
   use ocean_model_mod,         only: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
 !
@@ -539,48 +543,51 @@ program coupler_main
         call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
      endif
 
-if( Atm%pe )then
- call mpp_set_current_pelist(Atm%pelist)
- newClock1 = mpp_clock_id( 'generate_sfc_xgrid' )
-endif
-call mpp_set_current_pelist()
-newClock2 = mpp_clock_id( 'flux_ocean_to_ice' )
-newClock3 = mpp_clock_id( 'flux_ice_to_ocean' )
-newClock4 = mpp_clock_id( 'flux_check_stocks' )
-if( Atm%pe )then
- call mpp_set_current_pelist(Atm%pelist)
- newClock5 = mpp_clock_id( 'ATM' )
- newClock6  = mpp_clock_id( ' ATM: update_ice_model_slow_up' )
- newClock7  = mpp_clock_id( ' ATM: atmos loop' )
- newClocka  = mpp_clock_id( '  A-L: atmos_tracer_driver_gather_data' )
- newClockb  = mpp_clock_id( '  A-L: sfc_boundary_layer' )
- newClockl  = mpp_clock_id( '  A-L: update_atmos_model_dynamics')
- if (.not. do_concurrent_radiation) then
-   newClockj  = mpp_clock_id( '  A-L: serial radiation' )
- endif
- newClockc  = mpp_clock_id( '  A-L: update_atmos_model_down' )
- newClockd  = mpp_clock_id( '  A-L: flux_down_from_atmos' )
- newClocke  = mpp_clock_id( '  A-L: update_land_model_fast' )
- newClockf  = mpp_clock_id( '  A-L: update_ice_model_fast' )
- newClockg  = mpp_clock_id( '  A-L: flux_up_to_atmos' )
- newClockh  = mpp_clock_id( '  A-L: update_atmos_model_up' )
- if (do_concurrent_radiation) then
-   newClockj  = mpp_clock_id( '  A-L: concurrent radiation' )
-   newClocki  = mpp_clock_id( '  A-L: concurrent atmos' )
- endif
- newClockk  = mpp_clock_id( '  A-L: update_atmos_model_state')
- newClock8  = mpp_clock_id( ' ATM: update_land_model_slow' )
- newClock9  = mpp_clock_id( ' ATM: flux_land_to_ice' )
- newClock10 = mpp_clock_id( ' ATM: update_ice_model_slow_dn' )
- newClock11 = mpp_clock_id( ' ATM: flux_ice_to_ocean_stocks' )
-endif
-if( Ocean%is_ocean_pe )then
- call mpp_set_current_pelist(Ocean%pelist)
- newClock12 = mpp_clock_id( 'OCN' )
-endif
-call mpp_set_current_pelist()
-newClock13 = mpp_clock_id( 'intermediate restart' )
-newClock14 = mpp_clock_id( 'final flux_check_stocks' )
+  if( Atm%pe )then
+   call mpp_set_current_pelist(Atm%pelist)
+   newClock1 = mpp_clock_id( 'generate_sfc_xgrid' )
+  endif
+  call mpp_set_current_pelist()
+  newClock2 = mpp_clock_id( 'flux_ocean_to_ice' )
+  newClock3 = mpp_clock_id( 'flux_ice_to_ocean' )
+  newClock4 = mpp_clock_id( 'flux_check_stocks' )
+  if( Atm%pe )then
+     call mpp_set_current_pelist(Atm%pelist)
+     newClock5 = mpp_clock_id( 'ATM' )
+     newClock7  = mpp_clock_id( ' ATM: atmos loop' )
+     newClocka  = mpp_clock_id( '  A-L: atmos_tracer_driver_gather_data' )
+     newClockb  = mpp_clock_id( '  A-L: sfc_boundary_layer' )
+     newClockl  = mpp_clock_id( '  A-L: update_atmos_model_dynamics')
+     if (.not. do_concurrent_radiation) then
+       newClockj  = mpp_clock_id( '  A-L: serial radiation' )
+     endif
+     newClockc  = mpp_clock_id( '  A-L: update_atmos_model_down' )
+     newClockd  = mpp_clock_id( '  A-L: flux_down_from_atmos' )
+     newClocke  = mpp_clock_id( '  A-L: update_land_model_fast' )
+     newClockf  = mpp_clock_id( '  A-L: update_ice_model_fast' )
+     newClockg  = mpp_clock_id( '  A-L: flux_up_to_atmos' )
+     newClockh  = mpp_clock_id( '  A-L: update_atmos_model_up' )
+     if (do_concurrent_radiation) then
+       newClockj  = mpp_clock_id( '  A-L: concurrent radiation' )
+       newClocki  = mpp_clock_id( '  A-L: concurrent atmos' )
+     endif
+     newClockk  = mpp_clock_id( '  A-L: update_atmos_model_state')
+     newClock8  = mpp_clock_id( ' ATM: update_land_model_slow' )
+     newClock9  = mpp_clock_id( ' ATM: flux_land_to_ice' )
+  endif
+  if( Ice%pe )then
+     call mpp_set_current_pelist(Ice%pelist)
+     newClock6  = mpp_clock_id( ' Ice: set_ice_surface' )
+     newClock10 = mpp_clock_id( ' Ice: update_ice_model_slow' )
+     newClock11 = mpp_clock_id( ' Ice: flux_ice_to_ocean_stocks' )
+  endif
+  if( Ocean%is_ocean_pe )then
+     call mpp_set_current_pelist(Ocean%pelist)
+     newClock12 = mpp_clock_id( 'OCN' )
+  endif
+  call mpp_set_current_pelist()
+  newClock13 = mpp_clock_id( 'intermediate restart' )
+  newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 
   do nc = 1, num_cpld_calls
      if(do_chksum) call coupler_chksum('top_of_coupled_loop+', nc)
@@ -639,17 +646,32 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 
      endif
 
-     if( Atm%pe )then
-        call mpp_set_current_pelist(Atm%pelist)
-        call mpp_clock_begin(newClock5)
-        call mpp_clock_begin(newClock6)
-        if (do_ice .AND. Ice%pe) then
-           if(ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Ice%pelist)
-           call update_ice_model_slow_up( Ocean_ice_boundary, Ice )
+     if (do_ice .and. Ice%pe) then
+        if (Ice%slow_ice_pe) then
+           call mpp_set_current_pelist(Ice%slow_pelist)
+           call mpp_clock_begin(newClock6)
+           call unpack_ocean_ice_boundary( Ocean_ice_boundary, Ice )
+           if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
+           call mpp_clock_end(newClock6)
         endif
-        if(ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
+        if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
+        call mpp_clock_begin(newClock6)
+        call exchange_slow_to_fast_ice(Ice)
+
+        if (Ice%fast_ice_pe) then
+          if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%fast_pelist)
+          call set_ice_surface_fields(Ice)
+        endif
         call mpp_clock_end(newClock6)
-        if(do_chksum) call atmos_ice_land_chksum('update_ice_slow_up+', nc, Atm, Land, Ice, &
+     endif
+
+     if( Atm%pe )then
+        !### THIS SHOULD BE MORE EFFICIENT: 
+        !### if (.NOT.(do_ice .and. Ice%pe) .OR. (ice_npes .NE. atmos_npes)) &
+           call mpp_set_current_pelist(Atm%pelist)
+
+        call mpp_clock_begin(newClock5)
+        if(do_chksum) call atmos_ice_land_chksum('set_ice_surface+', nc, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
         call mpp_clock_begin(newClock1)
         call generate_sfc_xgrid( Land, Ice )
@@ -758,8 +780,8 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 
             !      ---- ice model ----
             call mpp_clock_begin(newClockf)
-            if (do_ice .AND. Ice%pe) then
-              if(ice_npes .NE. atmos_npes)call mpp_set_current_pelist(Ice%pelist)
+            if (do_ice .AND. Ice%fast_ice_pe) then
+              if(ice_npes .NE. atmos_npes)call mpp_set_current_pelist(Ice%fast_pelist)
               call update_ice_model_fast( Atmos_ice_boundary, Ice )
             endif
             if(ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
@@ -853,34 +875,46 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
                    Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
 
         Atmos_ice_boundary%p = 0.0 ! call flux_atmos_to_ice_slow ?
-
-        !   ------ slow-ice model ------
-
-        if (do_ice) then
-           call mpp_clock_begin(newClock10)
-           if( Ice%pe ) then
-              if(ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Ice%pelist)
-              call update_ice_model_slow_dn( Atmos_ice_boundary, &
-                   & Land_ice_boundary, Ice )
-           endif
-           if(ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
-           call mpp_clock_end(newClock10)
-           if(do_chksum) call atmos_ice_land_chksum('update_ice_slow_dn+', nc, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-
-           call mpp_clock_begin(newClock11)
-           if( Ice%pe ) then
-              if(ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Ice%pelist)
-              call flux_ice_to_ocean_stocks(Ice)
-           endif
-           if(ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
-           call mpp_clock_end(newClock11)
-           if(do_chksum) call atmos_ice_land_chksum('fluxice2ocn_stocks+', nc, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-        endif
         Time = Time_atmos
         call mpp_clock_end(newClock5)
      end if                     !Atm%pe block
+
+        !   ------ slow-ice model ------
+
+     if (do_ice .and. Ice%pe) then
+        call mpp_clock_begin(newClock5)
+        call mpp_clock_begin(newClock10)
+
+        if (Ice%fast_ice_PE) then
+           if (ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Ice%fast_pelist)
+!        call update_ice_model_slow_dn( Atmos_ice_boundary, &
+!             & Land_ice_boundary, Ice )
+
+          ! These two calls occur on whichever PEs handle the fast ice processess.
+           call ice_model_fast_cleanup(Ice)
+
+           call unpack_land_ice_boundary(Ice, Land_ice_boundary)
+        endif
+
+        if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
+        ! This call occurs all ice PEs.
+        call exchange_fast_to_slow_ice(Ice)
+
+        ! This call occurs on whichever PEs handle the slow ice processess.
+        if (Ice%slow_ice_PE) then
+           if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%slow_pelist)
+           call update_ice_model_slow(Ice)
+
+           call mpp_clock_begin(newClock11)
+           call flux_ice_to_ocean_stocks(Ice)
+           call mpp_clock_end(newClock11)
+        endif
+
+        call mpp_clock_end(newClock10)
+        if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
+
+        call mpp_clock_end(newClock5)
+     endif  ! End of Ice%pe block
 
      if( .NOT.use_lag_fluxes )then !this will serialize
         call mpp_set_current_pelist()
@@ -1164,18 +1198,19 @@ contains
     end if
 
     if( land_npes == 0 ) land_npes = atmos_npes
-    if( ice_npes  == 0 ) ice_npes  = atmos_npes
     if(land_npes > atmos_npes) call mpp_error(FATAL, 'coupler_init: land_npes > atmos_npes')
+
+    if( ice_npes  == 0 ) ice_npes  = atmos_npes
     if(ice_npes  > atmos_npes) call mpp_error(FATAL, 'coupler_init: ice_npes > atmos_npes')
 
     allocate( Atm%pelist  (atmos_npes) )
     allocate( Ocean%pelist(ocean_npes) )
     allocate( Land%pelist (land_npes) )
-    allocate( Ice%pelist  (ice_npes) )
+    allocate( Ice%fast_pelist(ice_npes) )
 
     !Set up and declare all the needed pelists
     call ensemble_pelist_setup(concurrent, atmos_npes, ocean_npes, land_npes, ice_npes, &
-                               Atm%pelist, Ocean%pelist, Land%pelist, Ice%pelist)
+                               Atm%pelist, Ocean%pelist, Land%pelist, Ice%fast_pelist)
 
 !set up affinities based on threads
 
@@ -1186,8 +1221,32 @@ contains
 
     Atm%pe            = ANY(Atm%pelist   .EQ. mpp_pe())
     Ocean%is_ocean_pe = ANY(Ocean%pelist .EQ. mpp_pe())
-    Ice%pe            = ANY(Ice%pelist   .EQ. mpp_pe())
     Land%pe           = ANY(Land%pelist  .EQ. mpp_pe())
+
+    Ice%shared_slow_fast_PEs = .true.
+    ! This is where different settings would be applied if the fast and slow
+    ! ice occurred on different PEs.
+    if (Ice%shared_slow_fast_PEs) then
+      ! Fast and slow ice processes occur on the same PEs.
+      allocate( Ice%pelist  (ice_npes) )
+      Ice%pelist(:) = Ice%fast_pelist(:)
+      allocate( Ice%slow_pelist(ice_npes) )
+      Ice%slow_pelist(:) = Ice%fast_pelist(:)
+    else
+      ! Fast ice processes occur a subset of the atmospheric PEs, while
+      ! slow ice processes occur on the ocean PEs.
+      !### THIS OPTION IS WHOLLY UNTESTED AND I DO NOT KNOW IF IT WILL WORK! - RWH
+      allocate( Ice%slow_pelist(ocean_npes) )
+      Ice%slow_pelist(:) = Ocean%pelist(:)
+      allocate( Ice%pelist  (ice_npes+ocean_npes) )
+      ! Set Ice%pelist() to be the union of Ice%fast_pelist and Ice%slow_pelist.
+      Ice%pelist(1:ice_npes) = Ice%fast_pelist(:)
+      Ice%pelist(ice_npes+1:ice_npes+ocean_npes) = Ocean%pelist(:)
+    endif
+
+    Ice%fast_ice_pe = ANY(Ice%fast_pelist .EQ. mpp_pe())
+    Ice%slow_ice_pe = ANY(Ice%slow_pelist .EQ. mpp_pe())
+    Ice%pe = Ice%fast_ice_pe .OR. Ice%slow_ice_pe
 
     !Why is the following needed?
 !$  call omp_set_dynamic(.FALSE.)
@@ -1544,7 +1603,8 @@ contains
                            //trim(walldate)//' '//trim(walltime)
         endif
         call mpp_clock_begin(id_ice_model_init)
-        call ice_model_init( Ice, Time_init, Time, Time_step_atmos, Time_step_cpld )
+        call ice_model_init( Ice, Time_init, Time, Time_step_atmos, &
+                             Time_step_cpld, Verona_coupler=.true. )
         call mpp_clock_end(id_ice_model_init)
         if( mpp_pe().EQ.mpp_root_pe() ) then
           call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
@@ -1647,8 +1707,8 @@ contains
 !       read in extra fields for the air-sea gas fluxes
 !
 
-    if ( Ice%pe ) then
-      call mpp_set_current_pelist(Ice%pelist)
+    if ( Ice%slow_ice_pe ) then
+      call mpp_set_current_pelist(Ice%slow_pelist)
       allocate(Ice_bc_restart(Ice%ocean_fluxes%num_bcs))
       allocate(ice_bc_restart_file(Ice%ocean_fluxes%num_bcs))
       do n = 1, Ice%ocean_fluxes%num_bcs  !{
@@ -1730,8 +1790,8 @@ contains
       call atmos_ice_land_chksum('coupler_init+', 0, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
     endif
-    if (Ice%pe) then
-      call mpp_set_current_pelist(Ice%pelist)
+    if (Ice%slow_ice_PE) then
+      call mpp_set_current_pelist(Ice%slow_pelist)
       call slow_ice_chksum('coupler_init+', 0, Ice, Ocean_ice_boundary)
     endif
     if (Ocean%is_ocean_pe) then
@@ -1759,8 +1819,8 @@ contains
       call atmos_ice_land_chksum('coupler_end', 0, Atm, Land, Ice, &
                Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
     endif
-    if (Ice%pe) then
-      call mpp_set_current_pelist(Ice%pelist)
+    if (Ice%slow_ice_PE) then
+      call mpp_set_current_pelist(Ice%slow_pelist)
       call slow_ice_chksum('coupler_end', 0, Ice, Ocean_ice_boundary)
     endif
     if (Ocean%is_ocean_pe) then
@@ -2027,8 +2087,8 @@ contains
 !! It is assumed that the appropriate pelist has been set before entering this routine.
 !! This can be achieved in the following way.
 !! ~~~~~~~~~~{.f90}
-!! if (Ice%pe) then
-!!    call mpp_set_current_pelist(Ice%pelist)
+!! if (Ice%slow_ice_pe) then
+!!    call mpp_set_current_pelist(Ice%slow_pelist)
 !!    call slow_ice_chksum('MAIN_LOOP-', nc)
 !! endif
 !! ~~~~~~~~~~
