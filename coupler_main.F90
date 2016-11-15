@@ -229,11 +229,13 @@
 !!     <td>logical</td>
 !!     <td>.TRUE.</td>
 !!     <td>If true, then mom4 is forced with SBCs from one coupling timestep ago
-!!       If false, then mom4 is forced with most recent SBCs. For a leapfrog MOM
+!!       If false, then mom4 is forced with most recent SBCs. For a leapfrog MOM4
 !!       coupling with dt_cpld=dt_ocean, lag fluxes can be shown to be stable
 !!       and current fluxes to be unconditionally unstable. For dt_cpld>dt_ocean
-!!       there is probably sufficient damping. use_lag_fluxes is set to TRUE by
-!!       default.</td>
+!!       there is probably sufficient damping for MOM4.  More modern ocean models
+!!       like MOM4.1, MOM5, GOLD or MOM6 do not use a leapfrog timestep, and will
+!!       be more stable with use_lag_fluxes=.false. use_lag_fluxes is set to TRUE
+!!       by default.</td>
 !!   </tr>
 !!   <tr>
 !!     <td>restart_interval</td>
@@ -449,9 +451,9 @@ program coupler_main
                                                  !! the date in the restart file `INPUT/coupler.res`.  If the restart file does not
                                                  !! exist then force_date_from_namelist has no effect, the value of current_date
                                                  !! will be used.
-  integer :: months=0 !< Number of months the current integration will be run for
-  integer :: days=0 !< Number of days the current integration will be run for
-  integer :: hours=0 !< Number of hours the current integration will be run for
+  integer :: months=0  !< Number of months the current integration will be run for
+  integer :: days=0    !< Number of days the current integration will be run for
+  integer :: hours=0   !< Number of hours the current integration will be run for
   integer :: minutes=0 !< Number of minutes the current integration will be run for
   integer :: seconds=0 !< Number of seconds the current integration will be run for
   integer :: dt_atmos = 0 !< Atmospheric model time step in seconds, including the fat coupling with land and sea ice
@@ -459,8 +461,8 @@ program coupler_main
                           !! multiple of dt_atmos and dt_ocean.  This is the "slow" timestep.
   integer :: atmos_npes=0 !< The number of MPI tasks to use for the atmosphere
   integer :: ocean_npes=0 !< The number of MPI tasks to use for the ocean
-  integer :: ice_npes=0 !< The number of MPI tasks to use for the ice
-  integer :: land_npes=0 !< The number of MPI tasks to use for the land
+  integer :: ice_npes=0   !< The number of MPI tasks to use for the ice
+  integer :: land_npes=0  !< The number of MPI tasks to use for the land
   integer :: atmos_nthreads=1 !< Number of OpenMP threads to use in the atmosphere
   integer :: ocean_nthreads=1 !< Number of OpenMP threads to use in the ocean
   integer :: radiation_nthreads=1 !< Number of threads to use for the radiation.
@@ -468,17 +470,21 @@ program coupler_main
                               !! This is used when ALL the output fields sent by this component to the coupler have been overridden
                               !! using the data_override feature.  This is for advanced users only.
   logical :: do_land =.true. !< See do_atmos
-  logical :: do_ice =.true. !< See do_atmos
+  logical :: do_ice =.true.  !< See do_atmos
   logical :: do_ocean=.true. !< See do_atmos
   logical :: do_flux =.true. !< See do_atmos
   logical :: concurrent=.FALSE. !< If .TRUE., the ocean executes concurrently with the atmosphere-land-ice on a separate set of PEs.
                                 !! If .FALSE., the execution is serial: call atmos... followed by call ocean...
   logical :: do_concurrent_radiation=.FALSE. !< If .TRUE. then radiation is done concurrently
-  logical :: use_lag_fluxes=.TRUE. !< If .TRUE., then mom4 is forced with SBCs from one coupling timestep ago.  If .FALSE., then mom4
-                                   !! if forced with most recent SBCs.  For a leapfrog MOM coupling with dt_cpld=dt_ocean, lag fluxes
-                                   !! can be shown to be stable and current fluxes to be unconditionally unstable.  For dt_cpld>gt_ocean
-                                   !! there is probably sufficient damping.
+  logical :: use_lag_fluxes=.TRUE. !< If .TRUE., the ocean is forced with SBCs from one coupling timestep ago.  If .FALSE., the ocean
+                                   !! if forced with most recent SBCs.  For an old leapfrog MOM4 coupling with dt_cpld=dt_ocean, lag fluxes
+                                   !! can be shown to be stable and current fluxes to be unconditionally unstable.  For dt_cpld>dt_ocean
+                                   !! there is probably sufficient damping for MOM4.  For more modern ocean models (such as MOM5, GOLD or
+                                   !! MOM6) that do not use leapfrog timestepping, use_lag_fluxes=.False. should be much more stable.
+  logical :: slow_ice_with_ocean=.FALSE.  !< If true, the slow sea-ice is advanced on the ocean processors.  Otherwise
+                                   !! the slow sea-ice processes are on the same PEs as the fast sea-ice.
   logical :: do_chksum=.FALSE.
+  logical :: do_endpoint_chksum=.TRUE.  !< If true do checksums of the initial and final states.
   logical :: do_debug=.FALSE.
   integer :: check_stocks = 0 ! -1: never 0: at end of run only n>0: every n coupled steps
   logical :: use_hyper_thread = .false.
@@ -492,8 +498,8 @@ program coupler_main
                          atmos_nthreads, ocean_nthreads, radiation_nthreads,       &
                          concurrent, do_concurrent_radiation, use_lag_fluxes,      &
                          check_stocks, restart_interval, do_debug, do_chksum,      &
-                         use_hyper_thread, ncores_per_node, debug_affinity
-
+                         use_hyper_thread, ncores_per_node, debug_affinity,        &
+                         slow_ice_with_ocean, do_endpoint_chksum
 
   integer :: initClock, mainClock, termClock
 
@@ -538,14 +544,14 @@ program coupler_main
 !-----------------------------------------------------------------------
 !------ ocean/slow-ice integration loop ------
 
-     if(check_stocks >= 0) then
-        call mpp_set_current_pelist()
-        call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
-     endif
+  if(check_stocks >= 0) then
+     call mpp_set_current_pelist()
+     call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
+  endif
 
   if( Atm%pe )then
-   call mpp_set_current_pelist(Atm%pelist)
-   newClock1 = mpp_clock_id( 'generate_sfc_xgrid' )
+     call mpp_set_current_pelist(Atm%pelist)
+     newClock1 = mpp_clock_id( 'generate_sfc_xgrid' )
   endif
   call mpp_set_current_pelist()
   newClock2 = mpp_clock_id( 'flux_ocean_to_ice' )
@@ -610,8 +616,10 @@ program coupler_main
      ! concurrent mode to avoid multiple synchronizations within the main loop.
      ! This is only possible in the serial case when use_lag_fluxes.
      call mpp_clock_begin(newClock2)
-     call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
+     if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) &
+       call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
      call mpp_clock_end(newClock2)
+
      if(do_chksum) then
        call coupler_chksum('flux_ocn2ice+', nc)
        if (Atm%pe) then
@@ -629,11 +637,11 @@ program coupler_main
      ! Update Ice_ocean_boundary; first iteration is supplied by restart
      if( use_lag_fluxes )then
         call mpp_clock_begin(newClock3)
-        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
+        if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) &
+          call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
         call mpp_clock_end(newClock3)
      end if
 
-     ! Update Ice_ocean_boundary; first iteration is supplied by restart
      ! To print the value of frazil heat flux at the right time the following block
      ! needs to sit here rather than at the end of the coupler loop.
      if(check_stocks > 0) then
@@ -643,7 +651,6 @@ program coupler_main
            call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
         endif
         call mpp_clock_end(newClock4)
-
      endif
 
      if (do_ice .and. Ice%pe) then
@@ -654,6 +661,7 @@ program coupler_main
            if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
            call mpp_clock_end(newClock6)
         endif
+        ! This could be a point where the model is serialized.
         if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
         call mpp_clock_begin(newClock6)
         call exchange_slow_to_fast_ice(Ice)
@@ -667,7 +675,7 @@ program coupler_main
 
      if( Atm%pe )then
         !### THIS SHOULD BE MORE EFFICIENT: 
-        !### if (.NOT.(do_ice .and. Ice%pe) .OR. (ice_npes .NE. atmos_npes)) &
+        if (.NOT.(do_ice .and. Ice%pe) .OR. (ice_npes .NE. atmos_npes)) &
            call mpp_set_current_pelist(Atm%pelist)
 
         call mpp_clock_begin(newClock5)
@@ -896,6 +904,7 @@ program coupler_main
            call unpack_land_ice_boundary(Ice, Land_ice_boundary)
         endif
 
+        ! This could be a point where the model is serialized.
         if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
         ! This call occurs all ice PEs.
         call exchange_fast_to_slow_ice(Ice)
@@ -916,10 +925,12 @@ program coupler_main
         call mpp_clock_end(newClock5)
      endif  ! End of Ice%pe block
 
-     if( .NOT.use_lag_fluxes )then !this will serialize
-        call mpp_set_current_pelist()
-        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
-     end if
+     if( .NOT.use_lag_fluxes )then !this could serialize
+        if ((.not.do_ice) .or. (.not.slow_ice_with_ocean)) &
+          call mpp_set_current_pelist()
+        if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) &
+          call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
+     endif
 
      if( Ocean%is_ocean_pe )then
         call mpp_set_current_pelist(Ocean%pelist)
@@ -982,13 +993,13 @@ program coupler_main
   enddo
 102 FORMAT(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
 
-     call mpp_set_current_pelist()
-call mpp_clock_begin(newClock14)
+  call mpp_set_current_pelist()
+  call mpp_clock_begin(newClock14)
   if(check_stocks >= 0) then
      call mpp_set_current_pelist()
      call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
   endif
-call mpp_clock_end(newClock14)
+  call mpp_clock_end(newClock14)
 
   call mpp_set_current_pelist()
 !-----------------------------------------------------------------------
@@ -1223,7 +1234,7 @@ contains
     Ocean%is_ocean_pe = ANY(Ocean%pelist .EQ. mpp_pe())
     Land%pe           = ANY(Land%pelist  .EQ. mpp_pe())
 
-    Ice%shared_slow_fast_PEs = .true.
+    Ice%shared_slow_fast_PEs = .true. ! .not.slow_ice_with_ocean
     ! This is where different settings would be applied if the fast and slow
     ! ice occurred on different PEs.
     if (Ice%shared_slow_fast_PEs) then
@@ -1785,19 +1796,22 @@ contains
     CALL diag_grid_end()
 
 !-----------------------------------------------------------------------
-    if (Atm%pe) then
-      call mpp_set_current_pelist(Atm%pelist)
-      call atmos_ice_land_chksum('coupler_init+', 0, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+    if ( do_endpoint_chksum ) then
+      if (Atm%pe) then
+        call mpp_set_current_pelist(Atm%pelist)
+        call atmos_ice_land_chksum('coupler_init+', 0, Atm, Land, Ice, &
+                     Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+      endif
+      if (Ice%slow_ice_PE) then
+        call mpp_set_current_pelist(Ice%slow_pelist)
+        call slow_ice_chksum('coupler_init+', 0, Ice, Ocean_ice_boundary)
+      endif
+      if (Ocean%is_ocean_pe) then
+        call mpp_set_current_pelist(Ocean%pelist)
+        call ocean_chksum('coupler_init+', 0, Ocean, Ice_ocean_boundary)
+      endif
     endif
-    if (Ice%slow_ice_PE) then
-      call mpp_set_current_pelist(Ice%slow_pelist)
-      call slow_ice_chksum('coupler_init+', 0, Ice, Ocean_ice_boundary)
-    endif
-    if (Ocean%is_ocean_pe) then
-      call mpp_set_current_pelist(Ocean%pelist)
-      call ocean_chksum('coupler_init+', 0, Ocean, Ice_ocean_boundary)
-    endif
+
     call mpp_set_current_pelist()
     call print_memuse_stats('coupler_init')
 
@@ -1814,18 +1828,20 @@ contains
 
 !-----------------------------------------------------------------------
 
-    if (Atm%pe) then
-      call mpp_set_current_pelist(Atm%pelist)
-      call atmos_ice_land_chksum('coupler_end', 0, Atm, Land, Ice, &
-               Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-    endif
-    if (Ice%slow_ice_PE) then
-      call mpp_set_current_pelist(Ice%slow_pelist)
-      call slow_ice_chksum('coupler_end', 0, Ice, Ocean_ice_boundary)
-    endif
-    if (Ocean%is_ocean_pe) then
-      call mpp_set_current_pelist(Ocean%pelist)
-      call ocean_chksum('coupler_end', 0, Ocean, Ice_ocean_boundary)
+    if ( do_endpoint_chksum ) then
+      if (Atm%pe) then
+        call mpp_set_current_pelist(Atm%pelist)
+        call atmos_ice_land_chksum('coupler_end', 0, Atm, Land, Ice, &
+                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+      endif
+      if (Ice%slow_ice_PE) then
+        call mpp_set_current_pelist(Ice%slow_pelist)
+        call slow_ice_chksum('coupler_end', 0, Ice, Ocean_ice_boundary)
+      endif
+      if (Ocean%is_ocean_pe) then
+        call mpp_set_current_pelist(Ocean%pelist)
+        call ocean_chksum('coupler_end', 0, Ocean, Ice_ocean_boundary)
+      endif
     endif
     call mpp_set_current_pelist()
 
