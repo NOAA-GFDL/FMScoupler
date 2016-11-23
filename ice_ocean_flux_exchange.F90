@@ -523,7 +523,7 @@ contains
     ! heat carried by river + pme (assuming reference temperature of 0 degC and river/pme temp = surface temp)
     ! Note: it does not matter what the ref temperature is but it must be consistent with that in OCN and ICE
     from_dq = Dt_cpl * SUM( Ice%area * ( &
-         & (Ice%lprec+Ice%fprec-Ice%flux_q + Ice%runoff+Ice%calving)*CP_OCEAN*(Ice%t_surf(:,:,1) - 273.15)) )
+         & (Ice%lprec+Ice%fprec-Ice%flux_q + Ice%runoff+Ice%calving)*CP_OCEAN*Ice%SST_C(:,:)) )
     Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
 
