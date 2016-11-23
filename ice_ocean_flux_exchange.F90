@@ -91,18 +91,11 @@ contains
          'ice_flux', Ice%axes(1:2), Time, suffix = '_ocn_ice')
 
     !
-    ! allocate fields amd fluxes for extra tracers for the Ice type
+    ! allocate fields and fluxes for extra tracers for the Ice type
     !
 
-    kd = size(Ice%part_size,3)
-    call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
-         'ice_flux', Ice%axes, Time, suffix = '_ice')
-
     call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes, is, ie, js, je,             &
-         'ice_flux', Ice%axes(1:2), Time, suffix = '_ice')
-
-    call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd,     &
-         'ice_flux', Ice%axes, Time, suffix = '_ice_top')
+         'ice_flux', Ice%axes(1:2), Time, suffix = '_ice')  ! Should be suffix = '_ice_ocn'
 
     !allocate ice_ocean_boundary
     call mpp_get_compute_domain( Ocean%domain, is, ie, js, je )
