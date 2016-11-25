@@ -1689,6 +1689,7 @@ contains
     call mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
 
     call mpp_broadcast_domain(Ice%domain)
+    call mpp_broadcast_domain(Ice%slow_domain_NH)
     call mpp_broadcast_domain(Ocean%domain)
 !-----------------------------------------------------------------------
 !---- initialize flux exchange module ----

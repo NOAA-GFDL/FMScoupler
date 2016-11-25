@@ -66,7 +66,7 @@ contains
 
     !ocean_ice_boundary and ice_ocean_boundary must be done on all PES
     !domain boundaries will assure no space is allocated on non-relevant PEs.
-    call mpp_get_compute_domain( Ice%domain, is, ie, js, je )
+    call mpp_get_compute_domain( Ice%slow_Domain_NH, is, ie, js, je )
     !allocate ocean_ice_boundary
     allocate( ocean_ice_boundary%u(is:ie,js:je) )
     allocate( ocean_ice_boundary%v(is:ie,js:je) )
@@ -144,7 +144,7 @@ contains
 
     ! initialize boundary values for override experiments
     ocean_ice_boundary%xtype = REDIST
-    if( Ocean%domain.EQ.Ice%domain )ocean_ice_boundary%xtype = DIRECT
+    if( Ocean%domain.EQ.Ice%slow_Domain_NH )ocean_ice_boundary%xtype = DIRECT
     ice_ocean_boundary%xtype = ocean_ice_boundary%xtype
 
     !       initialize the Ocean type for extra fields for surface fluxes
@@ -159,7 +159,7 @@ contains
        call mpp_get_compute_domain(Ocean%domain, xsize=nxc_ocn, ysize=nyc_ocn)
     endif
     if( Ice%pe) then
-       call mpp_get_compute_domain(Ice%domain, xsize=nxc_ice, ysize=nyc_ice)
+       call mpp_get_compute_domain(Ice%slow_Domain_NH, xsize=nxc_ice, ysize=nyc_ice)
     endif
 
     !z1l check the flux conservation.
@@ -393,24 +393,24 @@ contains
     case(REDIST)
        !same grid, different domain decomp for ocean and ice    
        if( ASSOCIATED(Ocean_Ice_Boundary%u) )                     &
-            call mpp_redistribute(Ocean%Domain, Ocean%u_surf, Ice%Domain, Ocean_Ice_Boundary%u)
+            call mpp_redistribute(Ocean%Domain, Ocean%u_surf, Ice%slow_Domain_NH, Ocean_Ice_Boundary%u)
        if( ASSOCIATED(Ocean_Ice_Boundary%v) )                     &
-            call mpp_redistribute(Ocean%Domain, Ocean%v_surf, Ice%Domain, Ocean_Ice_Boundary%v)
+            call mpp_redistribute(Ocean%Domain, Ocean%v_surf, Ice%slow_Domain_NH, Ocean_Ice_Boundary%v)
        if( ASSOCIATED(Ocean_Ice_Boundary%t) )                     &
-            call mpp_redistribute(Ocean%Domain, Ocean%t_surf, Ice%Domain, Ocean_Ice_Boundary%t)
+            call mpp_redistribute(Ocean%Domain, Ocean%t_surf, Ice%slow_Domain_NH, Ocean_Ice_Boundary%t)
        if( ASSOCIATED(Ocean_Ice_Boundary%s) )                     &
-            call mpp_redistribute(Ocean%Domain, Ocean%s_surf, Ice%Domain, Ocean_Ice_Boundary%s)
+            call mpp_redistribute(Ocean%Domain, Ocean%s_surf, Ice%slow_Domain_NH, Ocean_Ice_Boundary%s)
 
        if( ASSOCIATED(Ocean_Ice_Boundary%sea_level) )             &
-            call mpp_redistribute(Ocean%Domain, Ocean%sea_lev, Ice%Domain, Ocean_Ice_Boundary%sea_level)
+            call mpp_redistribute(Ocean%Domain, Ocean%sea_lev, Ice%slow_Domain_NH, Ocean_Ice_Boundary%sea_level)
 
        if( ASSOCIATED(Ocean_Ice_Boundary%frazil) ) then
           if(do_area_weighted_flux) then
              if(Ocean%is_ocean_pe)tmp = Ocean%frazil * Ocean%area 
-             call mpp_redistribute( Ocean%Domain, tmp, Ice%Domain, Ocean_Ice_Boundary%frazil)
+             call mpp_redistribute( Ocean%Domain, tmp, Ice%slow_Domain_NH, Ocean_Ice_Boundary%frazil)
              if(Ice%pe) call divide_by_area(data=Ocean_Ice_Boundary%frazil, area=Ice%area)
           else
-             call mpp_redistribute(Ocean%Domain, Ocean%frazil, Ice%Domain, Ocean_Ice_Boundary%frazil)
+             call mpp_redistribute(Ocean%Domain, Ocean%frazil, Ice%slow_Domain_NH, Ocean_Ice_Boundary%frazil)
           endif
        endif
 
@@ -419,7 +419,7 @@ contains
           do m = 1, Ocean_Ice_Boundary%fields%bc(n)%num_fields  !{
              if ( associated(Ocean_Ice_Boundary%fields%bc(n)%field(m)%values) ) then  !{
                 call mpp_redistribute(Ocean%Domain, Ocean%fields%bc(n)%field(m)%values,    &
-                     Ice%Domain, Ocean_Ice_Boundary%fields%bc(n)%field(m)%values)
+                     Ice%slow_Domain_NH, Ocean_Ice_Boundary%fields%bc(n)%field(m)%values)
              endif  !}
           enddo  !} m
        enddo  !} n
@@ -648,10 +648,10 @@ contains
     case(REDIST)
        if(do_area_weighted) then
           if( ice%pe ) tmp = ice_data  * ice%area
-          call mpp_redistribute(ice%Domain, tmp, ocean%Domain, ocn_bnd_data)
+          call mpp_redistribute(Ice%slow_Domain_NH, tmp, ocean%Domain, ocn_bnd_data)
           if(ocean%is_ocean_pe) call divide_by_area(ocn_bnd_data, area=ocean%area) 
        else
-          call mpp_redistribute(ice%Domain, ice_data, ocean%Domain, ocn_bnd_data)
+          call mpp_redistribute(Ice%slow_Domain_NH, ice_data, ocean%Domain, ocn_bnd_data)
        endif
     case DEFAULT
        call mpp_error( FATAL, 'FLUX_ICE_TO_OCEAN: Ice_Ocean_Boundary%xtype must be DIRECT or REDIST.' )
