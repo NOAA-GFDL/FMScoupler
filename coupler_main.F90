@@ -887,8 +887,6 @@ program coupler_main
         call mpp_clock_end(newClock5)
      end if                     !Atm%pe block
 
-        !   ------ slow-ice model ------
-
      if (do_ice .and. Ice%pe) then
         call mpp_clock_begin(newClock5)
         call mpp_clock_begin(newClock10)
@@ -908,6 +906,8 @@ program coupler_main
         if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
         ! This call occurs all ice PEs.
         call exchange_fast_to_slow_ice(Ice)
+
+        !   ------ slow-ice model ------
 
         ! This call occurs on whichever PEs handle the slow ice processess.
         if (Ice%slow_ice_PE) then
@@ -1615,7 +1615,7 @@ contains
         endif
         call mpp_clock_begin(id_ice_model_init)
         call ice_model_init( Ice, Time_init, Time, Time_step_atmos, &
-                             Time_step_cpld, Verona_coupler=.true. )
+                             Time_step_cpld, Verona_coupler=.false. )
         call mpp_clock_end(id_ice_model_init)
         if( mpp_pe().EQ.mpp_root_pe() ) then
           call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
@@ -1738,12 +1738,12 @@ contains
         do m = 1, Ice%ocean_fluxes%bc(n)%num_fields  !{
           fieldname = trim(Ice%ocean_fluxes%bc(n)%field(m)%name)
           id_restart = register_restart_field(Ice_bc_restart(l), ice_bc_restart_file(l), &
-                       fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%domain    )
-          if (field_exist(filename, fieldname, Ice%domain) ) then
+                       fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%slow_domain_NH   )
+          if (field_exist(filename, fieldname, Ice%slow_domain_NH) ) then
             other_fields_exist = .true.
             write (outunit,*) trim(note_header), ' Reading restart info for ',         &
                  trim(fieldname), ' from ',  trim(filename)
-            call read_data(filename, fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%domain)
+            call read_data(filename, fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%slow_domain_NH)
           elseif (other_fields_exist) then
             call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
                  trim(fieldname) // ' in file ' //trim(filename))
