@@ -47,6 +47,9 @@ module atm_land_ice_flux_exchange_mod
                                 send_tile_averaged_data, diag_field_add_attribute,     &
                                 get_diag_field_id, DIAG_FIELD_NOT_FOUND
   use diag_data_mod,      only: CMOR_MISSING_VALUE, null_axis_id
+  use atmos_global_diag_mod, only: register_global_diag_field, &
+                                   get_global_diag_field_id, &
+                                   send_global_diag
   use  time_manager_mod,  only: time_type
   use sat_vapor_pres_mod, only: compute_qs, sat_vapor_pres_init
   use      constants_mod, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
@@ -136,7 +139,7 @@ module atm_land_ice_flux_exchange_mod
              id_height2m, id_height10m
 
   ! globally averaged diagnostics
-  integer :: id_evspsbl_g, id_ts_g, id_tas_g, id_tasl_g, id_hfss_g
+  integer :: id_evspsbl_g, id_ts_g, id_tas_g, id_tasl_g, id_hfss_g, id_hfls_g, id_rls_g
 
   logical :: first_static = .true.
   logical :: do_init = .true.
@@ -2648,9 +2651,10 @@ contains
     endif
 
     !------- net longwave flux -----------
-    if ( id_r_flux > 0 ) then
+    if ( id_r_flux > 0 .or. id_rls_g > 0 ) then
        call get_from_xgrid (diag_atm, 'ATM', ex_flux_lw, xmap_sfc)
-       used = send_data ( id_r_flux, diag_atm, Time )
+       if ( id_r_flux > 0 ) used = send_data ( id_r_flux, diag_atm, Time )
+       if ( id_rls_g  > 0 ) used = send_global_diag ( id_rls_g, diag_atm, Time )
     endif
 
     !------- tracer fluxes ------------
@@ -2671,7 +2675,8 @@ contains
     call get_from_xgrid (evap_atm, 'ATM', ex_flux_tr(:,isphum), xmap_sfc)
     if( id_q_flux > 0 )  used = send_data ( id_q_flux, evap_atm, Time)
     if( id_evspsbl > 0 ) used = send_data ( id_evspsbl, evap_atm, Time)
-    if( id_hfls > 0 )    used = send_data ( id_hfls, HLF*evap_atm, Time)
+    if( id_hfls    > 0 ) used = send_data ( id_hfls, HLV*evap_atm, Time)
+    if( id_hfls_g  > 0 ) used = send_global_diag ( id_hfls_g, HLV*evap_atm, Time)
     if( id_q_flux_land > 0 ) then
        call get_from_xgrid (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
        used = send_tile_averaged_data(id_q_flux_land, diag_land, &
@@ -3321,7 +3326,7 @@ contains
     !----- initialize global integrals for netCDF output -----
 
     id_evspsbl_g = register_global_diag_field ( 'evspsbl', Time, &
-                                    'Evaporation', 'kg m-2 s-1', &
+                                    'Evaporation', 'mm d-1', &
                           standard_name='water_evaporation_flux' )
 
     id_ts_g = register_global_diag_field ( 'ts', Time, &
@@ -3343,6 +3348,16 @@ contains
     id_hfss_g = register_global_diag_field ( 'hfss', Time, &
                    'Surface Upward Sensible Heat Flux', 'W m-2', &
                standard_name='surface_upward_sensible_heat_flux' )
+
+    id_hfls_g = register_global_diag_field ( 'hfls', Time, &
+                  'Surface Upward Latent Heat Flux', 'W m-2', &
+                  standard_name='surface_upward_latent_heat_flux')
+    if ( id_hfls_g > 0 ) &
+         call diag_field_add_attribute( get_global_diag_field_id(id_hfls_g), 'comment', 'Lv*evap' )
+
+    id_rls_g = register_global_diag_field ( 'rls', Time, &
+                   'Net Longwave Surface Radiation', 'W m-2', &
+               standard_name='surface_net_longwave_flux' )
 
     !-----------------------------------------------------------------------
 
