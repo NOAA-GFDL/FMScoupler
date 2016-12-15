@@ -566,37 +566,7 @@ private
   !-----------------------------------------------------------------------
   character(len=128) :: version = '$Id$'
   character(len=128) :: tag = '$Name$'
-  !-----------------------------------------------------------------------
 
-
-  !-----------------------------------------------------------------------
-  !-------- namelist (for diagnostics) ------
-
-  character(len=4), parameter :: mod_name = 'flux'
-
-  integer :: id_drag_moist,  id_drag_heat,  id_drag_mom,     &
-       id_rough_moist, id_rough_heat, id_rough_mom,    &
-       id_land_mask,   id_ice_mask,     &
-       id_u_star, id_b_star, id_q_star, id_u_flux, id_v_flux,   &
-       id_t_surf, id_t_flux, id_r_flux, id_q_flux, id_slp,      &
-       id_t_atm,  id_u_atm,  id_v_atm,  id_wind,                &
-       id_t_ref,  id_rh_ref, id_u_ref,  id_v_ref, id_wind_ref,  &
-       id_del_h,  id_del_m,  id_del_q,  id_rough_scale,         &
-       id_t_ca,   id_q_surf, id_q_atm, id_z_atm, id_p_atm, id_gust, &
-       id_t_ref_land, id_rh_ref_land, id_u_ref_land, id_v_ref_land, &
-       id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip
-
-  integer :: id_co2_atm_dvmr, id_co2_surf_dvmr
-
-  integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:)
-
-  ! id's for cmip specific fields
-  integer :: id_tas, id_uas, id_vas, id_ts, id_psl, &
-       id_sfcWind, id_tauu, id_tauv, &
-       id_hurs, id_huss, id_evspsbl, id_hfls, id_hfss, &
-       id_rhs, id_sftlf, id_tos, id_sic, id_tslsi
-
-  logical :: first_static = .true.
   logical :: do_init = .true.
 
   real, parameter :: bound_tol = 1e-7

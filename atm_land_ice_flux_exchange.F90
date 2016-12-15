@@ -36,7 +36,9 @@ module atm_land_ice_flux_exchange_mod
   use   ice_model_mod,    only: ice_data_type, land_ice_boundary_type, ocean_ice_boundary_type, &
                                 atmos_ice_boundary_type, Ice_stock_pe
   use   ice_model_mod,    only: update_ice_atm_deposition_flux
-  use    land_model_mod,  only: land_data_type, atmos_land_boundary_type
+  use    land_model_mod,  only: land_data_type, atmos_land_boundary_type, &
+                                set_default_diag_filter, register_tiled_diag_field, &
+                                send_tile_data
   use  surface_flux_mod,  only: surface_flux, surface_flux_init
   use monin_obukhov_mod,  only: mo_profile     
   use xgrid_mod,          only: xmap_type, setup_xmap, set_frac_area, put_to_xgrid, &
@@ -1532,8 +1534,7 @@ contains
     endif
     if(id_q_ref_land > 0) then
        call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
-       used = send_tile_averaged_data(id_q_ref_land, diag_land, &
-            Land%tile_size, Time, mask=Land%mask)
+       call send_tile_data (id_q_ref_land, diag_land)
     endif
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
     !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
@@ -1564,8 +1565,7 @@ contains
 
     if ( id_rh_ref_land > 0 ) then
        call get_from_xgrid (diag_land,'LND', ex_ref, xmap_sfc)
-       used = send_tile_averaged_data ( id_rh_ref_land, diag_land, &
-            Land%tile_size, Time, mask = Land%mask )
+       call send_tile_data (id_rh_ref_land, diag_land)
     endif
     if(id_rh_ref > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1586,8 +1586,7 @@ contains
             ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
        if (id_t_ref_land > 0) then
           call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
-          used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
-               Land%tile_size, Time, mask = Land%mask )
+          call send_tile_data (id_t_ref_land, diag_land)
        endif
        if ( id_t_ref > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1599,8 +1598,7 @@ contains
          ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
     if (id_t_ref_land > 0) then
        call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
-       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
-            Land%tile_size, Time, mask = Land%mask )
+       call send_tile_data (id_t_ref_land, diag_land)
     endif
     call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
     if ( id_t_ref > 0 ) used = send_data ( id_t_ref, diag_atm, Time )
@@ -1614,8 +1612,7 @@ contains
             ex_ref = ex_u_surf + (ex_u_atm-ex_u_surf) * ex_del_m
        if ( id_u_ref_land > 0 ) then
           call get_from_xgrid ( diag_land, 'LND', ex_ref, xmap_sfc )
-          used = send_tile_averaged_data ( id_u_ref_land, diag_land, &
-               Land%tile_size, Time, mask = Land%mask )
+          call send_tile_data ( id_u_ref_land, diag_land )
        endif
        if ( id_u_ref > 0 .or. id_uas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1630,8 +1627,7 @@ contains
             ex_ref = ex_v_surf + (ex_v_atm-ex_v_surf) * ex_del_m
        if ( id_v_ref_land > 0 ) then
           call get_from_xgrid ( diag_land, 'LND', ex_ref, xmap_sfc )
-          used = send_tile_averaged_data ( id_v_ref_land, diag_land, &
-               Land%tile_size, Time, mask = Land%mask )
+          call send_tile_data ( id_v_ref_land, diag_land )
        endif
        if ( id_v_ref > 0 .or. id_vas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -2661,8 +2657,7 @@ contains
     if( id_hfls > 0 )    used = send_data ( id_hfls, HLF*evap_atm, Time)
     if( id_q_flux_land > 0 ) then
        call get_from_xgrid (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
-       used = send_tile_averaged_data(id_q_flux_land, diag_land, &
-            Land%tile_size, Time, mask=Land%mask)
+       call send_tile_data (id_q_flux_land, diag_land, send_immediately=.TRUE.)
     endif
     call sum_diag_integral_field ('evap', evap_atm*86400.)
 
@@ -3079,33 +3074,38 @@ contains
          register_diag_field ( mod_name, 'del_q',      atmos_axes, Time,     &
          'ref height interp factor for moisture','none' )
 
-    ! + slm Jun 02, 2002 -- diagnostics of reference values over the land
     if( land_pe ) then
+       ! set the default filter (for area and subsampling) for consequent calls to
+       ! register_tiled_diag_field
+       call set_default_diag_filter('land')
        id_t_ref_land = &
-            register_diag_field ( mod_name, 't_ref_land', Land_axes, Time, &
+            register_tiled_diag_field ( 'flux_land', 't_ref', Land_axes, Time, &
             'temperature at '//trim(label_zh)//' over land', 'deg_k' , &
             range=trange, missing_value =  -100.0)
+       id_q_ref_land = &
+            register_tiled_diag_field ( 'flux_land', 'q_ref', Land_axes, Time, &
+            'specific humidity at '//trim(label_zh)//' over land', 'kg/kg',          &
+            missing_value=-1.0)
        id_rh_ref_land= &
-            register_diag_field ( mod_name, 'rh_ref_land', Land_axes, Time,   &
+            register_tiled_diag_field ( 'flux_land', 'rh_ref', Land_axes, Time,   &
             'relative humidity at '//trim(label_zh)//' over land', 'percent',       &
             missing_value=-999.0)
        id_u_ref_land = &
-            register_diag_field ( mod_name, 'u_ref_land',  Land_axes, Time, &
+            register_tiled_diag_field ( 'flux_land', 'u_ref',  Land_axes, Time, &
             'zonal wind component at '//trim(label_zm)//' over land',  'm/s', &
             range=vrange, missing_value=-999.0 )
        id_v_ref_land = &
-            register_diag_field ( mod_name, 'v_ref_land',  Land_axes, Time,     &
+            register_tiled_diag_field ( 'flux_land', 'v_ref',  Land_axes, Time,     &
             'meridional wind component at '//trim(label_zm)//' over land', 'm/s', &
             range=vrange, missing_value = -999.0 )
+       id_q_flux_land = &
+            register_tiled_diag_field( 'flux_land', 'evap', Land_axes, Time, &
+            'evaporation rate over land', 'kg/m2/s', missing_value=-1.0 )
     endif
-    ! - slm Jun 02, 2002
+
     id_q_ref = &
          register_diag_field ( mod_name, 'q_ref', atmos_axes, Time,     &
          'specific humidity at '//trim(label_zh), 'kg/kg', missing_value=-1.0)
-    id_q_ref_land = &
-         register_diag_field ( mod_name, 'q_ref_land', Land_axes, Time, &
-         'specific humidity at '//trim(label_zh)//' over land', 'kg/kg',          &
-         missing_value=-1.0)
 
     id_rough_scale = &
          register_diag_field ( mod_name, 'rough_scale', atmos_axes, Time, &
@@ -3143,10 +3143,6 @@ contains
 
     id_q_flux = register_diag_field( mod_name, 'evap',       atmos_axes, Time, &
          'evaporation rate',        'kg/m2/s'  )
-    if(land_pe) then
-       id_q_flux_land = register_diag_field( mod_name, 'evap_land', land_axes, Time, &
-            'evaporation rate over land',        'kg/m2/s', missing_value=-1.0 )
-    endif
 
     !--------------------------------------------------------------------
     !    retrieve the diag_manager id for the area diagnostic,
