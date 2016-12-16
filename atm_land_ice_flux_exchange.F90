@@ -125,7 +125,8 @@ module atm_land_ice_flux_exchange_mod
              id_del_h,  id_del_m,  id_del_q,  id_rough_scale,         &
              id_t_ca,   id_q_surf, id_q_atm, id_z_atm, id_p_atm, id_gust, &
              id_t_ref_land, id_rh_ref_land, id_u_ref_land, id_v_ref_land, &
-             id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip
+             id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip, &
+             id_hussLut_land, id_tasLut_land
   integer :: id_co2_atm_dvmr, id_co2_surf_dvmr
 
   integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:)
@@ -1532,9 +1533,10 @@ contains
     if(id_huss > 0) then
        used = send_data(id_huss,Land_Ice_Atmos_Boundary%q_ref,Time)
     endif
-    if(id_q_ref_land > 0) then
+    if(id_q_ref_land > 0.or.id_hussLut_land > 0) then
        call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
        call send_tile_data (id_q_ref_land, diag_land)
+       call send_tile_data (id_hussLut_land, diag_land)
     endif
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
     !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
@@ -1581,12 +1583,13 @@ contains
 
     !    ------- reference temp -----------
 #ifdef use_AM3_physics
-    if ( id_t_ref > 0 .or. id_t_ref_land > 0 ) then
+    if ( id_t_ref > 0 .or.id_t_ref_land > 0.or.id_tasLut_land>0 ) then
        where (ex_avail) &
             ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
-       if (id_t_ref_land > 0) then
+       if (id_t_ref_land > 0.or.id_tasLut_land > 0) then
           call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
           call send_tile_data (id_t_ref_land, diag_land)
+          call send_tile_data (id_tasLut_land, diag_land)
        endif
        if ( id_t_ref > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1596,9 +1599,10 @@ contains
 #else
     where (ex_avail) &
          ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
-    if (id_t_ref_land > 0) then
+    if (id_t_ref_land > 0.or.id_tasLut_land > 0) then
        call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
        call send_tile_data (id_t_ref_land, diag_land)
+       call send_tile_data (id_tasLut_land, diag_land)
     endif
     call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
     if ( id_t_ref > 0 ) used = send_data ( id_t_ref, diag_atm, Time )
@@ -3101,6 +3105,14 @@ contains
        id_q_flux_land = &
             register_tiled_diag_field( 'flux_land', 'evap', Land_axes, Time, &
             'evaporation rate over land', 'kg/m2/s', missing_value=-1.0 )
+       id_tasLut_land = &
+            register_tiled_diag_field( 'cmor_land', 'tasLut', Land_axes, Time, &
+            'Near-Surface Air Temperature ('//trim(label_zh)//' Above Displacement Height) on Land Use Tile', &
+            units='K', standard_name='air_temperature', missing_value=-1.0 )
+       id_hussLut_land = &
+            register_tiled_diag_field( 'cmor_land', 'hussLut', Land_axes, Time, &
+            'Near-Surface Specific Humidity on Land Use Tile', '1.0', &
+            standard_name='specific_humidity', missing_value=-1.0 )
     endif
 
     id_q_ref = &
