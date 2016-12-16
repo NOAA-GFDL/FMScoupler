@@ -367,6 +367,7 @@ program coupler_main
   use flux_exchange_mod,       only: flux_ice_to_ocean
   use flux_exchange_mod,       only: flux_ocean_to_ice
   use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
+  use flux_exchange_mod,       only: flux_atmos_to_ocean, flux_ex_arrays_dealloc
 
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
@@ -689,6 +690,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 !$OMP PARALLEL  &
 !$OMP&       NUM_THREADS(conc_nthreads)  &
 !$OMP&       DEFAULT(NONE)  &
+!$OMP&       PRIVATE(conc_nthreads) &
 !$OMP&       SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
 !$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&       SHARED(Ocean_ice_boundary) &
@@ -703,7 +705,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 !$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&       SHARED(Ocean_ice_boundary) &
 !$OMP&       SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl) 
+!$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
 !$          call omp_set_num_threads(atmos_nthreads)
 !$          dsec=omp_get_wtime()
             if (do_concurrent_radiation) call mpp_clock_begin(newClocki)
@@ -736,6 +738,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
               call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
               call mpp_clock_end(newClockc)
             endif
+
             if(do_chksum) call atmos_ice_land_chksum('update_atmos_down+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
@@ -750,6 +753,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
             if(do_chksum) call atmos_ice_land_chksum('flux_down_from_atmos+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, &
                    Ocean_ice_boundary, Atmos_land_boundary)
+
 
             !      --------------------------------------------------------------
             !      ---- land model ----
@@ -797,6 +801,10 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
                    Ocean_ice_boundary, Atmos_land_boundary)
       if (do_debug)  call print_memuse_stats( 'update up')
 
+            call flux_atmos_to_ocean(Time_atmos, Atm, Atmos_ice_boundary, Ice)
+
+            call flux_ex_arrays_dealloc
+
             !--------------
             if (do_concurrent_radiation) call mpp_clock_end(newClocki)
 !$          omp_sec(1) = omp_sec(1) + (omp_get_wtime() - dsec)
@@ -840,6 +848,7 @@ newClock14 = mpp_clock_id( 'final flux_check_stocks' )
                    Ocean_ice_boundary, Atmos_land_boundary)
           if (do_debug)  call print_memuse_stats( 'update state')
           call mpp_clock_end(newClockk)
+
 
         enddo ! end of na (fast loop)
 
@@ -1588,7 +1597,7 @@ contains
 !$           call omp_set_num_threads(ocean_nthreads)
        call mpp_set_current_pelist( Ocean%pelist )
 !$           base_cpu = get_cpu_affinity()
-!$OMP PARALLEL private(adder)    
+!$OMP PARALLEL private(adder)
 !$        if (use_hyper_thread) then
 !$          if (mod(omp_get_thread_num(),2) == 0) then
 !$            adder = omp_get_thread_num()/2
@@ -1603,7 +1612,7 @@ contains
 !$          write(6,*) " ocean  ", get_cpu_affinity(), adder, omp_get_thread_num()
 !$          call flush(6)
 !$        endif
-!$OMP END PARALLEL  
+!$OMP END PARALLEL
        else
           ocean_nthreads = atmos_nthreads
 !$        call omp_set_num_threads(ocean_nthreads)
@@ -1648,7 +1657,7 @@ contains
     call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
          atmos_ice_boundary, land_ice_atmos_boundary, &
          land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
-         dt_atmos=dt_atmos, dt_cpld=dt_cpld)
+         do_ocean, dt_atmos=dt_atmos, dt_cpld=dt_cpld)
     call mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
     call mpp_clock_end(id_flux_exchange_init)
     call mpp_set_current_pelist()
@@ -2065,4 +2074,4 @@ contains
   end subroutine ocean_chksum
 
 
-  end program coupler_main
+end program coupler_main
