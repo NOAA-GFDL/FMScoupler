@@ -47,9 +47,6 @@ module atm_land_ice_flux_exchange_mod
                                 send_tile_averaged_data, diag_field_add_attribute,     &
                                 get_diag_field_id, DIAG_FIELD_NOT_FOUND
   use diag_data_mod,      only: CMOR_MISSING_VALUE, null_axis_id
-  use atmos_global_diag_mod, only: register_global_diag_field, &
-                                   get_global_diag_field_id, &
-                                   send_global_diag
   use  time_manager_mod,  only: time_type
   use sat_vapor_pres_mod, only: compute_qs, sat_vapor_pres_init
   use      constants_mod, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
@@ -65,6 +62,9 @@ module atm_land_ice_flux_exchange_mod
   use atmos_tracer_driver_mod, only: atmos_tracer_flux_init, & 
        atmos_tracer_has_surf_setl_flux, get_atmos_tracer_surf_setl_flux
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data_down
+  use atmos_global_diag_mod, only: register_global_diag_field, &
+                                   get_global_diag_field_id, &
+                                   send_global_diag
 #endif
   use field_manager_mod,       only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE
   use tracer_manager_mod,      only: get_tracer_index
@@ -1595,9 +1595,6 @@ contains
           used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
                Land%tile_size, Time, mask = Land%mask )
        endif
-       if (id_tasl_g > 0 ) then
-          used = send_global_diag ( id_tasl_g, diag_land, Land%tile_size, Time, Land%mask )
-       endif
        if ( id_t_ref > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
           used = send_data ( id_t_ref, diag_atm, Time )
@@ -2574,8 +2571,9 @@ contains
        used = send_data ( id_ts, diag_atm, Time )
     endif
     call sum_diag_integral_field ('t_surf', diag_atm)
+#ifndef use_AM3_physics
     if ( id_ts_g > 0 ) used = send_global_diag ( id_ts_g, diag_atm, Time )
-
+#endif
     !------- new surface temperature only over open ocean -----------
     if ( id_tos > 0 ) then
        ex_icetemp = 0.0
@@ -2647,14 +2645,18 @@ contains
        call get_from_xgrid (diag_atm, 'ATM', ex_flux_t, xmap_sfc)
        if ( id_t_flux > 0 ) used = send_data ( id_t_flux, diag_atm, Time )
        if ( id_hfss   > 0 ) used = send_data ( id_hfss, diag_atm, Time )
+#ifndef use_AM3_physics
        if ( id_hfss_g > 0 ) used = send_global_diag ( id_hfss_g, diag_atm, Time )
+#endif
     endif
 
     !------- net longwave flux -----------
     if ( id_r_flux > 0 .or. id_rls_g > 0 ) then
        call get_from_xgrid (diag_atm, 'ATM', ex_flux_lw, xmap_sfc)
        if ( id_r_flux > 0 ) used = send_data ( id_r_flux, diag_atm, Time )
+#ifndef use_AM3_physics
        if ( id_rls_g  > 0 ) used = send_global_diag ( id_rls_g, diag_atm, Time )
+#endif
     endif
 
     !------- tracer fluxes ------------
@@ -2676,14 +2678,18 @@ contains
     if( id_q_flux > 0 )  used = send_data ( id_q_flux, evap_atm, Time)
     if( id_evspsbl > 0 ) used = send_data ( id_evspsbl, evap_atm, Time)
     if( id_hfls    > 0 ) used = send_data ( id_hfls, HLV*evap_atm, Time)
+#ifndef use_AM3_physics
     if( id_hfls_g  > 0 ) used = send_global_diag ( id_hfls_g, HLV*evap_atm, Time)
+#endif
     if( id_q_flux_land > 0 ) then
        call get_from_xgrid (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
        used = send_tile_averaged_data(id_q_flux_land, diag_land, &
             Land%tile_size, Time, mask=Land%mask)
     endif
     call sum_diag_integral_field ('evap', evap_atm*86400.)
+#ifndef use_AM3_physics
     if (id_evspsbl_g > 0) used = send_global_diag ( id_evspsbl_g, evap_atm, Time )
+#endif
 
     ! compute stock changes
 
@@ -3324,7 +3330,7 @@ contains
          'averaged over the ocean portion of grid box' )
 
     !----- initialize global integrals for netCDF output -----
-
+#ifndef use_AM3_physics
     id_evspsbl_g = register_global_diag_field ( 'evspsbl', Time, &
                                     'Evaporation', 'mm d-1', &
                           standard_name='water_evaporation_flux' )
@@ -3358,7 +3364,7 @@ contains
     id_rls_g = register_global_diag_field ( 'rls', Time, &
                    'Net Longwave Surface Radiation', 'W m-2', &
                standard_name='surface_net_longwave_flux' )
-
+#endif
     !-----------------------------------------------------------------------
 
   end subroutine diag_field_init
