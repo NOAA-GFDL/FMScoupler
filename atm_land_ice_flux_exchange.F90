@@ -18,7 +18,7 @@ module atm_land_ice_flux_exchange_mod
 !           675 Mass Ave, Cambridge, MA 02139, USA.                   
 ! or see:   http://www.gnu.org/licenses/gpl.html                      
 !-----------------------------------------------------------------------
-
+#include "land_version.inc"
   use mpp_mod,            only: mpp_npes, mpp_pe, mpp_root_pe, mpp_error, stderr, &
                                 stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
                                 mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
@@ -42,6 +42,19 @@ module atm_land_ice_flux_exchange_mod
   use xgrid_mod,          only: xmap_type, setup_xmap, set_frac_area, put_to_xgrid, &
                                 get_from_xgrid, xgrid_count, some, conservation_check, xgrid_init, &
                                 stock_integrate_2d, stock_move, stock_print
+#ifdef _USE_LAND_LAD2_
+  use xgrid_mod,          only: get_from_xgrid_land => get_from_xgrid_ug
+  use xgrid_mod,          only: put_to_xgrid_land => put_to_xgrid_ug
+  use xgrid_mod,          only: set_frac_area_land => set_frac_area_ug
+  use xgrid_mod,          only: stock_move_land => stock_move_ug
+  use data_override_mod,  only: data_override_land => data_override_ug
+#else
+  use xgrid_mod,          only: get_from_xgrid_land => get_from_xgrid
+  use xgrid_mod,          only: put_to_xgrid_land => put_to_xgrid
+  use xgrid_mod,          only: set_frac_area_land => set_frac_area
+  use xgrid_mod,          only: stock_move_land => stock_move
+  use data_override_mod,  only: data_override_land => data_override
+#endif
   use diag_integral_mod,  only: diag_integral_field_init, sum_diag_integral_field
   use  diag_manager_mod,  only: register_diag_field, register_static_field, send_data, &
                                 send_tile_averaged_data, diag_field_add_attribute,     &
@@ -250,6 +263,11 @@ module atm_land_ice_flux_exchange_mod
                                                                  !< Place holder of intermediate calculations, such as
                                                                  !< piston velocities etc.
 
+  interface put_logical_to_real
+     module procedure put_logical_to_real_sg
+     module procedure put_logical_to_real_ug
+  end interface
+
   integer :: ni_atm, nj_atm !< to do atmos diagnostic from flux_ocean_to_ice
   real, dimension(3) :: ccc !< for conservation checks
   !Balaji, sets boundary_type%xtype
@@ -436,10 +454,15 @@ contains
     endif
 
     call xgrid_init(remap_method)
-
+#ifdef _USE_LAND_LAD2_
+    call setup_xmap(xmap_sfc, (/ 'ATM', 'OCN', 'LND' /),   &
+         (/ Atm%Domain, Ice%Domain, Land%Domain /),        &
+         "INPUT/grid_spec.nc", Atm%grid, lnd_ug_domain=Land%ug_domain)
+#else
     call setup_xmap(xmap_sfc, (/ 'ATM', 'OCN', 'LND' /),   &
          (/ Atm%Domain, Ice%Domain, Land%Domain /),        &
          "INPUT/grid_spec.nc", Atm%grid)
+#endif
     ! exchange grid indices
     X1_GRID_ATM = 1; X1_GRID_ICE = 2; X1_GRID_LND = 3;
     call generate_sfc_xgrid( Land, Ice )
@@ -656,7 +679,7 @@ contains
     ! jgj: added for co2_atm diagnostic
     real, dimension(n_xgrid_sfc)           :: ex_co2_atm_dvmr
     real, dimension(size(Land_Ice_Atmos_Boundary%t,1),size(Land_Ice_Atmos_Boundary%t,2)) :: diag_atm
-    real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2), size(Land%t_ca,3)) :: diag_land
+    real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2)) :: diag_land
     real, dimension(size(Ice%t_surf,1),size(Ice%t_surf,2),size(Ice%t_surf,3)) :: sea
     real, dimension(size(Ice%albedo,1),size(Ice%albedo,2),size(Ice%albedo,3)) ::  tmp_open_sea
     real    :: zrefm, zrefh
@@ -856,16 +879,16 @@ contains
     call data_override ('ICE', 'albedo_nir_dif', Ice%albedo_nir_dif, Time)
     call data_override ('ICE', 'u_surf',     Ice%u_surf,      Time)
     call data_override ('ICE', 'v_surf',     Ice%v_surf,      Time)
-    call data_override ('LND', 't_surf',     Land%t_surf,     Time)
-    call data_override ('LND', 't_ca',       Land%t_ca,       Time)
-    call data_override ('LND', 'rough_mom',  Land%rough_mom,  Time)
-    call data_override ('LND', 'rough_heat', Land%rough_heat, Time)
-    call data_override ('LND', 'albedo', Land%albedo,     Time)
+    call data_override_land ('LND', 't_surf',     Land%t_surf,     Time)
+    call data_override_land ('LND', 't_ca',       Land%t_ca,       Time)
+    call data_override_land ('LND', 'rough_mom',  Land%rough_mom,  Time)
+    call data_override_land ('LND', 'rough_heat', Land%rough_heat, Time)
+    call data_override_land ('LND', 'albedo', Land%albedo,     Time)
 
     ! tracer data override
     do tr = 1, n_lnd_tr
        call get_tracer_names( MODEL_LAND, tr, tr_name )
-       call data_override('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
+       call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,tr), Time)
     enddo
     do n = 1, ice%ocean_fields%num_bcs  !{
        do m = 1, ice%ocean_fields%bc(n)%num_fields  !{
@@ -875,10 +898,10 @@ contains
           endif  !}
        enddo  !} m
     enddo  !} n
-    call data_override ('LND', 'albedo_vis_dir', Land%albedo_vis_dir,Time)
-    call data_override ('LND', 'albedo_nir_dir', Land%albedo_nir_dir,Time)
-    call data_override ('LND', 'albedo_vis_dif', Land%albedo_vis_dif,Time)
-    call data_override ('LND', 'albedo_nir_dif', Land%albedo_nir_dif,Time)
+    call data_override_land ('LND', 'albedo_vis_dir', Land%albedo_vis_dir,Time)
+    call data_override_land ('LND', 'albedo_nir_dir', Land%albedo_nir_dir,Time)
+    call data_override_land ('LND', 'albedo_vis_dif', Land%albedo_vis_dif,Time)
+    call data_override_land ('LND', 'albedo_nir_dif', Land%albedo_nir_dif,Time)
 
     !---- put atmosphere quantities onto exchange grid ----
 
@@ -956,28 +979,28 @@ contains
     call some(xmap_sfc, ex_land, 'LND')
 #ifdef use_AM3_physics
     if (do_forecast) then
-       call put_to_xgrid (Land%t_surf,     'LND', ex_t_surf_miz,  xmap_sfc)
+       call put_to_xgrid_land (Land%t_surf,     'LND', ex_t_surf_miz,  xmap_sfc)
        ex_t_ca(:) = ex_t_surf_miz(:)
     end if
 #endif
 
-    call put_to_xgrid (Land%t_surf,     'LND', ex_t_surf,      xmap_sfc)
-    call put_to_xgrid (Land%t_ca,       'LND', ex_t_ca,        xmap_sfc)
-    call put_to_xgrid (Land%rough_mom,  'LND', ex_rough_mom,   xmap_sfc)
-    call put_to_xgrid (Land%rough_heat, 'LND', ex_rough_heat,  xmap_sfc)
-    call put_to_xgrid (Land%rough_heat, 'LND', ex_rough_moist, xmap_sfc)
-    call put_to_xgrid (Land%albedo,     'LND', ex_albedo,      xmap_sfc)
-    call put_to_xgrid (Land%albedo_vis_dir,     'LND', ex_albedo_vis_dir,   xmap_sfc)
-    call put_to_xgrid (Land%albedo_nir_dir,     'LND', ex_albedo_nir_dir,   xmap_sfc)
-    call put_to_xgrid (Land%albedo_vis_dif,     'LND', ex_albedo_vis_dif,   xmap_sfc)
-    call put_to_xgrid (Land%albedo_nir_dif,     'LND', ex_albedo_nir_dif,   xmap_sfc)
+    call put_to_xgrid_land (Land%t_surf,     'LND', ex_t_surf,      xmap_sfc)
+    call put_to_xgrid_land (Land%t_ca,       'LND', ex_t_ca,        xmap_sfc)
+    call put_to_xgrid_land (Land%rough_mom,  'LND', ex_rough_mom,   xmap_sfc)
+    call put_to_xgrid_land (Land%rough_heat, 'LND', ex_rough_heat,  xmap_sfc)
+    call put_to_xgrid_land (Land%rough_heat, 'LND', ex_rough_moist, xmap_sfc)
+    call put_to_xgrid_land (Land%albedo,     'LND', ex_albedo,      xmap_sfc)
+    call put_to_xgrid_land (Land%albedo_vis_dir,     'LND', ex_albedo_vis_dir,   xmap_sfc)
+    call put_to_xgrid_land (Land%albedo_nir_dir,     'LND', ex_albedo_nir_dir,   xmap_sfc)
+    call put_to_xgrid_land (Land%albedo_vis_dif,     'LND', ex_albedo_vis_dif,   xmap_sfc)
+    call put_to_xgrid_land (Land%albedo_nir_dif,     'LND', ex_albedo_nir_dif,   xmap_sfc)
     ex_rough_scale = ex_rough_mom
-    call put_to_xgrid(Land%rough_scale, 'LND', ex_rough_scale, xmap_sfc)
+    call put_to_xgrid_land(Land%rough_scale, 'LND', ex_rough_scale, xmap_sfc)
 
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
-          call put_to_xgrid ( Land%tr(:,:,:,n), 'LND', ex_tr_surf(:,tr), xmap_sfc )
+          call put_to_xgrid_land ( Land%tr(:,:,n), 'LND', ex_tr_surf(:,tr), xmap_sfc )
        else
           ! do nothing, since ex_tr_surf is prefilled with ex_tr_atm, and therefore
           ! fluxes will be 0
@@ -1160,36 +1183,36 @@ contains
        ! [5.2.1] override tracer flux. Note that "sea" and "diag_land" are repeatedly used 
        ! as temporary storage for the values we are overriding fluxes and derivative with, 
        ! over ocean and land respectively
-       call data_override ( 'LND', 'ex_flux_'//trim(tr_name), diag_land, Time, override=used )
-       if(used) call put_to_xgrid ( diag_land, 'LND', ex_flux_tr(:,tr), xmap_sfc )
+       call data_override_land ( 'LND', 'ex_flux_'//trim(tr_name), diag_land, Time, override=used )
+       if(used) call put_to_xgrid_land ( diag_land, 'LND', ex_flux_tr(:,tr), xmap_sfc )
        call data_override ( 'ICE', 'ex_flux_'//trim(tr_name), sea, Time, override=used )
        if(used) call put_to_xgrid ( sea, 'OCN', ex_flux_tr(:,tr), xmap_sfc )
        ! [5.2.2] override derivative of flux wrt surface concentration
-       call data_override ( 'LND', 'ex_dfd'//trim(tr_name)//'_surf', diag_land, Time, override=used )
-       if(used) call put_to_xgrid ( diag_land, 'LND', ex_dfdtr_surf(:,tr), xmap_sfc )
+       call data_override_land ( 'LND', 'ex_dfd'//trim(tr_name)//'_surf', diag_land, Time, override=used )
+       if(used) call put_to_xgrid_land ( diag_land, 'LND', ex_dfdtr_surf(:,tr), xmap_sfc )
        call data_override ( 'ICE', 'ex_dfd'//trim(tr_name)//'_surf', sea, Time, override=used )
        if(used) call put_to_xgrid ( sea, 'OCN', ex_dfdtr_surf(:,tr), xmap_sfc )
        ! [5.2.3] override derivative of flux wrt atmospheric concentration
-       call data_override ( 'LND', 'ex_dfd'//trim(tr_name)//'_atm', diag_land, Time, override=used )
-       if(used) call put_to_xgrid ( diag_land, 'LND', ex_dfdtr_atm(:,tr), xmap_sfc )
+       call data_override_land ( 'LND', 'ex_dfd'//trim(tr_name)//'_atm', diag_land, Time, override=used )
+       if(used) call put_to_xgrid_land ( diag_land, 'LND', ex_dfdtr_atm(:,tr), xmap_sfc )
        call data_override ( 'ICE', 'ex_dfd'//trim(tr_name)//'_atm', sea, Time, override=used )
        if(used) call put_to_xgrid ( sea, 'OCN', ex_dfdtr_atm(:,tr), xmap_sfc )
     enddo
 
     ! [5.3] override flux and derivatives for sensible heat flux
     ! [5.3.1] override flux
-    call data_override ( 'LND', 'ex_flux_t', diag_land, Time, override=used )
-    if (used) call put_to_xgrid ( diag_land, 'LND', ex_flux_t, xmap_sfc )
+    call data_override_land ( 'LND', 'ex_flux_t', diag_land, Time, override=used )
+    if (used) call put_to_xgrid_land ( diag_land, 'LND', ex_flux_t, xmap_sfc )
     call data_override ( 'ICE', 'ex_flux_t', sea, Time, override=used )
     if (used) call put_to_xgrid ( sea, 'OCN', ex_flux_t, xmap_sfc )
     ! [5.3.2] override derivative of flux wrt near-surface temperature
-    call data_override ( 'LND', 'ex_dhdt_surf', diag_land, Time, override=used )
-    if (used) call put_to_xgrid ( diag_land, 'LND', ex_dhdt_surf, xmap_sfc )
+    call data_override_land ( 'LND', 'ex_dhdt_surf', diag_land, Time, override=used )
+    if (used) call put_to_xgrid_land ( diag_land, 'LND', ex_dhdt_surf, xmap_sfc )
     call data_override ( 'ICE', 'ex_dhdt_surf', sea, Time, override=used )
     if (used) call put_to_xgrid ( sea, 'OCN', ex_dhdt_surf, xmap_sfc )
     ! [5.3.3] override derivative of flux wrt atmospheric temperature
-    call data_override ( 'LND', 'ex_dhdt_atm', diag_land, Time,override=used )
-    if (used) call put_to_xgrid ( diag_land, 'LND', ex_dhdt_atm, xmap_sfc )
+    call data_override_land ( 'LND', 'ex_dhdt_atm', diag_land, Time,override=used )
+    if (used) call put_to_xgrid_land ( diag_land, 'LND', ex_dhdt_atm, xmap_sfc )
     call data_override ( 'ICE', 'ex_dhdt_atm', sea, Time, override=used )
     if (used) call put_to_xgrid ( sea, 'OCN', ex_dhdt_atm, xmap_sfc )
 
@@ -1524,9 +1547,9 @@ contains
        used = send_data(id_huss,Land_Ice_Atmos_Boundary%q_ref,Time)
     endif
     if(id_q_ref_land > 0) then
-       call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
-       used = send_tile_averaged_data(id_q_ref_land, diag_land, &
-            Land%tile_size, Time, mask=Land%mask)
+       call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
+!       used = send_tile_averaged_data(id_q_ref_land, diag_land, &
+!            Land%tile_size, Time, mask=Land%mask)
     endif
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
     !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
@@ -1556,9 +1579,9 @@ contains
     call get_from_xgrid (Land_Ice_Atmos_Boundary%t_ref, 'ATM', ex_t_ref, xmap_sfc)  ! cjg
 
     if ( id_rh_ref_land > 0 ) then
-       call get_from_xgrid (diag_land,'LND', ex_ref, xmap_sfc)
-       used = send_tile_averaged_data ( id_rh_ref_land, diag_land, &
-            Land%tile_size, Time, mask = Land%mask )
+       call get_from_xgrid_land (diag_land,'LND', ex_ref, xmap_sfc)
+!       used = send_tile_averaged_data ( id_rh_ref_land, diag_land, &
+!            Land%tile_size, Time, mask = Land%mask )
     endif
     if(id_rh_ref > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1578,7 +1601,7 @@ contains
        where (ex_avail) &
             ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
        if (id_t_ref_land > 0) then
-          call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
+          call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
           used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
                Land%tile_size, Time, mask = Land%mask )
        endif
@@ -1591,9 +1614,9 @@ contains
     where (ex_avail) &
          ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
     if (id_t_ref_land > 0) then
-       call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
-       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
-            Land%tile_size, Time, mask = Land%mask )
+       call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
+!       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+!            Land%tile_size, Time, mask = Land%mask )
     endif
     call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
     if ( id_t_ref > 0 ) used = send_data ( id_t_ref, diag_atm, Time )
@@ -1606,9 +1629,9 @@ contains
        where (ex_avail) &
             ex_ref = ex_u_surf + (ex_u_atm-ex_u_surf) * ex_del_m
        if ( id_u_ref_land > 0 ) then
-          call get_from_xgrid ( diag_land, 'LND', ex_ref, xmap_sfc )
-          used = send_tile_averaged_data ( id_u_ref_land, diag_land, &
-               Land%tile_size, Time, mask = Land%mask )
+          call get_from_xgrid_land ( diag_land, 'LND', ex_ref, xmap_sfc )
+!          used = send_tile_averaged_data ( id_u_ref_land, diag_land, &
+!               Land%tile_size, Time, mask = Land%mask )
        endif
        if ( id_u_ref > 0 .or. id_uas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1622,9 +1645,9 @@ contains
        where (ex_avail) &
             ex_ref = ex_v_surf + (ex_v_atm-ex_v_surf) * ex_del_m
        if ( id_v_ref_land > 0 ) then
-          call get_from_xgrid ( diag_land, 'LND', ex_ref, xmap_sfc )
-          used = send_tile_averaged_data ( id_v_ref_land, diag_land, &
-               Land%tile_size, Time, mask = Land%mask )
+          call get_from_xgrid_land ( diag_land, 'LND', ex_ref, xmap_sfc )
+!          used = send_tile_averaged_data ( id_v_ref_land, diag_land, &
+!               Land%tile_size, Time, mask = Land%mask )
        endif
        if ( id_v_ref > 0 .or. id_vas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -2050,28 +2073,28 @@ contains
     !-----------------------------------------------------------------------
     !---- output fields on the land grid -------
 
-    call get_from_xgrid (Land_boundary%t_flux,  'LND', ex_flux_t,    xmap_sfc)
-    call get_from_xgrid (Land_boundary%sw_flux, 'LND', ex_flux_sw,   xmap_sfc)
-    call get_from_xgrid (Land_boundary%sw_flux_down_vis_dir, 'LND', ex_flux_sw_down_vis_dir,   xmap_sfc)
-    call get_from_xgrid (Land_boundary%sw_flux_down_total_dir, 'LND', ex_flux_sw_down_total_dir,   xmap_sfc)
-    call get_from_xgrid (Land_boundary%sw_flux_down_vis_dif, 'LND', ex_flux_sw_down_vis_dif,   xmap_sfc)
-    call get_from_xgrid (Land_boundary%sw_flux_down_total_dif, 'LND', ex_flux_sw_down_total_dif,   xmap_sfc)
-    call get_from_xgrid (Land_boundary%lw_flux, 'LND', ex_flux_lw,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%t_flux,  'LND', ex_flux_t,    xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%sw_flux, 'LND', ex_flux_sw,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%sw_flux_down_vis_dir, 'LND', ex_flux_sw_down_vis_dir,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%sw_flux_down_total_dir, 'LND', ex_flux_sw_down_total_dir,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%sw_flux_down_vis_dif, 'LND', ex_flux_sw_down_vis_dif,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%sw_flux_down_total_dif, 'LND', ex_flux_sw_down_total_dif,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%lw_flux, 'LND', ex_flux_lw,   xmap_sfc)
 #ifdef SCM
     if (do_specified_land .and. do_specified_flux) then
-       call get_from_xgrid (Land_boundary%dhdt,  'LND', ex_dhdt_surf_forland, xmap_sfc)
+       call get_from_xgrid_land (Land_boundary%dhdt,  'LND', ex_dhdt_surf_forland, xmap_sfc)
     else
-       call get_from_xgrid (Land_boundary%dhdt,  'LND', ex_dhdt_surf, xmap_sfc)
+       call get_from_xgrid_land (Land_boundary%dhdt,  'LND', ex_dhdt_surf, xmap_sfc)
     endif
 #else
-    call get_from_xgrid (Land_boundary%dhdt,    'LND', ex_dhdt_surf, xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%dhdt,    'LND', ex_dhdt_surf, xmap_sfc)
 #endif
-    call get_from_xgrid (Land_boundary%drdt,    'LND', ex_drdt_surf, xmap_sfc)
-    call get_from_xgrid (Land_boundary%p_surf,  'LND', ex_p_surf,    xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%drdt,    'LND', ex_drdt_surf, xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%p_surf,  'LND', ex_p_surf,    xmap_sfc)
 
-    call get_from_xgrid (Land_boundary%lprec,   'LND', ex_lprec,     xmap_sfc)
-    call get_from_xgrid (Land_boundary%fprec,   'LND', ex_fprec,     xmap_sfc)
-    call get_from_xgrid (Land_boundary%tprec,   'LND', ex_tprec,     xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%lprec,   'LND', ex_lprec,     xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%fprec,   'LND', ex_fprec,     xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%tprec,   'LND', ex_tprec,     xmap_sfc)
 !!$  if(do_area_weighted_flux) then
 !!$     ! evap goes here???
 !!$     do k = 1, size(Land_boundary%lprec, dim=3)
@@ -2083,48 +2106,48 @@ contains
 !!$  endif
 
     if(associated(Land_boundary%drag_q)) then
-       call get_from_xgrid (Land_boundary%drag_q, 'LND', ex_drag_q,    xmap_sfc)
-       call data_override('LND', 'drag_q', Land_boundary%drag_q,  Time )
+       call get_from_xgrid_land (Land_boundary%drag_q, 'LND', ex_drag_q,    xmap_sfc)
+       call data_override_land('LND', 'drag_q', Land_boundary%drag_q,  Time )
     endif
     if(associated(Land_boundary%lwdn_flux)) then
-       call get_from_xgrid (Land_boundary%lwdn_flux, 'LND', ex_flux_lwd, xmap_sfc)
-       call data_override('LND', 'lwdn_flux', Land_boundary%lwdn_flux, Time )
+       call get_from_xgrid_land (Land_boundary%lwdn_flux, 'LND', ex_flux_lwd, xmap_sfc)
+       call data_override_land('LND', 'lwdn_flux', Land_boundary%lwdn_flux, Time )
     endif
     if(associated(Land_boundary%cd_m)) then
-       call get_from_xgrid (Land_boundary%cd_m, 'LND', ex_cd_m, xmap_sfc)
-       call data_override('LND', 'cd_m', Land_boundary%cd_m, Time )
+       call get_from_xgrid_land (Land_boundary%cd_m, 'LND', ex_cd_m, xmap_sfc)
+       call data_override_land('LND', 'cd_m', Land_boundary%cd_m, Time )
     endif
     if(associated(Land_boundary%cd_t)) then
-       call get_from_xgrid (Land_boundary%cd_t, 'LND', ex_cd_t, xmap_sfc)
-       call data_override('LND', 'cd_t', Land_boundary%cd_t, Time )
+       call get_from_xgrid_land (Land_boundary%cd_t, 'LND', ex_cd_t, xmap_sfc)
+       call data_override_land('LND', 'cd_t', Land_boundary%cd_t, Time )
     endif
     if(associated(Land_boundary%bstar)) then
-       call get_from_xgrid (Land_boundary%bstar, 'LND', ex_b_star, xmap_sfc)
-       call data_override('LND', 'bstar',  Land_boundary%bstar, Time )
+       call get_from_xgrid_land (Land_boundary%bstar, 'LND', ex_b_star, xmap_sfc)
+       call data_override_land('LND', 'bstar',  Land_boundary%bstar, Time )
     endif
     if(associated(Land_boundary%ustar)) then
-       call get_from_xgrid (Land_boundary%ustar, 'LND', ex_u_star, xmap_sfc)
-       call data_override('LND', 'ustar',  Land_boundary%ustar, Time )
+       call get_from_xgrid_land (Land_boundary%ustar, 'LND', ex_u_star, xmap_sfc)
+       call data_override_land('LND', 'ustar',  Land_boundary%ustar, Time )
     endif
     if(associated(Land_boundary%wind)) then
-       call get_from_xgrid (Land_boundary%wind, 'LND', ex_wind, xmap_sfc)
-       call data_override('LND', 'wind',  Land_boundary%wind, Time )
+       call get_from_xgrid_land (Land_boundary%wind, 'LND', ex_wind, xmap_sfc)
+       call data_override_land('LND', 'wind',  Land_boundary%wind, Time )
     endif
     if(associated(Land_boundary%z_bot)) then
-       call get_from_xgrid (Land_boundary%z_bot, 'LND', ex_z_atm, xmap_sfc)
-       call data_override('LND', 'z_bot',  Land_boundary%z_bot, Time )
+       call get_from_xgrid_land (Land_boundary%z_bot, 'LND', ex_z_atm, xmap_sfc)
+       call data_override_land('LND', 'z_bot',  Land_boundary%z_bot, Time )
     endif
 
-    Land_boundary%tr_flux(:,:,:,:) = 0.0
-    Land_boundary%dfdtr(:,:,:,:) = 0.0
+    Land_boundary%tr_flux(:,:,:) = 0.0
+    Land_boundary%dfdtr(:,:,:) = 0.0
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
-          call get_from_xgrid (Land_boundary%tr_flux(:,:,:,n), 'LND', ex_flux_tr(:,tr), xmap_sfc)
-          call get_from_xgrid (Land_boundary%dfdtr(:,:,:,n),   'LND', ex_dfdtr_surf(:,tr), xmap_sfc)
+          call get_from_xgrid_land (Land_boundary%tr_flux(:,:,n), 'LND', ex_flux_tr(:,tr), xmap_sfc)
+          call get_from_xgrid_land (Land_boundary%dfdtr(:,:,n),   'LND', ex_dfdtr_surf(:,tr), xmap_sfc)
 #ifdef SCM
           if (do_specified_land .and. do_specified_flux .and. tr.eq.isphum) then
-             call get_from_xgrid (Land_boundary%dfdtr(:,:,:,n),   'LND', ex_dedq_surf_forland(:), xmap_sfc)
+             call get_from_xgrid_land (Land_boundary%dfdtr(:,:,n),   'LND', ex_dedq_surf_forland(:), xmap_sfc)
           endif
 #endif
        endif
@@ -2132,23 +2155,23 @@ contains
 
     !  current time is Time: is that ok? not available in land_data_type
     !Balaji: data_override calls moved here from coupler_main
-    call data_override('LND', 't_flux',  Land_boundary%t_flux,  Time )
-    call data_override('LND', 'lw_flux', Land_boundary%lw_flux, Time )
-    call data_override('LND', 'sw_flux', Land_boundary%sw_flux, Time )
-    call data_override('LND', 'sw_flux_down_vis_dir', Land_boundary%sw_flux_down_vis_dir, Time )
-    call data_override('LND', 'sw_flux_down_total_dir', Land_boundary%sw_flux_down_total_dir, Time )
-    call data_override('LND', 'sw_flux_down_vis_dif', Land_boundary%sw_flux_down_vis_dif, Time )
-    call data_override('LND', 'sw_flux_down_total_dif', Land_boundary%sw_flux_down_total_dif, Time )
+    call data_override_land('LND', 't_flux',  Land_boundary%t_flux,  Time )
+    call data_override_land('LND', 'lw_flux', Land_boundary%lw_flux, Time )
+    call data_override_land('LND', 'sw_flux', Land_boundary%sw_flux, Time )
+    call data_override_land('LND', 'sw_flux_down_vis_dir', Land_boundary%sw_flux_down_vis_dir, Time )
+    call data_override_land('LND', 'sw_flux_down_total_dir', Land_boundary%sw_flux_down_total_dir, Time )
+    call data_override_land('LND', 'sw_flux_down_vis_dif', Land_boundary%sw_flux_down_vis_dif, Time )
+    call data_override_land('LND', 'sw_flux_down_total_dif', Land_boundary%sw_flux_down_total_dif, Time )
 
-    call data_override('LND', 'lprec',   Land_boundary%lprec,   Time )
-    call data_override('LND', 'fprec',   Land_boundary%fprec,   Time )
-    call data_override('LND', 'dhdt',    Land_boundary%dhdt,    Time )
-    call data_override('LND', 'drdt',    Land_boundary%drdt,    Time )
-    call data_override('LND', 'p_surf',  Land_boundary%p_surf,  Time )
+    call data_override_land('LND', 'lprec',   Land_boundary%lprec,   Time )
+    call data_override_land('LND', 'fprec',   Land_boundary%fprec,   Time )
+    call data_override_land('LND', 'dhdt',    Land_boundary%dhdt,    Time )
+    call data_override_land('LND', 'drdt',    Land_boundary%drdt,    Time )
+    call data_override_land('LND', 'p_surf',  Land_boundary%p_surf,  Time )
     do tr = 1,n_lnd_tr
        call get_tracer_names(MODEL_LAND, tr, tr_name)
-       call data_override('LND', trim(tr_name)//'_flux', Land_boundary%tr_flux(:,:,:,tr), Time)
-       call data_override('LND', 'dfd'//trim(tr_name),   Land_boundary%dfdtr  (:,:,:,tr), Time)
+       call data_override_land('LND', trim(tr_name)//'_flux', Land_boundary%tr_flux(:,:,tr), Time)
+       call data_override_land('LND', 'dfd'//trim(tr_name),   Land_boundary%dfdtr  (:,:,tr), Time)
     enddo
 
     !-----------------------------------------------------------------------
@@ -2250,7 +2273,7 @@ contains
     ! compute stock changes
 
     ! Atm -> Lnd (precip)
-    call stock_move( &
+    call stock_move_land( &
          & FROM = Atm_stock(ISTOCK_WATER),  &
          & TO   = Lnd_stock(ISTOCK_WATER), &
          & DATA = (Land_boundary%lprec + Land_boundary%fprec), &
@@ -2261,7 +2284,7 @@ contains
          & radius=Radius, ier=ier, verbose='stock move PRECIP (Atm->Lnd) ')
 
     ! Atm -> Lnd (heat)
-    call stock_move( &
+    call stock_move_land( &
          & FROM = Atm_stock(ISTOCK_HEAT),  &
          & TO   = Lnd_stock(ISTOCK_HEAT), &
          & DATA = (-Land_boundary%t_flux + Land_boundary%lw_flux +  Land_boundary%sw_flux - Land_boundary%fprec*HLF), &
@@ -2332,7 +2355,7 @@ contains
     call mpp_get_compute_domain(Ice%Domain, isc, iec, jsc, jec)
 
     call set_frac_area (Ice%part_size(isc:iec,jsc:jec,:) , 'OCN', xmap_sfc)
-    call set_frac_area (Land%tile_size, 'LND', xmap_sfc)
+    call set_frac_area_land (Land%tile_size, 'LND', xmap_sfc)
     n_xgrid_sfc = max(xgrid_count(xmap_sfc),1)
     if(n_xgrid_sfc .GE. nblocks) then
        my_nblocks = nblocks
@@ -2394,7 +2417,7 @@ contains
 
     real, dimension(size(Land_Ice_Atmos_Boundary%dt_t,1),size(Land_Ice_Atmos_Boundary%dt_t,2)) :: diag_atm, &
          evap_atm, frac_atm
-    real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2), size(Land_boundary%lprec,3)) :: data_lnd, diag_land
+    real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2)) :: data_lnd, diag_land
     real, dimension(size(Ice_boundary%lprec,1), size(Ice_boundary%lprec,2), size(Ice_boundary%lprec,3)) :: data_ice
     real, dimension(size(Ice%albedo,1),size(Ice%albedo,2),size(Ice%albedo,3)) ::  icegrid
     logical :: used
@@ -2411,11 +2434,11 @@ contains
     !-----------------------------------------------------------------------
     !Balaji: data_override calls moved here from coupler_main
     call data_override ( 'ICE', 't_surf', Ice%t_surf,  Time)
-    call data_override ( 'LND', 't_ca',   Land%t_ca,   Time)
-    call data_override ( 'LND', 't_surf', Land%t_surf, Time)
+    call data_override_land ( 'LND', 't_ca',   Land%t_ca,   Time)
+    call data_override_land ( 'LND', 't_surf', Land%t_surf, Time)
     do tr = 1, n_lnd_tr
        call get_tracer_names( MODEL_LAND, tr, tr_name )
-       call data_override('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
+       call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,tr), Time)
     enddo
 
     !----- compute surface temperature change -----
@@ -2424,8 +2447,8 @@ contains
 
     call put_to_xgrid (Ice%t_surf,  'OCN', ex_t_surf_new, xmap_sfc)
     ex_t_ca_new = ex_t_surf_new  ! since it is the same thing over oceans
-    call put_to_xgrid (Land%t_ca,   'LND', ex_t_ca_new,   xmap_sfc)
-    call put_to_xgrid (Land%t_surf, 'LND', ex_t_surf_new, xmap_sfc)
+    call put_to_xgrid_land (Land%t_ca,   'LND', ex_t_ca_new,   xmap_sfc)
+    call put_to_xgrid_land (Land%t_surf, 'LND', ex_t_surf_new, xmap_sfc)
 
     !  call escomp(ex_t_ca_new, ex_q_surf_new)
     !  ex_q_surf_new  = d622*ex_q_surf_new/(ex_p_surf-d378*ex_q_surf_new) 
@@ -2478,7 +2501,7 @@ contains
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
-          call put_to_xgrid ( Land%tr(:,:,:,n), 'LND', ex_tr_surf_new(:,tr), xmap_sfc )
+          call put_to_xgrid_land ( Land%tr(:,:,n), 'LND', ex_tr_surf_new(:,tr), xmap_sfc )
        endif
     enddo
 
@@ -2653,18 +2676,18 @@ contains
     if( id_evspsbl > 0 ) used = send_data ( id_evspsbl, evap_atm, Time)
     if( id_hfls > 0 )    used = send_data ( id_hfls, HLF*evap_atm, Time)
     if( id_q_flux_land > 0 ) then
-       call get_from_xgrid (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
-       used = send_tile_averaged_data(id_q_flux_land, diag_land, &
-            Land%tile_size, Time, mask=Land%mask)
+       call get_from_xgrid_land (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
+!       used = send_tile_averaged_data(id_q_flux_land, diag_land, &
+!            Land%tile_size, Time, mask=Land%mask)
     endif
     call sum_diag_integral_field ('evap', evap_atm*86400.)
 
     ! compute stock changes
 
-    call get_from_xgrid(data_lnd, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
+    call get_from_xgrid_land(data_lnd, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
 
     ! Lnd -> Atm (evap)
-    call stock_move( &
+    call stock_move_land( &
          & TO   = Atm_stock(ISTOCK_WATER), &
          & FROM = Lnd_stock(ISTOCK_WATER), &
          & DATA = data_lnd, &
@@ -2675,7 +2698,7 @@ contains
          & radius=Radius, ier=ier, verbose='stock move EVAP (Lnd->ATm) ')
 
     ! Lnd -> Atm (heat lost through evap)
-    call stock_move( &
+    call stock_move_land( &
          & TO   = Atm_stock(ISTOCK_HEAT), &
          & FROM = Lnd_stock(ISTOCK_HEAT), &
          & DATA = data_lnd * HLV, &
@@ -2847,7 +2870,7 @@ contains
 
   !> \brief Puts land or ice model masks (with partitions) onto the
   !! exchange grid as a real array (1.=true, 0.=false)
-  subroutine put_logical_to_real (mask, id, ex_mask, xmap)
+  subroutine put_logical_to_real_sg (mask, id, ex_mask, xmap)
 
     logical         , intent(in)    :: mask(:,:,:)
     character(len=3), intent(in)    :: id
@@ -2869,7 +2892,36 @@ contains
 
     call put_to_xgrid(rmask, id, ex_mask, xmap)
 
-  end subroutine put_logical_to_real
+  end subroutine put_logical_to_real_sg
+
+  !#######################################################################
+
+  !> \brief Puts land or ice model masks (with partitions) onto the
+  !! exchange grid as a real array (1.=true, 0.=false)
+  subroutine put_logical_to_real_ug (mask, id, ex_mask, xmap)
+
+    logical         , intent(in)    :: mask(:,:)
+    character(len=3), intent(in)    :: id
+    real            , intent(inout) :: ex_mask(:)
+    type(xmap_type), intent(inout) :: xmap
+
+    !-----------------------------------------------------------------------
+    !    puts land or ice model masks (with partitions) onto the
+    !    exchange grid as a real array (1.=true, 0.=false)
+    !-----------------------------------------------------------------------
+
+    real, dimension(size(mask,1),size(mask,2)) :: rmask
+
+    where (mask)
+       rmask = 1.0
+    elsewhere
+       rmask = 0.0
+    endwhere
+
+    call put_to_xgrid_land(rmask, id, ex_mask, xmap)
+
+  end subroutine put_logical_to_real_ug
+
 
   !#######################################################################
 
