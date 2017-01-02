@@ -18,8 +18,7 @@ module ice_ocean_flux_exchange_mod
   use stock_constants_mod, only: ISTOCK_BOTTOM, ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_SALT
   use coupler_types_mod,   only: coupler_type_copy, coupler_1d_bc_type
 
-  implicit none
-  private
+  implicit none ; private
 
 
   public :: ice_ocean_flux_exchange_init, &
@@ -39,7 +38,6 @@ module ice_ocean_flux_exchange_mod
 
   integer :: cplOcnClock, fluxOceanIceClock, fluxIceOceanClock
   real    :: Dt_cpl
-  integer :: nxc_ocn=0, nyc_ocn=0, nxc_ice=0, nyc_ice=0
 
 contains
 
@@ -156,10 +154,6 @@ contains
     if ( Ocean%is_ocean_pe ) then
        call mpp_set_current_pelist(Ocean%pelist)
        call ocean_model_init_sfc(Ocean_state, Ocean)
-       call mpp_get_compute_domain(Ocean%domain, xsize=nxc_ocn, ysize=nyc_ocn)
-    endif
-    if( Ice%pe) then
-       call mpp_get_compute_domain(Ice%slow_Domain_NH, xsize=nxc_ice, ysize=nyc_ice)
     endif
 
     !z1l check the flux conservation.
@@ -331,7 +325,11 @@ contains
           enddo  !} m
        enddo  !} n
     endif
-    call mpp_set_current_pelist()
+    
+    ! This call is dangerous, as it needs to be kept up to date with the pe_lists as
+    ! set in coupler_main. - RWH
+    if (Ice%shared_slow_fast_PEs) &
+      call mpp_set_current_pelist()
 
     !Balaji
     call mpp_clock_end(fluxIceOceanClock)
@@ -362,7 +360,7 @@ contains
     !                                               frazil_ice, s_surf_ice, sea_lev_ice
     type(ocean_ice_boundary_type), intent(inout) :: Ocean_Ice_Boundary !< A derived data type to specify properties and fluxes
     !! passed from ocean to ice
-    real, dimension(nxc_ocn, nyc_ocn ) :: tmp
+    real, allocatable, dimension(:,:) :: tmp
     integer       :: m
     integer       :: n
     real          :: from_dq 
@@ -413,9 +411,14 @@ contains
 
        if( ASSOCIATED(Ocean_Ice_Boundary%frazil) ) then
           if(do_area_weighted_flux) then
-             if(Ocean%is_ocean_pe)tmp = Ocean%frazil * Ocean%area 
+             if (Ocean%is_ocean_pe) then
+               allocate(tmp(size(Ocean%area,1), size(Ocean%area,2)))
+               tmp(:,:) = Ocean%frazil(:,:) * Ocean%area(:,:)
+             endif
              call mpp_redistribute( Ocean%Domain, tmp, Ice%slow_Domain_NH, Ocean_Ice_Boundary%frazil)
-             if(Ice%pe) call divide_by_area(data=Ocean_Ice_Boundary%frazil, area=Ice%area)
+             if (Ice%slow_ice_pe) &
+               call divide_by_area(data=Ocean_Ice_Boundary%frazil, area=Ice%area)
+             if (Ocean%is_ocean_pe) deallocate(tmp)
           else
              call mpp_redistribute(Ocean%Domain, Ocean%frazil, Ice%slow_Domain_NH, Ocean_Ice_Boundary%frazil)
           endif
@@ -433,8 +436,8 @@ contains
     case DEFAULT
        call mpp_error( FATAL, 'flux_ocean_to_ice: Ocean_Ice_Boundary%xtype must be DIRECT or REDIST.' )
     end select
-    if( Ice%pe )then
-       call mpp_set_current_pelist(Ice%pelist)
+    if( Ice%slow_ice_pe )then
+       call mpp_set_current_pelist(Ice%slow_pelist)
 
        !Balaji: data_override moved here from coupler_main
        call data_override('ICE', 'u',         Ocean_Ice_Boundary%u,         Time)
@@ -470,7 +473,6 @@ contains
        !
        !       Perform diagnostic output for the ocean fields
        !
-
        do n = 1, Ocean%fields%num_bcs  !{
           do m = 1, Ocean%fields%bc(n)%num_fields  !{
              used = send_data(Ocean%fields%bc(n)%field(m)%id_diag,                                &
@@ -479,15 +481,18 @@ contains
        enddo  !} n
     endif
 
-    call mpp_set_current_pelist()
-
-    if(Ice%pe) then
+    if (Ice%slow_ice_pe) then
        ! frazil (already in J/m^2 so no need to multiply by Dt_cpl)
        from_dq = SUM( Ice%area * Ocean_Ice_Boundary%frazil )
        Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
        Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
     endif
 
+
+    ! This call is dangerous, as it needs to be kept up to date with the pe_lists as
+    ! set in coupler_main. - RWH
+    if (Ice%shared_slow_fast_PEs) &
+      call mpp_set_current_pelist()
     !Balaji
     call mpp_clock_end(fluxOceanIceClock)
     call mpp_clock_end(cplOcnClock)
@@ -560,7 +565,8 @@ contains
     type(ocean_public_type),       intent(in) :: Ocean
     type(ice_ocean_boundary_type), intent(in) :: Ice_Ocean_Boundary
     real    :: from_dq, cp_ocn
-    real, dimension(nxc_ocn, nyc_ocn) :: ocean_cell_area, wet, t_surf, t_pme, t_calving, t_runoff, btfHeat
+    real, dimension(size(Ice_Ocean_Boundary%lprec,1), size(Ice_Ocean_Boundary%lprec,2)) :: &
+      ocean_cell_area, wet, t_surf, t_pme, t_calving, t_runoff, btfHeat
     integer :: isc, iec, jsc, jec
 
     call mpp_get_compute_domain(Ocean%Domain, isc, iec, jsc, jec)
@@ -641,22 +647,25 @@ contains
     integer,                          intent(in) :: type
     logical,                          intent(in) :: do_area_weighted
 
-
-    real :: tmp(nxc_ice, nyc_ice )
+    real, allocatable, dimension(:,:) :: tmp
 
     select case(type)
-    case(DIRECT)
+    case (DIRECT)
        if(do_area_weighted) then
           ocn_bnd_data = ice_data * ice%area
           call divide_by_area(data=ocn_bnd_data, area=ocean%area)          
        else
           ocn_bnd_data = ice_data
        endif
-    case(REDIST)
-       if(do_area_weighted) then
-          if( ice%pe ) tmp = ice_data  * ice%area
+    case (REDIST)
+       if (do_area_weighted) then
+         if ( Ice%slow_ice_pe ) then
+            allocate(tmp(size(ice%area,1), size(ice%area,2)))
+            tmp(:,:) = ice_data(:,:) * ice%area(:,:)
+          endif
           call mpp_redistribute(Ice%slow_Domain_NH, tmp, ocean%Domain, ocn_bnd_data)
-          if(ocean%is_ocean_pe) call divide_by_area(ocn_bnd_data, area=ocean%area) 
+          if (ocean%is_ocean_pe) call divide_by_area(ocn_bnd_data, area=ocean%area) 
+          if (Ice%slow_ice_pe) deallocate(tmp)
        else
           call mpp_redistribute(Ice%slow_Domain_NH, ice_data, ocean%Domain, ocn_bnd_data)
        endif
