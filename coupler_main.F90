@@ -500,10 +500,11 @@ program coupler_main
 
   integer :: initClock, mainClock, termClock
 
-  integer :: newClock0, newClock1, newClock2, newClock3, newClock4, newClock5, newClock6, newClock7, &
-             newClock8, newClock9, newClock10, newClock11, newClock12, newClock13, newClock14, newClocka, &
-             newClockb, newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, &
-             newClockj, newClockk, newClockl
+  integer :: newClock0, newClock1, newClock2, newClock3, newClock4, newClock5, newClock7
+  integer :: newClock6f, newClock6s, newClock6e, newClock10f, newClock10s, newClock10e
+  integer :: newClock8, newClock9, newClock11, newClock12, newClock13, newClock14, newClocka
+  integer :: newClockb, newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki
+  integer :: newClockj, newClockk, newClockl
 
   integer :: id_atmos_model_init, id_land_model_init, id_ice_model_init
   integer :: id_ocean_model_init, id_flux_exchange_init
@@ -550,10 +551,15 @@ program coupler_main
      call mpp_set_current_pelist(Atm%pelist)
      newClock1 = mpp_clock_id( 'generate_sfc_xgrid' )
   endif
-  call mpp_set_current_pelist()
-  newClock2 = mpp_clock_id( 'flux_ocean_to_ice' )
-  newClock3 = mpp_clock_id( 'flux_ice_to_ocean' )
-  newClock4 = mpp_clock_id( 'flux_check_stocks' )
+  if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
+     if (slow_ice_with_ocean) then
+        call mpp_set_current_pelist(Ocean%pelist)
+     else
+        call mpp_set_current_pelist()
+     endif
+     newClock2 = mpp_clock_id( 'flux_ocean_to_ice' )
+     newClock3 = mpp_clock_id( 'flux_ice_to_ocean' )
+  endif
   if( Atm%pe )then
      call mpp_set_current_pelist(Atm%pelist)
      newClock5 = mpp_clock_id( 'ATM' )
@@ -579,16 +585,25 @@ program coupler_main
      newClock9  = mpp_clock_id( ' ATM: flux_land_to_ice' )
   endif
   if( Ice%pe )then
-     call mpp_set_current_pelist(Ice%pelist)
-     newClock6  = mpp_clock_id( ' Ice: set_ice_surface' )
-     newClock10 = mpp_clock_id( ' Ice: update_ice_model_slow' )
+     if (Ice%fast_ice_pe) call mpp_set_current_pelist(Ice%fast_pelist)
+     newClock6f = mpp_clock_id( ' Ice: set_ice_surface fast' )
+     newClock10f = mpp_clock_id( ' Ice: update_ice_model_slow fast' )
+
+     if (Ice%slow_ice_pe) call mpp_set_current_pelist(Ice%slow_pelist)
+     newClock6s = mpp_clock_id( ' Ice: set_ice_surface slow' )
+     newClock10s = mpp_clock_id( ' Ice: update_ice_model_slow slow' )
      newClock11 = mpp_clock_id( ' Ice: flux_ice_to_ocean_stocks' )
+
+     call mpp_set_current_pelist(Ice%pelist)
+     newClock6e = mpp_clock_id( ' Ice: set_ice_surface exchange' )
+     newClock10e = mpp_clock_id( ' Ice: update_ice_model_slow exchange' )
   endif
   if( Ocean%is_ocean_pe )then
      call mpp_set_current_pelist(Ocean%pelist)
      newClock12 = mpp_clock_id( 'OCN' )
   endif
   call mpp_set_current_pelist()
+  newClock4 = mpp_clock_id( 'flux_check_stocks' )
   newClock13 = mpp_clock_id( 'intermediate restart' )
   newClock14 = mpp_clock_id( 'final flux_check_stocks' )
 
@@ -612,13 +627,13 @@ program coupler_main
      ! points when running concurrently. The calls are placed next to each other in
      ! concurrent mode to avoid multiple synchronizations within the main loop.
      ! This is only possible in the serial case when use_lag_fluxes.
-     call mpp_clock_begin(newClock2)
      if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
        ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
        if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
+       call mpp_clock_begin(newClock2)
        call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
+       call mpp_clock_end(newClock2)
      endif
-     call mpp_clock_end(newClock2)
 
      if(do_chksum) then
        call coupler_chksum('flux_ocn2ice+', nc)
@@ -636,12 +651,12 @@ program coupler_main
 
      ! Update Ice_ocean_boundary; first iteration is supplied by restart
      if( use_lag_fluxes )then
-        call mpp_clock_begin(newClock3)
         if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-        if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
+          if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
+          call mpp_clock_begin(newClock3)
           call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
+          call mpp_clock_end(newClock3)
         endif
-        call mpp_clock_end(newClock3)
      end if
 
      ! To print the value of frazil heat flux at the right time the following block
@@ -658,21 +673,23 @@ program coupler_main
      if (do_ice .and. Ice%pe) then
         if (Ice%slow_ice_pe) then
            call mpp_set_current_pelist(Ice%slow_pelist)
-           call mpp_clock_begin(newClock6)
+           call mpp_clock_begin(newClock6s)
            call unpack_ocean_ice_boundary( Ocean_ice_boundary, Ice )
            if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
-           call mpp_clock_end(newClock6)
+           call mpp_clock_end(newClock6s)
         endif
         ! This could be a point where the model is serialized.
         if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
-        call mpp_clock_begin(newClock6)
+        call mpp_clock_begin(newClock6e)
         call exchange_slow_to_fast_ice(Ice)
+        call mpp_clock_end(newClock6e)
 
         if (Ice%fast_ice_pe) then
           if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%fast_pelist)
+          call mpp_clock_begin(newClock6f)
           call set_ice_surface_fields(Ice)
+          call mpp_clock_end(newClock6f)
         endif
-        call mpp_clock_end(newClock6)
      endif
 
      if( Atm%pe )then
@@ -889,50 +906,55 @@ program coupler_main
      end if                     !Atm%pe block
 
      if (do_ice .and. Ice%pe) then
-        call mpp_clock_begin(newClock5)
-        call mpp_clock_begin(newClock10)
 
         if (Ice%fast_ice_PE) then
+           call mpp_clock_begin(newClock10f)
            if (ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Ice%fast_pelist)
-!        call update_ice_model_slow_dn( Atmos_ice_boundary, &
-!             & Land_ice_boundary, Ice )
 
           ! These two calls occur on whichever PEs handle the fast ice processess.
            call ice_model_fast_cleanup(Ice)
 
            call unpack_land_ice_boundary(Ice, Land_ice_boundary)
+           call mpp_clock_end(newClock10f)
         endif
 
         ! This could be a point where the model is serialized.
-        if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
+        !   Uncomment this for efficiency:
+        !      if (.not.Ice%shared_slow_fast_PEs)
+        call mpp_set_current_pelist(Ice%pelist)
         ! This call occurs all ice PEs.
+        call mpp_clock_begin(newClock10e)
         call exchange_fast_to_slow_ice(Ice)
+        call mpp_clock_end(newClock10e)
 
         !   ------ slow-ice model ------
 
         ! This call occurs on whichever PEs handle the slow ice processess.
         if (Ice%slow_ice_PE) then
            if (slow_ice_with_ocean) call mpp_set_current_pelist(Ice%slow_pelist)
+           call mpp_clock_begin(newClock10s)
            call update_ice_model_slow(Ice)
 
            call mpp_clock_begin(newClock11)
            call flux_ice_to_ocean_stocks(Ice)
            call mpp_clock_end(newClock11)
+           call mpp_clock_end(newClock10s)
         endif
 
-        call mpp_clock_end(newClock10)
         if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
 
-        call mpp_clock_end(newClock5)
      endif  ! End of Ice%pe block
 
      if( .NOT.use_lag_fluxes )then !this could serialize
         if ((.not.do_ice) .or. (.not.slow_ice_with_ocean)) &
           call mpp_set_current_pelist()
+
         if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
           if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
+          call mpp_clock_begin(newClock3)
           call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
-        endif
+          call mpp_clock_end(newClock3)
+       endif
      endif
 
      if( Ocean%is_ocean_pe )then
@@ -1884,11 +1906,11 @@ contains
 !the call to fms_io_exit has been moved here
 !this will work for serial code or concurrent (disjoint pelists)
 !but will fail on overlapping but unequal pelists
-    if( Ocean%is_ocean_pe )then
+    if( Ocean%is_ocean_pe ) then
         call mpp_set_current_pelist(Ocean%pelist)
         call ocean_model_end (Ocean, Ocean_state, Time)
-    end if
-    if( Atm%pe )then
+    endif
+    if( Atm%pe ) then
         call mpp_set_current_pelist(Atm%pelist)
         call atmos_model_end ( Atm )
     endif
@@ -1897,9 +1919,13 @@ contains
         call land_model_end (Atmos_land_boundary, Land)
     endif
     if( Ice%pe ) then  ! This happens on all fast or slow ice PEs.
-        call mpp_set_current_pelist(Ice%pelist)
+        if( Ice%slow_ice_PE ) then
+           call mpp_set_current_pelist(Ice%slow_pelist)
+        else ! This must be a fast ice PE.
+           call mpp_set_current_pelist(Ice%fast_pelist)
+        endif
         call ice_model_end (Ice)
-    end if
+    endif
 
     !----- write restart file ------
     call coupler_restart(Time, Time_restart_current)
