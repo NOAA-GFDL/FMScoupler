@@ -679,7 +679,11 @@ contains
     ! jgj: added for co2_atm diagnostic
     real, dimension(n_xgrid_sfc)           :: ex_co2_atm_dvmr
     real, dimension(size(Land_Ice_Atmos_Boundary%t,1),size(Land_Ice_Atmos_Boundary%t,2)) :: diag_atm
+#ifdef _USE_LAND_LAD2_
     real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2)) :: diag_land
+#else
+    real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2), size(Land%t_ca,3)) :: diag_land
+#endif
     real, dimension(size(Ice%t_surf,1),size(Ice%t_surf,2),size(Ice%t_surf,3)) :: sea
     real, dimension(size(Ice%albedo,1),size(Ice%albedo,2),size(Ice%albedo,3)) ::  tmp_open_sea
     real    :: zrefm, zrefh
@@ -1548,8 +1552,8 @@ contains
     endif
     if(id_q_ref_land > 0) then
        call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
-!       used = send_tile_averaged_data(id_q_ref_land, diag_land, &
-!            Land%tile_size, Time, mask=Land%mask)
+       used = send_tile_averaged_data(id_q_ref_land, diag_land, &
+            Land%tile_size, Time, mask=Land%mask)
     endif
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
     !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
@@ -1580,8 +1584,8 @@ contains
 
     if ( id_rh_ref_land > 0 ) then
        call get_from_xgrid_land (diag_land,'LND', ex_ref, xmap_sfc)
-!       used = send_tile_averaged_data ( id_rh_ref_land, diag_land, &
-!            Land%tile_size, Time, mask = Land%mask )
+       used = send_tile_averaged_data ( id_rh_ref_land, diag_land, &
+            Land%tile_size, Time, mask = Land%mask )
     endif
     if(id_rh_ref > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1615,8 +1619,8 @@ contains
          ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
     if (id_t_ref_land > 0) then
        call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
-!       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
-!            Land%tile_size, Time, mask = Land%mask )
+       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+            Land%tile_size, Time, mask = Land%mask )
     endif
     call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
     if ( id_t_ref > 0 ) used = send_data ( id_t_ref, diag_atm, Time )
@@ -1630,8 +1634,8 @@ contains
             ex_ref = ex_u_surf + (ex_u_atm-ex_u_surf) * ex_del_m
        if ( id_u_ref_land > 0 ) then
           call get_from_xgrid_land ( diag_land, 'LND', ex_ref, xmap_sfc )
-!          used = send_tile_averaged_data ( id_u_ref_land, diag_land, &
-!               Land%tile_size, Time, mask = Land%mask )
+          used = send_tile_averaged_data ( id_u_ref_land, diag_land, &
+               Land%tile_size, Time, mask = Land%mask )
        endif
        if ( id_u_ref > 0 .or. id_uas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1646,8 +1650,8 @@ contains
             ex_ref = ex_v_surf + (ex_v_atm-ex_v_surf) * ex_del_m
        if ( id_v_ref_land > 0 ) then
           call get_from_xgrid_land ( diag_land, 'LND', ex_ref, xmap_sfc )
-!          used = send_tile_averaged_data ( id_v_ref_land, diag_land, &
-!               Land%tile_size, Time, mask = Land%mask )
+          used = send_tile_averaged_data ( id_v_ref_land, diag_land, &
+               Land%tile_size, Time, mask = Land%mask )
        endif
        if ( id_v_ref > 0 .or. id_vas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -2417,7 +2421,11 @@ contains
 
     real, dimension(size(Land_Ice_Atmos_Boundary%dt_t,1),size(Land_Ice_Atmos_Boundary%dt_t,2)) :: diag_atm, &
          evap_atm, frac_atm
+#ifdef _USE_LAND_LAD2_
     real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2)) :: data_lnd, diag_land
+#else
+    real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2), size(Land_boundary%lprec,3)) :: data_lnd, diag_land
+#endif
     real, dimension(size(Ice_boundary%lprec,1), size(Ice_boundary%lprec,2), size(Ice_boundary%lprec,3)) :: data_ice
     real, dimension(size(Ice%albedo,1),size(Ice%albedo,2),size(Ice%albedo,3)) ::  icegrid
     logical :: used
@@ -2677,8 +2685,8 @@ contains
     if( id_hfls > 0 )    used = send_data ( id_hfls, HLF*evap_atm, Time)
     if( id_q_flux_land > 0 ) then
        call get_from_xgrid_land (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
-!       used = send_tile_averaged_data(id_q_flux_land, diag_land, &
-!            Land%tile_size, Time, mask=Land%mask)
+       used = send_tile_averaged_data(id_q_flux_land, diag_land, &
+            Land%tile_size, Time, mask=Land%mask)
     endif
     call sum_diag_integral_field ('evap', evap_atm*86400.)
 
@@ -2931,7 +2939,7 @@ contains
 
     type(time_type), intent(in) :: Time
     integer,         intent(in) :: atmos_axes(2)
-    integer,         intent(in) :: land_axes(2)
+    integer,         intent(in) :: land_axes(:)
     logical,         intent(in) :: land_pe
 
     integer :: iref
