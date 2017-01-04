@@ -1960,7 +1960,11 @@ contains
           n = tr_table(tr)%lnd
           if(n /= NO_TRACER ) then
              call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
+#ifdef _USE_LAND_LAD2_
              write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,n))
+#else
+             write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,:,n))
+#endif
           endif
        enddo
 

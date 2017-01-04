@@ -892,7 +892,11 @@ contains
     ! tracer data override
     do tr = 1, n_lnd_tr
        call get_tracer_names( MODEL_LAND, tr, tr_name )
+#ifdef _USE_LAND_LAD2_
        call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,tr), Time)
+#else
+       call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
+#endif
     enddo
     do n = 1, ice%ocean_fields%num_bcs  !{
        do m = 1, ice%ocean_fields%bc(n)%num_fields  !{
@@ -1004,7 +1008,11 @@ contains
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
+#ifdef _USE_LAND_LAD2_
           call put_to_xgrid_land ( Land%tr(:,:,n), 'LND', ex_tr_surf(:,tr), xmap_sfc )
+#else
+          call put_to_xgrid_land ( Land%tr(:,:,:,n), 'LND', ex_tr_surf(:,tr), xmap_sfc )
+#endif
        else
           ! do nothing, since ex_tr_surf is prefilled with ex_tr_atm, and therefore
           ! fluxes will be 0
@@ -2142,16 +2150,25 @@ contains
        call data_override_land('LND', 'z_bot',  Land_boundary%z_bot, Time )
     endif
 
-    Land_boundary%tr_flux(:,:,:) = 0.0
-    Land_boundary%dfdtr(:,:,:) = 0.0
+    Land_boundary%tr_flux = 0.0
+    Land_boundary%dfdtr = 0.0
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
+#ifdef _USE_LAND_LAD2_
           call get_from_xgrid_land (Land_boundary%tr_flux(:,:,n), 'LND', ex_flux_tr(:,tr), xmap_sfc)
           call get_from_xgrid_land (Land_boundary%dfdtr(:,:,n),   'LND', ex_dfdtr_surf(:,tr), xmap_sfc)
+#else
+          call get_from_xgrid_land (Land_boundary%tr_flux(:,:,:,n), 'LND', ex_flux_tr(:,tr), xmap_sfc)
+          call get_from_xgrid_land (Land_boundary%dfdtr(:,:,:,n),   'LND', ex_dfdtr_surf(:,tr), xmap_sfc)
+#endif
 #ifdef SCM
           if (do_specified_land .and. do_specified_flux .and. tr.eq.isphum) then
+#ifdef _USE_LAND_LAD2_
              call get_from_xgrid_land (Land_boundary%dfdtr(:,:,n),   'LND', ex_dedq_surf_forland(:), xmap_sfc)
+#else
+             call get_from_xgrid_land (Land_boundary%dfdtr(:,:,:,n),   'LND', ex_dedq_surf_forland(:), xmap_sfc)
+#endif
           endif
 #endif
        endif
@@ -2174,8 +2191,13 @@ contains
     call data_override_land('LND', 'p_surf',  Land_boundary%p_surf,  Time )
     do tr = 1,n_lnd_tr
        call get_tracer_names(MODEL_LAND, tr, tr_name)
+#ifdef _USE_LAND_LAD2_
        call data_override_land('LND', trim(tr_name)//'_flux', Land_boundary%tr_flux(:,:,tr), Time)
        call data_override_land('LND', 'dfd'//trim(tr_name),   Land_boundary%dfdtr  (:,:,tr), Time)
+#else
+       call data_override_land('LND', trim(tr_name)//'_flux', Land_boundary%tr_flux(:,:,:,tr), Time)
+       call data_override_land('LND', 'dfd'//trim(tr_name),   Land_boundary%dfdtr  (:,:,:,tr), Time)
+#endif
     enddo
 
     !-----------------------------------------------------------------------
@@ -2446,7 +2468,11 @@ contains
     call data_override_land ( 'LND', 't_surf', Land%t_surf, Time)
     do tr = 1, n_lnd_tr
        call get_tracer_names( MODEL_LAND, tr, tr_name )
+#ifdef _USE_LAND_LAD2_
        call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,tr), Time)
+#else
+       call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
+#endif
     enddo
 
     !----- compute surface temperature change -----
@@ -2509,7 +2535,11 @@ contains
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
+#ifdef _USE_LAND_LAD2_
           call put_to_xgrid_land ( Land%tr(:,:,n), 'LND', ex_tr_surf_new(:,tr), xmap_sfc )
+#else
+          call put_to_xgrid_land ( Land%tr(:,:,:,n), 'LND', ex_tr_surf_new(:,tr), xmap_sfc )
+#endif
        endif
     enddo
 
