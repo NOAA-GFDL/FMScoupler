@@ -47,6 +47,7 @@ module atm_land_ice_flux_exchange_mod
                                 send_tile_averaged_data, diag_field_add_attribute,     &
                                 get_diag_field_id, DIAG_FIELD_NOT_FOUND
   use diag_data_mod,      only: CMOR_MISSING_VALUE, null_axis_id
+  use atmos_cmip_diag_mod,   only: register_cmip_diag_field_2d
   use atmos_global_diag_mod, only: register_global_diag_field, &
                                    get_global_diag_field_id, &
                                    send_global_diag
@@ -3198,128 +3199,98 @@ contains
        call diag_field_add_attribute( id_height10m, 'positive', 'up' )
     endif
 
-    id_tas      = &
-         register_diag_field ( mod_name, 'tas', atmos_axes, Time, &
-         'Near-Surface Air Temperature', 'K' , &
-         standard_name = 'air_temperature', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE, range=trange )
+    id_tas = register_cmip_diag_field_2d ( mod_name, 'tas', Time, &
+                            'Near-Surface Air Temperature', 'K' , &
+                             standard_name='air_temperature' )
     if ( id_tas > 0 .and. id_height2m > 0) &
        call diag_field_add_attribute( id_tas, 'coordinates', 'height2m' )
 
-    id_uas      = &
-         register_diag_field ( mod_name, 'uas', atmos_axes, Time, &
-         'Eastward Near-Surface Wind', 'm s-1', &
-         standard_name = 'eastward_wind', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE, range=vrange )
+    id_uas = register_cmip_diag_field_2d ( mod_name, 'uas', Time, &
+                           'Eastward Near-Surface Wind', 'm s-1', &
+                            standard_name='eastward_wind' )
     if ( id_uas > 0 .and. id_height10m > 0) &
        call diag_field_add_attribute( id_uas, 'coordinates', 'height10m' )
 
-    id_vas      = &
-         register_diag_field ( mod_name, 'vas', atmos_axes, Time, &
-         'Northward Near-Surface Wind', 'm s-1', &
-         standard_name = 'northward_wind', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE, range=vrange )
+    id_vas = register_cmip_diag_field_2d ( mod_name, 'vas', Time, &
+                          'Northward Near-Surface Wind', 'm s-1', &
+                           standard_name='northward_wind' )
     if ( id_vas > 0 .and. id_height10m > 0 ) &
        call diag_field_add_attribute( id_vas, 'coordinates', 'height10m' )
 
-    id_sfcWind = &
-         register_diag_field ( mod_name, 'sfcWind', atmos_axes, Time, &
-         'Near-Surface Wind Speed', 'm s-1', &
-         standard_name = 'wind_speed', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE, range=vrange )
+    id_sfcWind = register_cmip_diag_field_2d ( mod_name, 'sfcWind', Time, &
+                                      'Near-Surface Wind Speed', 'm s-1', &
+                                       standard_name='wind_speed' )
     if ( id_sfcWind > 0 .and. id_height10m > 0 ) &
        call diag_field_add_attribute( id_sfcWind, 'coordinates', 'height10m' )
 
-    id_huss = &
-         register_diag_field ( mod_name, 'huss', atmos_axes, Time, &
-         'Near-Surface Specific Humidity', '1.0', &
-         standard_name = 'specific_humidity', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE )
+    id_huss = register_cmip_diag_field_2d ( mod_name, 'huss', Time, &
+                           'Near-Surface Specific Humidity', '1.0', &
+                            standard_name='specific_humidity' )
     if ( id_huss > 0 .and. id_height2m > 0 ) &
        call diag_field_add_attribute( id_huss, 'coordinates', 'height2m' )
 
-    id_hurs = &
-         register_diag_field ( mod_name, 'hurs', atmos_axes, Time, &
-         'Near-Surface Relative Humidity', '%', &
-         standard_name = 'relative_humidity', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE )
+    id_hurs = register_cmip_diag_field_2d ( mod_name, 'hurs', Time, &
+                             'Near-Surface Relative Humidity', '%', &
+                              standard_name='relative_humidity' )
     if ( id_hurs > 0 .and. id_height2m > 0 ) &
        call diag_field_add_attribute( id_hurs, 'coordinates', 'height2m' )
 
-    id_rhs = &
-         register_diag_field ( mod_name, 'rhs', atmos_axes, Time, &
-         'Near-Surface Relative Humidity', '%', &
-         standard_name = 'relative_humidity', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE )
+    id_rhs = register_cmip_diag_field_2d ( mod_name, 'rhs', Time, &
+                           'Near-Surface Relative Humidity', '%', &
+                            standard_name='relative_humidity' )
     if ( id_rhs > 0 .and. id_height2m > 0 ) &
        call diag_field_add_attribute( id_rhs, 'coordinates', 'height2m' )
 
-    id_ts = &
-         register_diag_field ( mod_name, 'ts', atmos_axes, Time, &
-         'Surface Temperature', 'K', &
-         standard_name = 'surface_temperature', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE, range=trange )
+    id_ts = register_cmip_diag_field_2d ( mod_name, 'ts', Time, &
+                                    'Surface Temperature', 'K', &
+                            standard_name='surface_temperature' )
 
-    id_psl = &
-         register_diag_field ( mod_name, 'psl', atmos_axes, Time, &
-         'Sea Level Pressure', 'Pa', &
-         standard_name = 'air_pressure_at_sea_level', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE )
+    id_psl = register_cmip_diag_field_2d ( mod_name, 'psl', Time, &
+                                      'Sea Level Pressure', 'Pa', &
+                        standard_name='air_pressure_at_sea_level' )
 
-    id_tauu = &
-         register_diag_field ( mod_name, 'tauu', atmos_axes, Time, &
-         'Surface Downward Eastward Wind Stress', 'Pa', &
-         standard_name = 'surface_downward_eastward_stress', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE )
+    id_tauu = register_cmip_diag_field_2d ( mod_name, 'tauu', Time, &
+                     'Surface Downward Eastward Wind Stress', 'Pa', &
+                   standard_name='surface_downward_eastward_stress' )
 
-    id_tauv = &
-         register_diag_field ( mod_name, 'tauv', atmos_axes, Time, &
-         'Surface Downward Northward Wind Stress', 'Pa', &
-         standard_name = 'surface_downward_northward_stress', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE )
+    id_tauv = register_cmip_diag_field_2d ( mod_name, 'tauv', Time, &
+                    'Surface Downward Northward Wind Stress', 'Pa', &
+                  standard_name='surface_downward_northward_stress' )
 
-    id_hfss = &
-         register_diag_field ( mod_name, 'hfss', atmos_axes, Time, &
-         'Surface Upward Sensible Heat Flux', 'W m-2', &
-         standard_name = 'surface_upward_sensible_heat_flux', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE )
+    id_hfss = register_cmip_diag_field_2d ( mod_name, 'hfss', Time, &
+                      'Surface Upward Sensible Heat Flux', 'W m-2', &
+                  standard_name='surface_upward_sensible_heat_flux' )
 
-    id_hfls = &
-         register_diag_field ( mod_name, 'hfls', atmos_axes, Time, &
-         'Surface Upward Latent Heat Flux', 'W m-2', &
-         standard_name = 'surface_upward_latent_heat_flux', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE )
+    id_hfls = register_cmip_diag_field_2d ( mod_name, 'hfls', Time, &
+                        'Surface Upward Latent Heat Flux', 'W m-2', &
+                    standard_name='surface_upward_latent_heat_flux' )
     if ( id_hfls > 0 ) call diag_field_add_attribute( id_hfls, 'comment', 'Lv*evap' )
 
-    id_evspsbl = &
-         register_diag_field( mod_name, 'evspsbl', atmos_axes, Time, &
-         'Evaporation', 'kg m-2 s-1', &
-         standard_name = 'water_evaporation_flux', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE )
+    id_evspsbl = register_cmip_diag_field_2d ( mod_name, 'evspsbl', Time, &
+                                             'Evaporation', 'kg m-2 s-1', &
+                                   standard_name='water_evaporation_flux' )
 
-    id_sftlf = &
-         register_static_field ( mod_name, 'sftlf', atmos_axes,  &
-         'Fraction of the Grid Cell Occupied by Land', '1.0', &
-         standard_name = 'land_area_fraction', area=area_id, &
-         interp_method = "conserve_order1" )
+    id_sftlf = register_static_field ( mod_name, 'sftlf', atmos_axes,  &
+                  'Fraction of the Grid Cell Occupied by Land', '1.0', &
+                     standard_name='land_area_fraction', area=area_id, &
+                     interp_method='conserve_order1' )
 
-    id_tslsi = &
-         register_diag_field ( mod_name, 'tslsi', atmos_axes, Time,  &
-         'Surface Temperature Where Land or Sea Ice', 'K', &
-         standard_name = 'surface_temperature', area=area_id, &
-         mask_variant=.true., missing_value=CMOR_MISSING_VALUE )
+    id_tslsi = register_cmip_diag_field_2d ( mod_name, 'tslsi', Time,  &
+                     'Surface Temperature Where Land or Sea Ice', 'K', &
+                                  standard_name='surface_temperature', &
+                                     mask_variant=.true. )
 
-    id_tos = &
-         register_diag_field ( mod_name, 'tos', atmos_axes, Time,  &
-         'Sea Surface Temperature', 'K', &
-         standard_name = 'sea_surface_temperature', area=area_id, &
-         mask_variant=.true., missing_value=CMOR_MISSING_VALUE )
+    ! tos,sic are ocean,seaIce fields on the atmos grid
+    ! useful for amip-type runs
 
-    id_sic = &
-         register_diag_field ( mod_name, 'sic', atmos_axes, Time,  &
-         'Sea Ice Area Fraction', '1.0', &
-         standard_name = 'sea_ice_area_fraction', area=area_id, &
-         missing_value=CMOR_MISSING_VALUE )
+    id_tos = register_cmip_diag_field_2d ( mod_name, 'tos', Time,  &
+                                   'Sea Surface Temperature', 'K', &
+                          standard_name='sea_surface_temperature', &
+                          mask_variant=.true. )
+
+    id_sic = register_cmip_diag_field_2d ( mod_name, 'sic', Time,  &
+                                   'Sea Ice Area Fraction', '1.0', &
+                            standard_name='sea_ice_area_fraction' )
     if ( id_sic > 0 ) call diag_field_add_attribute( id_sic, 'comment', &
          'averaged over the ocean portion of grid box' )
 
