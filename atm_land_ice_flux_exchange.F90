@@ -29,6 +29,7 @@ module atm_land_ice_flux_exchange_mod
   use   mpp_domains_mod,  only: mpp_get_global_domain, mpp_get_data_domain
   use   mpp_domains_mod,  only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
   use   mpp_domains_mod,  only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
+  use   mpp_domains_mod,  only: mpp_pass_ug_to_sg
   use   mpp_io_mod,       only: mpp_close, mpp_open, MPP_MULTI, MPP_SINGLE, MPP_OVERWR
   use   atmos_model_mod,  only: atmos_data_type, land_ice_atmos_boundary_type
   use   ocean_model_mod,  only: ocean_public_type, ice_ocean_boundary_type
@@ -287,7 +288,7 @@ module atm_land_ice_flux_exchange_mod
   integer :: X1_GRID_ATM, X1_GRID_ICE, X1_GRID_LND
   real    :: Dt_atm, Dt_cpl
   integer :: nxc_ice=0, nyc_ice=0, nk_ice=0
-
+  integer :: nxc_lnd=0, nyc_lnd=0
 
 contains
 
@@ -612,6 +613,10 @@ contains
        nk_ice = size(Ice%part_size,3)
     endif
 
+    if( Land%pe) then
+       call mpp_get_compute_domain(Land%domain, xsize=nxc_lnd, ysize=nyc_lnd)
+    endif
+
     !Balaji: clocks on atm%pe only        
     sfcClock = mpp_clock_id( 'SFC boundary layer', flags=clock_flag_default, grain=CLOCK_SUBCOMPONENT )
     fluxAtmDnClock = mpp_clock_id( 'Flux DN from atm', flags=clock_flag_default, grain=CLOCK_ROUTINE )
@@ -691,6 +696,9 @@ contains
     real, dimension(size(Land_Ice_Atmos_Boundary%t,1),size(Land_Ice_Atmos_Boundary%t,2)) :: diag_atm
 #ifdef _USE_LAND_LAD2_
     real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2)) :: diag_land
+    real, dimension(nxc_lnd,nyc_lnd,size(Land%t_ca,2))    :: diag_land_sg
+    real, dimension(nxc_lnd,nyc_lnd,size(Land%t_ca,2))    :: tile_size_sg
+    logical, dimension(nxc_lnd,nyc_lnd,size(Land%t_ca,2)) :: mask_sg
 #else
     real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2), size(Land%t_ca,3)) :: diag_land
 #endif
@@ -1644,7 +1652,17 @@ contains
             Land%tile_size, Time, mask = Land%mask )
     endif
     if (id_tasl_g > 0 ) then
+#ifdef _USE_LAND_LAD2_
+       diag_land_sg = 0.0
+       tile_size_sg = 0.0
+       mask_sg = .false.
+       call mpp_pass_ug_to_sg(Land%ug_domain, diag_land, diag_land_sg)
+       call mpp_pass_ug_to_sg(Land%ug_domain, Land%tile_size, tile_size_sg)
+       call mpp_pass_ug_to_sg(Land%ug_domain, Land%mask, mask_sg)
+       used = send_global_diag ( id_tasl_g, diag_land_sg, tile_size_sg, Time, mask_sg )
+#else
        used = send_global_diag ( id_tasl_g, diag_land, Land%tile_size, Time, Land%mask )
+#endif
     endif
     call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
     if ( id_t_ref > 0 ) used = send_data ( id_t_ref, diag_atm, Time )
