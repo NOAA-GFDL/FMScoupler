@@ -18,7 +18,6 @@ module atm_land_ice_flux_exchange_mod
 !           675 Mass Ave, Cambridge, MA 02139, USA.                   
 ! or see:   http://www.gnu.org/licenses/gpl.html                      
 !-----------------------------------------------------------------------
-#include "land_version.inc"
   use mpp_mod,            only: mpp_npes, mpp_pe, mpp_root_pe, mpp_error, stderr, &
                                 stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
                                 mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
