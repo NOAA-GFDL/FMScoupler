@@ -696,9 +696,11 @@ contains
     real, dimension(size(Land_Ice_Atmos_Boundary%t,1),size(Land_Ice_Atmos_Boundary%t,2)) :: diag_atm
 #ifdef _USE_LAND_LAD2_
     real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2)) :: diag_land
-    real, dimension(nxc_lnd,nyc_lnd,size(Land%t_ca,2))    :: diag_land_sg
-    real, dimension(nxc_lnd,nyc_lnd,size(Land%t_ca,2))    :: tile_size_sg
-    logical, dimension(nxc_lnd,nyc_lnd,size(Land%t_ca,2)) :: mask_sg
+    real, dimension(size(Land%t_ca, 1))                   :: diag_land_ug, tile_size_ug
+    real, dimension(nxc_lnd,nyc_lnd)                      :: diag_land_sg, tile_size_sg
+    logical, dimension(size(Land%t_ca, 1))                :: mask_ug
+    logical, dimension(nxc_lnd,nyc_lnd)                   :: mask_sg 
+    integer :: k
 #else
     real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2), size(Land%t_ca,3)) :: diag_land
 #endif
@@ -1653,13 +1655,25 @@ contains
     endif
     if (id_tasl_g > 0 ) then
 #ifdef _USE_LAND_LAD2_
+       diag_land_ug = 0.0
+       tile_size_ug = 0.0
+       do k = 1, size(Land%t_ca,2)
+          where (Land%mask(:,k))
+             diag_land_ug = diag_land_ug + diag_land(:,k)*Land%tile_size(:,k)
+             tile_size_ug = tile_size_ug + Land%tile_size(:,k)
+          endwhere
+       enddo
+       where(tile_size_ug > 0.0)
+          diag_land_ug = diag_land_ug/tile_size_ug
+       endwhere
+       mask_ug = ANY(Land%mask,dim=2)
+       mask_sg      = .false.
        diag_land_sg = 0.0
        tile_size_sg = 0.0
-       mask_sg = .false.
-       call mpp_pass_ug_to_sg(Land%ug_domain, diag_land, diag_land_sg)
-       call mpp_pass_ug_to_sg(Land%ug_domain, Land%tile_size, tile_size_sg)
-       call mpp_pass_ug_to_sg(Land%ug_domain, Land%mask, mask_sg)
-       used = send_global_diag ( id_tasl_g, diag_land_sg, tile_size_sg, Time, mask_sg )
+       call mpp_pass_ug_to_sg(Land%ug_domain, diag_land_ug, diag_land_sg)
+       call mpp_pass_ug_to_sg(Land%ug_domain, tile_size_ug, tile_size_sg)
+       call mpp_pass_ug_to_sg(Land%ug_domain, mask_ug, mask_sg)
+       used = send_global_diag ( id_tasl_g, diag_land_sg, Time, tile_size_sg, mask_sg) 
 #else
        used = send_global_diag ( id_tasl_g, diag_land, Land%tile_size, Time, Land%mask )
 #endif
