@@ -282,8 +282,6 @@
 !!     This error should probably not occur because of checks done at initialization time.
 program coupler_main
 
-#include "land_version.inc"
-
   use constants_mod,           only: constants_init
 
   use time_manager_mod,        only: time_type, set_calendar_type, set_time
