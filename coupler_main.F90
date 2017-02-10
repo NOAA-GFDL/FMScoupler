@@ -1561,6 +1561,9 @@ contains
         endif
         call print_memuse_stats( 'land_model_init' )
         call data_override_init(Land_domain_in = Land%domain)
+#ifdef _USE_LAND_LAD2_
+        call data_override_init(Land_domainUG_in = Land%ug_domain)
+#endif
      endif
 !---- ice -----------
      if( Ice%pe ) then
@@ -1955,7 +1958,11 @@ contains
           n = tr_table(tr)%lnd
           if(n /= NO_TRACER ) then
              call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
+#ifdef _USE_LAND_LAD2_
+             write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,n))
+#else
              write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,:,n))
+#endif
           endif
        enddo
 
