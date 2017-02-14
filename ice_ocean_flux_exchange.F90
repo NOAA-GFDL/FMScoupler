@@ -58,6 +58,7 @@ contains
     logical,                       intent(in)    :: do_area_weighted_flux_in
     type(coupler_1d_bc_type),      intent(in)    :: ex_gas_fields_ice, ex_gas_fluxes
     logical,                       intent(in)    :: do_ocean
+    character(len=24)    :: diag_name
     integer              :: is, ie, js, je, kd
 
     Dt_cpl = Dt_cpl_in
@@ -86,27 +87,27 @@ contains
     !
     ! allocate fields for extra tracers
     ! Copying gas flux fields from ice to ocean_ice boundary
-    ! z1l: This should be done only on ice%pelist
     if(Ice%pe) then
-       call mpp_set_current_pelist(Ice%pelist)
-       call coupler_type_copy(ex_gas_fields_ice, ocean_ice_boundary%fields, is, ie, js, je,        &
-            'ice_flux', Ice%axes(1:2), Time, suffix = '_ocn_ice')
-
-       !
-       ! allocate fields amd fluxes for extra tracers for the Ice type
-       !
-
-       kd = size(Ice%part_size,3)
-       call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
-            'ice_flux', Ice%axes, Time, suffix = '_ice')
-
-       call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes, is, ie, js, je,             &
-            'ice_flux', Ice%axes(1:2), Time, suffix = '_ice')
-
-       call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd,     &
-            'ice_flux', Ice%axes, Time, suffix = '_ice_top')
+       diag_name = "ice_flux"
+    else
+       diag_name = ""
     endif
-    call mpp_set_current_pelist()
+    call coupler_type_copy(ex_gas_fields_ice, ocean_ice_boundary%fields, is, ie, js, je,        &
+         diag_name, Ice%axes(1:2), Time, suffix = '_ocn_ice')
+
+    !
+    ! allocate fields amd fluxes for extra tracers for the Ice type
+    !
+
+    kd = size(Ice%part_size,3)
+    call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
+         diag_name, Ice%axes, Time, suffix = '_ice')
+
+    call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes, is, ie, js, je,             &
+         diag_name, Ice%axes(1:2), Time, suffix = '_ice')
+
+    call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd,     &
+         diag_name, Ice%axes, Time, suffix = '_ice_top')
 
     !allocate ice_ocean_boundary
     call mpp_get_compute_domain( Ocean%domain, is, ie, js, je )
@@ -143,6 +144,19 @@ contains
     else
        ocean_ice_boundary%stagger = AGRID
     endif
+    !
+    ! allocate fields for extra tracers
+    !
+    if(Ocean%is_ocean_pe) then
+       diag_name = "ocean_flux"
+    else
+       diag_name = ""
+    endif
+    call coupler_type_copy(ex_gas_fluxes, ice_ocean_boundary%fluxes, is, ie, js, je,    &
+         diag_name, Ocean%axes(1:2), Time, suffix = '_ice_ocn')
+
+    call coupler_type_copy(ex_gas_fields_ice, Ocean%fields, is, ie, js, je,             &
+         diag_name, Ocean%axes(1:2), Time, suffix = '_ocn')
 
     ! initialize boundary values for override experiments
     ocean_ice_boundary%xtype = REDIST
@@ -157,20 +171,12 @@ contains
 
     if ( Ocean%is_ocean_pe ) then
        call mpp_set_current_pelist(Ocean%pelist)
-       ! allocate fields for extra tracers
-       ! z1l: This should be done only on Ocean%pelist
-       call coupler_type_copy(ex_gas_fluxes, ice_ocean_boundary%fluxes, is, ie, js, je,    &
-            'ocean_flux', Ocean%axes(1:2), Time, suffix = '_ice_ocn')
-       call coupler_type_copy(ex_gas_fields_ice, Ocean%fields, is, ie, js, je,             &
-            'ocean_flux', Ocean%axes(1:2), Time, suffix = '_ocn')
-
        call ocean_model_init_sfc(Ocean_state, Ocean)
        call mpp_get_compute_domain(Ocean%domain, xsize=nxc_ocn, ysize=nyc_ocn)
     endif
     if( Ice%pe) then
        call mpp_get_compute_domain(Ice%domain, xsize=nxc_ice, ysize=nyc_ice)
     endif
-
     call mpp_set_current_pelist()
     !z1l check the flux conservation.
     if(debug_stocks) call check_flux_conservation(Ice, Ocean, Ice_Ocean_Boundary)
