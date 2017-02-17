@@ -42,7 +42,7 @@ module atm_land_ice_flux_exchange_mod
   use xgrid_mod,          only: xmap_type, setup_xmap, set_frac_area, put_to_xgrid, &
                                 get_from_xgrid, xgrid_count, some, conservation_check, xgrid_init, &
                                 stock_integrate_2d, stock_move, stock_print
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
   use xgrid_mod,          only: get_from_xgrid_land => get_from_xgrid_ug
   use xgrid_mod,          only: put_to_xgrid_land => put_to_xgrid_ug
   use xgrid_mod,          only: set_frac_area_land => set_frac_area_ug
@@ -460,7 +460,7 @@ contains
     endif
 
     call xgrid_init(remap_method)
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
     call setup_xmap(xmap_sfc, (/ 'ATM', 'OCN', 'LND' /),   &
          (/ Atm%Domain, Ice%Domain, Land%Domain /),        &
          "INPUT/grid_spec.nc", Atm%grid, lnd_ug_domain=Land%ug_domain)
@@ -543,6 +543,14 @@ contains
 
     call coupler_type_copy(ex_gas_fluxes, atmos_ice_boundary%fluxes, is, ie, js, je, kd,    &
          mod_name, Ice%axes, Time, suffix = '_atm_ice')
+
+    !--- Ice%ocean_fields and Ice%ocean_fluxes_top will not be passed to ocean, so these two 
+    !--- coupler_type_copy calls are moved from ice_ocean_flux_init to here. 
+    call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
+         'ice_flux', Ice%axes, Time, suffix = '_ice')
+
+    call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd,     &
+         'ice_flux', Ice%axes, Time, suffix = '_ice_top')
 
     !allocate land_ice_atmos_boundary
     call mpp_get_compute_domain( Atm%domain, is, ie, js, je )
@@ -693,7 +701,7 @@ contains
     ! jgj: added for co2_atm diagnostic
     real, dimension(n_xgrid_sfc)           :: ex_co2_atm_dvmr
     real, dimension(size(Land_Ice_Atmos_Boundary%t,1),size(Land_Ice_Atmos_Boundary%t,2)) :: diag_atm
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
     real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2)) :: diag_land
     real, dimension(size(Land%t_ca, 1))                   :: diag_land_ug, tile_size_ug
     real, dimension(nxc_lnd,nyc_lnd)                      :: diag_land_sg, tile_size_sg
@@ -911,7 +919,7 @@ contains
     ! tracer data override
     do tr = 1, n_lnd_tr
        call get_tracer_names( MODEL_LAND, tr, tr_name )
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
        call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,tr), Time)
 #else
        call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
@@ -1027,7 +1035,7 @@ contains
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
           call put_to_xgrid_land ( Land%tr(:,:,n), 'LND', ex_tr_surf(:,tr), xmap_sfc )
 #else
           call put_to_xgrid_land ( Land%tr(:,:,:,n), 'LND', ex_tr_surf(:,tr), xmap_sfc )
@@ -1653,7 +1661,7 @@ contains
             Land%tile_size, Time, mask = Land%mask )
     endif
     if (id_tasl_g > 0 ) then
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
        diag_land_ug = 0.0
        tile_size_ug = 0.0
        do k = 1, size(Land%t_ca,2)
@@ -2203,7 +2211,7 @@ contains
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
           call get_from_xgrid_land (Land_boundary%tr_flux(:,:,n), 'LND', ex_flux_tr(:,tr), xmap_sfc)
           call get_from_xgrid_land (Land_boundary%dfdtr(:,:,n),   'LND', ex_dfdtr_surf(:,tr), xmap_sfc)
 #else
@@ -2212,7 +2220,7 @@ contains
 #endif
 #ifdef SCM
           if (do_specified_land .and. do_specified_flux .and. tr.eq.isphum) then
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
              call get_from_xgrid_land (Land_boundary%dfdtr(:,:,n),   'LND', ex_dedq_surf_forland(:), xmap_sfc)
 #else
              call get_from_xgrid_land (Land_boundary%dfdtr(:,:,:,n),   'LND', ex_dedq_surf_forland(:), xmap_sfc)
@@ -2239,7 +2247,7 @@ contains
     call data_override_land('LND', 'p_surf',  Land_boundary%p_surf,  Time )
     do tr = 1,n_lnd_tr
        call get_tracer_names(MODEL_LAND, tr, tr_name)
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
        call data_override_land('LND', trim(tr_name)//'_flux', Land_boundary%tr_flux(:,:,tr), Time)
        call data_override_land('LND', 'dfd'//trim(tr_name),   Land_boundary%dfdtr  (:,:,tr), Time)
 #else
@@ -2491,7 +2499,7 @@ contains
 
     real, dimension(size(Land_Ice_Atmos_Boundary%dt_t,1),size(Land_Ice_Atmos_Boundary%dt_t,2)) :: diag_atm, &
          evap_atm, frac_atm
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
     real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2)) :: data_lnd, diag_land
 #else
     real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2), size(Land_boundary%lprec,3)) :: data_lnd, diag_land
@@ -2516,7 +2524,7 @@ contains
     call data_override_land ( 'LND', 't_surf', Land%t_surf, Time)
     do tr = 1, n_lnd_tr
        call get_tracer_names( MODEL_LAND, tr, tr_name )
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
        call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,tr), Time)
 #else
        call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
@@ -2583,7 +2591,7 @@ contains
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
-#ifdef _USE_LAND_LAD2_
+#ifndef _USE_LEGACY_LAND_
           call put_to_xgrid_land ( Land%tr(:,:,n), 'LND', ex_tr_surf_new(:,tr), xmap_sfc )
 #else
           call put_to_xgrid_land ( Land%tr(:,:,:,n), 'LND', ex_tr_surf_new(:,tr), xmap_sfc )
@@ -3545,8 +3553,6 @@ contains
           used = send_data ( id_sic, diag_atm, Time, rmask=ocean_frac )
        endif
     endif
-
-
 
   end subroutine send_ice_mask_sic
 
