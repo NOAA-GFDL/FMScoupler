@@ -542,7 +542,7 @@ module flux_exchange_mod
   use atm_land_ice_flux_exchange_mod, only: flux_up_to_atmos, atm_stock_integrate, send_ice_mask_sic
   use atm_land_ice_flux_exchange_mod, only: flux_atmos_to_ocean, flux_ex_arrays_dealloc
   use land_ice_flux_exchange_mod,     only: flux_land_to_ice, land_ice_flux_exchange_init
-  use ice_ocean_flux_exchange_mod,    only: ice_ocean_flux_exchange_init, ocean_to_ice_flux_exchange
+  use ice_ocean_flux_exchange_mod,    only: ice_ocean_flux_exchange_init, flux_ocean_to_ice
   use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
 
   implicit none
@@ -561,7 +561,8 @@ private
      flux_check_stocks,    &
      flux_init_stocks,     &
      flux_ice_to_ocean_stocks,&
-     flux_ocean_from_ice_stocks
+     flux_ocean_from_ice_stocks,&
+     send_ice_mask_sic
 
   !-----------------------------------------------------------------------
   character(len=128) :: version = '$Id$'
@@ -775,38 +776,6 @@ contains
     do_init = .false.
 
   end subroutine flux_exchange_init
-
-  !#######################################################################
-  !> \brief Takes the ocean model state and interpolates it onto the bottom of the ice.
-  !!
-  !! The following quantities are transferred from the Ocean to the ocean_ice_boundary_type:
-  !! <pre>
-  !!        t_surf = surface temperature (deg K)
-  !!        frazil = frazil (???)
-  !!        u_surf = zonal ocean current/ice motion (m/s)
-  !!        v_surf = meridional ocean current/ice motion (m/s
-  !! </pre>
-  !!
-  !! \throw FATAL, "Ocean_Ice_Boundary%xtype must be DIRECT or REDIST."
-  !!    The value of variable xtype of ice_ocean_boundary_type data must be DIRECT or REDIST.
-  subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
-
-    type(time_type),                 intent(in)  :: Time !< Current time
-    type(ocean_public_type),         intent(in)  :: Ocean !< A derived data type to specify ocean boundary data
-    type(ice_data_type),             intent(in)  :: Ice   !< A derived data type to specify ice boundary data
-    !  real, dimension(:,:),   intent(out) :: t_surf_ice, u_surf_ice, v_surf_ice, &
-    !                                         frazil_ice, s_surf_ice, sea_lev_ice
-    type(ocean_ice_boundary_type), intent(inout) :: Ocean_Ice_Boundary !< A derived data type to specify properties and fluxes
-    !! passed from ocean to ice
-
-    call ocean_to_ice_flux_exchange(Time, Ocean, Ice, Ocean_Ice_Boundary )
-
-    call mpp_set_current_pelist()
-
-    call send_ice_mask_sic(Time)
-
-  end subroutine flux_ocean_to_ice
-
 
   !> \brief Check stock values.
   !!
