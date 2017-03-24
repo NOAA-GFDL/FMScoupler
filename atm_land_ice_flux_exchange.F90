@@ -1116,9 +1116,15 @@ contains
        do tr = 1,n_exch_tr
           if (tr==isphum) cycle
           do i = is,ie
-             ex_dfdtr_atm  (i,tr) = ex_dfdtr_atm  (i,isphum)
-             ex_dfdtr_surf (i,tr) = ex_dfdtr_surf (i,isphum)
-             ex_flux_tr    (i,tr) = ex_dfdtr_surf(i,tr)*(ex_tr_surf(i,tr)-ex_tr_atm(i,tr))
+             ! slm: ex_dfdtr_surf(:,isphum) is manipulated in surface_flux: it is set to
+             ! zero over the ocean, so it is not appropriate to use for other tracers.
+             ! However, since flux = rho*Cd*|v|*(q_surf-q_atm), we can simply use negative
+             ! dfdtr_atm for the dfdtr_surf derivative. This will break if ever the flux
+             ! formulation is changed to be not symmetrical w.r.t. q_surf and q_atm, but
+             ! then this whole section will have to be changed.
+             ex_dfdtr_atm  (i,tr) =  ex_dfdtr_atm  (i,isphum)
+             ex_dfdtr_surf (i,tr) = -ex_dfdtr_atm (i,isphum)
+             ex_flux_tr    (i,tr) =  ex_dfdtr_surf(i,tr)*(ex_tr_surf(i,tr)-ex_tr_atm(i,tr))
           enddo
        enddo
     enddo ! end of block loop
