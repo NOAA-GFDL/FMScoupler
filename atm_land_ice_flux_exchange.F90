@@ -49,6 +49,9 @@ module atm_land_ice_flux_exchange_mod
                                 send_tile_averaged_data, diag_field_add_attribute,     &
                                 get_diag_field_id, DIAG_FIELD_NOT_FOUND
   use diag_data_mod,      only: CMOR_MISSING_VALUE, null_axis_id
+  use atmos_global_diag_mod, only: register_global_diag_field, &
+                                   get_global_diag_field_id, &
+                                   send_global_diag
   use  time_manager_mod,  only: time_type
   use sat_vapor_pres_mod, only: compute_qs, sat_vapor_pres_init
   use      constants_mod, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
@@ -137,6 +140,9 @@ module atm_land_ice_flux_exchange_mod
              id_hurs, id_huss, id_evspsbl, id_hfls, id_hfss, &
              id_rhs, id_sftlf, id_tos, id_sic, id_tslsi, &
              id_height2m, id_height10m
+
+  ! globally averaged diagnostics
+  integer :: id_evspsbl_g, id_ts_g, id_tas_g, id_tasl_g, id_hfss_g, id_hfls_g, id_rls_g
 
   logical :: first_static = .true.
   logical :: do_init = .true.
@@ -1589,13 +1595,16 @@ contains
 
     !    ------- reference temp -----------
 #ifdef use_AM3_physics
-    if ( id_t_ref > 0 .or.id_t_ref_land > 0.or.id_tasLut_land>0 ) then
+    if ( id_t_ref > 0 .or. id_t_ref_land > 0 .or. id_tasl_g > 0 .or. id_tasLut_land > 0 ) then
        where (ex_avail) &
             ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
        if (id_t_ref_land > 0.or.id_tasLut_land > 0) then
           call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
           call send_tile_data (id_t_ref_land, diag_land)
           call send_tile_data (id_tasLut_land, diag_land)
+       endif
+       if (id_tasl_g > 0 ) then
+          used = send_global_diag ( id_tasl_g, diag_land, Land%tile_size, Time, Land%mask )
        endif
        if ( id_t_ref > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1610,10 +1619,14 @@ contains
        call send_tile_data (id_t_ref_land, diag_land)
        call send_tile_data (id_tasLut_land, diag_land)
     endif
+    if (id_tasl_g > 0 ) then
+       used = send_global_diag ( id_tasl_g, diag_land, Land%tile_size, Time, Land%mask )
+    endif
     call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
     if ( id_t_ref > 0 ) used = send_data ( id_t_ref, diag_atm, Time )
     if ( id_tas > 0 )   used = send_data ( id_tas, diag_atm, Time )
     call sum_diag_integral_field ('t_ref',  diag_atm)
+    if ( id_tas_g > 0 )  used = send_global_diag ( id_tas_g, diag_atm, Time )
 #endif
 
     !    ------- reference u comp -----------
@@ -2567,6 +2580,8 @@ contains
        used = send_data ( id_ts, diag_atm, Time )
     endif
     call sum_diag_integral_field ('t_surf', diag_atm)
+    if ( id_ts_g > 0 ) used = send_global_diag ( id_ts_g, diag_atm, Time )
+
     !------- new surface temperature only over open ocean -----------
     if ( id_tos > 0 ) then
        ex_icetemp = 0.0
@@ -2634,16 +2649,18 @@ contains
     enddo
 
     !------- sensible heat flux -----------
-    if ( id_t_flux > 0 .or. id_hfss > 0 ) then
+    if ( id_t_flux > 0 .or. id_hfss > 0 .or. id_hfss_g > 0 ) then
        call get_from_xgrid (diag_atm, 'ATM', ex_flux_t, xmap_sfc)
        if ( id_t_flux > 0 ) used = send_data ( id_t_flux, diag_atm, Time )
        if ( id_hfss   > 0 ) used = send_data ( id_hfss, diag_atm, Time )
+       if ( id_hfss_g > 0 ) used = send_global_diag ( id_hfss_g, diag_atm, Time )
     endif
 
     !------- net longwave flux -----------
-    if ( id_r_flux > 0 ) then
+    if ( id_r_flux > 0 .or. id_rls_g > 0 ) then
        call get_from_xgrid (diag_atm, 'ATM', ex_flux_lw, xmap_sfc)
-       used = send_data ( id_r_flux, diag_atm, Time )
+       if ( id_r_flux > 0 ) used = send_data ( id_r_flux, diag_atm, Time )
+       if ( id_rls_g  > 0 ) used = send_global_diag ( id_rls_g, diag_atm, Time )
     endif
 
     !------- tracer fluxes ------------
@@ -2664,12 +2681,14 @@ contains
     call get_from_xgrid (evap_atm, 'ATM', ex_flux_tr(:,isphum), xmap_sfc)
     if( id_q_flux > 0 )  used = send_data ( id_q_flux, evap_atm, Time)
     if( id_evspsbl > 0 ) used = send_data ( id_evspsbl, evap_atm, Time)
-    if( id_hfls > 0 )    used = send_data ( id_hfls, HLF*evap_atm, Time)
+    if( id_hfls    > 0 ) used = send_data ( id_hfls, HLV*evap_atm, Time)
+    if( id_hfls_g  > 0 ) used = send_global_diag ( id_hfls_g, HLV*evap_atm, Time)
     if( id_q_flux_land > 0 ) then
        call get_from_xgrid (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
        call send_tile_data (id_q_flux_land, diag_land, send_immediately=.TRUE.)
     endif
     call sum_diag_integral_field ('evap', evap_atm*86400.)
+    if (id_evspsbl_g > 0) used = send_global_diag ( id_evspsbl_g, evap_atm, Time )
 
     ! compute stock changes
 
@@ -3317,6 +3336,42 @@ contains
          missing_value=CMOR_MISSING_VALUE )
     if ( id_sic > 0 ) call diag_field_add_attribute( id_sic, 'comment', &
          'averaged over the ocean portion of grid box' )
+
+    !----- initialize global integrals for netCDF output -----
+
+    id_evspsbl_g = register_global_diag_field ( 'evspsbl', Time, &
+                                    'Evaporation', 'mm d-1', &
+                          standard_name='water_evaporation_flux' )
+
+    id_ts_g = register_global_diag_field ( 'ts', Time, &
+                                     'Surface Temperature', 'K', &
+                             standard_name='surface_temperature' )
+
+    id_tas_g = register_global_diag_field ( 'tas', Time, &
+                           'Near-Surface Air Temperature', 'K' , &
+                                 standard_name='air_temperature' )
+    if ( id_tas_g > 0 .and. id_height2m > 0) &
+         call diag_field_add_attribute ( get_global_diag_field_id(id_tas_g), 'coordinates', 'height2m' )
+
+    id_tasl_g = register_global_diag_field ( 'tasl', Time, &
+                           'Near-Surface Air Temperature (Land Only)', 'K' , &
+                                 standard_name='air_temperature' )
+    if ( id_tasl_g > 0 .and. id_height2m > 0) &
+         call diag_field_add_attribute ( get_global_diag_field_id(id_tasl_g), 'coordinates', 'height2m' )
+
+    id_hfss_g = register_global_diag_field ( 'hfss', Time, &
+                   'Surface Upward Sensible Heat Flux', 'W m-2', &
+               standard_name='surface_upward_sensible_heat_flux' )
+
+    id_hfls_g = register_global_diag_field ( 'hfls', Time, &
+                  'Surface Upward Latent Heat Flux', 'W m-2', &
+                  standard_name='surface_upward_latent_heat_flux')
+    if ( id_hfls_g > 0 ) &
+         call diag_field_add_attribute( get_global_diag_field_id(id_hfls_g), 'comment', 'Lv*evap' )
+
+    id_rls_g = register_global_diag_field ( 'rls', Time, &
+                   'Net Longwave Surface Radiation', 'W m-2', &
+               standard_name='surface_net_longwave_flux' )
 
     !-----------------------------------------------------------------------
 
