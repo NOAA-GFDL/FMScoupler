@@ -1599,6 +1599,7 @@ contains
     endif
     if(id_q_ref_land > 0 .or.id_hussLut_land > 0) then
        call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
+!duplicate send_tile_data. We may remove id_q_ref_land in the future.
        call send_tile_data (id_q_ref_land, diag_land)
        call send_tile_data (id_hussLut_land, diag_land)
     endif
