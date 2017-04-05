@@ -1664,10 +1664,10 @@ contains
 #else
     where (ex_avail) &
          ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
-    if (id_t_ref_land > 0.or.id_tasLut_land > 0) then
+    if (id_t_ref_land > 0 .or. id_tasLut_land > 0 .or. id_tasl_g > 0) then
        call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
-       call send_tile_data (id_t_ref_land, diag_land)
-       call send_tile_data (id_tasLut_land, diag_land)
+       if (id_t_ref_land > 0)  call send_tile_data (id_t_ref_land, diag_land)
+       if (id_tasLut_land > 0) call send_tile_data (id_tasLut_land, diag_land)
     endif
     if (id_tasl_g > 0 ) then
 #ifndef _USE_LEGACY_LAND_
