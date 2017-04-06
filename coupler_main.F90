@@ -228,14 +228,30 @@
 !!     <td>use_lag_fluxes</td>
 !!     <td>logical</td>
 !!     <td>.TRUE.</td>
-!!     <td>If true, then mom4 is forced with SBCs from one coupling timestep ago
-!!       If false, then mom4 is forced with most recent SBCs. For a leapfrog MOM4
-!!       coupling with dt_cpld=dt_ocean, lag fluxes can be shown to be stable
-!!       and current fluxes to be unconditionally unstable. For dt_cpld>dt_ocean
-!!       there is probably sufficient damping for MOM4.  More modern ocean models
-!!       like MOM4.1, MOM5, GOLD or MOM6 do not use a leapfrog timestep, and will
-!!       be more stable with use_lag_fluxes=.false. use_lag_fluxes is set to TRUE
-!!       by default.</td>
+!!     <td> If true, the ocean is forced with SBCs from one coupling timestep ago.
+!!       If false, the ocean is forced with most recent SBCs.  For an old leapfrog
+!!       MOM4 coupling with dt_cpld=dt_ocean, lag fluxes can be shown to be stable
+!!       and current fluxes to be unconditionally unstable.  For dt_cpld>dt_ocean there
+!!       is probably sufficient damping for MOM4.  For more modern ocean models (such as
+!!       MOM5, GOLD or MOM6) that do not use leapfrog timestepping, use_lag_fluxes=.False.
+!!       should be much more stable.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>concurrent_ice</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>If true, the slow sea-ice is forced with the fluxes that were used for
+!!       the fast ice processes one timestep before.  When used in conjuction with
+!!       setting slow_ice_with_ocean=true, this approach allows the atmosphere and
+!!       ocean to run concurrently even if use_lag_fluxes=.FALSE., and it can be
+!!       shown to ameliorate or eliminate several ice-ocean coupled instabilities.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>slow_ice_with_ocean</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>If true, the slow sea-ice is advanced on the ocean processors.  Otherwise
+!!       the slow sea-ice processes are on the same PEs as the fast sea-ice.</td>
 !!   </tr>
 !!   <tr>
 !!     <td>restart_interval</td>
@@ -256,6 +272,12 @@
 !!     <td>logical</td>
 !!     <td>.FALSE.</td>
 !!     <td>Turns on/off checksum of certain variables.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_endpoint_chksum</td>
+!!     <td>logical</td>
+!!     <td>.TRUE.</td>
+!!     <td>Report checksums of the start and end states of certain variables.</td>
 !!   </tr>
 !! </table>
 !!
@@ -444,15 +466,15 @@ program coupler_main
                                                       !! consistent with the time_manager module: 'julian', 'noleap', or 'thirty_day'.
                                                       !! The value 'no_calendar' cannot be used because the time_manager's date
                                                       !! functions are used.  All values must be lower case.
-  logical :: force_date_from_namelist = .false.  !< Flat that determines whether the namelist variable current_date should override
+  logical :: force_date_from_namelist = .false.  !< Flag that determines whether the namelist variable current_date should override
                                                  !! the date in the restart file `INPUT/coupler.res`.  If the restart file does not
                                                  !! exist then force_date_from_namelist has no effect, the value of current_date
                                                  !! will be used.
-  integer :: months=0  !< Number of months the current integration will be run for
-  integer :: days=0    !< Number of days the current integration will be run for
-  integer :: hours=0   !< Number of hours the current integration will be run for
-  integer :: minutes=0 !< Number of minutes the current integration will be run for
-  integer :: seconds=0 !< Number of seconds the current integration will be run for
+  integer :: months=0  !< Number of months the current integration will be run
+  integer :: days=0    !< Number of days the current integration will be run
+  integer :: hours=0   !< Number of hours the current integration will be run
+  integer :: minutes=0 !< Number of minutes the current integration will be run
+  integer :: seconds=0 !< Number of seconds the current integration will be run
   integer :: dt_atmos = 0 !< Atmospheric model time step in seconds, including the fat coupling with land and sea ice
   integer :: dt_cpld  = 0 !< Time step in seconds for coupling between ocean and atmospheric models.  This must be an integral
                           !! multiple of dt_atmos and dt_ocean.  This is the "slow" timestep.
@@ -473,13 +495,20 @@ program coupler_main
   logical :: concurrent=.FALSE. !< If .TRUE., the ocean executes concurrently with the atmosphere-land-ice on a separate set of PEs.
                                 !! If .FALSE., the execution is serial: call atmos... followed by call ocean...
   logical :: do_concurrent_radiation=.FALSE. !< If .TRUE. then radiation is done concurrently
-  logical :: use_lag_fluxes=.TRUE. !< If .TRUE., the ocean is forced with SBCs from one coupling timestep ago.  If .FALSE., the ocean
-                                   !! if forced with most recent SBCs.  For an old leapfrog MOM4 coupling with dt_cpld=dt_ocean, lag fluxes
-                                   !! can be shown to be stable and current fluxes to be unconditionally unstable.  For dt_cpld>dt_ocean
-                                   !! there is probably sufficient damping for MOM4.  For more modern ocean models (such as MOM5, GOLD or
-                                   !! MOM6) that do not use leapfrog timestepping, use_lag_fluxes=.False. should be much more stable.
-  logical :: slow_ice_with_ocean=.FALSE.  !< If true, the slow sea-ice is advanced on the ocean processors.  Otherwise
-                                   !! the slow sea-ice processes are on the same PEs as the fast sea-ice.
+  logical :: use_lag_fluxes=.TRUE.  !< If .TRUE., the ocean is forced with SBCs from one coupling timestep ago.
+                                    !! If .FALSE., the ocean is forced with most recent SBCs.  For an old leapfrog
+                                    !! MOM4 coupling with dt_cpld=dt_ocean, lag fluxes can be shown to be stable
+                                    !! and current fluxes to be unconditionally unstable.  For dt_cpld>dt_ocean there
+                                    !! is probably sufficient damping for MOM4.  For more modern ocean models (such as
+                                    !! MOM5, GOLD or MOM6) that do not use leapfrog timestepping, use_lag_fluxes=.False.
+                                    !! should be much more stable.
+  logical :: concurrent_ice=.FALSE. !< If true, the slow sea-ice is forced with the fluxes that were used for the
+                                    !! fast ice processes one timestep before.  When used in conjuction with setting
+                                    !! slow_ice_with_ocean=.TRUE., this approach allows the atmosphere and
+                                    !! ocean to run concurrently even if use_lag_fluxes=.FALSE., and it can
+                                    !! be shown to ameliorate or eliminate several ice-ocean coupled instabilities.
+  logical :: slow_ice_with_ocean=.FALSE. !< If true, the slow sea-ice is advanced on the ocean processors.  Otherwise
+                                    !! the slow sea-ice processes are on the same PEs as the fast sea-ice.
   logical :: do_chksum=.FALSE.
   logical :: do_endpoint_chksum=.TRUE.  !< If true do checksums of the initial and final states.
   logical :: do_debug=.FALSE.
@@ -496,7 +525,7 @@ program coupler_main
                          concurrent, do_concurrent_radiation, use_lag_fluxes,      &
                          check_stocks, restart_interval, do_debug, do_chksum,      &
                          use_hyper_thread, ncores_per_node, debug_affinity,        &
-                         slow_ice_with_ocean, do_endpoint_chksum
+                         concurrent_ice, slow_ice_with_ocean, do_endpoint_chksum
 
   integer :: initClock, mainClock, termClock
 
@@ -626,7 +655,6 @@ program coupler_main
      ! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
      ! points when running concurrently. The calls are placed next to each other in
      ! concurrent mode to avoid multiple synchronizations within the main loop.
-     ! This is only possible in the serial case when use_lag_fluxes.
      if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
        ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
        if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
@@ -649,7 +677,7 @@ program coupler_main
        call mpp_set_current_pelist()
      endif
 
-     ! Update Ice_ocean_boundary; first iteration is supplied by restart
+     ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
      if( use_lag_fluxes )then
         if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
           if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
@@ -678,11 +706,19 @@ program coupler_main
            if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
            call mpp_clock_end(newClock6s)
         endif
-        ! This could be a point where the model is serialized.
+        ! This could be a point where the model is serialized if the fast and
+        ! slow ice are on different PEs.
         if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
         call mpp_clock_begin(newClock6e)
         call exchange_slow_to_fast_ice(Ice)
         call mpp_clock_end(newClock6e)
+
+        if (concurrent_ice) then
+          ! This call occurs all ice PEs.
+          call mpp_clock_begin(newClock10e)
+          call exchange_fast_to_slow_ice(Ice)
+          call mpp_clock_end(newClock10e)
+        endif
 
         if (Ice%fast_ice_pe) then
           if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%fast_pelist)
@@ -918,14 +954,16 @@ program coupler_main
            call mpp_clock_end(newClock10f)
         endif
 
-        ! This could be a point where the model is serialized.
-        !   Uncomment this for efficiency:
-        !      if (.not.Ice%shared_slow_fast_PEs)
-        call mpp_set_current_pelist(Ice%pelist)
-        ! This call occurs all ice PEs.
-        call mpp_clock_begin(newClock10e)
-        call exchange_fast_to_slow_ice(Ice)
-        call mpp_clock_end(newClock10e)
+        if (.not.concurrent_ice) then
+          ! This could be a point where the model is serialized.
+          !   Uncomment this for efficiency:
+          !      if (.not.Ice%shared_slow_fast_PEs)
+          call mpp_set_current_pelist(Ice%pelist)
+          ! This call occurs all ice PEs.
+          call mpp_clock_begin(newClock10e)
+          call exchange_fast_to_slow_ice(Ice)
+          call mpp_clock_end(newClock10e)
+        endif
 
         !   ------ slow-ice model ------
 
@@ -945,7 +983,9 @@ program coupler_main
 
      endif  ! End of Ice%pe block
 
-     if( .NOT.use_lag_fluxes )then !this could serialize
+     ! Update Ice_ocean_boundary using the newly calculated fluxes.
+     if( concurrent_ice .OR. .NOT.use_lag_fluxes )then
+        !this could serialize unless slow_ice_with_ocean is true.
         if ((.not.do_ice) .or. (.not.slow_ice_with_ocean)) &
           call mpp_set_current_pelist()
 
@@ -954,7 +994,7 @@ program coupler_main
           call mpp_clock_begin(newClock3)
           call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
           call mpp_clock_end(newClock3)
-       endif
+        endif
      endif
 
      if( Ocean%is_ocean_pe )then
@@ -1181,11 +1221,18 @@ contains
       call mpp_error(FATAL, 'ERROR in coupler_init: '//trim(err_msg))
     endif
 
-    if( concurrent .AND. .NOT.use_lag_fluxes )call mpp_error( WARNING, &
-            'coupler_init: you have set concurrent=TRUE and use_lag_fluxes=FALSE &
+    if( concurrent .AND. .NOT.(use_lag_fluxes .OR. concurrent_ice) ) &
+      call mpp_error( WARNING, 'coupler_init: you have set concurrent=TRUE, &
+            & use_lag_fluxes=FALSE, and concurrent_ice=FALSE &
             & in coupler_nml. When not using lag fluxes, components &
             & will synchronize at two points, and thus run serially.' )
-
+    if( concurrent_ice .AND. .NOT.slow_ice_with_ocean ) call mpp_error(WARNING, &
+           'coupler_init: concurrent_ice is true, but slow ice_with_ocean is &
+           & false in coupler_nml.  These two flags should both be true to avoid &
+           & effectively serializing the run.' )
+    if( use_lag_fluxes .AND. concurrent_ice ) call mpp_error(WARNING, &
+           'coupler_init: use_lag_fluxes and concurrent_ice are both true. &
+           & These two coupling options are intended to be exclusive.' )
 
     !Check with the ensemble_manager module for the size of ensemble
     !and PE counts for each member of the ensemble.
@@ -1411,6 +1458,8 @@ contains
        else
           call mpp_error( NOTE, 'coupler_init: Sending most recent fluxes to ocean.' )
        end if
+       if( concurrent_ice ) call mpp_error( NOTE, &
+         'coupler_init: using lagged slow-ice coupling mode.')
     endif
 
 !----- write namelist to logfile -----
@@ -1432,21 +1481,26 @@ contains
 !    time for both Atm and Ocean pes. While this should be the case, the
 !    possible error condition needs to be checked
 
-    if( Atm%pe )then
-        call mpp_set_current_pelist(Atm%pelist)
-        if(atmos_npes /= npes)diag_model_subset = DIAG_OTHER  ! change diag_model_subset from DIAG_ALL
-    elseif( Ocean%is_ocean_pe )then  ! Error check above for disjoint pelists should catch any problem
-        call mpp_set_current_pelist(Ocean%pelist)
-        if(ocean_npes /= npes)diag_model_subset = DIAG_OCEAN  ! change diag_model_subset from DIAG_ALL
+    diag_model_subset=DIAG_ALL
+    if (Atm%pe) then
+      call mpp_set_current_pelist(Atm%pelist)
+      if (atmos_npes /= npes) diag_model_subset = DIAG_OTHER  ! change diag_model_subset from DIAG_ALL
+    elseif (Ocean%is_ocean_pe) then  ! Error check above for disjoint pelists should catch any problem
+      call mpp_set_current_pelist(Ocean%pelist)
+      ! The FMS diag manager has a convention that segregates files with "ocean"
+      ! in their names from the other files to handle long diag tables.  This
+      ! does not work if the ice is on the ocean PEs.
+      if ((ocean_npes /= npes) .and. .not.slow_ice_with_ocean) &
+          diag_model_subset = DIAG_OCEAN  ! change diag_model_subset from DIAG_ALL
     end if
-    if( mpp_pe().EQ.mpp_root_pe() ) then
+    if ( mpp_pe() == mpp_root_pe() ) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Starting to initialize diag_manager at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
     call diag_manager_init(DIAG_MODEL_SUBSET=diag_model_subset, TIME_INIT=date)   ! initialize diag_manager for processor subset output
     call print_memuse_stats( 'diag_manager_init' )
-    if( mpp_pe().EQ.mpp_root_pe() ) then
+    if ( mpp_pe() == mpp_root_pe() ) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Finished initializing diag_manager at '&
                        //trim(walldate)//' '//trim(walltime)
@@ -1658,7 +1712,8 @@ contains
         endif
         call mpp_clock_begin(id_ice_model_init)
         call ice_model_init( Ice, Time_init, Time, Time_step_atmos, &
-                             Time_step_cpld, Verona_coupler=.false. )
+                             Time_step_cpld, Verona_coupler=.false., &
+                             concurrent_ice=concurrent_ice )
         call mpp_clock_end(id_ice_model_init)
 
         ! This must be called using the union of the ice PE_lists.
@@ -1675,10 +1730,10 @@ contains
           call mpp_set_current_pelist(Ice%fast_pelist)
           call data_override_init(Ice_domain_in = Ice%domain)
         endif
-    end if
+    endif
+!---- ocean ---------
     if( Ocean%is_ocean_pe )then
         call mpp_set_current_pelist(Ocean%pelist)
-!---- ocean ---------
         if( mpp_pe().EQ.mpp_root_pe() ) then
           call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
           write(errunit,*) 'Starting to initialize ocean model at '&
@@ -1688,7 +1743,7 @@ contains
         call ocean_model_init( Ocean, Ocean_state, Time_init, Time )
         call mpp_clock_end(id_ocean_model_init)
 
-     if(concurrent) then
+       if(concurrent) then
 !$           call omp_set_num_threads(ocean_nthreads)
        call mpp_set_current_pelist( Ocean%pelist )
 !$           base_cpu = get_cpu_affinity()
@@ -1711,7 +1766,7 @@ contains
        else
           ocean_nthreads = atmos_nthreads
 !$        call omp_set_num_threads(ocean_nthreads)
-       end if
+       endif
 
 
         if( mpp_pe().EQ.mpp_root_pe() ) then
@@ -1732,6 +1787,8 @@ contains
                            //trim(walldate)//' '//trim(walltime)
         endif
     end if
+
+!---------------------------------------------
     if( mpp_pe().EQ.mpp_root_pe() ) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Finished initializing component models at '&
