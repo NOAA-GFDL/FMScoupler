@@ -282,8 +282,9 @@
 !! </table>
 !!
 !! \note
-!! -# If no value is set for current_date, start_date, or calendar (or default value specified) then the value from restart
-!!    file "INPUT/coupler.res" will be used. If neither a namelist value or restart file value exist the program will fail.
+!! -# If no value is set for current_date, start_date, or calendar (or default value specified) then the value from
+!!    restart file "INPUT/coupler.res" will be used. If neither a namelist value or restart file value exist the
+!!    program will fail.
 !! -# The actual run length will be the sum of months, days, hours, minutes, and seconds. A run length of zero is not a
 !!    valid option.
 !! -# The run length must be an intergal multiple of the coupling timestep dt_cpld.
@@ -365,13 +366,12 @@ program coupler_main
   use land_model_mod,          only: land_model_restart
 
   use ice_model_mod,           only: ice_model_init, share_ice_domains, ice_model_end, ice_model_restart
-  use ice_model_mod,           only: update_ice_model_fast
+  use ice_model_mod,           only: update_ice_model_fast, set_ice_surface_fields
   use ice_model_mod,           only: ice_data_type, land_ice_boundary_type
   use ice_model_mod,           only: ocean_ice_boundary_type, atmos_ice_boundary_type
   use ice_model_mod,           only: ice_data_type_chksum, ocn_ice_bnd_type_chksum
   use ice_model_mod,           only: atm_ice_bnd_type_chksum, lnd_ice_bnd_type_chksum
   use ice_model_mod,           only: unpack_ocean_ice_boundary, exchange_slow_to_fast_ice
-  use ice_model_mod,           only: set_ice_surface_fields
   use ice_model_mod,           only: ice_model_fast_cleanup, unpack_land_ice_boundary
   use ice_model_mod,           only: exchange_fast_to_slow_ice, update_ice_model_slow
 
@@ -383,16 +383,12 @@ program coupler_main
 ! flux_ calls translate information between model grids - see flux_exchange.f90
 !
 
-  use flux_exchange_mod,       only: flux_exchange_init
-  use flux_exchange_mod,       only: sfc_boundary_layer
-  use flux_exchange_mod,       only: generate_sfc_xgrid
-  use flux_exchange_mod,       only: send_ice_mask_sic
-  use flux_exchange_mod,       only: flux_down_from_atmos
-  use flux_exchange_mod,       only: flux_up_to_atmos
-  use flux_exchange_mod,       only: flux_land_to_ice
-  use flux_exchange_mod,       only: flux_ice_to_ocean
-  use flux_exchange_mod,       only: flux_ocean_to_ice
-  use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
+  use flux_exchange_mod,       only: flux_exchange_init, sfc_boundary_layer
+  use flux_exchange_mod,       only: generate_sfc_xgrid, send_ice_mask_sic
+  use flux_exchange_mod,       only: flux_down_from_atmos, flux_up_to_atmos
+  use flux_exchange_mod,       only: flux_land_to_ice, flux_ice_to_ocean, flux_ocean_to_ice
+  use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks
+  use flux_exchange_mod,       only: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
 
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
@@ -476,8 +472,8 @@ program coupler_main
   integer :: minutes=0 !< Number of minutes the current integration will be run
   integer :: seconds=0 !< Number of seconds the current integration will be run
   integer :: dt_atmos = 0 !< Atmospheric model time step in seconds, including the fat coupling with land and sea ice
-  integer :: dt_cpld  = 0 !< Time step in seconds for coupling between ocean and atmospheric models.  This must be an integral
-                          !! multiple of dt_atmos and dt_ocean.  This is the "slow" timestep.
+  integer :: dt_cpld  = 0 !< Time step in seconds for coupling between ocean and atmospheric models.  This must be an
+                          !! integral multiple of dt_atmos and dt_ocean.  This is the "slow" timestep.
   integer :: atmos_npes=0 !< The number of MPI tasks to use for the atmosphere
   integer :: ocean_npes=0 !< The number of MPI tasks to use for the ocean
   integer :: ice_npes=0   !< The number of MPI tasks to use for the ice
@@ -485,14 +481,15 @@ program coupler_main
   integer :: atmos_nthreads=1 !< Number of OpenMP threads to use in the atmosphere
   integer :: ocean_nthreads=1 !< Number of OpenMP threads to use in the ocean
   integer :: radiation_nthreads=1 !< Number of threads to use for the radiation.
-  logical :: do_atmos =.true. !< Indicates if this component should be executed.  If .FALSE., then execution is skipped.  This is used
-                              !! This is used when ALL the output fields sent by this component to the coupler have been overridden
-                              !! using the data_override feature.  This is for advanced users only.
+  logical :: do_atmos =.true. !< Indicates if this component should be executed.  If .FALSE., then execution is skipped.
+                              !! This is used when ALL the output fields sent by this component to the coupler have been
+                              !! overridden  using the data_override feature.  This is for advanced users only.
   logical :: do_land =.true. !< See do_atmos
   logical :: do_ice =.true.  !< See do_atmos
   logical :: do_ocean=.true. !< See do_atmos
   logical :: do_flux =.true. !< See do_atmos
-  logical :: concurrent=.FALSE. !< If .TRUE., the ocean executes concurrently with the atmosphere-land-ice on a separate set of PEs.
+  logical :: concurrent=.FALSE. !< If .TRUE., the ocean executes concurrently with the atmosphere-land-ice on a separate
+                                !! set of PEs.  Concurrent should be .TRUE. if concurrent_ice is .TRUE.
                                 !! If .FALSE., the execution is serial: call atmos... followed by call ocean...
   logical :: do_concurrent_radiation=.FALSE. !< If .TRUE. then radiation is done concurrently
   logical :: use_lag_fluxes=.TRUE.  !< If .TRUE., the ocean is forced with SBCs from one coupling timestep ago.
@@ -502,16 +499,16 @@ program coupler_main
                                     !! is probably sufficient damping for MOM4.  For more modern ocean models (such as
                                     !! MOM5, GOLD or MOM6) that do not use leapfrog timestepping, use_lag_fluxes=.False.
                                     !! should be much more stable.
-  logical :: concurrent_ice=.FALSE. !< If true, the slow sea-ice is forced with the fluxes that were used for the
+  logical :: concurrent_ice=.FALSE. !< If .TRUE., the slow sea-ice is forced with the fluxes that were used for the
                                     !! fast ice processes one timestep before.  When used in conjuction with setting
                                     !! slow_ice_with_ocean=.TRUE., this approach allows the atmosphere and
                                     !! ocean to run concurrently even if use_lag_fluxes=.FALSE., and it can
                                     !! be shown to ameliorate or eliminate several ice-ocean coupled instabilities.
   logical :: slow_ice_with_ocean=.FALSE. !< If true, the slow sea-ice is advanced on the ocean processors.  Otherwise
                                     !! the slow sea-ice processes are on the same PEs as the fast sea-ice.
-  logical :: do_chksum=.FALSE.
-  logical :: do_endpoint_chksum=.TRUE.  !< If true do checksums of the initial and final states.
-  logical :: do_debug=.FALSE.
+  logical :: do_chksum=.FALSE.      !! If .TRUE., do multiple checksums throughout the execution of the model.
+  logical :: do_endpoint_chksum=.TRUE.  !< If .TRUE., do checksums of the initial and final states.
+  logical :: do_debug=.FALSE.       !< If .TRUE. print additional debugging messages.
   integer :: check_stocks = 0 ! -1: never 0: at end of run only n>0: every n coupled steps
   logical :: use_hyper_thread = .false.
   integer :: ncores_per_node = 0
@@ -1306,7 +1303,6 @@ contains
     Ocean%is_ocean_pe = ANY(Ocean%pelist .EQ. mpp_pe())
     Land%pe           = ANY(Land%pelist  .EQ. mpp_pe())
 
-!    Ice%shared_slow_fast_PEs = .true. ! .not.slow_ice_with_ocean
     Ice%shared_slow_fast_PEs = .not.slow_ice_with_ocean
     ! This is where different settings would be applied if the fast and slow
     ! ice occurred on different PEs.
@@ -1399,7 +1395,6 @@ contains
        id_land_model_init  = mpp_clock_id( '  Init: land_model_init ' )
     endif
     if( Ice%pe )then
-!        call mpp_set_current_pelist(Ice%pelist)
         if (Ice%shared_slow_fast_PEs) then
           call mpp_set_current_pelist(Ice%pelist)
         elseif (Ice%fast_ice_pe) then
@@ -1933,7 +1928,7 @@ contains
 
 !#######################################################################
 
-  subroutine coupler_end
+  subroutine coupler_end()
 
 !-----------------------------------------------------------------------
 
@@ -2076,7 +2071,7 @@ contains
     call get_number_tracers (MODEL_LAND, num_tracers=n_lnd_tr_tot, &
                              num_prog=n_lnd_tr)
 
-    ! assemble the table of tracer number translation by matching names of
+    ! Assemble the table of tracer number translation by matching names of
     ! prognostic tracers in the atmosphere and surface models; skip all atmos.
     ! tracers that have no corresponding surface tracers.
     allocate(tr_table(n_atm_tr))
@@ -2086,8 +2081,7 @@ contains
        tr_table(n)%atm = i
        tr_table(n)%ice = get_tracer_index ( MODEL_ICE,  tr_name )
        tr_table(n)%lnd = get_tracer_index ( MODEL_LAND, tr_name )
-       if(tr_table(n)%ice/=NO_TRACER.or.tr_table(n)%lnd/=NO_TRACER) &
-            n = n+1
+       if (tr_table(n)%ice/=NO_TRACER .or. tr_table(n)%lnd/=NO_TRACER) n = n+1
     enddo
     n_exch_tr = n-1
 
@@ -2272,4 +2266,4 @@ contains
   end subroutine ocean_chksum
 
 
-  end program coupler_main
+end program coupler_main
