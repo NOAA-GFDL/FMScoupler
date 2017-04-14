@@ -119,6 +119,16 @@ contains
     allocate( ice_ocean_boundary%calving_hflx  (is:ie,js:je) ) ;    ice_ocean_boundary%calving_hflx = 0.0
     allocate( ice_ocean_boundary%p        (is:ie,js:je) ) ;         ice_ocean_boundary%p = 0.0
     allocate( ice_ocean_boundary%mi       (is:ie,js:je) ) ;         ice_ocean_boundary%mi = 0.0
+    !Allocating iceberg fields, if the corresponding fields are assosiated in the sea ice model(s) 
+    if (associated(Ice%ustar_berg)) then
+      allocate( ice_ocean_boundary%ustar_berg (is:ie,js:je) ) ;     ice_ocean_boundary%ustar_berg = 0.0
+    endif
+    if (associated(Ice%area_berg)) then
+      allocate( ice_ocean_boundary%area_berg  (is:ie,js:je) ) ;     ice_ocean_boundary%area_berg = 0.0
+    endif
+    if (associated(Ice%mass_berg)) then
+      allocate( ice_ocean_boundary%mass_berg  (is:ie,js:je) ) ;     ice_ocean_boundary%mass_berg = 0.0
+    endif
     ! Copy the stagger indication variables from the ice processors the ocean 
     ! PEs and vice versa.  The defaults are large negative numbers, so the
     ! global max here picks out only values that have been set on active PEs.
@@ -272,6 +282,15 @@ contains
     if(ASSOCIATED(Ice_Ocean_Boundary%calving) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
          Ice%calving, Ice_Ocean_Boundary%calving, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
 
+    if(ASSOCIATED(Ice_Ocean_Boundary%ustar_berg) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
+       Ice%ustar_berg, Ice_Ocean_Boundary%ustar_berg, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
+
+    if(ASSOCIATED(Ice_Ocean_Boundary%area_berg) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
+         Ice%area_berg, Ice_Ocean_Boundary%area_berg, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
+
+    if(ASSOCIATED(Ice_Ocean_Boundary%mass_berg) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
+         Ice%mass_berg, Ice_Ocean_Boundary%mass_berg, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
+
     if(ASSOCIATED(Ice_Ocean_Boundary%runoff_hflx) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
          Ice%runoff_hflx, Ice_Ocean_Boundary%runoff_hflx, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
 
@@ -302,7 +321,13 @@ contains
        call data_override('OCN', 'calving_hflx',   Ice_Ocean_Boundary%calving_hflx  , Time )
        call data_override('OCN', 'p',         Ice_Ocean_Boundary%p        , Time )
        call data_override('OCN', 'mi',        Ice_Ocean_Boundary%mi       , Time )
-
+      !Are these if statements needed, or does data_override routine check if variable is assosiated? 
+       if (ASSOCIATED(Ice_Ocean_Boundary%ustar_berg) ) &
+         call data_override('OCN', 'ustar_berg', Ice_Ocean_Boundary%ustar_berg, Time )
+       if (ASSOCIATED(Ice_Ocean_Boundary%area_berg)  ) &
+         call data_override('OCN', 'area_berg',  Ice_Ocean_Boundary%area_berg , Time )
+       if (ASSOCIATED(Ice_Ocean_Boundary%mass_berg)  ) &
+         call data_override('OCN', 'mass_berg',  Ice_Ocean_Boundary%mass_berg , Time )
 
        ! Extra fluxes
        do n = 1, Ice_Ocean_Boundary%fluxes%num_bcs  !{
