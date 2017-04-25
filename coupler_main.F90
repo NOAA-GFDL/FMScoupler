@@ -389,6 +389,7 @@ program coupler_main
   use flux_exchange_mod,       only: flux_land_to_ice, flux_ice_to_ocean, flux_ocean_to_ice
   use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks
   use flux_exchange_mod,       only: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
+  use flux_exchange_mod,       only: flux_atmos_to_ocean, flux_ex_arrays_dealloc
 
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
@@ -766,6 +767,7 @@ program coupler_main
 !$OMP PARALLEL  &
 !$OMP&       NUM_THREADS(conc_nthreads)  &
 !$OMP&       DEFAULT(NONE)  &
+!$OMP&       PRIVATE(conc_nthreads) &
 !$OMP&       SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
 !$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&       SHARED(Ocean_ice_boundary) &
@@ -780,7 +782,7 @@ program coupler_main
 !$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&       SHARED(Ocean_ice_boundary) &
 !$OMP&       SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl) 
+!$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
 !$          call omp_set_num_threads(atmos_nthreads)
 !$          dsec=omp_get_wtime()
             if (do_concurrent_radiation) call mpp_clock_begin(newClocki)
@@ -811,6 +813,7 @@ program coupler_main
               call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
               call mpp_clock_end(newClockc)
             endif
+
             if(do_chksum) call atmos_ice_land_chksum('update_atmos_down+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
       if (do_debug)  call print_memuse_stats( 'update down')
@@ -823,6 +826,7 @@ program coupler_main
             call mpp_clock_end(newClockd)
             if(do_chksum) call atmos_ice_land_chksum('flux_down_from_atmos+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
                    Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+
 
             !      --------------------------------------------------------------
             !      ---- land model ----
@@ -866,6 +870,10 @@ program coupler_main
                    Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
       if (do_debug)  call print_memuse_stats( 'update up')
 
+            call flux_atmos_to_ocean(Time_atmos, Atm, Atmos_ice_boundary, Ice)
+
+            call flux_ex_arrays_dealloc
+
             !--------------
             if (do_concurrent_radiation) call mpp_clock_end(newClocki)
 !$          omp_sec(1) = omp_sec(1) + (omp_get_wtime() - dsec)
@@ -907,6 +915,7 @@ program coupler_main
                    Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
           if (do_debug)  call print_memuse_stats( 'update state')
           call mpp_clock_end(newClockk)
+
 
         enddo ! end of na (fast loop)
 
@@ -1742,7 +1751,7 @@ contains
 !$           call omp_set_num_threads(ocean_nthreads)
        call mpp_set_current_pelist( Ocean%pelist )
 !$           base_cpu = get_cpu_affinity()
-!$OMP PARALLEL private(adder)    
+!$OMP PARALLEL private(adder)
 !$        if (use_hyper_thread) then
 !$          if (mod(omp_get_thread_num(),2) == 0) then
 !$            adder = omp_get_thread_num()/2
@@ -1757,7 +1766,7 @@ contains
 !$          write(6,*) " ocean  ", get_cpu_affinity(), adder, omp_get_thread_num()
 !$          call flush(6)
 !$        endif
-!$OMP END PARALLEL  
+!$OMP END PARALLEL
        else
           ocean_nthreads = atmos_nthreads
 !$        call omp_set_num_threads(ocean_nthreads)
