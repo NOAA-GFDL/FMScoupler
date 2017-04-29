@@ -38,7 +38,6 @@ module atm_land_ice_flux_exchange_mod
   use    land_model_mod,  only: land_data_type, atmos_land_boundary_type, &
                                 set_default_diag_filter, register_tiled_diag_field, &
                                 send_tile_data
-  use     land_data_mod,  only: lnd_sg
   use  surface_flux_mod,  only: surface_flux, surface_flux_init
   use monin_obukhov_mod,  only: mo_profile
   use xgrid_mod,          only: xmap_type, setup_xmap, set_frac_area, put_to_xgrid, &
@@ -50,6 +49,7 @@ module atm_land_ice_flux_exchange_mod
   use xgrid_mod,          only: set_frac_area_land => set_frac_area_ug
   use xgrid_mod,          only: stock_move_land => stock_move_ug
   use data_override_mod,  only: data_override_land => data_override_ug
+  use     land_data_mod,  only: lnd_sg
 #else
   use xgrid_mod,          only: get_from_xgrid_land => get_from_xgrid
   use xgrid_mod,          only: put_to_xgrid_land => put_to_xgrid
@@ -278,10 +278,12 @@ module atm_land_ice_flux_exchange_mod
      module procedure put_logical_to_real_ug
   end interface
 
+#ifndef _USE_LEGACY_LAND_
   interface send_global_land_diag
      module procedure send_global_diag_UG
      module procedure send_global_diag_SG
   end interface
+#endif
 
   integer :: ni_atm, nj_atm !< to do atmos diagnostic from flux_ocean_to_ice
   real, dimension(3) :: ccc !< for conservation checks
@@ -3655,7 +3657,7 @@ contains
 
   !#######################################################################
   !> \brief Send out the land model field on unstructured grid for global integral
-
+#ifndef _USE_LEGACY_LAND_
   logical function send_global_diag_UG ( id, diag, Time, tile, mask, Land )
 
   integer,                 intent(in) :: id
@@ -3730,6 +3732,7 @@ contains
     send_global_diag_SG = send_global_diag ( id, diag_sg, Time, tile_sg*lnd_sg%area, mask_sg )
 
   end function send_global_diag_SG
+#endif
 
   !#######################################################################
 
