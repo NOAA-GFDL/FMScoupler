@@ -27,7 +27,6 @@ module atm_land_ice_flux_exchange_mod
   use   mpp_domains_mod,  only: mpp_get_global_domain, mpp_get_data_domain
   use   mpp_domains_mod,  only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
   use   mpp_domains_mod,  only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
-  use   mpp_domains_mod,  only: mpp_pass_ug_to_sg
   use   mpp_io_mod,       only: mpp_close, mpp_open, MPP_MULTI, MPP_SINGLE, MPP_OVERWR
   use   atmos_model_mod,  only: atmos_data_type, land_ice_atmos_boundary_type
   use   ocean_model_mod,  only: ocean_public_type, ice_ocean_boundary_type
@@ -38,7 +37,6 @@ module atm_land_ice_flux_exchange_mod
   use    land_model_mod,  only: land_data_type, atmos_land_boundary_type, &
                                 set_default_diag_filter, register_tiled_diag_field, &
                                 send_tile_data
-  use     land_data_mod,  only: lnd_sg
   use  surface_flux_mod,  only: surface_flux, surface_flux_init
   use monin_obukhov_mod,  only: mo_profile
   use xgrid_mod,          only: xmap_type, setup_xmap, set_frac_area, put_to_xgrid, &
@@ -81,6 +79,9 @@ module atm_land_ice_flux_exchange_mod
   use atmos_global_diag_mod, only: register_global_diag_field, &
                                    get_global_diag_field_id, &
                                    send_global_diag
+#ifndef _USE_LEGACY_LAND_
+  use land_model_mod,        only: send_global_land_diag
+#endif
 #endif
   use field_manager_mod,       only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE
   use tracer_manager_mod,      only: get_tracer_index
@@ -276,11 +277,6 @@ module atm_land_ice_flux_exchange_mod
   interface put_logical_to_real
      module procedure put_logical_to_real_sg
      module procedure put_logical_to_real_ug
-  end interface
-
-  interface send_global_land_diag
-     module procedure send_global_diag_UG
-     module procedure send_global_diag_SG
   end interface
 
   integer :: ni_atm, nj_atm !< to do atmos diagnostic from flux_ocean_to_ice
@@ -1675,9 +1671,11 @@ contains
        call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
        if (id_t_ref_land > 0)  call send_tile_data (id_t_ref_land, diag_land)
        if (id_tasLut_land > 0) call send_tile_data (id_tasLut_land, diag_land)
+#ifndef _USE_LEGACY_LAND_
        if (id_tasl_g > 0) then
          used = send_global_land_diag ( id_tasl_g, diag_land, Time, Land%tile_size, Land%mask, Land )
        endif
+#endif
     endif
     ! t_ref diagnostic at all atmos points
     call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -3573,6 +3571,12 @@ contains
     id_tasl_g = register_global_diag_field ( 'tasl', Time, &
                            'Near-Surface Air Temperature (Land Only)', 'K' , &
                                  standard_name='air_temperature' )
+#if defined(_USE_LEGACY_LAND_) || defined(use_AM3_physics)
+    if(id_tasl_g>0) then
+       call mpp_error(WARNING, "diag_field_init: field tasl is registered, but macro "// &
+             "_USE_LEGACY_LAND_ or use_AM3_physics is defined, no data will be written out"
+    endif
+#endif
     if ( id_tasl_g > 0 .and. id_height2m > 0) &
          call diag_field_add_attribute ( get_global_diag_field_id(id_tasl_g), 'coordinates', 'height2m' )
 
@@ -3652,84 +3656,6 @@ contains
     endif
 
   end subroutine send_ice_mask_sic
-
-  !#######################################################################
-  !> \brief Send out the land model field on unstructured grid for global integral
-
-  logical function send_global_diag_UG ( id, diag, Time, tile, mask, Land )
-
-  integer,                 intent(in) :: id
-  real,    dimension(:,:), intent(in) :: diag, tile
-  type(time_type),         intent(in) :: Time
-  logical, dimension(:,:), intent(in) :: mask
-  type(land_data_type),    intent(in) :: Land
-
-  real,    dimension(size(diag,1))    :: diag_ug, tile_ug
-  logical, dimension(size(mask,1))    :: mask_ug
-  real,    dimension(nxc_lnd,nyc_lnd) :: diag_sg, tile_sg
-  logical, dimension(nxc_lnd,nyc_lnd) :: mask_sg
-  integer :: k
-
-    ! sum over tiles on unstructured grid
-    diag_ug = 0.0
-    tile_ug = 0.0
-    do k = 1, size(diag,2)
-      where (mask(:,k))
-        diag_ug = diag_ug + diag(:,k)*tile(:,k)
-        tile_ug = tile_ug + tile(:,k)
-      endwhere
-    enddo
-    ! average on unstructured grid
-    where (tile_ug > 0.0)
-      diag_ug = diag_ug/tile_ug
-    endwhere
-    mask_ug = ANY(mask,dim=2)
-
-    ! compute average on structured grid
-    mask_sg = .false.
-    diag_sg = 0.0
-    tile_sg = 0.0
-    call mpp_pass_ug_to_sg(Land%ug_domain, diag_ug, diag_sg)
-    call mpp_pass_ug_to_sg(Land%ug_domain, tile_ug, tile_sg)
-    call mpp_pass_ug_to_sg(Land%ug_domain, mask_ug, mask_sg)
-
-    send_global_diag_UG = send_global_diag ( id, diag_sg, Time, tile_sg*lnd_sg%area, mask_sg )
-
-  end function send_global_diag_UG
-
-  !#######################################################################
-  !> \brief Send out the land model field for global integral
-
-  logical function send_global_diag_SG ( id, diag, Time, tile, mask, Land )
-
-  integer,                   intent(in) :: id
-  real,    dimension(:,:,:), intent(in) :: diag, tile
-  type(time_type),           intent(in) :: Time
-  logical, dimension(:,:,:), intent(in) :: mask
-  type(land_data_type),      intent(in) :: Land
-
-  real,    dimension(size(diag,1),size(diag,2)) :: diag_sg, tile_sg
-  logical, dimension(size(mask,1),size(mask,2)) :: mask_sg
-  integer :: k
-
-    ! sum over tiles
-    diag_sg = 0.0
-    tile_sg = 0.0
-    do k = 1, size(diag,3)
-      where (mask(:,:,k))
-        diag_sg = diag_sg + diag(:,:,k)*tile(:,:,k)
-        tile_sg = tile_sg + tile(:,:,k)
-      endwhere
-    enddo
-    ! average on unstructured grid
-    where (tile_sg > 0.0)
-      diag_sg = diag_sg/tile_sg
-    endwhere
-    mask_sg = ANY(mask,dim=3)
-
-    send_global_diag_SG = send_global_diag ( id, diag_sg, Time, tile_sg*lnd_sg%area, mask_sg )
-
-  end function send_global_diag_SG
 
   !#######################################################################
 
