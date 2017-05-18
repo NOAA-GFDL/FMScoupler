@@ -542,7 +542,7 @@ module flux_exchange_mod
   use atm_land_ice_flux_exchange_mod, only: flux_up_to_atmos, atm_stock_integrate, send_ice_mask_sic
   use atm_land_ice_flux_exchange_mod, only: flux_atmos_to_ocean, flux_ex_arrays_dealloc
   use land_ice_flux_exchange_mod,     only: flux_land_to_ice, land_ice_flux_exchange_init
-  use ice_ocean_flux_exchange_mod,    only: ice_ocean_flux_exchange_init, ocean_to_ice_flux_exchange
+  use ice_ocean_flux_exchange_mod,    only: ice_ocean_flux_exchange_init, flux_ocean_to_ice
   use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
 
   implicit none
@@ -561,42 +561,13 @@ private
      flux_check_stocks,    &
      flux_init_stocks,     &
      flux_ice_to_ocean_stocks,&
-     flux_ocean_from_ice_stocks
+     flux_ocean_from_ice_stocks,&
+     send_ice_mask_sic
 
   !-----------------------------------------------------------------------
   character(len=128) :: version = '$Id$'
   character(len=128) :: tag = '$Name$'
-  !-----------------------------------------------------------------------
 
-
-  !-----------------------------------------------------------------------
-  !-------- namelist (for diagnostics) ------
-
-  character(len=4), parameter :: mod_name = 'flux'
-
-  integer :: id_drag_moist,  id_drag_heat,  id_drag_mom,     &
-       id_rough_moist, id_rough_heat, id_rough_mom,    &
-       id_land_mask,   id_ice_mask,     &
-       id_u_star, id_b_star, id_q_star, id_u_flux, id_v_flux,   &
-       id_t_surf, id_t_flux, id_r_flux, id_q_flux, id_slp,      &
-       id_t_atm,  id_u_atm,  id_v_atm,  id_wind,                &
-       id_t_ref,  id_rh_ref, id_u_ref,  id_v_ref, id_wind_ref,  &
-       id_del_h,  id_del_m,  id_del_q,  id_rough_scale,         &
-       id_t_ca,   id_q_surf, id_q_atm, id_z_atm, id_p_atm, id_gust, &
-       id_t_ref_land, id_rh_ref_land, id_u_ref_land, id_v_ref_land, &
-       id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip
-
-  integer :: id_co2_atm_dvmr, id_co2_surf_dvmr
-
-  integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:)
-
-  ! id's for cmip specific fields
-  integer :: id_tas, id_uas, id_vas, id_ts, id_psl, &
-       id_sfcWind, id_tauu, id_tauv, &
-       id_hurs, id_huss, id_evspsbl, id_hfls, id_hfss, &
-       id_rhs, id_sftlf, id_tos, id_sic, id_tslsi
-
-  logical :: first_static = .true.
   logical :: do_init = .true.
 
   real, parameter :: bound_tol = 1e-7
@@ -775,38 +746,6 @@ contains
     do_init = .false.
 
   end subroutine flux_exchange_init
-
-  !#######################################################################
-  !> \brief Takes the ocean model state and interpolates it onto the bottom of the ice.
-  !!
-  !! The following quantities are transferred from the Ocean to the ocean_ice_boundary_type:
-  !! <pre>
-  !!        t_surf = surface temperature (deg K)
-  !!        frazil = frazil (???)
-  !!        u_surf = zonal ocean current/ice motion (m/s)
-  !!        v_surf = meridional ocean current/ice motion (m/s
-  !! </pre>
-  !!
-  !! \throw FATAL, "Ocean_Ice_Boundary%xtype must be DIRECT or REDIST."
-  !!    The value of variable xtype of ice_ocean_boundary_type data must be DIRECT or REDIST.
-  subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
-
-    type(time_type),                 intent(in)  :: Time !< Current time
-    type(ocean_public_type),         intent(in)  :: Ocean !< A derived data type to specify ocean boundary data
-    type(ice_data_type),             intent(in)  :: Ice   !< A derived data type to specify ice boundary data
-    !  real, dimension(:,:),   intent(out) :: t_surf_ice, u_surf_ice, v_surf_ice, &
-    !                                         frazil_ice, s_surf_ice, sea_lev_ice
-    type(ocean_ice_boundary_type), intent(inout) :: Ocean_Ice_Boundary !< A derived data type to specify properties and fluxes
-    !! passed from ocean to ice
-
-    call ocean_to_ice_flux_exchange(Time, Ocean, Ice, Ocean_Ice_Boundary )
-
-    call mpp_set_current_pelist()
-
-    call send_ice_mask_sic(Time)
-
-  end subroutine flux_ocean_to_ice
-
 
   !> \brief Check stock values.
   !!
