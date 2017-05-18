@@ -526,6 +526,13 @@ contains
     call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
          'ice_flux', Ice%axes, Time, suffix = '_ice')
 
+    ! This call sets up a structure that is private to the ice model, and it
+    ! does not belong here.  This line should be eliminated once an update
+    ! to the FMS coupler_types code is made available that overloads the 
+    ! subroutine coupler_type_copy to use 2d and 3d coupler type sources. -RWH
+    call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd,     &
+         'ice_flux', Ice%axes, Time, suffix = '_ice_top')
+
     !allocate land_ice_atmos_boundary
     call mpp_get_compute_domain( Atm%domain, is, ie, js, je )
     allocate( land_ice_atmos_boundary%t(is:ie,js:je) )
