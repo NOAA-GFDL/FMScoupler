@@ -31,12 +31,16 @@ module atm_land_ice_flux_exchange_mod
   use   atmos_model_mod,  only: atmos_data_type, land_ice_atmos_boundary_type
   use   ocean_model_mod,  only: ocean_public_type, ice_ocean_boundary_type
   use   ocean_model_mod,  only: ocean_state_type
-  use   ice_model_mod,    only: ice_data_type, land_ice_boundary_type, ocean_ice_boundary_type, &
-                                atmos_ice_boundary_type, Ice_stock_pe
+  use   ice_model_mod,    only: ice_data_type, land_ice_boundary_type, ocean_ice_boundary_type
+  use   ice_model_mod,    only: atmos_ice_boundary_type, Ice_stock_pe
   use   ice_model_mod,    only: update_ice_atm_deposition_flux
-  use    land_model_mod,  only: land_data_type, atmos_land_boundary_type, &
-                                set_default_diag_filter, register_tiled_diag_field, &
-                                send_tile_data
+  use    land_model_mod,  only: land_data_type, atmos_land_boundary_type
+#ifndef _USE_LEGACY_LAND_
+  use    land_model_mod,  only: set_default_diag_filter, register_tiled_diag_field
+  use    land_model_mod,  only: send_tile_data
+#else
+  use  diag_manager_mod,  only: register_tiled_diag_field=>register_diag_field
+#endif
   use  surface_flux_mod,  only: surface_flux, surface_flux_init
   use monin_obukhov_mod,  only: mo_profile
   use xgrid_mod,          only: xmap_type, setup_xmap, set_frac_area, put_to_xgrid, &
@@ -1602,8 +1606,13 @@ contains
     if(id_q_ref_land > 0 .or.id_hussLut_land > 0) then
        call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
 !duplicate send_tile_data. We may remove id_q_ref_land in the future.
+#ifndef _USE_LEGACY_LAND_
        call send_tile_data (id_q_ref_land, diag_land)
        call send_tile_data (id_hussLut_land, diag_land)
+#else
+       used = send_tile_averaged_data(id_q_ref_land, diag_land, &
+            Land%tile_size, Time, mask=Land%mask)
+#endif
     endif
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
     !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
@@ -1634,11 +1643,22 @@ contains
 
     if ( id_rh_ref_land > 0 ) then
        call get_from_xgrid_land (diag_land,'LND', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
        call send_tile_data (id_rh_ref_land, diag_land)
+#else
+       used = send_tile_averaged_data ( id_rh_ref_land, diag_land, &
+            Land%tile_size, Time, mask = Land%mask )
+#endif
     endif
     if(id_rh_ref > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
        used = send_data ( id_rh_ref, diag_atm, Time )
+#else
+       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+               Land%tile_size, Time, mask = Land%mask )
+#endif
+ 
     endif
     if(id_rh_ref_cmip > 0 .or. id_hurs > 0 .or. id_rhs > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref2, xmap_sfc)
@@ -1655,8 +1675,13 @@ contains
             ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
        if (id_t_ref_land > 0.or.id_tasLut_land > 0) then
           call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
           call send_tile_data (id_t_ref_land, diag_land)
           call send_tile_data (id_tasLut_land, diag_land)
+#else
+          used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+               Land%tile_size, Time, mask = Land%mask )
+#endif
        endif
        if ( id_t_ref > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1669,12 +1694,15 @@ contains
     if (id_t_ref_land > 0 .or. id_tasLut_land > 0 .or. id_tasl_g > 0) then
        ! t_ref diagnostic at land points only
        call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
        if (id_t_ref_land > 0)  call send_tile_data (id_t_ref_land, diag_land)
        if (id_tasLut_land > 0) call send_tile_data (id_tasLut_land, diag_land)
-#ifndef _USE_LEGACY_LAND_
        if (id_tasl_g > 0) then
          used = send_global_land_diag ( id_tasl_g, diag_land, Time, Land%tile_size, Land%mask, Land )
        endif
+#else
+       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+            Land%tile_size, Time, mask = Land%mask )
 #endif
     endif
     ! t_ref diagnostic at all atmos points
@@ -1691,7 +1719,12 @@ contains
             ex_ref = ex_u_surf + (ex_u_atm-ex_u_surf) * ex_del_m
        if ( id_u_ref_land > 0 ) then
           call get_from_xgrid_land ( diag_land, 'LND', ex_ref, xmap_sfc )
+#ifndef _USE_LEGACY_LAND_
           call send_tile_data ( id_u_ref_land, diag_land )
+#else
+          used = send_tile_averaged_data ( id_u_ref_land, diag_land, &
+               Land%tile_size, Time, mask = Land%mask )
+#endif
        endif
        if ( id_u_ref > 0 .or. id_uas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1706,7 +1739,12 @@ contains
             ex_ref = ex_v_surf + (ex_v_atm-ex_v_surf) * ex_del_m
        if ( id_v_ref_land > 0 ) then
           call get_from_xgrid_land ( diag_land, 'LND', ex_ref, xmap_sfc )
+#ifndef _USE_LEGACY_LAND_
           call send_tile_data ( id_v_ref_land, diag_land )
+#else
+          used = send_tile_averaged_data ( id_v_ref_land, diag_land, &
+               Land%tile_size, Time, mask = Land%mask )
+#endif
        endif
        if ( id_v_ref > 0 .or. id_vas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -2774,7 +2812,12 @@ contains
 #endif
     if( id_q_flux_land > 0 ) then
        call get_from_xgrid_land (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
        call send_tile_data (id_q_flux_land, diag_land, send_immediately=.TRUE.)
+#else
+       used = send_tile_averaged_data(id_q_flux_land, diag_land, &
+            Land%tile_size, Time, mask=Land%mask)
+#endif
     endif
     call sum_diag_integral_field ('evap', evap_atm*86400.)
 #ifndef use_AM3_physics
@@ -3226,7 +3269,9 @@ contains
     if( land_pe ) then
        ! set the default filter (for area and subsampling) for consequent calls to
        ! register_tiled_diag_field
+#ifndef _USE_LEGACY_LAND_
        call set_default_diag_filter('land')
+#endif
        id_t_ref_land = &
             register_tiled_diag_field ( 'flux_land', 't_ref', Land_axes, Time, &
             'temperature at '//trim(label_zh)//' over land', 'deg_k' , &
