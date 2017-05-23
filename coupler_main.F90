@@ -1697,12 +1697,13 @@ contains
         endif
         call print_memuse_stats( 'land_model_init' )
         call data_override_init(Land_domain_in = Land%domain)
+#ifndef _USE_LEGACY_LAND_
+        call data_override_init(Land_domainUG_in = Land%ug_domain)
+#endif
      endif
 !---- ice -----------
      if( Ice%pe ) then  ! This occurs for all fast or slow ice PEs.
-        if (Ice%shared_slow_fast_PEs) then
-          call mpp_set_current_pelist(Ice%pelist)
-        elseif (Ice%fast_ice_pe) then
+        if (Ice%fast_ice_pe) then
           call mpp_set_current_pelist(Ice%fast_pelist)
         elseif (Ice%slow_ice_pe) then
           call mpp_set_current_pelist(Ice%slow_pelist)
@@ -2126,7 +2127,11 @@ contains
           n = tr_table(tr)%lnd
           if(n /= NO_TRACER ) then
              call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
+#ifndef _USE_LEGACY_LAND_
+             write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,n))
+#else
              write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,:,n))
+#endif
           endif
        enddo
 

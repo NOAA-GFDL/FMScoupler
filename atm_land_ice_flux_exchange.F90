@@ -1,24 +1,22 @@
-
 module atm_land_ice_flux_exchange_mod
 
 !-----------------------------------------------------------------------
-!                   GNU General Public License                        !                                                                      
-! This program is free software; you can redistribute it and/or modify it and  
-! are expected to follow the terms of the GNU General Public License  
-! as published by the Free Software Foundation; either version 2 of   
-! the License, or (at your option) any later version.                 
-!                                                                      
-! MOM is distributed in the hope that it will be useful, but WITHOUT    
-! ANY WARRANTY; without even the implied warranty of MERCHANTABILITY  
-! or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public    
-! License for more details.                                           
-!                                                                      
-! For the full text of the GNU General Public License,                
-! write to: Free Software Foundation, Inc.,                           
-!           675 Mass Ave, Cambridge, MA 02139, USA.                   
-! or see:   http://www.gnu.org/licenses/gpl.html                      
+!                   GNU General Public License                        !
+! This program is free software; you can redistribute it and/or modify it and
+! are expected to follow the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2 of
+! the License, or (at your option) any later version.
+!
+! MOM is distributed in the hope that it will be useful, but WITHOUT
+! ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+! or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+! License for more details.
+!
+! For the full text of the GNU General Public License,
+! write to: Free Software Foundation, Inc.,
+!           675 Mass Ave, Cambridge, MA 02139, USA.
+! or see:   http://www.gnu.org/licenses/gpl.html
 !-----------------------------------------------------------------------
-
   use mpp_mod,            only: mpp_npes, mpp_pe, mpp_root_pe, mpp_error, stderr, &
                                 stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
                                 mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
@@ -33,15 +31,34 @@ module atm_land_ice_flux_exchange_mod
   use   atmos_model_mod,  only: atmos_data_type, land_ice_atmos_boundary_type
   use   ocean_model_mod,  only: ocean_public_type, ice_ocean_boundary_type
   use   ocean_model_mod,  only: ocean_state_type
-  use   ice_model_mod,    only: ice_data_type, land_ice_boundary_type, ocean_ice_boundary_type, &
-                                atmos_ice_boundary_type, Ice_stock_pe
+  use   ice_model_mod,    only: ice_data_type, land_ice_boundary_type, ocean_ice_boundary_type
+  use   ice_model_mod,    only: atmos_ice_boundary_type, Ice_stock_pe
   use   ice_model_mod,    only: update_ice_atm_deposition_flux
   use    land_model_mod,  only: land_data_type, atmos_land_boundary_type
+#ifndef _USE_LEGACY_LAND_
+  use    land_model_mod,  only: set_default_diag_filter, register_tiled_diag_field
+  use    land_model_mod,  only: send_tile_data
+#else
+  use  diag_manager_mod,  only: register_tiled_diag_field=>register_diag_field
+#endif
   use  surface_flux_mod,  only: surface_flux, surface_flux_init
-  use monin_obukhov_mod,  only: mo_profile     
+  use monin_obukhov_mod,  only: mo_profile
   use xgrid_mod,          only: xmap_type, setup_xmap, set_frac_area, put_to_xgrid, &
                                 get_from_xgrid, xgrid_count, some, conservation_check, xgrid_init, &
                                 stock_integrate_2d, stock_move, stock_print
+#ifndef _USE_LEGACY_LAND_
+  use xgrid_mod,          only: get_from_xgrid_land => get_from_xgrid_ug
+  use xgrid_mod,          only: put_to_xgrid_land => put_to_xgrid_ug
+  use xgrid_mod,          only: set_frac_area_land => set_frac_area_ug
+  use xgrid_mod,          only: stock_move_land => stock_move_ug
+  use data_override_mod,  only: data_override_land => data_override_ug
+#else
+  use xgrid_mod,          only: get_from_xgrid_land => get_from_xgrid
+  use xgrid_mod,          only: put_to_xgrid_land => put_to_xgrid
+  use xgrid_mod,          only: set_frac_area_land => set_frac_area
+  use xgrid_mod,          only: stock_move_land => stock_move
+  use data_override_mod,  only: data_override_land => data_override
+#endif
   use diag_integral_mod,  only: diag_integral_field_init, sum_diag_integral_field
   use  diag_manager_mod,  only: register_diag_field, register_static_field, send_data, &
                                 send_tile_averaged_data, diag_field_add_attribute,     &
@@ -59,9 +76,16 @@ module atm_land_ice_flux_exchange_mod
 #ifdef use_AM3_physics
   use atmos_tracer_driver_mod, only: atmos_tracer_flux_init
 #else
-  use atmos_tracer_driver_mod, only: atmos_tracer_flux_init, & 
+  use atmos_tracer_driver_mod, only: atmos_tracer_flux_init, &
        atmos_tracer_has_surf_setl_flux, get_atmos_tracer_surf_setl_flux
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data_down
+  use atmos_cmip_diag_mod,   only: register_cmip_diag_field_2d
+  use atmos_global_diag_mod, only: register_global_diag_field, &
+                                   get_global_diag_field_id, &
+                                   send_global_diag
+#ifndef _USE_LEGACY_LAND_
+  use land_model_mod,        only: send_global_land_diag
+#endif
 #endif
   use field_manager_mod,       only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE
   use tracer_manager_mod,      only: get_tracer_index
@@ -123,7 +147,8 @@ module atm_land_ice_flux_exchange_mod
              id_del_h,  id_del_m,  id_del_q,  id_rough_scale,         &
              id_t_ca,   id_q_surf, id_q_atm, id_z_atm, id_p_atm, id_gust, &
              id_t_ref_land, id_rh_ref_land, id_u_ref_land, id_v_ref_land, &
-             id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip
+             id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip, &
+             id_hussLut_land, id_tasLut_land
   integer :: id_co2_atm_dvmr, id_co2_surf_dvmr
 
   integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:)
@@ -134,6 +159,9 @@ module atm_land_ice_flux_exchange_mod
              id_hurs, id_huss, id_evspsbl, id_hfls, id_hfss, &
              id_rhs, id_sftlf, id_tos, id_sic, id_tslsi, &
              id_height2m, id_height10m
+
+  ! globally averaged diagnostics
+  integer :: id_evspsbl_g, id_ts_g, id_tas_g, id_tasl_g, id_hfss_g, id_hfls_g, id_rls_g
 
   logical :: first_static = .true.
   logical :: do_init = .true.
@@ -159,7 +187,7 @@ module atm_land_ice_flux_exchange_mod
   integer :: nblocks = 1
   logical :: partition_fprec_from_lprec = .FALSE. !< option for ATM override experiments where liquid+frozen precip are combined
                                                   !! This option will convert liquid precip to snow when t_ref is less than
-                                                  !! tfreeze parameter       
+                                                  !! tfreeze parameter
   logical :: scale_precip_2d = .false.
 
   integer              :: my_nblocks = 1
@@ -173,10 +201,10 @@ module atm_land_ice_flux_exchange_mod
        ex_t_ca,      &   !< near-surface (canopy) air temperature, degK
        ex_p_surf,    &   !< surface pressure
        ex_slp,       &   !< surface pressure
-       
+
        ex_flux_t,    &   !< sens heat flux
        ex_flux_lw,   &   !< longwave radiation flux
-       
+
        ex_dhdt_surf, &   !< d(sens.heat.flux)/d(T canopy)
        ex_dedt_surf, &   !< d(water.vap.flux)/d(T canopy)
        ex_dqsatdt_surf, &   !< d(water.vap.flux)/d(q canopy)
@@ -250,6 +278,11 @@ module atm_land_ice_flux_exchange_mod
                                                                  !< Place holder of intermediate calculations, such as
                                                                  !< piston velocities etc.
 
+  interface put_logical_to_real
+     module procedure put_logical_to_real_sg
+     module procedure put_logical_to_real_ug
+  end interface
+
   integer :: ni_atm, nj_atm !< to do atmos diagnostic from flux_ocean_to_ice
   real, dimension(3) :: ccc !< for conservation checks
   !Balaji, sets boundary_type%xtype
@@ -263,7 +296,7 @@ module atm_land_ice_flux_exchange_mod
   integer :: X1_GRID_ATM, X1_GRID_ICE, X1_GRID_LND
   real    :: Dt_atm, Dt_cpl
   integer :: nxc_ice=0, nyc_ice=0, nk_ice=0
-
+  integer :: nxc_lnd=0, nyc_lnd=0
 
 contains
 
@@ -334,7 +367,7 @@ contains
 
     allocate(block_start(nblocks), block_end(nblocks))
 
-    !----- find out number of atmospheric prognostic tracers and index of specific 
+    !----- find out number of atmospheric prognostic tracers and index of specific
     !      humidity in the tracer table
     call get_number_tracers (MODEL_ATMOS, num_tracers=n_atm_tr_tot, &
          num_prog=n_atm_tr)
@@ -431,15 +464,20 @@ contains
     call mpp_get_compute_domain(Atm%domain, is, ie, js, je)
 
     if (scale_precip_2d) then
-       allocate(frac_precip(is:ie,js:je))	
+       allocate(frac_precip(is:ie,js:je))
        frac_precip=0.0
     endif
 
     call xgrid_init(remap_method)
-
+#ifndef _USE_LEGACY_LAND_
+    call setup_xmap(xmap_sfc, (/ 'ATM', 'OCN', 'LND' /),   &
+         (/ Atm%Domain, Ice%Domain, Land%Domain /),        &
+         "INPUT/grid_spec.nc", Atm%grid, lnd_ug_domain=Land%ug_domain)
+#else
     call setup_xmap(xmap_sfc, (/ 'ATM', 'OCN', 'LND' /),   &
          (/ Atm%Domain, Ice%Domain, Land%Domain /),        &
          "INPUT/grid_spec.nc", Atm%grid)
+#endif
     ! exchange grid indices
     X1_GRID_ATM = 1; X1_GRID_ICE = 2; X1_GRID_LND = 3;
     call generate_sfc_xgrid( Land, Ice )
@@ -523,6 +561,8 @@ contains
     call coupler_type_copy(ex_gas_fluxes, atmos_ice_boundary%fluxes, is, ie, js, je, kd,    &
          mod_name, Ice%axes, Time, suffix = '_atm_ice')
 
+    !--- Ice%ocean_fields and Ice%ocean_fluxes_top will not be passed to ocean, so these two
+    !--- coupler_type_copy calls are moved from ice_ocean_flux_init to here.
     call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
          'ice_flux', Ice%axes, Time, suffix = '_ice')
 
@@ -601,7 +641,11 @@ contains
        nk_ice = size(Ice%part_size,3)
     endif
 
-    !Balaji: clocks on atm%pe only        
+    if( Land%pe) then
+       call mpp_get_compute_domain(Land%domain, xsize=nxc_lnd, ysize=nyc_lnd)
+    endif
+
+    !Balaji: clocks on atm%pe only
     sfcClock = mpp_clock_id( 'SFC boundary layer', flags=clock_flag_default, grain=CLOCK_SUBCOMPONENT )
     fluxAtmDnClock = mpp_clock_id( 'Flux DN from atm', flags=clock_flag_default, grain=CLOCK_ROUTINE )
     regenClock = mpp_clock_id( 'XGrid generation', flags=clock_flag_default, grain=CLOCK_ROUTINE )
@@ -654,7 +698,7 @@ contains
          ex_albedo_vis_dif,     &
          ex_albedo_nir_dif,     &
          ex_land_frac,  &
-         ex_t_atm,      & 
+         ex_t_atm,      &
          ex_p_atm,      &
          ex_u_atm, ex_v_atm,    &
          ex_gust,       &
@@ -678,7 +722,16 @@ contains
     ! jgj: added for co2_atm diagnostic
     real, dimension(n_xgrid_sfc)           :: ex_co2_atm_dvmr
     real, dimension(size(Land_Ice_Atmos_Boundary%t,1),size(Land_Ice_Atmos_Boundary%t,2)) :: diag_atm
+#ifndef _USE_LEGACY_LAND_
+    real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2)) :: diag_land
+    real, dimension(size(Land%t_ca, 1))                   :: diag_land_ug, tile_size_ug
+    real, dimension(nxc_lnd,nyc_lnd)                      :: diag_land_sg, tile_size_sg
+    logical, dimension(size(Land%t_ca, 1))                :: mask_ug
+    logical, dimension(nxc_lnd,nyc_lnd)                   :: mask_sg
+    integer :: k
+#else
     real, dimension(size(Land%t_ca, 1),size(Land%t_ca,2), size(Land%t_ca,3)) :: diag_land
+#endif
     real, dimension(size(Ice%t_surf,1),size(Ice%t_surf,2),size(Ice%t_surf,3)) :: sea
     real, dimension(size(Ice%albedo,1),size(Ice%albedo,2),size(Ice%albedo,3)) ::  tmp_open_sea
     real    :: zrefm, zrefh
@@ -712,21 +765,21 @@ contains
          ex_drag_q   (n_xgrid_sfc),  &
          ex_avail    (n_xgrid_sfc),  &
          ex_f_t_delt_n(n_xgrid_sfc), &
-         
+
          ex_tr_surf     (n_xgrid_sfc, n_exch_tr), &
          ex_dfdtr_surf  (n_xgrid_sfc, n_exch_tr), &
          ex_dfdtr_atm   (n_xgrid_sfc, n_exch_tr), &
          ex_flux_tr     (n_xgrid_sfc, n_exch_tr), &
          ex_f_tr_delt_n (n_xgrid_sfc, n_exch_tr), &
          ex_e_tr_n      (n_xgrid_sfc, n_exch_tr), &
-         
+
          ! MOD these were moved from local ! so they can be passed to flux down
          ex_flux_u(n_xgrid_sfc),    &
          ex_flux_v(n_xgrid_sfc),    &
          ex_dtaudu_atm(n_xgrid_sfc),&
          ex_dtaudv_atm(n_xgrid_sfc),&
          ex_seawater(n_xgrid_sfc),  &
-         
+
          ! values added for LM3
          ex_cd_t     (n_xgrid_sfc),  &
          ex_cd_m     (n_xgrid_sfc),  &
@@ -734,7 +787,7 @@ contains
          ex_u_star   (n_xgrid_sfc),  &
          ex_wind     (n_xgrid_sfc),  &
          ex_z_atm    (n_xgrid_sfc),  &
-         
+
          ex_e_t_n    (n_xgrid_sfc),  &
          ex_e_q_n    (n_xgrid_sfc),  &
          ex_land     (n_xgrid_sfc)   )
@@ -798,7 +851,7 @@ contains
           ex_t_surf(i)   = 200.
           ex_u_surf(i)   =   0.
           ex_v_surf(i)   =   0.
-          ex_albedo(i) = 0. ! bw 
+          ex_albedo(i) = 0. ! bw
           ex_albedo_vis_dir(i) = 0.
           ex_albedo_nir_dir(i) = 0.
           ex_albedo_vis_dif(i) = 0.
@@ -822,7 +875,7 @@ contains
     call data_override ('ATM', 'slp',    Atm%slp,    Time)
     call data_override ('ATM', 'gust',   Atm%gust,   Time)
     !
-    ! jgj: 2008/07/18 
+    ! jgj: 2008/07/18
     ! FV atm advects tracers in moist mass mixing ratio: kg co2 /(kg air + kg water)
     ! cubed sphere advects moist mass mixing ratio also (per SJ)
     ! data table co2 overrides for ocean (co2_flux_pcair_atm)
@@ -850,8 +903,8 @@ contains
           enddo
        end if
     enddo
-    ! data override for co2 to be passed to ocean (co2_flux_pcair_atm) 
-    ! atmos_co2.F90 already called: converts tr_bot passed to ocean via gas_flux   
+    ! data override for co2 to be passed to ocean (co2_flux_pcair_atm)
+    ! atmos_co2.F90 already called: converts tr_bot passed to ocean via gas_flux
     ! from moist mmr to dry vmr.
     do n = 1, atm%fields%num_bcs  !{
        do m = 1, atm%fields%bc(n)%num_fields  !{
@@ -878,16 +931,20 @@ contains
     call data_override ('ICE', 'albedo_nir_dif', Ice%albedo_nir_dif, Time)
     call data_override ('ICE', 'u_surf',     Ice%u_surf,      Time)
     call data_override ('ICE', 'v_surf',     Ice%v_surf,      Time)
-    call data_override ('LND', 't_surf',     Land%t_surf,     Time)
-    call data_override ('LND', 't_ca',       Land%t_ca,       Time)
-    call data_override ('LND', 'rough_mom',  Land%rough_mom,  Time)
-    call data_override ('LND', 'rough_heat', Land%rough_heat, Time)
-    call data_override ('LND', 'albedo', Land%albedo,     Time)
+    call data_override_land ('LND', 't_surf',     Land%t_surf,     Time)
+    call data_override_land ('LND', 't_ca',       Land%t_ca,       Time)
+    call data_override_land ('LND', 'rough_mom',  Land%rough_mom,  Time)
+    call data_override_land ('LND', 'rough_heat', Land%rough_heat, Time)
+    call data_override_land ('LND', 'albedo', Land%albedo,     Time)
 
     ! tracer data override
     do tr = 1, n_lnd_tr
        call get_tracer_names( MODEL_LAND, tr, tr_name )
-       call data_override('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
+#ifndef _USE_LEGACY_LAND_
+       call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,tr), Time)
+#else
+       call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
+#endif
     enddo
     do n = 1, ice%ocean_fields%num_bcs  !{
        do m = 1, ice%ocean_fields%bc(n)%num_fields  !{
@@ -897,10 +954,10 @@ contains
           endif  !}
        enddo  !} m
     enddo  !} n
-    call data_override ('LND', 'albedo_vis_dir', Land%albedo_vis_dir,Time)
-    call data_override ('LND', 'albedo_nir_dir', Land%albedo_nir_dir,Time)
-    call data_override ('LND', 'albedo_vis_dif', Land%albedo_vis_dif,Time)
-    call data_override ('LND', 'albedo_nir_dif', Land%albedo_nir_dif,Time)
+    call data_override_land ('LND', 'albedo_vis_dir', Land%albedo_vis_dir,Time)
+    call data_override_land ('LND', 'albedo_nir_dir', Land%albedo_nir_dir,Time)
+    call data_override_land ('LND', 'albedo_vis_dif', Land%albedo_vis_dif,Time)
+    call data_override_land ('LND', 'albedo_nir_dif', Land%albedo_nir_dif,Time)
 
     !---- put atmosphere quantities onto exchange grid ----
 
@@ -934,10 +991,10 @@ contains
     call put_to_xgrid (Atm%slp,    'ATM', ex_slp,    xmap_sfc, remap_method=remap_method, complete=.false.)
     call put_to_xgrid (Atm%gust,   'ATM', ex_gust,   xmap_sfc, remap_method=remap_method, complete=.true.)
 
-    ! slm, Mar 20 2002: changed order in whith the data transferred from ice and land 
-    ! grids, to fill t_ca first with t_surf over ocean and then with t_ca from 
-    ! land, where it is different from t_surf. It is mostly to simplify 
-    ! diagnostic, since surface_flux calculations distinguish between land and 
+    ! slm, Mar 20 2002: changed order in whith the data transferred from ice and land
+    ! grids, to fill t_ca first with t_surf over ocean and then with t_ca from
+    ! land, where it is different from t_surf. It is mostly to simplify
+    ! diagnostic, since surface_flux calculations distinguish between land and
     ! not-land anyway.
 
     ! prefill surface values with atmospheric values before putting tracers
@@ -969,7 +1026,7 @@ contains
                ex_gas_fields_ice%bc(n)%field(m)%values, xmap_sfc)
        enddo  !} m
     enddo  !} n
-    sea = 0.0; sea(:,:,1) = 1.0;  
+    sea = 0.0; sea(:,:,1) = 1.0;
     ex_seawater = 0.0
     call put_to_xgrid (sea,             'OCN', ex_seawater,    xmap_sfc)
     ex_t_ca = ex_t_surf ! slm, Mar 20 2002 to define values over the ocean
@@ -978,28 +1035,32 @@ contains
     call some(xmap_sfc, ex_land, 'LND')
 #ifdef use_AM3_physics
     if (do_forecast) then
-       call put_to_xgrid (Land%t_surf,     'LND', ex_t_surf_miz,  xmap_sfc)
+       call put_to_xgrid_land (Land%t_surf,     'LND', ex_t_surf_miz,  xmap_sfc)
        ex_t_ca(:) = ex_t_surf_miz(:)
     end if
 #endif
 
-    call put_to_xgrid (Land%t_surf,     'LND', ex_t_surf,      xmap_sfc)
-    call put_to_xgrid (Land%t_ca,       'LND', ex_t_ca,        xmap_sfc)
-    call put_to_xgrid (Land%rough_mom,  'LND', ex_rough_mom,   xmap_sfc)
-    call put_to_xgrid (Land%rough_heat, 'LND', ex_rough_heat,  xmap_sfc)
-    call put_to_xgrid (Land%rough_heat, 'LND', ex_rough_moist, xmap_sfc)
-    call put_to_xgrid (Land%albedo,     'LND', ex_albedo,      xmap_sfc)
-    call put_to_xgrid (Land%albedo_vis_dir,     'LND', ex_albedo_vis_dir,   xmap_sfc)
-    call put_to_xgrid (Land%albedo_nir_dir,     'LND', ex_albedo_nir_dir,   xmap_sfc)
-    call put_to_xgrid (Land%albedo_vis_dif,     'LND', ex_albedo_vis_dif,   xmap_sfc)
-    call put_to_xgrid (Land%albedo_nir_dif,     'LND', ex_albedo_nir_dif,   xmap_sfc)
+    call put_to_xgrid_land (Land%t_surf,     'LND', ex_t_surf,      xmap_sfc)
+    call put_to_xgrid_land (Land%t_ca,       'LND', ex_t_ca,        xmap_sfc)
+    call put_to_xgrid_land (Land%rough_mom,  'LND', ex_rough_mom,   xmap_sfc)
+    call put_to_xgrid_land (Land%rough_heat, 'LND', ex_rough_heat,  xmap_sfc)
+    call put_to_xgrid_land (Land%rough_heat, 'LND', ex_rough_moist, xmap_sfc)
+    call put_to_xgrid_land (Land%albedo,     'LND', ex_albedo,      xmap_sfc)
+    call put_to_xgrid_land (Land%albedo_vis_dir,     'LND', ex_albedo_vis_dir,   xmap_sfc)
+    call put_to_xgrid_land (Land%albedo_nir_dir,     'LND', ex_albedo_nir_dir,   xmap_sfc)
+    call put_to_xgrid_land (Land%albedo_vis_dif,     'LND', ex_albedo_vis_dif,   xmap_sfc)
+    call put_to_xgrid_land (Land%albedo_nir_dif,     'LND', ex_albedo_nir_dif,   xmap_sfc)
     ex_rough_scale = ex_rough_mom
-    call put_to_xgrid(Land%rough_scale, 'LND', ex_rough_scale, xmap_sfc)
+    call put_to_xgrid_land(Land%rough_scale, 'LND', ex_rough_scale, xmap_sfc)
 
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
-          call put_to_xgrid ( Land%tr(:,:,:,n), 'LND', ex_tr_surf(:,tr), xmap_sfc )
+#ifndef _USE_LEGACY_LAND_
+          call put_to_xgrid_land ( Land%tr(:,:,n), 'LND', ex_tr_surf(:,tr), xmap_sfc )
+#else
+          call put_to_xgrid_land ( Land%tr(:,:,:,n), 'LND', ex_tr_surf(:,tr), xmap_sfc )
+#endif
        else
           ! do nothing, since ex_tr_surf is prefilled with ex_tr_atm, and therefore
           ! fluxes will be 0
@@ -1112,7 +1173,7 @@ contains
        do i = is,ie
           ex_u10(i) = 0.
           if(ex_avail(i)) then
-             ex_ref_u(i) = ex_u_surf(i) + (ex_u_atm(i)-ex_u_surf(i)) * ex_del_m(i) 
+             ex_ref_u(i) = ex_u_surf(i) + (ex_u_atm(i)-ex_u_surf(i)) * ex_del_m(i)
              ex_ref_v(i) = ex_v_surf(i) + (ex_v_atm(i)-ex_v_surf(i)) * ex_del_m(i)
              ex_u10(i) = sqrt(ex_ref_u(i)**2 + ex_ref_v(i)**2)
           endif
@@ -1131,9 +1192,15 @@ contains
        do tr = 1,n_exch_tr
           if (tr==isphum) cycle
           do i = is,ie
-             ex_dfdtr_atm  (i,tr) = ex_dfdtr_atm  (i,isphum)
-             ex_dfdtr_surf (i,tr) = ex_dfdtr_surf (i,isphum)
-             ex_flux_tr    (i,tr) = ex_dfdtr_surf(i,tr)*(ex_tr_surf(i,tr)-ex_tr_atm(i,tr))
+             ! slm: ex_dfdtr_surf(:,isphum) is manipulated in surface_flux: it is set to
+             ! zero over the ocean, so it is not appropriate to use for other tracers.
+             ! However, since flux = rho*Cd*|v|*(q_surf-q_atm), we can simply use negative
+             ! dfdtr_atm for the dfdtr_surf derivative. This will break if ever the flux
+             ! formulation is changed to be not symmetrical w.r.t. q_surf and q_atm, but
+             ! then this whole section will have to be changed.
+             ex_dfdtr_atm  (i,tr) =  ex_dfdtr_atm  (i,isphum)
+             ex_dfdtr_surf (i,tr) = -ex_dfdtr_atm (i,isphum)
+             ex_flux_tr    (i,tr) =  ex_dfdtr_surf(i,tr)*(ex_tr_surf(i,tr)-ex_tr_atm(i,tr))
           enddo
        enddo
     enddo ! end of block loop
@@ -1160,13 +1227,13 @@ contains
              m = tr_table_map(ex_gas_fluxes%bc(n)%atm_tr_index)%exch
              do i = is,ie  !{
                 if (ex_land(i)) cycle  ! over land, don't do anything
-                ! on ocean or ice cells, flux is explicit therefore we zero derivatives. 
+                ! on ocean or ice cells, flux is explicit therefore we zero derivatives.
                 ex_dfdtr_atm(i,m)  = 0.0
                 ex_dfdtr_surf(i,m) = 0.0
                 if (ex_seawater(i)>0.0) then
                    ! jgj: convert to kg co2/m2/sec for atm
                    ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(ind_flux)%values(i) * ex_gas_fluxes%bc(n)%mol_wt * 1.0e-03
-                else 
+                else
                    ex_flux_tr(i,m) = 0.0 ! pure ice exchange cell
                 endif  !}
              enddo  !} i
@@ -1179,47 +1246,47 @@ contains
        if( tr_table(tr)%atm == NO_TRACER ) cycle ! it should never happen, though
 
        call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
-       ! [5.2.1] override tracer flux. Note that "sea" and "diag_land" are repeatedly used 
-       ! as temporary storage for the values we are overriding fluxes and derivative with, 
+       ! [5.2.1] override tracer flux. Note that "sea" and "diag_land" are repeatedly used
+       ! as temporary storage for the values we are overriding fluxes and derivative with,
        ! over ocean and land respectively
-       call data_override ( 'LND', 'ex_flux_'//trim(tr_name), diag_land, Time, override=used )
-       if(used) call put_to_xgrid ( diag_land, 'LND', ex_flux_tr(:,tr), xmap_sfc )
+       call data_override_land ( 'LND', 'ex_flux_'//trim(tr_name), diag_land, Time, override=used )
+       if(used) call put_to_xgrid_land ( diag_land, 'LND', ex_flux_tr(:,tr), xmap_sfc )
        call data_override ( 'ICE', 'ex_flux_'//trim(tr_name), sea, Time, override=used )
        if(used) call put_to_xgrid ( sea, 'OCN', ex_flux_tr(:,tr), xmap_sfc )
        ! [5.2.2] override derivative of flux wrt surface concentration
-       call data_override ( 'LND', 'ex_dfd'//trim(tr_name)//'_surf', diag_land, Time, override=used )
-       if(used) call put_to_xgrid ( diag_land, 'LND', ex_dfdtr_surf(:,tr), xmap_sfc )
+       call data_override_land ( 'LND', 'ex_dfd'//trim(tr_name)//'_surf', diag_land, Time, override=used )
+       if(used) call put_to_xgrid_land ( diag_land, 'LND', ex_dfdtr_surf(:,tr), xmap_sfc )
        call data_override ( 'ICE', 'ex_dfd'//trim(tr_name)//'_surf', sea, Time, override=used )
        if(used) call put_to_xgrid ( sea, 'OCN', ex_dfdtr_surf(:,tr), xmap_sfc )
        ! [5.2.3] override derivative of flux wrt atmospheric concentration
-       call data_override ( 'LND', 'ex_dfd'//trim(tr_name)//'_atm', diag_land, Time, override=used )
-       if(used) call put_to_xgrid ( diag_land, 'LND', ex_dfdtr_atm(:,tr), xmap_sfc )
+       call data_override_land ( 'LND', 'ex_dfd'//trim(tr_name)//'_atm', diag_land, Time, override=used )
+       if(used) call put_to_xgrid_land ( diag_land, 'LND', ex_dfdtr_atm(:,tr), xmap_sfc )
        call data_override ( 'ICE', 'ex_dfd'//trim(tr_name)//'_atm', sea, Time, override=used )
        if(used) call put_to_xgrid ( sea, 'OCN', ex_dfdtr_atm(:,tr), xmap_sfc )
     enddo
 
     ! [5.3] override flux and derivatives for sensible heat flux
     ! [5.3.1] override flux
-    call data_override ( 'LND', 'ex_flux_t', diag_land, Time, override=used )
-    if (used) call put_to_xgrid ( diag_land, 'LND', ex_flux_t, xmap_sfc )
+    call data_override_land ( 'LND', 'ex_flux_t', diag_land, Time, override=used )
+    if (used) call put_to_xgrid_land ( diag_land, 'LND', ex_flux_t, xmap_sfc )
     call data_override ( 'ICE', 'ex_flux_t', sea, Time, override=used )
     if (used) call put_to_xgrid ( sea, 'OCN', ex_flux_t, xmap_sfc )
     ! [5.3.2] override derivative of flux wrt near-surface temperature
-    call data_override ( 'LND', 'ex_dhdt_surf', diag_land, Time, override=used )
-    if (used) call put_to_xgrid ( diag_land, 'LND', ex_dhdt_surf, xmap_sfc )
+    call data_override_land ( 'LND', 'ex_dhdt_surf', diag_land, Time, override=used )
+    if (used) call put_to_xgrid_land ( diag_land, 'LND', ex_dhdt_surf, xmap_sfc )
     call data_override ( 'ICE', 'ex_dhdt_surf', sea, Time, override=used )
     if (used) call put_to_xgrid ( sea, 'OCN', ex_dhdt_surf, xmap_sfc )
     ! [5.3.3] override derivative of flux wrt atmospheric temperature
-    call data_override ( 'LND', 'ex_dhdt_atm', diag_land, Time,override=used )
-    if (used) call put_to_xgrid ( diag_land, 'LND', ex_dhdt_atm, xmap_sfc )
+    call data_override_land ( 'LND', 'ex_dhdt_atm', diag_land, Time,override=used )
+    if (used) call put_to_xgrid_land ( diag_land, 'LND', ex_dhdt_atm, xmap_sfc )
     call data_override ( 'ICE', 'ex_dhdt_atm', sea, Time, override=used )
     if (used) call put_to_xgrid ( sea, 'OCN', ex_dhdt_atm, xmap_sfc )
 
-    ! NB: names of the override fields are constructed using tracer name and certain 
+    ! NB: names of the override fields are constructed using tracer name and certain
     ! prefixes / suffixes. For example, for the tracer named "sphum" (specific humidity) they will be:
     ! "ex_flux_sphum", "ex_dfdsphum_surf", and "ex_dfdsphum_atm".
-    ! 
-    ! For sensible heat flux names are "ex_flux_t", "ex_dhdt_surf", and "ex_dhdt_atm"; 
+    !
+    ! For sensible heat flux names are "ex_flux_t", "ex_dhdt_surf", and "ex_dhdt_atm";
     ! despite the name those are actually in energy units, W/m2, W/(m2 degK), and
     ! W/(m2 degK) respectively
 
@@ -1505,7 +1572,7 @@ contains
 
     !-----------------------------------------------------------------------
     !--------- diagnostics for fields at reference level ---------
-    !cjg  
+    !cjg
     !  if ( id_t_ref > 0 .or. id_rh_ref > 0 .or. &
     !       id_u_ref > 0 .or. id_v_ref  > 0 .or. id_wind_ref > 0 .or. &
     !       id_q_ref > 0 .or. id_q_ref_land > 0 .or. &
@@ -1525,7 +1592,7 @@ contains
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
        is=block_start(l)
-       ie=block_end(l)    
+       ie=block_end(l)
        call mo_profile ( zrefm, zrefh, ex_z_atm(is:ie),   ex_rough_mom(is:ie), &
             ex_rough_heat(is:ie), ex_rough_moist(is:ie),          &
             ex_u_star(is:ie), ex_b_star(is:ie), ex_q_star(is:ie),        &
@@ -1548,10 +1615,16 @@ contains
     if(id_huss > 0) then
        used = send_data(id_huss,Land_Ice_Atmos_Boundary%q_ref,Time)
     endif
-    if(id_q_ref_land > 0) then
-       call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
+    if(id_q_ref_land > 0 .or.id_hussLut_land > 0) then
+       call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
+!duplicate send_tile_data. We may remove id_q_ref_land in the future.
+#ifndef _USE_LEGACY_LAND_
+       call send_tile_data (id_q_ref_land, diag_land)
+       call send_tile_data (id_hussLut_land, diag_land)
+#else
        used = send_tile_averaged_data(id_q_ref_land, diag_land, &
             Land%tile_size, Time, mask=Land%mask)
+#endif
     endif
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
     !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
@@ -1581,13 +1654,23 @@ contains
     call get_from_xgrid (Land_Ice_Atmos_Boundary%t_ref, 'ATM', ex_t_ref, xmap_sfc)  ! cjg
 
     if ( id_rh_ref_land > 0 ) then
-       call get_from_xgrid (diag_land,'LND', ex_ref, xmap_sfc)
+       call get_from_xgrid_land (diag_land,'LND', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
+       call send_tile_data (id_rh_ref_land, diag_land)
+#else
        used = send_tile_averaged_data ( id_rh_ref_land, diag_land, &
             Land%tile_size, Time, mask = Land%mask )
+#endif
     endif
     if(id_rh_ref > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
        used = send_data ( id_rh_ref, diag_atm, Time )
+#else
+       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+               Land%tile_size, Time, mask = Land%mask )
+#endif
+ 
     endif
     if(id_rh_ref_cmip > 0 .or. id_hurs > 0 .or. id_rhs > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref2, xmap_sfc)
@@ -1599,13 +1682,18 @@ contains
 
     !    ------- reference temp -----------
 #ifdef use_AM3_physics
-    if ( id_t_ref > 0 .or. id_t_ref_land > 0 ) then
+    if ( id_t_ref > 0 .or. id_t_ref_land > 0 .or. id_tasl_g > 0 .or. id_tasLut_land > 0 ) then
        where (ex_avail) &
             ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
-       if (id_t_ref_land > 0) then
-          call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
+       if (id_t_ref_land > 0.or.id_tasLut_land > 0) then
+          call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
+          call send_tile_data (id_t_ref_land, diag_land)
+          call send_tile_data (id_tasLut_land, diag_land)
+#else
           used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
                Land%tile_size, Time, mask = Land%mask )
+#endif
        endif
        if ( id_t_ref > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1615,15 +1703,26 @@ contains
 #else
     where (ex_avail) &
          ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
-    if (id_t_ref_land > 0) then
-       call get_from_xgrid (diag_land, 'LND', ex_ref, xmap_sfc)
+    if (id_t_ref_land > 0 .or. id_tasLut_land > 0 .or. id_tasl_g > 0) then
+       ! t_ref diagnostic at land points only
+       call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
+       if (id_t_ref_land > 0)  call send_tile_data (id_t_ref_land, diag_land)
+       if (id_tasLut_land > 0) call send_tile_data (id_tasLut_land, diag_land)
+       if (id_tasl_g > 0) then
+         used = send_global_land_diag ( id_tasl_g, diag_land, Time, Land%tile_size, Land%mask, Land )
+       endif
+#else
        used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
             Land%tile_size, Time, mask = Land%mask )
+#endif
     endif
+    ! t_ref diagnostic at all atmos points
     call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
     if ( id_t_ref > 0 ) used = send_data ( id_t_ref, diag_atm, Time )
     if ( id_tas > 0 )   used = send_data ( id_tas, diag_atm, Time )
     call sum_diag_integral_field ('t_ref',  diag_atm)
+    if ( id_tas_g > 0 )  used = send_global_diag ( id_tas_g, diag_atm, Time )
 #endif
 
     !    ------- reference u comp -----------
@@ -1631,9 +1730,13 @@ contains
        where (ex_avail) &
             ex_ref = ex_u_surf + (ex_u_atm-ex_u_surf) * ex_del_m
        if ( id_u_ref_land > 0 ) then
-          call get_from_xgrid ( diag_land, 'LND', ex_ref, xmap_sfc )
+          call get_from_xgrid_land ( diag_land, 'LND', ex_ref, xmap_sfc )
+#ifndef _USE_LEGACY_LAND_
+          call send_tile_data ( id_u_ref_land, diag_land )
+#else
           used = send_tile_averaged_data ( id_u_ref_land, diag_land, &
                Land%tile_size, Time, mask = Land%mask )
+#endif
        endif
        if ( id_u_ref > 0 .or. id_uas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1647,9 +1750,13 @@ contains
        where (ex_avail) &
             ex_ref = ex_v_surf + (ex_v_atm-ex_v_surf) * ex_del_m
        if ( id_v_ref_land > 0 ) then
-          call get_from_xgrid ( diag_land, 'LND', ex_ref, xmap_sfc )
+          call get_from_xgrid_land ( diag_land, 'LND', ex_ref, xmap_sfc )
+#ifndef _USE_LEGACY_LAND_
+          call send_tile_data ( id_v_ref_land, diag_land )
+#else
           used = send_tile_averaged_data ( id_v_ref_land, diag_land, &
                Land%tile_size, Time, mask = Land%mask )
+#endif
        endif
        if ( id_v_ref > 0 .or. id_vas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1797,7 +1904,7 @@ contains
     call mpp_clock_begin(fluxAtmDnClock)
     ov = .FALSE.
     !-----------------------------------------------------------------------
-    !Balaji: data_override calls moved here from coupler_main            
+    !Balaji: data_override calls moved here from coupler_main
     call data_override ('ATM', 'flux_sw',  Atm%flux_sw, Time)
     call data_override ('ATM', 'flux_sw_dir',  Atm%flux_sw_dir, Time)
     call data_override ('ATM', 'flux_sw_dif',  Atm%flux_sw_dif, Time)
@@ -1813,7 +1920,7 @@ contains
 
     if (scale_precip_2d) then
        call mpp_get_compute_domain(Atm%Domain, is_atm, ie_atm, js_atm, je_atm)
-       call data_override ('ATM', 'precip_scale2d',    frac_precip,   Time)	
+       call data_override ('ATM', 'precip_scale2d',    frac_precip,   Time)
        do j=js_atm,je_atm
           do i=is_atm, ie_atm
              Atm%lprec(i,j) = Atm%lprec(i,j)*frac_precip(i,j)
@@ -1862,8 +1969,8 @@ contains
           ex_flux_sw_vis_dir(i) = 0.0
           ex_flux_sw_dif(i)     = 0.0
           ex_flux_sw_vis_dif(i) = 0.0
-          ex_flux_lwd(i)        = 0.0                           
-          ex_delta_u(i)         = 0.0 
+          ex_flux_lwd(i)        = 0.0
+          ex_delta_u(i)         = 0.0
           ex_delta_v(i)         = 0.0
        enddo
     enddo
@@ -1898,7 +2005,7 @@ contains
 
 
     ! MOD changed the following two lines to put Atmos%surf_diff%delta_u and v
-    ! on exchange grid instead of the stresses themselves so that only the 
+    ! on exchange grid instead of the stresses themselves so that only the
     ! implicit corrections are filtered through the atmospheric grid not the
     ! stresses themselves
     call put_to_xgrid (Atm%Surf_Diff%delta_u, 'ATM', ex_delta_u, xmap_sfc, remap_method=remap_method, complete=.false.)
@@ -1941,7 +2048,7 @@ contains
              ex_flux_sw_vis_dif(i) = ex_flux_sw_vis_dif(i) * ex_albedo_vis_dif_fix(i)
           enddo
        enddo
-    else 
+    else
        !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_flux_sw_dir, &
        !$OMP                                  ex_flux_sw_vis_dir,ex_albedo_nir_dir_fix,        &
        !$OMP                                  ex_albedo_vis_dir_fix,ex_flux_sw_dif,            &
@@ -2002,8 +2109,8 @@ contains
 
 #ifndef use_AM3_physics
     ! Get sedimentation flux. Has to be here (instead of sfc_boundary_layer sub)
-    ! because of time stepping order: sedimentation fluxes are calculated in 
-    ! update_atmos_model_down (in atmos_tracer_driver), but sfc_boundary_layer 
+    ! because of time stepping order: sedimentation fluxes are calculated in
+    ! update_atmos_model_down (in atmos_tracer_driver), but sfc_boundary_layer
     ! is called before that.
     do tr = 1,n_exch_tr
        if (atmos_tracer_has_surf_setl_flux(tr_table(tr)%atm)) then
@@ -2040,10 +2147,10 @@ contains
              ! temperature
              ex_gamma(i)      =  1./ (1.0 - ex_dtmass(i)*(ex_dflux_t(i) + ex_dhdt_atm(i)*cp_inv))
              ex_e_t_n(i)      =  ex_dtmass(i)*ex_dhdt_surf(i)*cp_inv*ex_gamma(i)
-             ex_f_t_delt_n(i) = (ex_delta_t(i) + ex_dtmass(i) * ex_flux_t(i)*cp_inv) * ex_gamma(i)    
+             ex_f_t_delt_n(i) = (ex_delta_t(i) + ex_dtmass(i) * ex_flux_t(i)*cp_inv) * ex_gamma(i)
 
              ex_flux_t (i)    =  ex_flux_t(i)        + ex_dhdt_atm(i) * ex_f_t_delt_n(i)
-             ex_dhdt_surf(i)  =  ex_dhdt_surf(i)     + ex_dhdt_atm(i) * ex_e_t_n(i)   
+             ex_dhdt_surf(i)  =  ex_dhdt_surf(i)     + ex_dhdt_atm(i) * ex_e_t_n(i)
 
              ! moisture
              !     ex_gamma      =  1./ (1.0 - ex_dtmass*(ex_dflux_q + ex_dedq_atm))
@@ -2052,8 +2159,8 @@ contains
              ! regions of exchange grid, so that if one of them is not zero the other is, and
              ! vice versa.
              !     ex_e_q_n      =  ex_dtmass*(ex_dedt_surf+ex_dedq_surf) * ex_gamma
-             !     ex_f_q_delt_n = (ex_delta_q  + ex_dtmass * ex_flux_q) * ex_gamma    
-             !     ex_flux_q     =  ex_flux_q    + ex_dedq_atm * ex_f_q_delt_n 
+             !     ex_f_q_delt_n = (ex_delta_q  + ex_dtmass * ex_flux_q) * ex_gamma
+             !     ex_flux_q     =  ex_flux_q    + ex_dedq_atm * ex_f_q_delt_n
              !     ex_dedt_surf  =  ex_dedt_surf + ex_dedq_atm * ex_e_q_n
              !     ex_dedq_surf  =  ex_dedq_surf + ex_dedq_atm * ex_e_q_n
              ! moisture vs. surface temperture, assuming saturation
@@ -2064,9 +2171,9 @@ contains
                 ex_gamma(i)   =  1.0 / (1.0 - ex_dtmass(i)*(ex_dflux_tr(i,tr) + ex_dfdtr_atm(i,tr)))
 
                 ex_e_tr_n(i,tr)      =  ex_dtmass(i)*ex_dfdtr_surf(i,tr)*ex_gamma(i)
-                ex_f_tr_delt_n(i,tr) = (ex_delta_tr(i,tr)+ex_dtmass(i)*ex_flux_tr(i,tr))*ex_gamma(i)    
+                ex_f_tr_delt_n(i,tr) = (ex_delta_tr(i,tr)+ex_dtmass(i)*ex_flux_tr(i,tr))*ex_gamma(i)
 
-                ex_flux_tr(i,tr)     =  ex_flux_tr(i,tr) + ex_dfdtr_atm(i,tr)*ex_f_tr_delt_n(i,tr) 
+                ex_flux_tr(i,tr)     =  ex_flux_tr(i,tr) + ex_dfdtr_atm(i,tr)*ex_f_tr_delt_n(i,tr)
                 ex_dfdtr_surf(i,tr)  =  ex_dfdtr_surf(i,tr) + ex_dfdtr_atm(i,tr)*ex_e_tr_n(i,tr)
              enddo
           endif
@@ -2075,28 +2182,28 @@ contains
     !-----------------------------------------------------------------------
     !---- output fields on the land grid -------
 
-    call get_from_xgrid (Land_boundary%t_flux,  'LND', ex_flux_t,    xmap_sfc)
-    call get_from_xgrid (Land_boundary%sw_flux, 'LND', ex_flux_sw,   xmap_sfc)
-    call get_from_xgrid (Land_boundary%sw_flux_down_vis_dir, 'LND', ex_flux_sw_down_vis_dir,   xmap_sfc)
-    call get_from_xgrid (Land_boundary%sw_flux_down_total_dir, 'LND', ex_flux_sw_down_total_dir,   xmap_sfc)
-    call get_from_xgrid (Land_boundary%sw_flux_down_vis_dif, 'LND', ex_flux_sw_down_vis_dif,   xmap_sfc)
-    call get_from_xgrid (Land_boundary%sw_flux_down_total_dif, 'LND', ex_flux_sw_down_total_dif,   xmap_sfc)
-    call get_from_xgrid (Land_boundary%lw_flux, 'LND', ex_flux_lw,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%t_flux,  'LND', ex_flux_t,    xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%sw_flux, 'LND', ex_flux_sw,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%sw_flux_down_vis_dir, 'LND', ex_flux_sw_down_vis_dir,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%sw_flux_down_total_dir, 'LND', ex_flux_sw_down_total_dir,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%sw_flux_down_vis_dif, 'LND', ex_flux_sw_down_vis_dif,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%sw_flux_down_total_dif, 'LND', ex_flux_sw_down_total_dif,   xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%lw_flux, 'LND', ex_flux_lw,   xmap_sfc)
 #ifdef SCM
     if (do_specified_land .and. do_specified_flux) then
-       call get_from_xgrid (Land_boundary%dhdt,  'LND', ex_dhdt_surf_forland, xmap_sfc)
+       call get_from_xgrid_land (Land_boundary%dhdt,  'LND', ex_dhdt_surf_forland, xmap_sfc)
     else
-       call get_from_xgrid (Land_boundary%dhdt,  'LND', ex_dhdt_surf, xmap_sfc)
+       call get_from_xgrid_land (Land_boundary%dhdt,  'LND', ex_dhdt_surf, xmap_sfc)
     endif
 #else
-    call get_from_xgrid (Land_boundary%dhdt,    'LND', ex_dhdt_surf, xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%dhdt,    'LND', ex_dhdt_surf, xmap_sfc)
 #endif
-    call get_from_xgrid (Land_boundary%drdt,    'LND', ex_drdt_surf, xmap_sfc)
-    call get_from_xgrid (Land_boundary%p_surf,  'LND', ex_p_surf,    xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%drdt,    'LND', ex_drdt_surf, xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%p_surf,  'LND', ex_p_surf,    xmap_sfc)
 
-    call get_from_xgrid (Land_boundary%lprec,   'LND', ex_lprec,     xmap_sfc)
-    call get_from_xgrid (Land_boundary%fprec,   'LND', ex_fprec,     xmap_sfc)
-    call get_from_xgrid (Land_boundary%tprec,   'LND', ex_tprec,     xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%lprec,   'LND', ex_lprec,     xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%fprec,   'LND', ex_fprec,     xmap_sfc)
+    call get_from_xgrid_land (Land_boundary%tprec,   'LND', ex_tprec,     xmap_sfc)
 !!$  if(do_area_weighted_flux) then
 !!$     ! evap goes here???
 !!$     do k = 1, size(Land_boundary%lprec, dim=3)
@@ -2108,48 +2215,57 @@ contains
 !!$  endif
 
     if(associated(Land_boundary%drag_q)) then
-       call get_from_xgrid (Land_boundary%drag_q, 'LND', ex_drag_q,    xmap_sfc)
-       call data_override('LND', 'drag_q', Land_boundary%drag_q,  Time )
+       call get_from_xgrid_land (Land_boundary%drag_q, 'LND', ex_drag_q,    xmap_sfc)
+       call data_override_land('LND', 'drag_q', Land_boundary%drag_q,  Time )
     endif
     if(associated(Land_boundary%lwdn_flux)) then
-       call get_from_xgrid (Land_boundary%lwdn_flux, 'LND', ex_flux_lwd, xmap_sfc)
-       call data_override('LND', 'lwdn_flux', Land_boundary%lwdn_flux, Time )
+       call get_from_xgrid_land (Land_boundary%lwdn_flux, 'LND', ex_flux_lwd, xmap_sfc)
+       call data_override_land('LND', 'lwdn_flux', Land_boundary%lwdn_flux, Time )
     endif
     if(associated(Land_boundary%cd_m)) then
-       call get_from_xgrid (Land_boundary%cd_m, 'LND', ex_cd_m, xmap_sfc)
-       call data_override('LND', 'cd_m', Land_boundary%cd_m, Time )
+       call get_from_xgrid_land (Land_boundary%cd_m, 'LND', ex_cd_m, xmap_sfc)
+       call data_override_land('LND', 'cd_m', Land_boundary%cd_m, Time )
     endif
     if(associated(Land_boundary%cd_t)) then
-       call get_from_xgrid (Land_boundary%cd_t, 'LND', ex_cd_t, xmap_sfc)
-       call data_override('LND', 'cd_t', Land_boundary%cd_t, Time )
+       call get_from_xgrid_land (Land_boundary%cd_t, 'LND', ex_cd_t, xmap_sfc)
+       call data_override_land('LND', 'cd_t', Land_boundary%cd_t, Time )
     endif
     if(associated(Land_boundary%bstar)) then
-       call get_from_xgrid (Land_boundary%bstar, 'LND', ex_b_star, xmap_sfc)
-       call data_override('LND', 'bstar',  Land_boundary%bstar, Time )
+       call get_from_xgrid_land (Land_boundary%bstar, 'LND', ex_b_star, xmap_sfc)
+       call data_override_land('LND', 'bstar',  Land_boundary%bstar, Time )
     endif
     if(associated(Land_boundary%ustar)) then
-       call get_from_xgrid (Land_boundary%ustar, 'LND', ex_u_star, xmap_sfc)
-       call data_override('LND', 'ustar',  Land_boundary%ustar, Time )
+       call get_from_xgrid_land (Land_boundary%ustar, 'LND', ex_u_star, xmap_sfc)
+       call data_override_land('LND', 'ustar',  Land_boundary%ustar, Time )
     endif
     if(associated(Land_boundary%wind)) then
-       call get_from_xgrid (Land_boundary%wind, 'LND', ex_wind, xmap_sfc)
-       call data_override('LND', 'wind',  Land_boundary%wind, Time )
+       call get_from_xgrid_land (Land_boundary%wind, 'LND', ex_wind, xmap_sfc)
+       call data_override_land('LND', 'wind',  Land_boundary%wind, Time )
     endif
     if(associated(Land_boundary%z_bot)) then
-       call get_from_xgrid (Land_boundary%z_bot, 'LND', ex_z_atm, xmap_sfc)
-       call data_override('LND', 'z_bot',  Land_boundary%z_bot, Time )
+       call get_from_xgrid_land (Land_boundary%z_bot, 'LND', ex_z_atm, xmap_sfc)
+       call data_override_land('LND', 'z_bot',  Land_boundary%z_bot, Time )
     endif
 
-    Land_boundary%tr_flux(:,:,:,:) = 0.0
-    Land_boundary%dfdtr(:,:,:,:) = 0.0
+    Land_boundary%tr_flux = 0.0
+    Land_boundary%dfdtr = 0.0
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
-          call get_from_xgrid (Land_boundary%tr_flux(:,:,:,n), 'LND', ex_flux_tr(:,tr), xmap_sfc)
-          call get_from_xgrid (Land_boundary%dfdtr(:,:,:,n),   'LND', ex_dfdtr_surf(:,tr), xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
+          call get_from_xgrid_land (Land_boundary%tr_flux(:,:,n), 'LND', ex_flux_tr(:,tr), xmap_sfc)
+          call get_from_xgrid_land (Land_boundary%dfdtr(:,:,n),   'LND', ex_dfdtr_surf(:,tr), xmap_sfc)
+#else
+          call get_from_xgrid_land (Land_boundary%tr_flux(:,:,:,n), 'LND', ex_flux_tr(:,tr), xmap_sfc)
+          call get_from_xgrid_land (Land_boundary%dfdtr(:,:,:,n),   'LND', ex_dfdtr_surf(:,tr), xmap_sfc)
+#endif
 #ifdef SCM
           if (do_specified_land .and. do_specified_flux .and. tr.eq.isphum) then
-             call get_from_xgrid (Land_boundary%dfdtr(:,:,:,n),   'LND', ex_dedq_surf_forland(:), xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
+             call get_from_xgrid_land (Land_boundary%dfdtr(:,:,n),   'LND', ex_dedq_surf_forland(:), xmap_sfc)
+#else
+             call get_from_xgrid_land (Land_boundary%dfdtr(:,:,:,n),   'LND', ex_dedq_surf_forland(:), xmap_sfc)
+#endif
           endif
 #endif
        endif
@@ -2157,23 +2273,28 @@ contains
 
     !  current time is Time: is that ok? not available in land_data_type
     !Balaji: data_override calls moved here from coupler_main
-    call data_override('LND', 't_flux',  Land_boundary%t_flux,  Time )
-    call data_override('LND', 'lw_flux', Land_boundary%lw_flux, Time )
-    call data_override('LND', 'sw_flux', Land_boundary%sw_flux, Time )
-    call data_override('LND', 'sw_flux_down_vis_dir', Land_boundary%sw_flux_down_vis_dir, Time )
-    call data_override('LND', 'sw_flux_down_total_dir', Land_boundary%sw_flux_down_total_dir, Time )
-    call data_override('LND', 'sw_flux_down_vis_dif', Land_boundary%sw_flux_down_vis_dif, Time )
-    call data_override('LND', 'sw_flux_down_total_dif', Land_boundary%sw_flux_down_total_dif, Time )
+    call data_override_land('LND', 't_flux',  Land_boundary%t_flux,  Time )
+    call data_override_land('LND', 'lw_flux', Land_boundary%lw_flux, Time )
+    call data_override_land('LND', 'sw_flux', Land_boundary%sw_flux, Time )
+    call data_override_land('LND', 'sw_flux_down_vis_dir', Land_boundary%sw_flux_down_vis_dir, Time )
+    call data_override_land('LND', 'sw_flux_down_total_dir', Land_boundary%sw_flux_down_total_dir, Time )
+    call data_override_land('LND', 'sw_flux_down_vis_dif', Land_boundary%sw_flux_down_vis_dif, Time )
+    call data_override_land('LND', 'sw_flux_down_total_dif', Land_boundary%sw_flux_down_total_dif, Time )
 
-    call data_override('LND', 'lprec',   Land_boundary%lprec,   Time )
-    call data_override('LND', 'fprec',   Land_boundary%fprec,   Time )
-    call data_override('LND', 'dhdt',    Land_boundary%dhdt,    Time )
-    call data_override('LND', 'drdt',    Land_boundary%drdt,    Time )
-    call data_override('LND', 'p_surf',  Land_boundary%p_surf,  Time )
+    call data_override_land('LND', 'lprec',   Land_boundary%lprec,   Time )
+    call data_override_land('LND', 'fprec',   Land_boundary%fprec,   Time )
+    call data_override_land('LND', 'dhdt',    Land_boundary%dhdt,    Time )
+    call data_override_land('LND', 'drdt',    Land_boundary%drdt,    Time )
+    call data_override_land('LND', 'p_surf',  Land_boundary%p_surf,  Time )
     do tr = 1,n_lnd_tr
        call get_tracer_names(MODEL_LAND, tr, tr_name)
-       call data_override('LND', trim(tr_name)//'_flux', Land_boundary%tr_flux(:,:,:,tr), Time)
-       call data_override('LND', 'dfd'//trim(tr_name),   Land_boundary%dfdtr  (:,:,:,tr), Time)
+#ifndef _USE_LEGACY_LAND_
+       call data_override_land('LND', trim(tr_name)//'_flux', Land_boundary%tr_flux(:,:,tr), Time)
+       call data_override_land('LND', 'dfd'//trim(tr_name),   Land_boundary%dfdtr  (:,:,tr), Time)
+#else
+       call data_override_land('LND', trim(tr_name)//'_flux', Land_boundary%tr_flux(:,:,:,tr), Time)
+       call data_override_land('LND', 'dfd'//trim(tr_name),   Land_boundary%dfdtr  (:,:,:,tr), Time)
+#endif
     enddo
 
     !-----------------------------------------------------------------------
@@ -2283,7 +2404,7 @@ contains
     ! compute stock changes
 
     ! Atm -> Lnd (precip)
-    call stock_move( &
+    call stock_move_land( &
          & FROM = Atm_stock(ISTOCK_WATER),  &
          & TO   = Lnd_stock(ISTOCK_WATER), &
          & DATA = (Land_boundary%lprec + Land_boundary%fprec), &
@@ -2294,7 +2415,7 @@ contains
          & radius=Radius, ier=ier, verbose='stock move PRECIP (Atm->Lnd) ')
 
     ! Atm -> Lnd (heat)
-    call stock_move( &
+    call stock_move_land( &
          & FROM = Atm_stock(ISTOCK_HEAT),  &
          & TO   = Lnd_stock(ISTOCK_HEAT), &
          & DATA = (-Land_boundary%t_flux + Land_boundary%lw_flux +  Land_boundary%sw_flux - Land_boundary%fprec*HLF), &
@@ -2365,7 +2486,7 @@ contains
     call mpp_get_compute_domain(Ice%Domain, isc, iec, jsc, jec)
 
     call set_frac_area (Ice%part_size(isc:iec,jsc:jec,:) , 'OCN', xmap_sfc)
-    call set_frac_area (Land%tile_size, 'LND', xmap_sfc)
+    call set_frac_area_land (Land%tile_size, 'LND', xmap_sfc)
     n_xgrid_sfc = max(xgrid_count(xmap_sfc),1)
     if(n_xgrid_sfc .GE. nblocks) then
        my_nblocks = nblocks
@@ -2421,13 +2542,17 @@ contains
          ex_tr_surf_new,    & ! updated tracer values at the surface
          ex_dt_tr_surf,     & ! tendency of tracers at the surface
          ex_delta_tr_n
-    ! jgj: added for co2_surf diagnostic 
+    ! jgj: added for co2_surf diagnostic
     real, dimension(n_xgrid_sfc) :: &
          ex_co2_surf_dvmr   ! updated CO2 tracer values at the surface (dry vmr)
 
     real, dimension(size(Land_Ice_Atmos_Boundary%dt_t,1),size(Land_Ice_Atmos_Boundary%dt_t,2)) :: diag_atm, &
          evap_atm, frac_atm
+#ifndef _USE_LEGACY_LAND_
+    real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2)) :: data_lnd, diag_land
+#else
     real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2), size(Land_boundary%lprec,3)) :: data_lnd, diag_land
+#endif
     real, dimension(size(Ice_boundary%lprec,1), size(Ice_boundary%lprec,2), size(Ice_boundary%lprec,3)) :: data_ice
     real, dimension(size(Ice%albedo,1),size(Ice%albedo,2),size(Ice%albedo,3)) ::  icegrid
     logical :: used
@@ -2444,11 +2569,15 @@ contains
     !-----------------------------------------------------------------------
     !Balaji: data_override calls moved here from coupler_main
     call data_override ( 'ICE', 't_surf', Ice%t_surf,  Time)
-    call data_override ( 'LND', 't_ca',   Land%t_ca,   Time)
-    call data_override ( 'LND', 't_surf', Land%t_surf, Time)
+    call data_override_land ( 'LND', 't_ca',   Land%t_ca,   Time)
+    call data_override_land ( 'LND', 't_surf', Land%t_surf, Time)
     do tr = 1, n_lnd_tr
        call get_tracer_names( MODEL_LAND, tr, tr_name )
-       call data_override('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
+#ifndef _USE_LEGACY_LAND_
+       call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,tr), Time)
+#else
+       call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
+#endif
     enddo
 
     !----- compute surface temperature change -----
@@ -2457,11 +2586,11 @@ contains
 
     call put_to_xgrid (Ice%t_surf,  'OCN', ex_t_surf_new, xmap_sfc)
     ex_t_ca_new = ex_t_surf_new  ! since it is the same thing over oceans
-    call put_to_xgrid (Land%t_ca,   'LND', ex_t_ca_new,   xmap_sfc)
-    call put_to_xgrid (Land%t_surf, 'LND', ex_t_surf_new, xmap_sfc)
+    call put_to_xgrid_land (Land%t_ca,   'LND', ex_t_ca_new,   xmap_sfc)
+    call put_to_xgrid_land (Land%t_surf, 'LND', ex_t_surf_new, xmap_sfc)
 
     !  call escomp(ex_t_ca_new, ex_q_surf_new)
-    !  ex_q_surf_new  = d622*ex_q_surf_new/(ex_p_surf-d378*ex_q_surf_new) 
+    !  ex_q_surf_new  = d622*ex_q_surf_new/(ex_p_surf-d378*ex_q_surf_new)
     !  call put_to_xgrid (Land%q_ca, 'LND', ex_q_surf_new, xmap_sfc)
 
 #ifdef SCM
@@ -2491,10 +2620,10 @@ contains
        end if
 
        !-----------------------------------------------------------------------
-       !-----  adjust fluxes and atmospheric increments for 
+       !-----  adjust fluxes and atmospheric increments for
        !-----  implicit dependence on surface temperature -----
        do tr = 1,n_exch_tr
-          ! set up updated surface tracer field so that flux to atmos for absent 
+          ! set up updated surface tracer field so that flux to atmos for absent
           ! tracers is zero
           do i = is,ie
              if(.not.ex_avail(i)) cycle
@@ -2511,11 +2640,15 @@ contains
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
-          call put_to_xgrid ( Land%tr(:,:,:,n), 'LND', ex_tr_surf_new(:,tr), xmap_sfc )
+#ifndef _USE_LEGACY_LAND_
+          call put_to_xgrid_land ( Land%tr(:,:,n), 'LND', ex_tr_surf_new(:,tr), xmap_sfc )
+#else
+          call put_to_xgrid_land ( Land%tr(:,:,:,n), 'LND', ex_tr_surf_new(:,tr), xmap_sfc )
+#endif
        endif
     enddo
 
-    ! get all tracers available from ocean here 
+    ! get all tracers available from ocean here
 
     ! update tracer tendencies in the atmosphere
     do l = 1, my_nblocks
@@ -2523,7 +2656,7 @@ contains
        ie=block_end(l)
        do tr = 1,n_exch_tr
           do i = is, ie
-             if(ex_avail(i)) then  
+             if(ex_avail(i)) then
                 ex_dt_tr_surf(i,tr) = ex_tr_surf_new(i,tr) - ex_tr_surf(i,tr)
                 ex_delta_tr_n(i,tr) = ex_f_tr_delt_n(i,tr) + ex_dt_tr_surf(i,tr) * ex_e_tr_n(i,tr)
                 ex_flux_tr(i,tr)    = ex_flux_tr(i,tr)     + ex_dt_tr_surf(i,tr) * ex_dfdtr_surf(i,tr)
@@ -2533,7 +2666,7 @@ contains
 
        ! re-calculate fluxes of specific humidity over ocean
        do i = is, ie
-          if(ex_avail(i) .and. (.not.ex_land(i))) then 
+          if(ex_avail(i) .and. (.not.ex_land(i))) then
              ! note that in this region (over ocean) ex_dt_t_surf == ex_dt_t_ca
              ex_delta_tr_n(i,isphum)  = ex_f_tr_delt_n(i,isphum) + ex_dt_t_surf(i) * ex_e_q_n(i)
              ex_flux_tr(i,isphum)     = ex_flux_tr(i,isphum)     + ex_dt_t_surf(i) * ex_dedt_surf(i)
@@ -2552,7 +2685,7 @@ contains
        ie=block_end(l)
        do i = is, ie
           ex_delta_t_n(i) = 0.0
-          if(ex_avail(i)) then  
+          if(ex_avail(i)) then
              ex_flux_t(i)    = ex_flux_t(i)  + ex_dt_t_ca(i)   * ex_dhdt_surf(i)
              ex_flux_lw(i)   = ex_flux_lw(i) - ex_dt_t_surf(i) * ex_drdt_surf(i)
              ex_delta_t_n(i) = ex_f_t_delt_n(i)  + ex_dt_t_ca(i)*ex_e_t_n(i)
@@ -2587,6 +2720,9 @@ contains
        used = send_data ( id_ts, diag_atm, Time )
     endif
     call sum_diag_integral_field ('t_surf', diag_atm)
+#ifndef use_AM3_physics
+    if ( id_ts_g > 0 ) used = send_global_diag ( id_ts_g, diag_atm, Time )
+#endif
     !------- new surface temperature only over open ocean -----------
     if ( id_tos > 0 ) then
        ex_icetemp = 0.0
@@ -2654,20 +2790,26 @@ contains
     enddo
 
     !------- sensible heat flux -----------
-    if ( id_t_flux > 0 .or. id_hfss > 0 ) then
+    if ( id_t_flux > 0 .or. id_hfss > 0 .or. id_hfss_g > 0 ) then
        call get_from_xgrid (diag_atm, 'ATM', ex_flux_t, xmap_sfc)
        if ( id_t_flux > 0 ) used = send_data ( id_t_flux, diag_atm, Time )
        if ( id_hfss   > 0 ) used = send_data ( id_hfss, diag_atm, Time )
+#ifndef use_AM3_physics
+       if ( id_hfss_g > 0 ) used = send_global_diag ( id_hfss_g, diag_atm, Time )
+#endif
     endif
 
     !------- net longwave flux -----------
-    if ( id_r_flux > 0 ) then
+    if ( id_r_flux > 0 .or. id_rls_g > 0 ) then
        call get_from_xgrid (diag_atm, 'ATM', ex_flux_lw, xmap_sfc)
-       used = send_data ( id_r_flux, diag_atm, Time )
+       if ( id_r_flux > 0 ) used = send_data ( id_r_flux, diag_atm, Time )
+#ifndef use_AM3_physics
+       if ( id_rls_g  > 0 ) used = send_global_diag ( id_rls_g, diag_atm, Time )
+#endif
     endif
 
     !------- tracer fluxes ------------
-    ! tr_mol_flux diagnostic will be correct for co2 tracer only. 
+    ! tr_mol_flux diagnostic will be correct for co2 tracer only.
     ! will need update code to use correct molar mass for tracers other than co2
     do tr=1,n_exch_tr
        if ( id_tr_flux(tr) > 0 .or. id_tr_mol_flux(tr) > 0 ) then
@@ -2684,20 +2826,30 @@ contains
     call get_from_xgrid (evap_atm, 'ATM', ex_flux_tr(:,isphum), xmap_sfc)
     if( id_q_flux > 0 )  used = send_data ( id_q_flux, evap_atm, Time)
     if( id_evspsbl > 0 ) used = send_data ( id_evspsbl, evap_atm, Time)
-    if( id_hfls > 0 )    used = send_data ( id_hfls, HLF*evap_atm, Time)
+    if( id_hfls    > 0 ) used = send_data ( id_hfls, HLV*evap_atm, Time)
+#ifndef use_AM3_physics
+    if( id_hfls_g  > 0 ) used = send_global_diag ( id_hfls_g, HLV*evap_atm, Time)
+#endif
     if( id_q_flux_land > 0 ) then
-       call get_from_xgrid (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
+       call get_from_xgrid_land (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
+       call send_tile_data (id_q_flux_land, diag_land, send_immediately=.TRUE.)
+#else
        used = send_tile_averaged_data(id_q_flux_land, diag_land, &
             Land%tile_size, Time, mask=Land%mask)
+#endif
     endif
     call sum_diag_integral_field ('evap', evap_atm*86400.)
+#ifndef use_AM3_physics
+    if (id_evspsbl_g > 0) used = send_global_diag ( id_evspsbl_g, evap_atm, Time )
+#endif
 
     ! compute stock changes
 
-    call get_from_xgrid(data_lnd, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
+    call get_from_xgrid_land(data_lnd, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
 
     ! Lnd -> Atm (evap)
-    call stock_move( &
+    call stock_move_land( &
          & TO   = Atm_stock(ISTOCK_WATER), &
          & FROM = Lnd_stock(ISTOCK_WATER), &
          & DATA = data_lnd, &
@@ -2708,7 +2860,7 @@ contains
          & radius=Radius, ier=ier, verbose='stock move EVAP (Lnd->ATm) ')
 
     ! Lnd -> Atm (heat lost through evap)
-    call stock_move( &
+    call stock_move_land( &
          & TO   = Atm_stock(ISTOCK_HEAT), &
          & FROM = Lnd_stock(ISTOCK_HEAT), &
          & DATA = data_lnd * HLV, &
@@ -2769,13 +2921,13 @@ contains
          ex_avail    ,  &
          ex_f_t_delt_n, &
          ex_tr_surf  ,  &
-         
+
          ex_dfdtr_surf  , &
          ex_dfdtr_atm   , &
          ex_flux_tr     , &
          ex_f_tr_delt_n , &
          ex_e_tr_n      , &
-         
+
          ex_e_t_n    ,  &
          ex_e_q_n    ,  &
                                 ! values added for LM3
@@ -2857,12 +3009,12 @@ contains
   do n = 1, Ice_boundary%fluxes%num_bcs  !{
      Ice_boundary%fluxes%bc(n)%flux_type = trim(ex_gas_fluxes%bc(n)%flux_type)
      Ice_boundary%fluxes%bc(n)%implementation = trim(ex_gas_fluxes%bc(n)%implementation)
-     
+
      if(Ice_boundary%fluxes%bc(n)%flux_type  .eq. 'air_sea_deposition') then
         do m = 1, Ice_boundary%fluxes%bc(n)%num_fields  !{
            call get_from_xgrid (Ice_boundary%fluxes%bc(n)%field(m)%values, 'OCN',  &
                 ex_gas_fluxes%bc(n)%field(m)%values, xmap_sfc)
-           
+
            call data_override('ICE', Ice_boundary%fluxes%bc(n)%field(m)%name,     &
               Ice_boundary%fluxes%bc(n)%field(m)%values, Time)
            if ( Ice_boundary%fluxes%bc(n)%field(m)%id_diag > 0 ) then  !{
@@ -2880,7 +3032,7 @@ contains
 
   !> \brief Puts land or ice model masks (with partitions) onto the
   !! exchange grid as a real array (1.=true, 0.=false)
-  subroutine put_logical_to_real (mask, id, ex_mask, xmap)
+  subroutine put_logical_to_real_sg (mask, id, ex_mask, xmap)
 
     logical         , intent(in)    :: mask(:,:,:)
     character(len=3), intent(in)    :: id
@@ -2902,7 +3054,36 @@ contains
 
     call put_to_xgrid(rmask, id, ex_mask, xmap)
 
-  end subroutine put_logical_to_real
+  end subroutine put_logical_to_real_sg
+
+  !#######################################################################
+
+  !> \brief Puts land or ice model masks (with partitions) onto the
+  !! exchange grid as a real array (1.=true, 0.=false)
+  subroutine put_logical_to_real_ug (mask, id, ex_mask, xmap)
+
+    logical         , intent(in)    :: mask(:,:)
+    character(len=3), intent(in)    :: id
+    real            , intent(inout) :: ex_mask(:)
+    type(xmap_type), intent(inout) :: xmap
+
+    !-----------------------------------------------------------------------
+    !    puts land or ice model masks (with partitions) onto the
+    !    exchange grid as a real array (1.=true, 0.=false)
+    !-----------------------------------------------------------------------
+
+    real, dimension(size(mask,1),size(mask,2)) :: rmask
+
+    where (mask)
+       rmask = 1.0
+    elsewhere
+       rmask = 0.0
+    endwhere
+
+    call put_to_xgrid_land(rmask, id, ex_mask, xmap)
+
+  end subroutine put_logical_to_real_ug
+
 
   !#######################################################################
 
@@ -2912,7 +3093,7 @@ contains
 
     type(time_type), intent(in) :: Time
     integer,         intent(in) :: atmos_axes(2)
-    integer,         intent(in) :: land_axes(2)
+    integer,         intent(in) :: land_axes(:)
     logical,         intent(in) :: land_pe
 
     integer :: iref
@@ -3105,33 +3286,48 @@ contains
          register_diag_field ( mod_name, 'del_q',      atmos_axes, Time,     &
          'ref height interp factor for moisture','none' )
 
-    ! + slm Jun 02, 2002 -- diagnostics of reference values over the land
     if( land_pe ) then
+       ! set the default filter (for area and subsampling) for consequent calls to
+       ! register_tiled_diag_field
+#ifndef _USE_LEGACY_LAND_
+       call set_default_diag_filter('land')
+#endif
        id_t_ref_land = &
-            register_diag_field ( mod_name, 't_ref_land', Land_axes, Time, &
+            register_tiled_diag_field ( 'flux_land', 't_ref', Land_axes, Time, &
             'temperature at '//trim(label_zh)//' over land', 'deg_k' , &
             range=trange, missing_value =  -100.0)
+       id_q_ref_land = &
+            register_tiled_diag_field ( 'flux_land', 'q_ref', Land_axes, Time, &
+            'specific humidity at '//trim(label_zh)//' over land', 'kg/kg',          &
+            missing_value=-1.0)
        id_rh_ref_land= &
-            register_diag_field ( mod_name, 'rh_ref_land', Land_axes, Time,   &
+            register_tiled_diag_field ( 'flux_land', 'rh_ref', Land_axes, Time,   &
             'relative humidity at '//trim(label_zh)//' over land', 'percent',       &
             missing_value=-999.0)
        id_u_ref_land = &
-            register_diag_field ( mod_name, 'u_ref_land',  Land_axes, Time, &
+            register_tiled_diag_field ( 'flux_land', 'u_ref',  Land_axes, Time, &
             'zonal wind component at '//trim(label_zm)//' over land',  'm/s', &
             range=vrange, missing_value=-999.0 )
        id_v_ref_land = &
-            register_diag_field ( mod_name, 'v_ref_land',  Land_axes, Time,     &
+            register_tiled_diag_field ( 'flux_land', 'v_ref',  Land_axes, Time,     &
             'meridional wind component at '//trim(label_zm)//' over land', 'm/s', &
             range=vrange, missing_value = -999.0 )
+       id_q_flux_land = &
+            register_tiled_diag_field( 'flux_land', 'evap', Land_axes, Time, &
+            'evaporation rate over land', 'kg/m2/s', missing_value=-1.0 )
+       id_tasLut_land = &
+            register_tiled_diag_field( 'cmor_land', 'tasLut', Land_axes, Time, &
+            'Near-Surface Air Temperature ('//trim(label_zh)//' Above Displacement Height) on Land Use Tile', &
+            units='K', standard_name='air_temperature', missing_value=-1.0 )
+       id_hussLut_land = &
+            register_tiled_diag_field( 'cmor_land', 'hussLut', Land_axes, Time, &
+            'Near-Surface Specific Humidity on Land Use Tile', '1.0', &
+            standard_name='specific_humidity', missing_value=-1.0 )
     endif
-    ! - slm Jun 02, 2002
+
     id_q_ref = &
          register_diag_field ( mod_name, 'q_ref', atmos_axes, Time,     &
          'specific humidity at '//trim(label_zh), 'kg/kg', missing_value=-1.0)
-    id_q_ref_land = &
-         register_diag_field ( mod_name, 'q_ref_land', Land_axes, Time, &
-         'specific humidity at '//trim(label_zh)//' over land', 'kg/kg',          &
-         missing_value=-1.0)
 
     id_rough_scale = &
          register_diag_field ( mod_name, 'rough_scale', atmos_axes, Time, &
@@ -3153,8 +3349,8 @@ contains
             'flux of '//trim(longname), trim(units)//' kg air/(m2 s)')
        !! add dryvmr co2_surf and co2_atm
        if ( lowercase(trim(name))=='co2') then
-          ! - slm Mar 25, 2010: moved registration of mol_flux inside 'if' to disable 
-          ! saving incorrect results (mol fluxes for other tracers computed with CO2 molar 
+          ! - slm Mar 25, 2010: moved registration of mol_flux inside 'if' to disable
+          ! saving incorrect results (mol fluxes for other tracers computed with CO2 molar
           ! mass)
           id_tr_mol_flux(tr) = register_diag_field(mod_name, trim(name)//'_mol_flux', atmos_axes, Time, &
                'flux of '//trim(longname), 'mol CO2/(m2 s)')
@@ -3169,10 +3365,6 @@ contains
 
     id_q_flux = register_diag_field( mod_name, 'evap',       atmos_axes, Time, &
          'evaporation rate',        'kg/m2/s'  )
-    if(land_pe) then
-       id_q_flux_land = register_diag_field( mod_name, 'evap_land', land_axes, Time, &
-            'evaporation rate over land',        'kg/m2/s', missing_value=-1.0 )
-    endif
 
     !--------------------------------------------------------------------
     !    retrieve the diag_manager id for the area diagnostic,
@@ -3205,6 +3397,7 @@ contains
        call diag_field_add_attribute( id_height10m, 'positive', 'up' )
     endif
 
+#ifdef use_AM3_physics
     id_tas      = &
          register_diag_field ( mod_name, 'tas', atmos_axes, Time, &
          'Near-Surface Air Temperature', 'K' , &
@@ -3329,7 +3522,144 @@ contains
          missing_value=CMOR_MISSING_VALUE )
     if ( id_sic > 0 ) call diag_field_add_attribute( id_sic, 'comment', &
          'averaged over the ocean portion of grid box' )
+#else
+    id_tas = register_cmip_diag_field_2d ( mod_name, 'tas', Time, &
+                            'Near-Surface Air Temperature', 'K' , &
+                             standard_name='air_temperature' )
+    if ( id_tas > 0 .and. id_height2m > 0) &
+       call diag_field_add_attribute( id_tas, 'coordinates', 'height2m' )
 
+    id_uas = register_cmip_diag_field_2d ( mod_name, 'uas', Time, &
+                           'Eastward Near-Surface Wind', 'm s-1', &
+                            standard_name='eastward_wind' )
+    if ( id_uas > 0 .and. id_height10m > 0) &
+       call diag_field_add_attribute( id_uas, 'coordinates', 'height10m' )
+
+    id_vas = register_cmip_diag_field_2d ( mod_name, 'vas', Time, &
+                          'Northward Near-Surface Wind', 'm s-1', &
+                           standard_name='northward_wind' )
+    if ( id_vas > 0 .and. id_height10m > 0 ) &
+       call diag_field_add_attribute( id_vas, 'coordinates', 'height10m' )
+
+    id_sfcWind = register_cmip_diag_field_2d ( mod_name, 'sfcWind', Time, &
+                                      'Near-Surface Wind Speed', 'm s-1', &
+                                       standard_name='wind_speed' )
+    if ( id_sfcWind > 0 .and. id_height10m > 0 ) &
+       call diag_field_add_attribute( id_sfcWind, 'coordinates', 'height10m' )
+
+    id_huss = register_cmip_diag_field_2d ( mod_name, 'huss', Time, &
+                           'Near-Surface Specific Humidity', '1.0', &
+                            standard_name='specific_humidity' )
+    if ( id_huss > 0 .and. id_height2m > 0 ) &
+       call diag_field_add_attribute( id_huss, 'coordinates', 'height2m' )
+
+    id_hurs = register_cmip_diag_field_2d ( mod_name, 'hurs', Time, &
+                             'Near-Surface Relative Humidity', '%', &
+                              standard_name='relative_humidity' )
+    if ( id_hurs > 0 .and. id_height2m > 0 ) &
+       call diag_field_add_attribute( id_hurs, 'coordinates', 'height2m' )
+
+    id_rhs = register_cmip_diag_field_2d ( mod_name, 'rhs', Time, &
+                           'Near-Surface Relative Humidity', '%', &
+                            standard_name='relative_humidity' )
+    if ( id_rhs > 0 .and. id_height2m > 0 ) &
+       call diag_field_add_attribute( id_rhs, 'coordinates', 'height2m' )
+
+    id_ts = register_cmip_diag_field_2d ( mod_name, 'ts', Time, &
+                                    'Surface Temperature', 'K', &
+                            standard_name='surface_temperature' )
+
+    id_psl = register_cmip_diag_field_2d ( mod_name, 'psl', Time, &
+                                      'Sea Level Pressure', 'Pa', &
+                        standard_name='air_pressure_at_sea_level' )
+
+    id_tauu = register_cmip_diag_field_2d ( mod_name, 'tauu', Time, &
+                     'Surface Downward Eastward Wind Stress', 'Pa', &
+                   standard_name='surface_downward_eastward_stress' )
+
+    id_tauv = register_cmip_diag_field_2d ( mod_name, 'tauv', Time, &
+                    'Surface Downward Northward Wind Stress', 'Pa', &
+                  standard_name='surface_downward_northward_stress' )
+
+    id_hfss = register_cmip_diag_field_2d ( mod_name, 'hfss', Time, &
+                      'Surface Upward Sensible Heat Flux', 'W m-2', &
+                  standard_name='surface_upward_sensible_heat_flux' )
+
+    id_hfls = register_cmip_diag_field_2d ( mod_name, 'hfls', Time, &
+                        'Surface Upward Latent Heat Flux', 'W m-2', &
+                    standard_name='surface_upward_latent_heat_flux' )
+    if ( id_hfls > 0 ) call diag_field_add_attribute( id_hfls, 'comment', 'Lv*evap' )
+
+    id_evspsbl = register_cmip_diag_field_2d ( mod_name, 'evspsbl', Time, &
+                                             'Evaporation', 'kg m-2 s-1', &
+                                   standard_name='water_evaporation_flux' )
+
+    id_sftlf = register_static_field ( mod_name, 'sftlf', atmos_axes,  &
+                  'Fraction of the Grid Cell Occupied by Land', '1.0', &
+                     standard_name='land_area_fraction', area=area_id, &
+                     interp_method='conserve_order1' )
+
+    id_tslsi = register_cmip_diag_field_2d ( mod_name, 'tslsi', Time,  &
+                     'Surface Temperature Where Land or Sea Ice', 'K', &
+                                  standard_name='surface_temperature', &
+                                     mask_variant=.true. )
+
+    ! tos,sic are ocean,seaIce fields on the atmos grid
+    ! useful for amip-type runs
+
+    id_tos = register_cmip_diag_field_2d ( mod_name, 'tos', Time,  &
+                                   'Sea Surface Temperature', 'K', &
+                          standard_name='sea_surface_temperature', &
+                          mask_variant=.true. )
+
+    id_sic = register_cmip_diag_field_2d ( mod_name, 'sic', Time,  &
+                                   'Sea Ice Area Fraction', '1.0', &
+                            standard_name='sea_ice_area_fraction' )
+    if ( id_sic > 0 ) call diag_field_add_attribute( id_sic, 'comment', &
+         'averaged over the ocean portion of grid box' )
+
+    !----- initialize global integrals for netCDF output -----
+    id_evspsbl_g = register_global_diag_field ( 'evspsbl', Time, &
+                                    'Evaporation', 'mm d-1', &
+                          standard_name='water_evaporation_flux' )
+
+    id_ts_g = register_global_diag_field ( 'ts', Time, &
+                                     'Surface Temperature', 'K', &
+                             standard_name='surface_temperature' )
+
+    id_tas_g = register_global_diag_field ( 'tas', Time, &
+                           'Near-Surface Air Temperature', 'K' , &
+                                 standard_name='air_temperature' )
+    if ( id_tas_g > 0 .and. id_height2m > 0) &
+         call diag_field_add_attribute ( get_global_diag_field_id(id_tas_g), 'coordinates', 'height2m' )
+
+    id_tasl_g = register_global_diag_field ( 'tasl', Time, &
+                           'Near-Surface Air Temperature (Land Only)', 'K' , &
+                                 standard_name='air_temperature' )
+#if defined(_USE_LEGACY_LAND_) || defined(use_AM3_physics)
+    if(id_tasl_g>0) then
+       call mpp_error(WARNING, "diag_field_init: field tasl is registered, but macro "// &
+             "_USE_LEGACY_LAND_ or use_AM3_physics is defined, no data will be written out"
+    endif
+#endif
+    if ( id_tasl_g > 0 .and. id_height2m > 0) &
+         call diag_field_add_attribute ( get_global_diag_field_id(id_tasl_g), 'coordinates', 'height2m' )
+
+    id_hfss_g = register_global_diag_field ( 'hfss', Time, &
+                   'Surface Upward Sensible Heat Flux', 'W m-2', &
+               standard_name='surface_upward_sensible_heat_flux' )
+
+    id_hfls_g = register_global_diag_field ( 'hfls', Time, &
+                  'Surface Upward Latent Heat Flux', 'W m-2', &
+                  standard_name='surface_upward_latent_heat_flux')
+    if ( id_hfls_g > 0 ) &
+         call diag_field_add_attribute( get_global_diag_field_id(id_hfls_g), 'comment', 'Lv*evap' )
+
+    id_rls_g = register_global_diag_field ( 'rls', Time, &
+                   'Net Longwave Surface Radiation', 'W m-2', &
+               standard_name='surface_net_longwave_flux' )
+
+#endif
     !-----------------------------------------------------------------------
 
   end subroutine diag_field_init
@@ -3346,14 +3676,14 @@ contains
        return
     endif
 
-    where(area /= 0.0) 
+    where(area /= 0.0)
        data = data / area
     end where
 
   end subroutine divide_by_area
 
   !#######################################################################
-  !> \brief Send out the ice_mask and/or sic data. 
+  !> \brief Send out the ice_mask and/or sic data.
   !! This was called inside flux_ocean_to_ice. Why?
   subroutine send_ice_mask_sic(Time)
     type(time_type),         intent(in)  :: Time !< Current time
@@ -3392,6 +3722,8 @@ contains
 
   end subroutine send_ice_mask_sic
 
+  !#######################################################################
+
   subroutine atm_stock_integrate(Atm, res)
     type(atmos_data_type), intent(in) :: Atm
     real,                 intent(out) :: res
@@ -3402,5 +3734,6 @@ contains
 
   end subroutine atm_stock_integrate
 
+!#########################################################################
 
 end module atm_land_ice_flux_exchange_mod
