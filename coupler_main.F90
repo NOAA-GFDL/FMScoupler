@@ -632,6 +632,9 @@ program coupler_main
        ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
        if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
        call mpp_clock_begin(newClock2)
+       !Redistribute quantities from Ocean to Ocean_ice_boundary
+       !Ice intent is In. 
+       !Ice is used only for accessing Ice%area and knowing if we are on an Ice pe
        call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
        call mpp_clock_end(newClock2)
      endif
@@ -655,6 +658,9 @@ program coupler_main
         if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
           if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
           call mpp_clock_begin(newClock3)
+          !Redistribute Ice quantities to Ice_ocean_boundary
+          !Ocean intent is in
+          !Ocean is used only to access ocean%area and ocean%domain
           call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
           call mpp_clock_end(newClock3)
         endif
@@ -915,6 +921,8 @@ program coupler_main
      end if                     !Atm%pe block
 
      if (do_ice .and. Ice%pe) then
+        call mpp_clock_begin(newClock5) !Ice is still using ATM pelist and need to be included in ATM clock
+                                        !ATM clock is used for load-balancing the coupled models 
 
         if (Ice%fast_ice_PE) then
            call mpp_clock_begin(newClock10f)
@@ -952,6 +960,7 @@ program coupler_main
 
         if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
 
+        call mpp_clock_end(newClock5)
      endif  ! End of Ice%pe block
 
      if( .NOT.use_lag_fluxes )then !this could serialize
