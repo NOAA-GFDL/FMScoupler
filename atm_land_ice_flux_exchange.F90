@@ -1682,7 +1682,7 @@ contains
 
     !    ------- reference temp -----------
 #ifdef use_AM3_physics
-    if ( id_t_ref > 0 .or. id_t_ref_land > 0 .or. id_tasl_g > 0 .or. id_tasLut_land > 0 ) then
+    if ( id_t_ref > 0 .or. id_t_ref_land > 0 .or. id_tasLut_land > 0 ) then
        where (ex_avail) &
             ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
        if (id_t_ref_land > 0.or.id_tasLut_land > 0) then
@@ -1710,7 +1710,8 @@ contains
        if (id_t_ref_land > 0)  call send_tile_data (id_t_ref_land, diag_land)
        if (id_tasLut_land > 0) call send_tile_data (id_tasLut_land, diag_land)
        if (id_tasl_g > 0) then
-         used = send_global_land_diag ( id_tasl_g, diag_land, Time, Land%tile_size, Land%mask, Land )
+         used = send_global_land_diag ( get_global_diag_field_id(id_tasl_g), &
+                                diag_land, Time, Land%tile_size, Land%mask, Land )
        endif
 #else
        used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
