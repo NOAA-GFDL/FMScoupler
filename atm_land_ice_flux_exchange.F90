@@ -521,6 +521,10 @@ contains
     allocate( atmos_ice_boundary%sw_flux_vis_dif(is:ie,js:je,kd) )
     allocate( atmos_ice_boundary%sw_flux_nir_dir(is:ie,js:je,kd) )
     allocate( atmos_ice_boundary%sw_flux_nir_dif(is:ie,js:je,kd) )
+    allocate( atmos_ice_boundary%sw_down_vis_dir(is:ie,js:je,kd) )
+    allocate( atmos_ice_boundary%sw_down_vis_dif(is:ie,js:je,kd) )
+    allocate( atmos_ice_boundary%sw_down_nir_dir(is:ie,js:je,kd) )
+    allocate( atmos_ice_boundary%sw_down_nir_dif(is:ie,js:je,kd) )
     allocate( atmos_ice_boundary%lprec(is:ie,js:je,kd) )
     allocate( atmos_ice_boundary%fprec(is:ie,js:je,kd) )
     allocate( atmos_ice_boundary%dhdt(is:ie,js:je,kd) )
@@ -539,6 +543,10 @@ contains
     atmos_ice_boundary%sw_flux_vis_dif=0.0
     atmos_ice_boundary%sw_flux_nir_dir=0.0
     atmos_ice_boundary%sw_flux_nir_dif=0.0
+    atmos_ice_boundary%sw_down_vis_dir=0.0
+    atmos_ice_boundary%sw_down_vis_dif=0.0
+    atmos_ice_boundary%sw_down_nir_dir=0.0
+    atmos_ice_boundary%sw_down_nir_dif=0.0
     atmos_ice_boundary%lprec=0.0
     atmos_ice_boundary%fprec=0.0
     atmos_ice_boundary%dhdt=0.0
@@ -558,6 +566,10 @@ contains
     call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
          'ice_flux', Ice%axes, Time, suffix = '_ice')
 
+    ! This call sets up a structure that is private to the ice model, and it
+    ! does not belong here.  This line should be eliminated once an update
+    ! to the FMS coupler_types code is made available that overloads the 
+    ! subroutine coupler_type_copy to use 2d and 3d coupler type sources. -RWH
     call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd,     &
          'ice_flux', Ice%axes, Time, suffix = '_ice_top')
 
@@ -2298,6 +2310,14 @@ contains
     call get_from_xgrid (Ice_boundary%sw_flux_nir_dif,  'OCN', ex_flux_sw_dif,xmap_sfc)
     Ice_boundary%sw_flux_nir_dif = Ice_boundary%sw_flux_nir_dif - Ice_boundary%sw_flux_vis_dif ! ice & ocean use these 4: dir/dif nir/vis
 
+    call get_from_xgrid (Ice_boundary%sw_down_vis_dir,  'OCN', ex_flux_sw_down_vis_dir,   xmap_sfc)
+    call get_from_xgrid (Ice_boundary%sw_down_nir_dir,  'OCN', ex_flux_sw_down_total_dir, xmap_sfc)
+    Ice_boundary%sw_down_nir_dir = Ice_boundary%sw_down_nir_dir - Ice_boundary%sw_down_vis_dir ! ice & ocean use these 4: dir/dif nir/vis
+
+    call get_from_xgrid (Ice_boundary%sw_down_vis_dif,  'OCN', ex_flux_sw_down_vis_dif,   xmap_sfc)
+    call get_from_xgrid (Ice_boundary%sw_down_nir_dif,  'OCN', ex_flux_sw_down_total_dif,xmap_sfc)
+    Ice_boundary%sw_down_nir_dif = Ice_boundary%sw_down_nir_dif - Ice_boundary%sw_down_vis_dif ! ice & ocean use these 4: dir/dif nir/vis
+
     call get_from_xgrid (Ice_boundary%lw_flux,  'OCN', ex_flux_lw,   xmap_sfc)
     call get_from_xgrid (Ice_boundary%dhdt,     'OCN', ex_dhdt_surf, xmap_sfc)
     call get_from_xgrid (Ice_boundary%dedt,     'OCN', ex_dedt_surf, xmap_sfc)
@@ -2347,21 +2367,21 @@ contains
     call data_override('ICE', 'sw_flux_vis_dir',Ice_boundary%sw_flux_vis_dir, Time)
     call data_override('ICE', 'sw_flux_nir_dif',Ice_boundary%sw_flux_nir_dif, Time, override=ov)
     call data_override('ICE', 'sw_flux_vis_dif',Ice_boundary%sw_flux_vis_dif, Time)
-    call data_override('ICE', 'sw_flux_vis_dir_dn',Ice_boundary%sw_flux_vis_dir, Time, override=ov)
+    call data_override('ICE', 'sw_flux_vis_dir_dn',Ice_boundary%sw_down_vis_dir, Time, override=ov)
     if (ov) then
-       Ice_boundary%sw_flux_vis_dir = Ice_boundary%sw_flux_vis_dir*(1.0-Ice%albedo_vis_dir)
+       Ice_boundary%sw_flux_vis_dir = Ice_boundary%sw_down_vis_dir*(1.0-Ice%albedo_vis_dir)
     endif
-    call data_override('ICE', 'sw_flux_vis_dif_dn',Ice_boundary%sw_flux_vis_dif, Time, override=ov)
+    call data_override('ICE', 'sw_flux_vis_dif_dn',Ice_boundary%sw_down_vis_dif, Time, override=ov)
     if (ov) then
-       Ice_boundary%sw_flux_vis_dif = Ice_boundary%sw_flux_vis_dif*(1.0-Ice%albedo_vis_dif)
+       Ice_boundary%sw_flux_vis_dif = Ice_boundary%sw_down_vis_dif*(1.0-Ice%albedo_vis_dif)
     endif
-    call data_override('ICE', 'sw_flux_nir_dir_dn',Ice_boundary%sw_flux_nir_dir, Time, override=ov)
+    call data_override('ICE', 'sw_flux_nir_dir_dn',Ice_boundary%sw_down_nir_dir, Time, override=ov)
     if (ov) then
-       Ice_boundary%sw_flux_nir_dir = Ice_boundary%sw_flux_nir_dir*(1.0-Ice%albedo_nir_dir)
+       Ice_boundary%sw_flux_nir_dir = Ice_boundary%sw_down_nir_dir*(1.0-Ice%albedo_nir_dir)
     endif
-    call data_override('ICE', 'sw_flux_nir_dif_dn',Ice_boundary%sw_flux_nir_dif, Time, override=ov)
+    call data_override('ICE', 'sw_flux_nir_dif_dn',Ice_boundary%sw_down_nir_dif, Time, override=ov)
     if (ov) then
-       Ice_boundary%sw_flux_nir_dif = Ice_boundary%sw_flux_nir_dif*(1.0-Ice%albedo_nir_dif)
+       Ice_boundary%sw_flux_nir_dif = Ice_boundary%sw_down_nir_dif*(1.0-Ice%albedo_nir_dif)
     endif
     call data_override('ICE', 'lprec',  Ice_boundary%lprec,   Time)
     call data_override('ICE', 'fprec',  Ice_boundary%fprec,   Time)
