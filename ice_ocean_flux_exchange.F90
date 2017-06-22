@@ -319,10 +319,10 @@ contains
        call data_override('OCN', 'q_flux',    Ice_Ocean_Boundary%q_flux   , Time )
        call data_override('OCN', 'salt_flux', Ice_Ocean_Boundary%salt_flux, Time )
        call data_override('OCN', 'lw_flux',   Ice_Ocean_Boundary%lw_flux  , Time )
-       call data_override('OCN', 'sw_flux_nir_dir',   Ice_Ocean_Boundary%sw_flux_nir_dir  , Time )
-       call data_override('OCN', 'sw_flux_nir_dif',   Ice_Ocean_Boundary%sw_flux_nir_dif  , Time )
-       call data_override('OCN', 'sw_flux_vis_dir',   Ice_Ocean_Boundary%sw_flux_vis_dir  , Time )
-       call data_override('OCN', 'sw_flux_vis_dif',   Ice_Ocean_Boundary%sw_flux_vis_dif  , Time )
+       call data_override('OCN', 'sw_flux_nir_dir', Ice_Ocean_Boundary%sw_flux_nir_dir, Time )
+       call data_override('OCN', 'sw_flux_nir_dif', Ice_Ocean_Boundary%sw_flux_nir_dif, Time )
+       call data_override('OCN', 'sw_flux_vis_dir', Ice_Ocean_Boundary%sw_flux_vis_dir, Time )
+       call data_override('OCN', 'sw_flux_vis_dif', Ice_Ocean_Boundary%sw_flux_vis_dif, Time )
        call data_override('OCN', 'lprec',     Ice_Ocean_Boundary%lprec    , Time )
        call data_override('OCN', 'fprec',     Ice_Ocean_Boundary%fprec    , Time )
        call data_override('OCN', 'runoff',    Ice_Ocean_Boundary%runoff   , Time )
@@ -344,21 +344,12 @@ contains
           do m = 1, Ice_Ocean_Boundary%fluxes%bc(n)%num_fields  !{
              call data_override('OCN', Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%name,   &
                   Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%values, Time)
+             ! Perform diagnostic output for the extra fluxes
              used = send_data(Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%id_diag,        &
                   Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%values, Time )
           enddo  !} m
        enddo  !} n
 
-       !
-       !       Perform diagnostic output for the fluxes
-       !
-
-       do n = 1, Ice_Ocean_Boundary%fluxes%num_bcs  !{
-          do m = 1, Ice_Ocean_Boundary%fluxes%bc(n)%num_fields  !{
-             used = send_data(Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%id_diag,                   &
-                  Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%values, Time)
-          enddo  !} m
-       enddo  !} n
     endif
     
     ! This call is dangerous, as it needs to be kept up to date with the pe_lists as
