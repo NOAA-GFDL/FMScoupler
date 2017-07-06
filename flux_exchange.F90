@@ -599,12 +599,19 @@ private
        & do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks,&
        & partition_fprec_from_lprec, scale_precip_2d
 
-  type(coupler_1d_bc_type), save        :: ex_gas_fields_atm  !< gas fields in atm
-  !< Place holder for various atmospheric fields.
-  type(coupler_1d_bc_type), save        :: ex_gas_fields_ice  ! gas fields on ice
-  type(coupler_1d_bc_type), save        :: ex_gas_fluxes      ! gas flux
-  !< Place holder of intermediate calculations, such as
-  !< piston velocities etc.
+  logical :: gas_fluxes_initialized = .false.  ! This is set to true when the following types are initialized.
+  type(coupler_1d_bc_type), target :: ex_gas_fields_atm  ! gas fields in atm
+      !< Structure containing atmospheric surfacevariables that are used in the
+      !! calculation of the atmosphere-ocean gas fluxes, as well as parameters
+      !! regulating these fluxes.
+  type(coupler_1d_bc_type), target :: ex_gas_fields_ice  ! gas fields atop the ice or ocean
+      !< Structure containing ice-top and ocean surface variables that are used
+      !! in the calculation of the atmosphere-ocean gas fluxes, as well as parameters
+      !! regulating these fluxes.
+  type(coupler_1d_bc_type), target :: ex_gas_fluxes      ! gas fluxes between the atm and ocean
+      !< A structure for exchanging gas or tracer fluxes between the atmosphere and ocean,
+      !! defined by the field table, as well as a place holder of intermediate calculations,
+      !! such as piston velocities, and parameters that impact the fluxes.
 
   integer :: ni_atm, nj_atm !< to do atmos diagnostic from flux_ocean_to_ice
   real, dimension(3) :: ccc !< for conservation checks
@@ -616,6 +623,33 @@ private
   real    :: ATM_PRECIP_NEW
 
 contains
+
+  subroutine gas_exchange_init (gas_fields_atm, gas_fields_ice, gas_fluxes)
+    type(coupler_1d_bc_type), optional, pointer :: gas_fields_atm 
+      !< Pointer to a structure containing atmospheric surfacevariables that are used in the
+      !! calculation of the atmosphere-ocean gas fluxes, as well as parameters
+      !! regulating these fluxes.
+    type(coupler_1d_bc_type), optional, pointer :: gas_fields_ice
+      !< Pointer to a structure containing ice-top and ocean surface variables that are used
+      !! in the calculation of the atmosphere-ocean gas fluxes, as well as parameters
+      !! regulating these fluxes.
+    type(coupler_1d_bc_type), optional, pointer :: gas_fluxes
+      !< Pointer to a s structure for exchanging gas or tracer fluxes between the atmosphere and ocean,
+      !! defined by the field table, as well as a place holder of intermediate calculations,
+      !! such as piston velocities, and parameters that impact the fluxes.
+
+    if (.not.gas_fluxes_initialized) then
+      call ocean_model_flux_init( )
+      call atmos_tracer_flux_init()
+      call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
+      gas_fluxes_initialized = .true.
+    endif
+
+    if (present(gas_fields_atm)) gas_fields_atm => ex_gas_fields_atm
+    if (present(gas_fields_ice)) gas_fields_ice => ex_gas_fields_ice
+    if (present(gas_fluxes)) gas_fluxes => ex_gas_fluxes
+
+  end subroutine gas_exchange_init
 
   !#######################################################################
   !> \brief Initialization routine.
@@ -677,9 +711,13 @@ contains
     !       ocean_tracer_flux_init with the exception of atm_tr_index, which can only
     !       be meaningfully set from the atmospheric model (not from the field table)
     !
-    call ocean_model_flux_init(Ocean_state)
-    call atmos_tracer_flux_init
-    call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
+    if (.not.gas_fluxes_initialized) then
+      call ocean_model_flux_init(Ocean_state)
+      call atmos_tracer_flux_init()
+      call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
+      gas_fluxes_initialized = .true.
+    endif
+
     call sat_vapor_pres_init()
 
     nthreads = 1
