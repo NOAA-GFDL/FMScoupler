@@ -379,6 +379,9 @@ program coupler_main
   use ocean_model_mod,         only: ocean_public_type, ocean_state_type, ice_ocean_boundary_type
   use ocean_model_mod,         only: ocean_model_restart
   use ocean_model_mod,         only: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
+
+  use combined_ice_ocean_driver, only: update_slow_ice_and_ocean, ice_ocean_driver_type
+  use combined_ice_ocean_driver, only: ice_ocean_driver_init, ice_ocean_driver_end
 !
 ! flux_ calls translate information between model grids - see flux_exchange.f90
 !
@@ -429,6 +432,7 @@ program coupler_main
   type(land_ice_boundary_type)       :: Land_ice_boundary
   type(ice_ocean_boundary_type)      :: Ice_ocean_boundary
   type(ocean_ice_boundary_type)      :: Ocean_ice_boundary
+  type(ice_ocean_driver_type), pointer :: ice_ocean_driver_CS => NULL()
 
 !-----------------------------------------------------------------------
 ! ----- coupled model time -----
@@ -507,6 +511,9 @@ program coupler_main
                                     !! be shown to ameliorate or eliminate several ice-ocean coupled instabilities.
   logical :: slow_ice_with_ocean=.FALSE. !< If true, the slow sea-ice is advanced on the ocean processors.  Otherwise
                                     !! the slow sea-ice processes are on the same PEs as the fast sea-ice.
+  logical :: combined_ice_and_ocean=.FALSE. !< If true, there is a single call from the coupler to advance
+                                    !! both the slow sea-ice and the ocean. slow_ice_with_ocean and
+                                    !! concurrent_ice must both be true if combined_ice_and_ocean is true.
   logical :: do_chksum=.FALSE.      !! If .TRUE., do multiple checksums throughout the execution of the model.
   logical :: do_endpoint_chksum=.TRUE.  !< If .TRUE., do checksums of the initial and final states.
   logical :: do_debug=.FALSE.       !< If .TRUE. print additional debugging messages.
@@ -523,7 +530,8 @@ program coupler_main
                          concurrent, do_concurrent_radiation, use_lag_fluxes,      &
                          check_stocks, restart_interval, do_debug, do_chksum,      &
                          use_hyper_thread, ncores_per_node, debug_affinity,        &
-                         concurrent_ice, slow_ice_with_ocean, do_endpoint_chksum
+                         concurrent_ice, slow_ice_with_ocean, do_endpoint_chksum,  &
+                         combined_ice_and_ocean
 
   integer :: initClock, mainClock, termClock
 
@@ -971,7 +979,7 @@ program coupler_main
       !   ------ slow-ice model ------
 
       ! This call occurs on whichever PEs handle the slow ice processess.
-      if (Ice%slow_ice_PE) then
+      if (Ice%slow_ice_PE .and. .not.combined_ice_and_ocean) then
         if (slow_ice_with_ocean) call mpp_set_current_pelist(Ice%slow_pelist)
         call mpp_clock_begin(newClock10s)
         call update_ice_model_slow(Ice)
@@ -987,7 +995,7 @@ program coupler_main
     endif  ! End of Ice%pe block
 
     ! Update Ice_ocean_boundary using the newly calculated fluxes.
-    if (concurrent_ice .OR. .NOT.use_lag_fluxes) then
+    if ((concurrent_ice .OR. .NOT.use_lag_fluxes) .and. .not.combined_ice_and_ocean) then
       !this could serialize unless slow_ice_with_ocean is true.
       if ((.not.do_ice) .or. (.not.slow_ice_with_ocean)) &
         call mpp_set_current_pelist()
@@ -1003,13 +1011,20 @@ program coupler_main
     if (Ocean%is_ocean_pe) then
       call mpp_set_current_pelist(Ocean%pelist)
       call mpp_clock_begin(newClock12)
+      if (combined_ice_and_ocean) then
+        call flux_ice_to_ocean_stocks(Ice)
 
-      if (do_chksum) call ocean_chksum('update_ocean_model-', nc, Ocean, Ice_ocean_boundary)
-      ! update_ocean_model since fluxes don't change here
+!        call mpp_error(FATAL, "update_slow_ice_and_ocean does not exist yet.")
+        call update_slow_ice_and_ocean(ice_ocean_driver_CS, Ice, Ocean_state, Ocean, &
+                      Ice_ocean_boundary, Time_ocean, Time_step_cpld )
+      else
+        if (do_chksum) call ocean_chksum('update_ocean_model-', nc, Ocean, Ice_ocean_boundary)
+        ! update_ocean_model since fluxes don't change here
 
-      if (do_ocean) &
-        call update_ocean_model( Ice_ocean_boundary, Ocean_state,  Ocean, &
-                                 Time_ocean, Time_step_cpld )
+        if (do_ocean) &
+          call update_ocean_model( Ice_ocean_boundary, Ocean_state, Ocean, &
+                                   Time_ocean, Time_step_cpld )
+      endif
 
       if (do_chksum) call ocean_chksum('update_ocean_model+', nc, Ocean, Ice_ocean_boundary)
       ! Get stocks from "Ice_ocean_boundary" and add them to Ocean stocks.
@@ -1018,8 +1033,6 @@ program coupler_main
       call flux_ocean_from_ice_stocks(Ocean_state, Ocean, Ice_ocean_boundary)
 
       Time_ocean = Time_ocean +  Time_step_cpld
-
-      !-----------------------------------------------------------------------
       Time = Time_ocean
 
       call mpp_clock_end(newClock12)
@@ -1459,8 +1472,14 @@ contains
       else
         call mpp_error( NOTE, 'coupler_init: Sending most recent fluxes to ocean.' )
       endif
-      if (concurrent_ice ) call mpp_error( NOTE, &
+      if (concurrent_ice) call mpp_error( NOTE, &
         'coupler_init: using lagged slow-ice coupling mode.')
+      if (combined_ice_and_ocean) call mpp_error( NOTE, &
+        'coupler_init: advancing the ocean and slow-ice in a single call.')
+      if (combined_ice_and_ocean .and. .not.concurrent_ice) call mpp_error( FATAL, &
+        'coupler_init: concurrent_ice must be true if combined_ice_and_ocean is true.')
+      if (combined_ice_and_ocean .and. .not.slow_ice_with_ocean) call mpp_error( FATAL, &
+        'coupler_init: slow_ice_with_ocean must be true if combined_ice_and_ocean is true.')
     endif
 
 !----- write namelist to logfile -----
@@ -1734,6 +1753,7 @@ contains
         call data_override_init(Ice_domain_in = Ice%domain)
       endif
     endif
+
 !---- ocean ---------
     if (Ocean%is_ocean_pe) then
       call mpp_set_current_pelist(Ocean%pelist)
@@ -1771,7 +1791,6 @@ contains
 !$      call omp_set_num_threads(ocean_nthreads)
       endif
 
-
       if (mpp_pe().EQ.mpp_root_pe()) then
         call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
         write(errunit,*) 'Finished initializing ocean model at '&
@@ -1789,7 +1808,11 @@ contains
         write(errunit,*) 'Finished initializing data_override at '&
                          //trim(walldate)//' '//trim(walltime)
       endif
-    endif
+
+      if (combined_ice_and_ocean) &
+        call ice_ocean_driver_init(ice_ocean_driver_CS, Time_init, Time)
+
+    endif ! end of Ocean%is_ocean_pe
 
 !---------------------------------------------
     if (mpp_pe().EQ.mpp_root_pe()) then
