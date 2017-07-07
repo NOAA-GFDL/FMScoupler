@@ -66,7 +66,7 @@ module flux_exchange_mod
 !!    that update the surface temperature must be called on the atmospheric time step
 !!
 !! -# The surface fluxes of all other tracers and of momentum are assumed to be explicit
-!!    functions of all surface parameters
+!!    functions of all surface parameters.
 !!
 !! -# While no explicit reference is made within this module to the implicit treatment
 !!    of vertical diffusion in the atmosphere and in the land or sea-ice models, the
@@ -74,13 +74,20 @@ module flux_exchange_mod
 !!    sides of the surface interface.
 !!
 !! -# Due to #5, the diffusion part of the land and ice models must be called on the
-!!    atmospheric time step.
+!!    atmospheric time step, although in the case of concurrent-ice coupling, this
+!!    version of the sea-ice that is called by the atmosphere may later be replaced
+!!    by a version of the ice that is tightly coupled with the ocean.
+!!
+!! -# The fluxes of additional tracers related to biological quantities or the
+!!    air-sea exchange of gases are accomplished by specifying fields that will
+!!    be passed between components via the "field_table" and the use of named
+!!    fields in the coupler_..._bc_types.
 !!
 !! -# Any field passed from one component to another may be "faked" to a
 !!    constant value, or to data acquired from a file, using the
-!!   data_override feature of FMS. The fields to override are runtime
-!!   configurable, using the text file <tt>data_table</tt> for input.
-!!   See the data_override_mod documentation for more details.
+!!    data_override feature of FMS. The fields to override are runtime
+!!    configurable, using the text file <tt>data_table</tt> for input.
+!!    See the data_override_mod documentation for more details.
 !!
 !!   We DO NOT RECOMMEND exercising the data override capabilities of
 !!   the FMS coupler until the user has acquired considerable
@@ -545,10 +552,9 @@ module flux_exchange_mod
   use ice_ocean_flux_exchange_mod,    only: ice_ocean_flux_exchange_init, flux_ocean_to_ice
   use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
 
-  implicit none
-private
+  implicit none ; private
 
-  public :: flux_exchange_init,   &
+  public :: flux_exchange_init, gas_exchange_init, &
      sfc_boundary_layer,   &
      generate_sfc_xgrid,   &
      flux_down_from_atmos, &
@@ -624,6 +630,14 @@ private
 
 contains
 
+  !#######################################################################
+  !> \brief Gas and tracer exchange initialization routine.
+  !!
+  !! This routine causes the field table to be read to determine which fields
+  !! will be needed for the exchanges of gasses and tracers between the
+  !! atmosphere and ocean.  The metadata for these fields are stored in the
+  !! ex_gas_fluxes and ex_gas_fields arrays, although the data is not allocated yet.
+  !! This is intended to be called (optionally) prior to flux_exchange_init.
   subroutine gas_exchange_init (gas_fields_atm, gas_fields_ice, gas_fluxes)
     type(coupler_1d_bc_type), optional, pointer :: gas_fields_atm 
       !< Pointer to a structure containing atmospheric surfacevariables that are used in the
@@ -858,7 +872,7 @@ contains
     type(ice_data_type)          :: Ice
     type(ocean_state_type), pointer :: Ocn_state
 
-    integer i
+    integer :: i
 
     stocks_file=stdout()
     ! Divert output file for stocks if requested 
@@ -890,6 +904,7 @@ contains
   subroutine check_atm_grid(Atm, grid_file)
     type(atmos_data_type),    intent(in) :: Atm
     character(len=*),         intent(in) :: grid_file
+
     integer        :: isg, ieg, jsg, jeg
     integer        :: isc, iec, jsc, jec
     integer        :: isd, ied, jsd, jed
@@ -901,7 +916,6 @@ contains
     real, dimension(:,:), allocatable :: tmpx, tmpy
     real, dimension(:),   allocatable :: atmlonb, atmlatb
     character(len=256)              :: atm_mosaic_file, tile_file
-
 
     call mpp_get_global_domain(Atm%domain, isg, ieg, jsg, jeg, xsize=nxg, ysize=nyg)
     call mpp_get_compute_domain(Atm%domain, isc, iec, jsc, jec)
@@ -1007,8 +1021,6 @@ contains
     else
        call mpp_error(FATAL, 'atm_land_ice_flux_exchange_mod: both AREA_ATMxOCN and ocn_mosaic_file does not exist in '//trim(grid_file))
     end if
-
-
 
   end subroutine check_atm_grid
 

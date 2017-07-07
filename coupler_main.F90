@@ -335,7 +335,7 @@ program coupler_main
   use tracer_manager_mod,      only: tracer_manager_init, get_tracer_index
   use tracer_manager_mod,      only: get_number_tracers, get_tracer_names, NO_TRACER
 
-  use coupler_types_mod,       only: coupler_types_init
+  use coupler_types_mod,       only: coupler_types_init, coupler_1d_bc_type
 
   use data_override_mod,       only: data_override_init
 
@@ -386,7 +386,7 @@ program coupler_main
 ! flux_ calls translate information between model grids - see flux_exchange.f90
 !
 
-  use flux_exchange_mod,       only: flux_exchange_init, sfc_boundary_layer
+  use flux_exchange_mod,       only: flux_exchange_init, gas_exchange_init, sfc_boundary_layer
   use flux_exchange_mod,       only: generate_sfc_xgrid, send_ice_mask_sic
   use flux_exchange_mod,       only: flux_down_from_atmos, flux_up_to_atmos
   use flux_exchange_mod,       only: flux_land_to_ice, flux_ice_to_ocean, flux_ocean_to_ice
@@ -1143,6 +1143,14 @@ contains
     character(len=10) :: walltime
     character(len=5)  :: wallzone
     integer           :: wallvalues(8)
+
+    type(coupler_1d_bc_type), pointer :: &
+      gas_fields_atm => NULL(), &  ! A pointer to the type describing the
+              ! atmospheric fields that will participate in the gas fluxes.
+      gas_fields_ocn => NULL(), &  ! A pointer to the type describing the ocean
+              ! and ice surface fields that will participate in the gas fluxes.
+      gas_fluxes => NULL()   ! A pointer to the type describing the
+              ! atmosphere-ocean gas and tracer fluxes.
 !-----------------------------------------------------------------------
 
     outunit = stdout()
@@ -1661,6 +1669,12 @@ contains
       write(errunit,*) 'Finished initializing coupler_types at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
+
+!   Initialize the gas-exchange fluxes so this information can be made
+!   available to the individual components.
+    call mpp_clock_begin(id_flux_exchange_init)
+    call gas_exchange_init(gas_fields_atm, gas_fields_ocn, gas_fluxes)
+    call mpp_clock_end(id_flux_exchange_init)
 
 !-----------------------------------------------------------------------
 !------ initialize component models ------
