@@ -324,7 +324,8 @@ program coupler_main
   use fms_mod,                 only: read_data, write_data
 
   use fms_io_mod,              only: fms_io_exit
-  use fms_io_mod,              only: restart_file_type, register_restart_field, save_restart
+  use fms_io_mod,              only: restart_file_type, register_restart_field
+  use fms_io_mod,              only: save_restart, restore_state
 
   use diag_manager_mod,        only: diag_manager_init, diag_manager_end, diag_grid_end
   use diag_manager_mod,        only: DIAG_OCEAN, DIAG_OTHER, DIAG_ALL, get_base_date
@@ -336,6 +337,8 @@ program coupler_main
   use tracer_manager_mod,      only: get_number_tracers, get_tracer_names, NO_TRACER
 
   use coupler_types_mod,       only: coupler_types_init, coupler_1d_bc_type
+  use coupler_types_mod,       only: coupler_type_write_chksums
+  use coupler_types_mod,       only: coupler_type_register_restarts, coupler_type_restore_state
 
   use data_override_mod,       only: data_override_init
 
@@ -444,8 +447,8 @@ program coupler_main
   integer :: num_cpld_calls, nc
 
 !------ for intermediate restart
-  type(restart_file_type), allocatable :: Ice_bc_restart(:), Ocn_bc_restart(:)
-  character(len=64),       allocatable :: ice_bc_restart_file(:), ocn_bc_restart_file(:)
+  type(restart_file_type), dimension(:), pointer :: &
+    Ice_bc_restart => NULL(), Ocn_bc_restart => NULL()
   integer                              :: num_ice_bc_restart=0, num_ocn_bc_restart=0
   type(time_type)                      :: Time_restart, Time_restart_current, Time_start
   character(len=32)                    :: timestamp
@@ -790,7 +793,7 @@ program coupler_main
 !$OMP&      SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&      SHARED(Ocean_ice_boundary) &
 !$OMP&      SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&      SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl) 
+!$OMP&      SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
 !$        call omp_set_num_threads(atmos_nthreads)
 !$        dsec=omp_get_wtime()
           if (do_concurrent_radiation) call mpp_clock_begin(newClocki)
@@ -1784,7 +1787,7 @@ contains
 !$      call omp_set_num_threads(ocean_nthreads)
         call mpp_set_current_pelist( Ocean%pelist )
 !$      base_cpu = get_cpu_affinity()
-!$OMP PARALLEL private(adder)    
+!$OMP PARALLEL private(adder)
 !$      if (use_hyper_thread) then
 !$        if (mod(omp_get_thread_num(),2) == 0) then
 !$          adder = omp_get_thread_num()/2
@@ -1799,7 +1802,7 @@ contains
 !$        write(6,*) " ocean  ", get_cpu_affinity(), adder, omp_get_thread_num()
 !$        call flush(6)
 !$      endif
-!$OMP END PARALLEL  
+!$OMP END PARALLEL
       else
         ocean_nthreads = atmos_nthreads
 !$      call omp_set_num_threads(ocean_nthreads)
@@ -1868,67 +1871,36 @@ contains
 !
     if ( Ice%slow_ice_pe ) then
       call mpp_set_current_pelist(Ice%slow_pelist)
-      allocate(Ice_bc_restart(Ice%ocean_fluxes%num_bcs))
-      allocate(ice_bc_restart_file(Ice%ocean_fluxes%num_bcs))
-      do n = 1, Ice%ocean_fluxes%num_bcs  !{
-        if (Ice%ocean_fluxes%bc(n)%num_fields .LE. 0) cycle
-        filename = trim(Ice%ocean_fluxes%bc(n)%ice_restart_file)
-        do l = 1, num_ice_bc_restart
-           if (trim(filename) == ice_bc_restart_file(l)) exit
-        enddo
-        if (l>num_ice_bc_restart) then
-           num_ice_bc_restart = num_ice_bc_restart + 1
-           ice_bc_restart_file(l) = trim(filename)
-        endif
-        filename = 'INPUT/'//trim(filename)
-        other_fields_exist = .false.
-        do m = 1, Ice%ocean_fluxes%bc(n)%num_fields  !{
-          fieldname = trim(Ice%ocean_fluxes%bc(n)%field(m)%name)
-          id_restart = register_restart_field(Ice_bc_restart(l), ice_bc_restart_file(l), &
-                       fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%slow_domain_NH   )
-          if ( field_exist(filename, fieldname, Ice%slow_domain_NH) ) then
-            other_fields_exist = .true.
-            write (outunit,*) trim(note_header), ' Reading restart info for ',         &
-                 trim(fieldname), ' from ',  trim(filename)
-            call read_data(filename, fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%slow_domain_NH)
-          elseif (other_fields_exist) then
-            call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
-                 trim(fieldname) // ' in file ' //trim(filename))
-          endif
-        enddo  !} m
-      enddo  !} n
+
+      call coupler_type_register_restarts(Ice%ocean_fluxes, Ice_bc_restart, &
+               num_ice_bc_restart, Ice%slow_domain_NH, ocean_restart=.false.)
+
+      ! Restore the fields from the restart files
+      do l = 1, num_ice_bc_restart
+        call restore_state(Ice_bc_restart(l), directory='INPUT', &
+                           nonfatal_missing_files=.true.)
+      enddo
+
+      ! Check whether the restarts were read successfully.
+      call coupler_type_restore_state(Ice%ocean_fluxes, directory='INPUT', &
+                                      test_by_field=.true.)
     endif
+
     if ( Ocean%is_ocean_pe ) then
       call mpp_set_current_pelist(Ocean%pelist)
-      allocate(Ocn_bc_restart(Ocean%fields%num_bcs))
-      allocate(ocn_bc_restart_file(Ocean%fields%num_bcs))
-      do n = 1, Ocean%fields%num_bcs  !{
-        if (Ocean%fields%bc(n)%num_fields .LE. 0) cycle
-        filename = trim(Ocean%fields%bc(n)%ocean_restart_file)
-        do l = 1, num_ocn_bc_restart
-           if (trim(filename) == ocn_bc_restart_file(l)) exit
-        enddo
-        if (l>num_ocn_bc_restart) then
-           num_ocn_bc_restart = num_ocn_bc_restart + 1
-           ocn_bc_restart_file(l) = trim(filename)
-        endif
-        filename = 'INPUT/'//trim(filename)
-        other_fields_exist = .false.
-        do m = 1, Ocean%fields%bc(n)%num_fields  !{
-          fieldname = trim(Ocean%fields%bc(n)%field(m)%name)
-          id_restart = register_restart_field(Ocn_bc_restart(l), Ocn_bc_restart_file(l), &
-                       fieldname, Ocean%fields%bc(n)%field(m)%values, Ocean%domain    )
-          if ( field_exist(filename, fieldname, Ocean%domain) ) then
-            other_fields_exist = .true.
-            write (outunit,*) trim(note_header), ' Reading restart info for ',         &
-                 trim(fieldname), ' from ', trim(filename)
-            call read_data(filename, fieldname, Ocean%fields%bc(n)%field(m)%values, Ocean%domain)
-          elseif (other_fields_exist) then
-            call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
-                 trim(fieldname) // ' in file ' //trim(filename))
-          endif
-        enddo  !} m
-      enddo  !} n
+
+      call coupler_type_register_restarts(Ocean%fields, Ocn_bc_restart, &
+               num_ocn_bc_restart, Ocean%domain, ocean_restart=.true.)
+
+      ! Restore the fields from the restart files
+      do l = 1, num_ocn_bc_restart
+        call restore_state(Ocn_bc_restart(l), directory='INPUT', &
+                           nonfatal_missing_files=.true.)
+      enddo
+
+      ! Check whether the restarts were read successfully.
+      call coupler_type_restore_state(Ocean%fields, directory='INPUT', &
+                                      test_by_field=.true.)
     endif
 
     call mpp_set_current_pelist()
@@ -2181,13 +2153,7 @@ contains
        !call mpp_set_current_pelist(Ocean%pelist)
 
       write(outunit,*) 'BEGIN CHECKSUM(Ice):: ', id, timestep
-      do n = 1, ice%ocean_fields%num_bcs  !{
-        do m = 1, ice%ocean_fields%bc(n)%num_fields  !{
-          !write(outunit,101) 'ice%', m, n, mpp_chksum(Ice%ocean_fields%bc(n)%field(m)%values)
-          write(outunit,101) 'ice%',trim(ice%ocean_fields%bc(n)%name), &
-               trim(ice%ocean_fields%bc(n)%field(m)%name), mpp_chksum(Ice%ocean_fields%bc(n)%field(m)%values)
-        enddo  !} m
-      enddo  !} n
+      call coupler_type_write_chksums(Ice%ocean_fields, outunit, 'ice%')
       write(outunit,*) 'STOP CHECKSUM(Ice):: ', id, timestep
 
     endif

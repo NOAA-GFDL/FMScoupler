@@ -17,6 +17,8 @@ module ice_ocean_flux_exchange_mod
   use stock_constants_mod, only: Ice_stock, Ocn_stock, ISTOCK_HEAT, ISTOCK_WATER 
   use stock_constants_mod, only: ISTOCK_BOTTOM, ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_SALT
   use coupler_types_mod,   only: coupler_type_copy, coupler_1d_bc_type
+  use coupler_types_mod,   only: coupler_type_send_data, coupler_type_data_override
+  use coupler_types_mod,   only: coupler_type_copy_data, coupler_type_redistribute_data
 
   implicit none ; private
 
@@ -248,14 +250,12 @@ contains
          Ice%mi,     Ice_Ocean_Boundary%mi    , Ice_Ocean_Boundary%xtype, .FALSE. )
 
     ! Extra fluxes
-    do n = 1, Ice_Ocean_Boundary%fluxes%num_bcs  !{
-       do m = 1, Ice_Ocean_Boundary%fluxes%bc(n)%num_fields  !{
-          if ( associated(Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%values) ) then  !{
-             call flux_ice_to_ocean_redistribute( Ice, Ocean, Ice%ocean_fluxes%bc(n)%field(m)%values, &
-                  Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%values, Ice_Ocean_Boundary%xtype, .FALSE. )
-          endif  !}
-       enddo  !} m
-    enddo  !} n
+    if (Ice_Ocean_Boundary%xtype == DIRECT) then
+       call coupler_type_copy_data(Ice%ocean_fluxes, Ice_Ocean_Boundary%fluxes)
+    else
+       call coupler_type_redistribute_data(Ice%ocean_fluxes, Ice%slow_Domain_NH, &
+                     Ice_Ocean_Boundary%fluxes, ocean%Domain, complete=.true.)
+    endif
 
     !--- The following variables may require conserved flux exchange from ice to ocean because the 
     !--- ice area maybe different from ocean area.
@@ -331,7 +331,7 @@ contains
        call data_override('OCN', 'calving_hflx',   Ice_Ocean_Boundary%calving_hflx  , Time )
        call data_override('OCN', 'p',         Ice_Ocean_Boundary%p        , Time )
        call data_override('OCN', 'mi',        Ice_Ocean_Boundary%mi       , Time )
-      !Are these if statements needed, or does data_override routine check if variable is assosiated? 
+      !Are these if statements needed, or does data_override routine check if variable is associated? 
        if (ASSOCIATED(Ice_Ocean_Boundary%ustar_berg) ) &
          call data_override('OCN', 'ustar_berg', Ice_Ocean_Boundary%ustar_berg, Time )
        if (ASSOCIATED(Ice_Ocean_Boundary%area_berg)  ) &
@@ -340,16 +340,9 @@ contains
          call data_override('OCN', 'mass_berg',  Ice_Ocean_Boundary%mass_berg , Time )
 
        ! Extra fluxes
-       do n = 1, Ice_Ocean_Boundary%fluxes%num_bcs  !{
-          do m = 1, Ice_Ocean_Boundary%fluxes%bc(n)%num_fields  !{
-             call data_override('OCN', Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%name,   &
-                  Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%values, Time)
-             ! Perform diagnostic output for the extra fluxes
-             used = send_data(Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%id_diag,        &
-                  Ice_Ocean_Boundary%fluxes%bc(n)%field(m)%values, Time )
-          enddo  !} m
-       enddo  !} n
 
+       call coupler_type_data_override('OCN', Ice_Ocean_Boundary%fluxes, Time )
+       call coupler_type_send_data(Ice_Ocean_Boundary%fluxes, Time )
     endif
     
     ! This call is dangerous, as it needs to be kept up to date with the pe_lists as
@@ -414,13 +407,8 @@ contains
        endif
 
        ! Extra fluxes
-       do n = 1, Ocean_Ice_Boundary%fields%num_bcs  !{
-          do m = 1, Ocean_Ice_Boundary%fields%bc(n)%num_fields  !{
-             if ( associated(Ocean_Ice_Boundary%fields%bc(n)%field(m)%values) ) then  !{
-                Ocean_Ice_Boundary%fields%bc(n)%field(m)%values = Ocean%fields%bc(n)%field(m)%values
-             endif  !}
-          enddo  !} m
-       enddo  !} n
+       call coupler_type_copy_data(Ocean%fields, Ocean_Ice_Boundary%fields)
+
     case(REDIST)
        !same grid, different domain decomp for ocean and ice    
        if( ASSOCIATED(Ocean_Ice_Boundary%u) )                     &
@@ -451,14 +439,8 @@ contains
        endif
 
        ! Extra fluxes
-       do n = 1, Ocean_Ice_Boundary%fields%num_bcs  !{
-          do m = 1, Ocean_Ice_Boundary%fields%bc(n)%num_fields  !{
-             if ( associated(Ocean_Ice_Boundary%fields%bc(n)%field(m)%values) ) then  !{
-                call mpp_redistribute(Ocean%Domain, Ocean%fields%bc(n)%field(m)%values,    &
-                     Ice%slow_Domain_NH, Ocean_Ice_Boundary%fields%bc(n)%field(m)%values)
-             endif  !}
-          enddo  !} m
-       enddo  !} n
+       call coupler_type_redistribute_data(Ocean%fields, Ocean%Domain, &
+                     Ocean_Ice_Boundary%fields, Ice%slow_Domain_NH)
     case DEFAULT
        call mpp_error( FATAL, 'flux_ocean_to_ice: Ocean_Ice_Boundary%xtype must be DIRECT or REDIST.' )
     end select
@@ -472,39 +454,19 @@ contains
        call data_override('ICE', 's',         Ocean_Ice_Boundary%s,         Time)
        call data_override('ICE', 'frazil',    Ocean_Ice_Boundary%frazil,    Time)
        call data_override('ICE', 'sea_level', Ocean_Ice_Boundary%sea_level, Time)
-
-       ! Extra fluxes
-       do n = 1, Ocean_Ice_Boundary%fields%num_bcs  !{
-          do m = 1, Ocean_Ice_Boundary%fields%bc(n)%num_fields  !{
-             call data_override('ICE', Ocean_Ice_Boundary%fields%bc(n)%field(m)%name,    &
-                  Ocean_Ice_Boundary%fields%bc(n)%field(m)%values, Time)
-          enddo  !} m
-       enddo  !} n
+       call coupler_type_data_override('ICE', Ocean_Ice_Boundary%fields, Time)
 
        !
        !       Perform diagnostic output for the ocean_ice_boundary fields
        !
-
-       do n = 1, Ocean_Ice_Boundary%fields%num_bcs  !{
-          do m = 1, Ocean_Ice_Boundary%fields%bc(n)%num_fields  !{
-             used = send_data(Ocean_Ice_Boundary%fields%bc(n)%field(m)%id_diag,                   &
-                  Ocean_Ice_Boundary%fields%bc(n)%field(m)%values, Time)
-          enddo  !} m
-       enddo  !} n
+       call coupler_type_send_data( Ocean_Ice_Boundary%fields, Time)
     endif
 
     if( Ocean%is_ocean_pe )then
        call mpp_set_current_pelist(Ocean%pelist)
 
-       !
        !       Perform diagnostic output for the ocean fields
-       !
-       do n = 1, Ocean%fields%num_bcs  !{
-          do m = 1, Ocean%fields%bc(n)%num_fields  !{
-             used = send_data(Ocean%fields%bc(n)%field(m)%id_diag,                                &
-                  Ocean%fields%bc(n)%field(m)%values, Time)
-          enddo  !} m
-       enddo  !} n
+       call coupler_type_send_data( Ocean%fields, Time)
     endif
 
     if (Ice%slow_ice_pe) then
