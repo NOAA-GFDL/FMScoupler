@@ -16,7 +16,8 @@ module ice_ocean_flux_exchange_mod
   use ocean_model_mod,     only: ocean_model_init_sfc
   use stock_constants_mod, only: Ice_stock, Ocn_stock, ISTOCK_HEAT, ISTOCK_WATER 
   use stock_constants_mod, only: ISTOCK_BOTTOM, ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_SALT
-  use coupler_types_mod,   only: coupler_type_copy, coupler_1d_bc_type
+  use coupler_types_mod,   only: coupler_1d_bc_type
+  use coupler_types_mod,   only: coupler_type_spawn, coupler_type_set_diags
   use coupler_types_mod,   only: coupler_type_send_data, coupler_type_data_override
   use coupler_types_mod,   only: coupler_type_copy_data, coupler_type_redistribute_data
 
@@ -92,15 +93,19 @@ contains
     else
        diag_name = ""
     endif
-    call coupler_type_copy(ex_gas_fields_ice, ocean_ice_boundary%fields, is, ie, js, je,        &
-         diag_name, Ice%axes(1:2), Time, suffix = '_ocn_ice')
+
+    if (ocean_ice_boundary%fields%num_bcs <= 0) &
+      call coupler_type_spawn(ex_gas_fields_ice, ocean_ice_boundary%fields, (/is,is,ie,ie/), &
+                              (/js,js,je,je/), suffix='_ocn_ice')
+    call coupler_type_set_diags(ocean_ice_boundary%fields, diag_name, Ice%axes(1:2), Time)
 
     !
     ! allocate fields and fluxes for extra tracers for the Ice type
     !
-
-    call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes, is, ie, js, je,             &
-         diag_name, Ice%axes(1:2), Time, suffix = '_ice')
+    if (Ice%ocean_fluxes%num_bcs <= 0) &
+      call coupler_type_spawn(ex_gas_fluxes, Ice%ocean_fluxes, (/is,is,ie,ie/), &
+                              (/js,js,je,je/),  suffix = '_ice')
+    call coupler_type_set_diags(Ice%ocean_fluxes, diag_name, Ice%axes(1:2), Time)
 
 
     !allocate ice_ocean_boundary
@@ -156,11 +161,15 @@ contains
     else
        diag_name = ""
     endif
-    call coupler_type_copy(ex_gas_fluxes, ice_ocean_boundary%fluxes, is, ie, js, je,    &
-         diag_name, Ocean%axes(1:2), Time, suffix = '_ice_ocn')
+    if (ice_ocean_boundary%fluxes%num_bcs <= 0) &
+      call coupler_type_spawn(ex_gas_fluxes, ice_ocean_boundary%fluxes, (/is,is,ie,ie/), &
+                              (/js,js,je,je/), suffix='_ice_ocn')
+    call coupler_type_set_diags(ice_ocean_boundary%fluxes, diag_name, Ocean%axes(1:2), Time)
 
-    call coupler_type_copy(ex_gas_fields_ice, Ocean%fields, is, ie, js, je,             &
-         diag_name, Ocean%axes(1:2), Time, suffix = '_ocn')
+    if (Ocean%fields%num_bcs <= 0) &
+      call coupler_type_spawn(ex_gas_fields_ice, Ocean%fields, (/is,is,ie,ie/), &
+                              (/js,js,je,je/), suffix = '_ocn')
+    call coupler_type_set_diags(Ocean%fields, diag_name, Ocean%axes(1:2), Time)
 
     ! initialize boundary values for override experiments
     ocean_ice_boundary%xtype = REDIST

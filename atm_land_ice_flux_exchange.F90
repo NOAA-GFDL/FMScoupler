@@ -72,6 +72,7 @@ module atm_land_ice_flux_exchange_mod
   use fms_mod,            only: open_namelist_file, write_version_number
   use data_override_mod,  only: data_override
   use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10
+  use coupler_types_mod,  only: coupler_type_spawn, coupler_type_set_diags
   use ocean_model_mod,    only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
 #ifdef use_AM3_physics
   use atmos_tracer_driver_mod, only: atmos_tracer_flux_init
@@ -558,19 +559,21 @@ contains
     !         allocate fields for extra fluxes
     ! Copying initialized gas fluxes from exchange grid to atmosphere_ice boundary
 
-    call coupler_type_copy(ex_gas_fluxes, atmos_ice_boundary%fluxes, is, ie, js, je, kd,    &
+    call coupler_type_copy(ex_gas_fluxes, atmos_ice_boundary%fluxes, is, ie, js, je, kd, &
          mod_name, Ice%axes, Time, suffix = '_atm_ice')
 
     !--- Ice%ocean_fields and Ice%ocean_fluxes_top will not be passed to ocean, so these two
     !--- coupler_type_copy calls are moved from ice_ocean_flux_init to here.
-    call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
-         'ice_flux', Ice%axes, Time, suffix = '_ice')
+    if (Ice%ocean_fields%num_bcs <= 0) &
+      call coupler_type_spawn(ex_gas_fields_ice, Ice%ocean_fields, (/is,is,ie,ie/), &
+                              (/js,js,je,je/), (/1, kd/), suffix = '_ice')
+    call coupler_type_set_diags(Ice%ocean_fields, 'ice_flux', Ice%axes, Time)
 
     ! This call sets up a structure that is private to the ice model, and it
     ! does not belong here.  This line should be eliminated once an update
     ! to the FMS coupler_types code is made available that overloads the 
     ! subroutine coupler_type_copy to use 2d and 3d coupler type sources. -RWH
-    call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd,     &
+    call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd, &
          'ice_flux', Ice%axes, Time, suffix = '_ice_top')
 
     !allocate land_ice_atmos_boundary
@@ -3003,15 +3006,8 @@ contains
 
   call atmos_ocean_dep_fluxes_calc(ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes, ex_seawater)
 
-  !Niki: The following loop should be on Ice_boundary%fluxes but the problem is
-  !      Ice_boundary%fluxes%flux_type is not set. Perhaps the subroutine
-  !      call coupler_type_copy(ex_gas_fluxes, atmos_ice_boundary%fluxes,...)
-  !      does not copy the strings?
   do n = 1, Ice_boundary%fluxes%num_bcs  !{
-     Ice_boundary%fluxes%bc(n)%flux_type = trim(ex_gas_fluxes%bc(n)%flux_type)
-     Ice_boundary%fluxes%bc(n)%implementation = trim(ex_gas_fluxes%bc(n)%implementation)
-
-     if(Ice_boundary%fluxes%bc(n)%flux_type  .eq. 'air_sea_deposition') then
+     if(Ice_boundary%fluxes%bc(n)%flux_type .eq. 'air_sea_deposition') then
         do m = 1, Ice_boundary%fluxes%bc(n)%num_fields  !{
            call get_from_xgrid (Ice_boundary%fluxes%bc(n)%field(m)%values, 'OCN',  &
                 ex_gas_fluxes%bc(n)%field(m)%values, xmap_sfc)
