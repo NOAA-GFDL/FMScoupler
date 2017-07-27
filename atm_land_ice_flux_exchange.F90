@@ -31,12 +31,16 @@ module atm_land_ice_flux_exchange_mod
   use   atmos_model_mod,  only: atmos_data_type, land_ice_atmos_boundary_type
   use   ocean_model_mod,  only: ocean_public_type, ice_ocean_boundary_type
   use   ocean_model_mod,  only: ocean_state_type
-  use   ice_model_mod,    only: ice_data_type, land_ice_boundary_type, ocean_ice_boundary_type, &
-                                atmos_ice_boundary_type, Ice_stock_pe
+  use   ice_model_mod,    only: ice_data_type, land_ice_boundary_type, ocean_ice_boundary_type
+  use   ice_model_mod,    only: atmos_ice_boundary_type, Ice_stock_pe
   use   ice_model_mod,    only: update_ice_atm_deposition_flux
-  use    land_model_mod,  only: land_data_type, atmos_land_boundary_type, &
-                                set_default_diag_filter, register_tiled_diag_field, &
-                                send_tile_data
+  use    land_model_mod,  only: land_data_type, atmos_land_boundary_type
+#ifndef _USE_LEGACY_LAND_
+  use    land_model_mod,  only: set_default_diag_filter, register_tiled_diag_field
+  use    land_model_mod,  only: send_tile_data
+#else
+  use  diag_manager_mod,  only: register_tiled_diag_field=>register_diag_field
+#endif
   use  surface_flux_mod,  only: surface_flux, surface_flux_init
   use monin_obukhov_mod,  only: mo_profile
   use xgrid_mod,          only: xmap_type, setup_xmap, set_frac_area, put_to_xgrid, &
@@ -517,6 +521,10 @@ contains
     allocate( atmos_ice_boundary%sw_flux_vis_dif(is:ie,js:je,kd) )
     allocate( atmos_ice_boundary%sw_flux_nir_dir(is:ie,js:je,kd) )
     allocate( atmos_ice_boundary%sw_flux_nir_dif(is:ie,js:je,kd) )
+    allocate( atmos_ice_boundary%sw_down_vis_dir(is:ie,js:je,kd) )
+    allocate( atmos_ice_boundary%sw_down_vis_dif(is:ie,js:je,kd) )
+    allocate( atmos_ice_boundary%sw_down_nir_dir(is:ie,js:je,kd) )
+    allocate( atmos_ice_boundary%sw_down_nir_dif(is:ie,js:je,kd) )
     allocate( atmos_ice_boundary%lprec(is:ie,js:je,kd) )
     allocate( atmos_ice_boundary%fprec(is:ie,js:je,kd) )
     allocate( atmos_ice_boundary%dhdt(is:ie,js:je,kd) )
@@ -535,6 +543,10 @@ contains
     atmos_ice_boundary%sw_flux_vis_dif=0.0
     atmos_ice_boundary%sw_flux_nir_dir=0.0
     atmos_ice_boundary%sw_flux_nir_dif=0.0
+    atmos_ice_boundary%sw_down_vis_dir=0.0
+    atmos_ice_boundary%sw_down_vis_dif=0.0
+    atmos_ice_boundary%sw_down_nir_dir=0.0
+    atmos_ice_boundary%sw_down_nir_dif=0.0
     atmos_ice_boundary%lprec=0.0
     atmos_ice_boundary%fprec=0.0
     atmos_ice_boundary%dhdt=0.0
@@ -554,6 +566,10 @@ contains
     call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
          'ice_flux', Ice%axes, Time, suffix = '_ice')
 
+    ! This call sets up a structure that is private to the ice model, and it
+    ! does not belong here.  This line should be eliminated once an update
+    ! to the FMS coupler_types code is made available that overloads the 
+    ! subroutine coupler_type_copy to use 2d and 3d coupler type sources. -RWH
     call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd,     &
          'ice_flux', Ice%axes, Time, suffix = '_ice_top')
 
@@ -1602,8 +1618,13 @@ contains
     if(id_q_ref_land > 0 .or.id_hussLut_land > 0) then
        call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
 !duplicate send_tile_data. We may remove id_q_ref_land in the future.
+#ifndef _USE_LEGACY_LAND_
        call send_tile_data (id_q_ref_land, diag_land)
        call send_tile_data (id_hussLut_land, diag_land)
+#else
+       used = send_tile_averaged_data(id_q_ref_land, diag_land, &
+            Land%tile_size, Time, mask=Land%mask)
+#endif
     endif
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
     !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
@@ -1634,11 +1655,22 @@ contains
 
     if ( id_rh_ref_land > 0 ) then
        call get_from_xgrid_land (diag_land,'LND', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
        call send_tile_data (id_rh_ref_land, diag_land)
+#else
+       used = send_tile_averaged_data ( id_rh_ref_land, diag_land, &
+            Land%tile_size, Time, mask = Land%mask )
+#endif
     endif
     if(id_rh_ref > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
        used = send_data ( id_rh_ref, diag_atm, Time )
+#else
+       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+               Land%tile_size, Time, mask = Land%mask )
+#endif
+ 
     endif
     if(id_rh_ref_cmip > 0 .or. id_hurs > 0 .or. id_rhs > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref2, xmap_sfc)
@@ -1650,13 +1682,18 @@ contains
 
     !    ------- reference temp -----------
 #ifdef use_AM3_physics
-    if ( id_t_ref > 0 .or. id_t_ref_land > 0 .or. id_tasl_g > 0 .or. id_tasLut_land > 0 ) then
+    if ( id_t_ref > 0 .or. id_t_ref_land > 0 .or. id_tasLut_land > 0 ) then
        where (ex_avail) &
             ex_ref = ex_t_ca + (ex_t_atm-ex_t_ca) * ex_del_h
        if (id_t_ref_land > 0.or.id_tasLut_land > 0) then
           call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
           call send_tile_data (id_t_ref_land, diag_land)
           call send_tile_data (id_tasLut_land, diag_land)
+#else
+          used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+               Land%tile_size, Time, mask = Land%mask )
+#endif
        endif
        if ( id_t_ref > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1669,12 +1706,16 @@ contains
     if (id_t_ref_land > 0 .or. id_tasLut_land > 0 .or. id_tasl_g > 0) then
        ! t_ref diagnostic at land points only
        call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
        if (id_t_ref_land > 0)  call send_tile_data (id_t_ref_land, diag_land)
        if (id_tasLut_land > 0) call send_tile_data (id_tasLut_land, diag_land)
-#ifndef _USE_LEGACY_LAND_
        if (id_tasl_g > 0) then
-         used = send_global_land_diag ( id_tasl_g, diag_land, Time, Land%tile_size, Land%mask, Land )
+         used = send_global_land_diag ( get_global_diag_field_id(id_tasl_g), &
+                                diag_land, Time, Land%tile_size, Land%mask, Land )
        endif
+#else
+       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+            Land%tile_size, Time, mask = Land%mask )
 #endif
     endif
     ! t_ref diagnostic at all atmos points
@@ -1691,7 +1732,12 @@ contains
             ex_ref = ex_u_surf + (ex_u_atm-ex_u_surf) * ex_del_m
        if ( id_u_ref_land > 0 ) then
           call get_from_xgrid_land ( diag_land, 'LND', ex_ref, xmap_sfc )
+#ifndef _USE_LEGACY_LAND_
           call send_tile_data ( id_u_ref_land, diag_land )
+#else
+          used = send_tile_averaged_data ( id_u_ref_land, diag_land, &
+               Land%tile_size, Time, mask = Land%mask )
+#endif
        endif
        if ( id_u_ref > 0 .or. id_uas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -1706,7 +1752,12 @@ contains
             ex_ref = ex_v_surf + (ex_v_atm-ex_v_surf) * ex_del_m
        if ( id_v_ref_land > 0 ) then
           call get_from_xgrid_land ( diag_land, 'LND', ex_ref, xmap_sfc )
+#ifndef _USE_LEGACY_LAND_
           call send_tile_data ( id_v_ref_land, diag_land )
+#else
+          used = send_tile_averaged_data ( id_v_ref_land, diag_land, &
+               Land%tile_size, Time, mask = Land%mask )
+#endif
        endif
        if ( id_v_ref > 0 .or. id_vas > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
@@ -2260,6 +2311,14 @@ contains
     call get_from_xgrid (Ice_boundary%sw_flux_nir_dif,  'OCN', ex_flux_sw_dif,xmap_sfc)
     Ice_boundary%sw_flux_nir_dif = Ice_boundary%sw_flux_nir_dif - Ice_boundary%sw_flux_vis_dif ! ice & ocean use these 4: dir/dif nir/vis
 
+    call get_from_xgrid (Ice_boundary%sw_down_vis_dir,  'OCN', ex_flux_sw_down_vis_dir,   xmap_sfc)
+    call get_from_xgrid (Ice_boundary%sw_down_nir_dir,  'OCN', ex_flux_sw_down_total_dir, xmap_sfc)
+    Ice_boundary%sw_down_nir_dir = Ice_boundary%sw_down_nir_dir - Ice_boundary%sw_down_vis_dir ! ice & ocean use these 4: dir/dif nir/vis
+
+    call get_from_xgrid (Ice_boundary%sw_down_vis_dif,  'OCN', ex_flux_sw_down_vis_dif,   xmap_sfc)
+    call get_from_xgrid (Ice_boundary%sw_down_nir_dif,  'OCN', ex_flux_sw_down_total_dif,xmap_sfc)
+    Ice_boundary%sw_down_nir_dif = Ice_boundary%sw_down_nir_dif - Ice_boundary%sw_down_vis_dif ! ice & ocean use these 4: dir/dif nir/vis
+
     call get_from_xgrid (Ice_boundary%lw_flux,  'OCN', ex_flux_lw,   xmap_sfc)
     call get_from_xgrid (Ice_boundary%dhdt,     'OCN', ex_dhdt_surf, xmap_sfc)
     call get_from_xgrid (Ice_boundary%dedt,     'OCN', ex_dedt_surf, xmap_sfc)
@@ -2309,21 +2368,21 @@ contains
     call data_override('ICE', 'sw_flux_vis_dir',Ice_boundary%sw_flux_vis_dir, Time)
     call data_override('ICE', 'sw_flux_nir_dif',Ice_boundary%sw_flux_nir_dif, Time, override=ov)
     call data_override('ICE', 'sw_flux_vis_dif',Ice_boundary%sw_flux_vis_dif, Time)
-    call data_override('ICE', 'sw_flux_vis_dir_dn',Ice_boundary%sw_flux_vis_dir, Time, override=ov)
+    call data_override('ICE', 'sw_flux_vis_dir_dn',Ice_boundary%sw_down_vis_dir, Time, override=ov)
     if (ov) then
-       Ice_boundary%sw_flux_vis_dir = Ice_boundary%sw_flux_vis_dir*(1.0-Ice%albedo_vis_dir)
+       Ice_boundary%sw_flux_vis_dir = Ice_boundary%sw_down_vis_dir*(1.0-Ice%albedo_vis_dir)
     endif
-    call data_override('ICE', 'sw_flux_vis_dif_dn',Ice_boundary%sw_flux_vis_dif, Time, override=ov)
+    call data_override('ICE', 'sw_flux_vis_dif_dn',Ice_boundary%sw_down_vis_dif, Time, override=ov)
     if (ov) then
-       Ice_boundary%sw_flux_vis_dif = Ice_boundary%sw_flux_vis_dif*(1.0-Ice%albedo_vis_dif)
+       Ice_boundary%sw_flux_vis_dif = Ice_boundary%sw_down_vis_dif*(1.0-Ice%albedo_vis_dif)
     endif
-    call data_override('ICE', 'sw_flux_nir_dir_dn',Ice_boundary%sw_flux_nir_dir, Time, override=ov)
+    call data_override('ICE', 'sw_flux_nir_dir_dn',Ice_boundary%sw_down_nir_dir, Time, override=ov)
     if (ov) then
-       Ice_boundary%sw_flux_nir_dir = Ice_boundary%sw_flux_nir_dir*(1.0-Ice%albedo_nir_dir)
+       Ice_boundary%sw_flux_nir_dir = Ice_boundary%sw_down_nir_dir*(1.0-Ice%albedo_nir_dir)
     endif
-    call data_override('ICE', 'sw_flux_nir_dif_dn',Ice_boundary%sw_flux_nir_dif, Time, override=ov)
+    call data_override('ICE', 'sw_flux_nir_dif_dn',Ice_boundary%sw_down_nir_dif, Time, override=ov)
     if (ov) then
-       Ice_boundary%sw_flux_nir_dif = Ice_boundary%sw_flux_nir_dif*(1.0-Ice%albedo_nir_dif)
+       Ice_boundary%sw_flux_nir_dif = Ice_boundary%sw_down_nir_dif*(1.0-Ice%albedo_nir_dif)
     endif
     call data_override('ICE', 'lprec',  Ice_boundary%lprec,   Time)
     call data_override('ICE', 'fprec',  Ice_boundary%fprec,   Time)
@@ -2774,7 +2833,12 @@ contains
 #endif
     if( id_q_flux_land > 0 ) then
        call get_from_xgrid_land (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
+#ifndef _USE_LEGACY_LAND_
        call send_tile_data (id_q_flux_land, diag_land, send_immediately=.TRUE.)
+#else
+       used = send_tile_averaged_data(id_q_flux_land, diag_land, &
+            Land%tile_size, Time, mask=Land%mask)
+#endif
     endif
     call sum_diag_integral_field ('evap', evap_atm*86400.)
 #ifndef use_AM3_physics
@@ -3226,7 +3290,9 @@ contains
     if( land_pe ) then
        ! set the default filter (for area and subsampling) for consequent calls to
        ! register_tiled_diag_field
+#ifndef _USE_LEGACY_LAND_
        call set_default_diag_filter('land')
+#endif
        id_t_ref_land = &
             register_tiled_diag_field ( 'flux_land', 't_ref', Land_axes, Time, &
             'temperature at '//trim(label_zh)//' over land', 'deg_k' , &
