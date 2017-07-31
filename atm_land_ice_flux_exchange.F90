@@ -73,6 +73,7 @@ module atm_land_ice_flux_exchange_mod
   use data_override_mod,  only: data_override
   use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10
   use coupler_types_mod,  only: coupler_type_spawn, coupler_type_set_diags
+  use coupler_types_mod,  only: coupler_type_initialized
   use ocean_model_mod,    only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
 #ifdef use_AM3_physics
   use atmos_tracer_driver_mod, only: atmos_tracer_flux_init
@@ -564,7 +565,7 @@ contains
 
     !--- Ice%ocean_fields and Ice%ocean_fluxes_top will not be passed to ocean, so these two
     !--- coupler_type_copy calls are moved from ice_ocean_flux_init to here.
-    if (Ice%ocean_fields%num_bcs <= 0) &
+    if (.not.coupler_type_initialized(Ice%ocean_fields)) &
       call coupler_type_spawn(ex_gas_fields_ice, Ice%ocean_fields, (/is,is,ie,ie/), &
                               (/js,js,je,je/), (/1, kd/), suffix = '_ice')
     call coupler_type_set_diags(Ice%ocean_fields, 'ice_flux', Ice%axes, Time)
@@ -573,8 +574,10 @@ contains
     ! does not belong here.  This line should be eliminated once an update
     ! to the FMS coupler_types code is made available that overloads the 
     ! subroutine coupler_type_copy to use 2d and 3d coupler type sources. -RWH
-    call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd, &
-         'ice_flux', Ice%axes, Time, suffix = '_ice_top')
+    if (.not.coupler_type_initialized(Ice%ocean_fluxes_top)) &
+      call coupler_type_spawn(ex_gas_fields_ice, Ice%ocean_fluxes_top, (/is,is,ie,ie/), &
+                              (/js,js,je,je/), (/1, kd/), suffix = '_ice_top')
+    call coupler_type_set_diags(Ice%ocean_fluxes_top, 'ice_flux', Ice%axes, Time)
 
     !allocate land_ice_atmos_boundary
     call mpp_get_compute_domain( Atm%domain, is, ie, js, je )

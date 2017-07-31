@@ -1750,9 +1750,10 @@ contains
                          //trim(walldate)//' '//trim(walltime)
       endif
       call mpp_clock_begin(id_ice_model_init)
-      call ice_model_init( Ice, Time_init, Time, Time_step_atmos, &
-                           Time_step_cpld, Verona_coupler=.false., &
-                           concurrent_ice=concurrent_ice )
+      call ice_model_init(Ice, Time_init, Time, Time_step_atmos, &
+                          Time_step_cpld, Verona_coupler=.false., &
+                          concurrent_ice=concurrent_ice, &
+                          gas_fluxes=gas_fluxes, gas_fields_ocn=gas_fields_ocn )
       call mpp_clock_end(id_ice_model_init)
 
       ! This must be called using the union of the ice PE_lists.
@@ -1780,7 +1781,8 @@ contains
                          //trim(walldate)//' '//trim(walltime)
       endif
       call mpp_clock_begin(id_ocean_model_init)
-      call ocean_model_init( Ocean, Ocean_state, Time_init, Time )
+      call ocean_model_init( Ocean, Ocean_state, Time_init, Time) !, &
+!                          gas_fluxes=gas_fluxes, gas_fields_ocn=gas_fields_ocn  )
       call mpp_clock_end(id_ocean_model_init)
 
       if (concurrent) then

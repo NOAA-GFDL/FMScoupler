@@ -640,21 +640,22 @@ contains
   !! This is intended to be called (optionally) prior to flux_exchange_init.
   subroutine gas_exchange_init (gas_fields_atm, gas_fields_ice, gas_fluxes)
     type(coupler_1d_bc_type), optional, pointer :: gas_fields_atm 
-      !< Pointer to a structure containing atmospheric surfacevariables that are used in the
-      !! calculation of the atmosphere-ocean gas fluxes, as well as parameters
-      !! regulating these fluxes.
+      !< Pointer to a structure containing atmospheric surface variables that
+      !! are used in the calculation of the atmosphere-ocean gas fluxes, as well
+      !! as parameters regulating these fluxes.
     type(coupler_1d_bc_type), optional, pointer :: gas_fields_ice
-      !< Pointer to a structure containing ice-top and ocean surface variables that are used
-      !! in the calculation of the atmosphere-ocean gas fluxes, as well as parameters
-      !! regulating these fluxes.
+      !< Pointer to a structure containing ice-top and ocean surface variables
+      !! that are used in the calculation of the atmosphere-ocean gas fluxes,
+      !! as well as parameters regulating these fluxes.
     type(coupler_1d_bc_type), optional, pointer :: gas_fluxes
-      !< Pointer to a s structure for exchanging gas or tracer fluxes between the atmosphere and ocean,
-      !! defined by the field table, as well as a place holder of intermediate calculations,
-      !! such as piston velocities, and parameters that impact the fluxes.
+      !< Pointer to a s structure for exchanging gas or tracer fluxes between the
+      !! atmosphere and ocean, defined by the field table, as well as a place holder
+      !! of intermediate calculations, such as piston velocities, and parameters
+      !! that impact the fluxes.
 
     if (.not.gas_fluxes_initialized) then
       call ocean_model_flux_init( )
-      call atmos_tracer_flux_init()
+      call atmos_tracer_flux_init( )
       call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
       gas_fluxes_initialized = .true.
     endif
