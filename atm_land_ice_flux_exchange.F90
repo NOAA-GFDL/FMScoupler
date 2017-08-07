@@ -1162,13 +1162,7 @@ contains
     zrefm = 10.0
     zrefh = z_ref_heat
     !      ---- optimize calculation ----
-    !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end, zrefm, zrefh, ex_z_atm, &
-    !$OMP                                  ex_rough_mom,ex_rough_heat,ex_rough_moist,ex_u_star,      &
-    !$OMP                                  ex_b_star,ex_q_star,ex_del_m,ex_del_h,ex_del_q,ex_avail,  &
-    !$OMP                                  ex_u10,ex_ref_u,ex_ref_v,ex_gas_fields_atm,ex_u_surf,     &
-    !$OMP                                  ex_v_surf,ex_u_atm,ex_v_atm,atm,ind_u10,n_exch_tr,isphum, &
-    !$OMP                                  ex_dfdtr_atm,ex_dfdtr_surf,ex_flux_tr,ex_tr_surf,ex_tr_atm) &
-    !$OMP                          private(is,ie)
+    !$OMP parallel do default(shared) private(is,ie)
     do l = 1, my_nblocks
        is=block_start(l)
        ie=block_end(l)
@@ -1221,10 +1215,7 @@ contains
     ! looking into in the future.
     ! ex_flux_tr(:,itracer) = ex_gas_fluxes%bc(itracer_ocn)%field(ind_flux)%values(:)
     ! where(ex_seawater.gt.0) ex_flux_tr(:,itracer) = F_ocn
-    !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_gas_fluxes,  &
-    !$OMP                                  tr_table_map,ex_land,ex_dfdtr_atm,ex_dfdtr_surf, &
-    !$OMP                                  ex_seawater,ex_flux_tr,ind_flux)                 &
-    !$OMP                          private(is,ie,m)
+    !$OMP parallel do default(shared) private(is,ie,m)
     do l = 1, my_nblocks
        is=block_start(l)
        ie=block_end(l)
