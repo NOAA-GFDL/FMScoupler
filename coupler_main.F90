@@ -648,6 +648,7 @@ program coupler_main
   do nc = 1, num_cpld_calls
     if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc)
     call mpp_set_current_pelist()
+
     if (do_chksum) then
       if (Atm%pe) then
         call mpp_set_current_pelist(Atm%pelist)
@@ -664,12 +665,21 @@ program coupler_main
     ! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
     ! points when running concurrently. The calls are placed next to each other in
     ! concurrent mode to avoid multiple synchronizations within the main loop.
+    ! With concurrent_ice, these only occur on the ocean PEs.
     if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
       ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
       if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
       call mpp_clock_begin(newClock2)
-      call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
+      call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary, slow_ice_with_ocean )
       call mpp_clock_end(newClock2)
+
+      ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
+      if (use_lag_fluxes) then
+        if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
+        call mpp_clock_begin(newClock3)
+        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary, slow_ice_with_ocean )
+        call mpp_clock_end(newClock3)
+      endif
     endif
 
     if (do_chksum) then
@@ -684,16 +694,6 @@ program coupler_main
         call ocean_public_type_chksum('fluxocn2ice+', nc, Ocean)
       endif
       call mpp_set_current_pelist()
-    endif
-
-    ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
-    if (use_lag_fluxes) then
-      if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-        if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
-        call mpp_clock_begin(newClock3)
-        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
-        call mpp_clock_end(newClock3)
-      endif
     endif
 
     ! To print the value of frazil heat flux at the right time the following block
@@ -715,6 +715,7 @@ program coupler_main
         if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
         call mpp_clock_end(newClock6s)
       endif
+
       ! This could be a point where the model is serialized if the fast and
       ! slow ice are on different PEs.
       if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
@@ -970,9 +971,7 @@ program coupler_main
 
       if (.not.concurrent_ice) then
         ! This could be a point where the model is serialized.
-        !   Uncomment this for efficiency:
-        !      if (.not.Ice%shared_slow_fast_PEs)
-        call mpp_set_current_pelist(Ice%pelist)
+        if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
         ! This call occurs all ice PEs.
         call mpp_clock_begin(newClock10e)
         call exchange_fast_to_slow_ice(Ice)
@@ -1016,8 +1015,6 @@ program coupler_main
       call mpp_clock_begin(newClock12)
       if (combined_ice_and_ocean) then
         call flux_ice_to_ocean_stocks(Ice)
-
-!        call mpp_error(FATAL, "update_slow_ice_and_ocean does not exist yet.")
         call update_slow_ice_and_ocean(ice_ocean_driver_CS, Ice, Ocean_state, Ocean, &
                       Ice_ocean_boundary, Time_ocean, Time_step_cpld )
       else
@@ -1345,7 +1342,6 @@ contains
     else
       ! Fast ice processes occur a subset of the atmospheric PEs, while
       ! slow ice processes occur on the ocean PEs.
-      !### THIS OPTION IS WHOLLY UNTESTED AND I DO NOT KNOW IF IT WILL WORK! - RWH
       allocate( Ice%slow_pelist(ocean_npes) )
       Ice%slow_pelist(:) = Ocean%pelist(:)
       allocate( Ice%pelist  (ice_npes+ocean_npes) )
@@ -1781,8 +1777,8 @@ contains
                          //trim(walldate)//' '//trim(walltime)
       endif
       call mpp_clock_begin(id_ocean_model_init)
-      call ocean_model_init( Ocean, Ocean_state, Time_init, Time) !, &
-!                          gas_fluxes=gas_fluxes, gas_fields_ocn=gas_fields_ocn  )
+      call ocean_model_init( Ocean, Ocean_state, Time_init, Time, &
+                             gas_fields_ocn=gas_fields_ocn  )
       call mpp_clock_end(id_ocean_model_init)
 
       if (concurrent) then
@@ -2063,7 +2059,6 @@ contains
         call save_restart(Ice_bc_restart(n), time_stamp)
       enddo
     endif
-
 
   end subroutine coupler_restart
 

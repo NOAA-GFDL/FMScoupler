@@ -189,6 +189,7 @@ contains
     call mpp_set_current_pelist()
     !z1l check the flux conservation.
     if(debug_stocks) call check_flux_conservation(Ice, Ocean, Ice_Ocean_Boundary)
+
     if (Ice%shared_slow_fast_PEs) then
       call mpp_set_current_pelist()
       cplOcnClock = mpp_clock_id( 'Ice-ocean coupler', flags=clock_flag_default, grain=CLOCK_COMPONENT )
@@ -220,27 +221,27 @@ contains
   !!                  time step (Kg/m2)
   !!        fprec = mass of frozen precipitation since last
   !!                  time step (Kg/m2)
-  !!       runoff = mass (?) of runoff since last time step
-  !!                  (Kg/m2)
+  !!       runoff = mass of runoff since last time step (Kg/m2)
+  !!       runoff = mass of calving since last time step (Kg/m2)
   !!       p_surf = surface pressure (Pa)
   !! </pre>
-  subroutine flux_ice_to_ocean ( Time, Ice, Ocean, Ice_Ocean_Boundary )
+  subroutine flux_ice_to_ocean ( Time, Ice, Ocean, Ice_Ocean_Boundary, shared_ice_ocn_PEs )
 
-    type(time_type),                  intent(in) :: Time !< Current time
-    type(ice_data_type),             intent(in)  :: Ice !< A derived data type to specify ice boundary data
+    type(time_type),                 intent(in)  :: Time !< Current time
+    type(ice_data_type),             intent(in)  :: Ice  !< A derived data type to specify ice boundary data
     type(ocean_public_type),         intent(in)  :: Ocean !< A derived data type to specify ocean boundary data
-    !  real, dimension(:,:),         intent(out) :: flux_u_ocean,  flux_v_ocean,  &
-    !                                               flux_t_ocean,  flux_q_ocean,  &
-    !                                               flux_sw_ocean, flux_lw_ocean, &
-    !                                               lprec_ocean,   fprec_ocean,   &
-    !                                               runoff_ocean,  calving_ocean, &
-    !                                               flux_salt_ocean, p_surf_ocean
     type(ice_ocean_boundary_type), intent(inout) :: Ice_Ocean_Boundary !< A derived data type to specify properties and fluxes
-    !! passed from ice to ocean
+                                                         !! passed from ice to ocean
+    logical,               optional, intent(in)  :: shared_ice_ocn_PEs !< If present and true, the ocean and the
+                                                         !! slow ice use the same PE list, so there is no need
+                                                         !! to change PE lists within this routine.
 
     integer       :: m
     integer       :: n
-    logical       :: used
+    logical       :: used, shared_PEs
+    
+    shared_PEs = .false.
+    if (present(shared_ice_ocn_PEs)) shared_PEs = shared_ice_ocn_PEs
 
     !Balaji
     call mpp_clock_begin(cplOcnClock)
@@ -321,7 +322,7 @@ contains
 
     !Balaji: moved data_override calls here from coupler_main
     if( Ocean%is_ocean_pe )then
-       call mpp_set_current_pelist(Ocean%pelist)
+       if (.not.shared_PEs) call mpp_set_current_pelist(Ocean%pelist)
        call data_override('OCN', 'u_flux',    Ice_Ocean_Boundary%u_flux   , Time )
        call data_override('OCN', 'v_flux',    Ice_Ocean_Boundary%v_flux   , Time )
        call data_override('OCN', 't_flux',    Ice_Ocean_Boundary%t_flux   , Time )
@@ -352,12 +353,12 @@ contains
 
        call coupler_type_data_override('OCN', Ice_Ocean_Boundary%fluxes, Time )
        call coupler_type_send_data(Ice_Ocean_Boundary%fluxes, Time )
+
     endif
-    
-    ! This call is dangerous, as it needs to be kept up to date with the pe_lists as
+
+    ! This call is dangerous, as it needs to revert to the pe_lists as
     ! set in coupler_main. - RWH
-    if (Ice%shared_slow_fast_PEs) &
-      call mpp_set_current_pelist()
+    if (.not.shared_PEs) call mpp_set_current_pelist()
 
     !Balaji
     call mpp_clock_end(fluxIceOceanClock)
@@ -372,27 +373,33 @@ contains
   !! The following quantities are transferred from the Ocean to the ocean_ice_boundary_type:
   !! <pre>
   !!        t_surf = surface temperature (deg K)
-  !!        frazil = frazil (???)
+  !!        frazil = frazil fluxes since the last coupling step (J/m2)
   !!        u_surf = zonal ocean current/ice motion (m/s)
-  !!        v_surf = meridional ocean current/ice motion (m/s
+  !!        v_surf = meridional ocean current/ice motion (m/s)
+  !!        v_surf = meridional ocean current/ice motion (m/s)
+  !!       sea_lev = sea level used to drive ice accelerations (m)
   !! </pre>
   !!
   !! \throw FATAL, "Ocean_Ice_Boundary%xtype must be DIRECT or REDIST."
   !!    The value of variable xtype of ice_ocean_boundary_type data must be DIRECT or REDIST.
-  subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
+  subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary, shared_ice_ocn_PEs )
 
-    type(time_type),                 intent(in)  :: Time !< Current time
+    type(time_type),                 intent(in)  :: Time  !< Current time
     type(ocean_public_type),         intent(in)  :: Ocean !< A derived data type to specify ocean boundary data
-    type(ice_data_type),             intent(in)  :: Ice !< A derived data type to specify ice boundary data
-    !  real, dimension(:,:),         intent(out) :: t_surf_ice, u_surf_ice, v_surf_ice, &
-    !                                               frazil_ice, s_surf_ice, sea_lev_ice
+    type(ice_data_type),             intent(in)  :: Ice   !< A derived data type to specify ice boundary data
     type(ocean_ice_boundary_type), intent(inout) :: Ocean_Ice_Boundary !< A derived data type to specify properties and fluxes
-    !! passed from ocean to ice
+                                                          !! passed from ocean to ice
+    logical,               optional, intent(in)  :: shared_ice_ocn_PEs !< If present and true, the ocean and the
+                                                         !! slow ice use the same PE list, so there is no need
+                                                         !! to change PE lists within this routine.
     real, allocatable, dimension(:,:) :: tmp
     integer       :: m
     integer       :: n
     real          :: from_dq 
-    logical       :: used
+    logical       :: used, shared_PEs
+
+    shared_PEs = .false.
+    if (present(shared_ice_ocn_PEs)) shared_PEs = shared_ice_ocn_PEs
 
     !Balaji
     call mpp_clock_begin(cplOcnClock)
@@ -454,7 +461,7 @@ contains
        call mpp_error( FATAL, 'flux_ocean_to_ice: Ocean_Ice_Boundary%xtype must be DIRECT or REDIST.' )
     end select
     if( Ice%slow_ice_pe )then
-       call mpp_set_current_pelist(Ice%slow_pelist)
+       if (.not.shared_PEs) call mpp_set_current_pelist(Ice%slow_pelist)
 
        !Balaji: data_override moved here from coupler_main
        call data_override('ICE', 'u',         Ocean_Ice_Boundary%u,         Time)
@@ -472,7 +479,7 @@ contains
     endif
 
     if( Ocean%is_ocean_pe )then
-       call mpp_set_current_pelist(Ocean%pelist)
+       if (.not.shared_PEs) call mpp_set_current_pelist(Ocean%pelist)
 
        !       Perform diagnostic output for the ocean fields
        call coupler_type_send_data( Ocean%fields, Time)
@@ -485,12 +492,10 @@ contains
        Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
     endif
 
-
-    ! This call is dangerous, as it needs to be kept up to date with the pe_lists as
+    ! This call is dangerous, as it needs to revert to the pe_lists as
     ! set in coupler_main. - RWH
-    if (Ice%shared_slow_fast_PEs) &
-      call mpp_set_current_pelist()
-    !Balaji
+    if (.not.shared_PEs) call mpp_set_current_pelist()
+
     call mpp_clock_end(fluxOceanIceClock)
     call mpp_clock_end(cplOcnClock)
     !-----------------------------------------------------------------------
