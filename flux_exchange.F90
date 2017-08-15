@@ -549,8 +549,10 @@ module flux_exchange_mod
   use atm_land_ice_flux_exchange_mod, only: flux_up_to_atmos, atm_stock_integrate, send_ice_mask_sic
   use atm_land_ice_flux_exchange_mod, only: flux_atmos_to_ocean, flux_ex_arrays_dealloc
   use land_ice_flux_exchange_mod,     only: flux_land_to_ice, land_ice_flux_exchange_init
-  use ice_ocean_flux_exchange_mod,    only: ice_ocean_flux_exchange_init, flux_ocean_to_ice
-  use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
+  use ice_ocean_flux_exchange_mod,    only: ice_ocean_flux_exchange_init
+  use ice_ocean_flux_exchange_mod,    only: flux_ocean_to_ice, flux_ocean_to_ice_finish
+  use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean, flux_ice_to_ocean_finish
+  use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
 
   implicit none ; private
 
@@ -563,7 +565,9 @@ module flux_exchange_mod
      flux_atmos_to_ocean,  &
      flux_ex_arrays_dealloc,&
      flux_ice_to_ocean,    &
+     flux_ice_to_ocean_finish, &
      flux_ocean_to_ice,    &
+     flux_ocean_to_ice_finish, &
      flux_check_stocks,    &
      flux_init_stocks,     &
      flux_ice_to_ocean_stocks,&

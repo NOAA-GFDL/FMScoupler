@@ -393,6 +393,7 @@ program coupler_main
   use flux_exchange_mod,       only: generate_sfc_xgrid, send_ice_mask_sic
   use flux_exchange_mod,       only: flux_down_from_atmos, flux_up_to_atmos
   use flux_exchange_mod,       only: flux_land_to_ice, flux_ice_to_ocean, flux_ocean_to_ice
+  use flux_exchange_mod,       only: flux_ice_to_ocean_finish, flux_ocean_to_ice_finish
   use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks
   use flux_exchange_mod,       only: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
   use flux_exchange_mod,       only: flux_atmos_to_ocean, flux_ex_arrays_dealloc
@@ -443,6 +444,8 @@ program coupler_main
   type (time_type) :: Time, Time_init, Time_end, &
                       Time_step_atmos, Time_step_cpld
   type(time_type) :: Time_atmos, Time_ocean
+  type(time_type) :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
+
   integer :: num_atmos_calls, na
   integer :: num_cpld_calls, nc
 
@@ -670,14 +673,15 @@ program coupler_main
       ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
       if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
       call mpp_clock_begin(newClock2)
-      call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary, slow_ice_with_ocean )
+      call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
+      Time_flux_ocean_to_ice = Time
       call mpp_clock_end(newClock2)
 
       ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
       if (use_lag_fluxes) then
-        if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
         call mpp_clock_begin(newClock3)
-        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary, slow_ice_with_ocean )
+        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
+        Time_flux_ice_to_ocean = Time
         call mpp_clock_end(newClock3)
       endif
     endif
@@ -711,6 +715,10 @@ program coupler_main
       if (Ice%slow_ice_pe) then
         call mpp_set_current_pelist(Ice%slow_pelist)
         call mpp_clock_begin(newClock6s)
+
+        ! This may do data override or diagnostics on Ice_ocean_boundary.
+        call flux_ocean_to_ice_finish( Time_flux_ocean_to_ice, Ice, Ocean_Ice_Boundary )
+
         call unpack_ocean_ice_boundary( Ocean_ice_boundary, Ice )
         if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
         call mpp_clock_end(newClock6s)
@@ -1006,6 +1014,7 @@ program coupler_main
         if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
         call mpp_clock_begin(newClock3)
         call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
+        Time_flux_ice_to_ocean = Time
         call mpp_clock_end(newClock3)
       endif
     endif
@@ -1013,6 +1022,10 @@ program coupler_main
     if (Ocean%is_ocean_pe) then
       call mpp_set_current_pelist(Ocean%pelist)
       call mpp_clock_begin(newClock12)
+
+      ! This may do data override or diagnostics on Ice_ocean_boundary.
+      call flux_ice_to_ocean_finish(Time_flux_ice_to_ocean, Ice_ocean_boundary)
+
       if (combined_ice_and_ocean) then
         call flux_ice_to_ocean_stocks(Ice)
         call update_slow_ice_and_ocean(ice_ocean_driver_CS, Ice, Ocean_state, Ocean, &

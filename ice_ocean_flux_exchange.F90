@@ -25,8 +25,8 @@ module ice_ocean_flux_exchange_mod
 
 
   public :: ice_ocean_flux_exchange_init, &
-       flux_ice_to_ocean,    &
-       flux_ocean_to_ice,    & 
+       flux_ice_to_ocean, flux_ice_to_ocean_finish, &
+       flux_ocean_to_ice, flux_ocean_to_ice_finish, & 
        flux_ice_to_ocean_stocks,&
        flux_ocean_from_ice_stocks
 
@@ -59,7 +59,6 @@ contains
     logical,                       intent(in)    :: do_area_weighted_flux_in
     type(coupler_1d_bc_type),      intent(in)    :: ex_gas_fields_ice, ex_gas_fluxes
     logical,                       intent(in)    :: do_ocean
-    character(len=24)    :: diag_name
     integer              :: is, ie, js, je
 
     Dt_cpl = Dt_cpl_in
@@ -85,19 +84,12 @@ contains
     ocean_ice_boundary%frazil=0.0
     ocean_ice_boundary%sea_level=0.0
 
-    !
-    ! allocate fields for extra tracers
-    ! Copying gas flux fields from ice to ocean_ice boundary
-    if(Ice%pe) then
-       diag_name = "ice_flux"
-    else
-       diag_name = ""
-    endif
-
+    ! allocate fields for extra tracers in ocean_ice_boundary
     if (.not.coupler_type_initialized(ocean_ice_boundary%fields)) &
       call coupler_type_spawn(ex_gas_fields_ice, ocean_ice_boundary%fields, (/is,is,ie,ie/), &
                               (/js,js,je,je/), suffix='_ocn_ice')
-    call coupler_type_set_diags(ocean_ice_boundary%fields, diag_name, Ice%axes(1:2), Time)
+    if (Ice%pe) &
+      call coupler_type_set_diags(ocean_ice_boundary%fields, "ice_flux", Ice%axes(1:2), Time)
 
     !
     ! allocate fields and fluxes for extra tracers for the Ice type
@@ -105,7 +97,10 @@ contains
     if (.not.coupler_type_initialized(Ice%ocean_fluxes)) &
       call coupler_type_spawn(ex_gas_fluxes, Ice%ocean_fluxes, (/is,is,ie,ie/), &
                               (/js,js,je,je/),  suffix = '_ice')
-    call coupler_type_set_diags(Ice%ocean_fluxes, diag_name, Ice%axes(1:2), Time)
+    
+    ! This was never being sent, so comment it out for now.
+    ! if (Ice%pe) &
+    !   call coupler_type_set_diags(Ice%ocean_fluxes, "ice_flux", Ice%axes(1:2), Time)
 
 
     !allocate ice_ocean_boundary
@@ -153,40 +148,24 @@ contains
     else
        ocean_ice_boundary%stagger = AGRID
     endif
-    !
-    ! allocate fields for extra tracers
-    !
-    if(Ocean%is_ocean_pe) then
-       diag_name = "ocean_flux"
-    else
-       diag_name = ""
-    endif
+
+    ! allocate fields for extra tracer fluxes in ice_ocean_boundary
     if (.not.coupler_type_initialized(ice_ocean_boundary%fluxes)) &
       call coupler_type_spawn(ex_gas_fluxes, ice_ocean_boundary%fluxes, (/is,is,ie,ie/), &
                               (/js,js,je,je/), suffix='_ice_ocn')
-    call coupler_type_set_diags(ice_ocean_boundary%fluxes, diag_name, Ocean%axes(1:2), Time)
+    if (Ocean%is_ocean_pe) &
+      call coupler_type_set_diags(ice_ocean_boundary%fluxes, "ocean_flux", Ocean%axes(1:2), Time)
 
+    ! This typically only occurs on non-ocean PEs.
     if (.not.coupler_type_initialized(Ocean%fields)) &
       call coupler_type_spawn(ex_gas_fields_ice, Ocean%fields, (/is,is,ie,ie/), &
                               (/js,js,je,je/), suffix = '_ocn')
-    call coupler_type_set_diags(Ocean%fields, diag_name, Ocean%axes(1:2), Time)
 
     ! initialize boundary values for override experiments
     ocean_ice_boundary%xtype = REDIST
     if( Ocean%domain.EQ.Ice%slow_Domain_NH )ocean_ice_boundary%xtype = DIRECT
     ice_ocean_boundary%xtype = ocean_ice_boundary%xtype
 
-    !       initialize the Ocean type for extra fields for surface fluxes
-    ! Same allocation of arrays and stuff
-    !       (this must be done after the Ocean fields are allocated as the fields on the Ocean%fields
-    !       are read in in this subroutine)
-    !
-
-    if ( Ocean%is_ocean_pe ) then
-       call mpp_set_current_pelist(Ocean%pelist)
-       call ocean_model_init_sfc(Ocean_state, Ocean)
-    endif
-    call mpp_set_current_pelist()
     !z1l check the flux conservation.
     if(debug_stocks) call check_flux_conservation(Ice, Ocean, Ice_Ocean_Boundary)
 
@@ -225,25 +204,18 @@ contains
   !!       runoff = mass of calving since last time step (Kg/m2)
   !!       p_surf = surface pressure (Pa)
   !! </pre>
-  subroutine flux_ice_to_ocean ( Time, Ice, Ocean, Ice_Ocean_Boundary, shared_ice_ocn_PEs )
+  subroutine flux_ice_to_ocean ( Time, Ice, Ocean, Ice_Ocean_Boundary )
 
     type(time_type),                 intent(in)  :: Time !< Current time
     type(ice_data_type),             intent(in)  :: Ice  !< A derived data type to specify ice boundary data
     type(ocean_public_type),         intent(in)  :: Ocean !< A derived data type to specify ocean boundary data
     type(ice_ocean_boundary_type), intent(inout) :: Ice_Ocean_Boundary !< A derived data type to specify properties and fluxes
                                                          !! passed from ice to ocean
-    logical,               optional, intent(in)  :: shared_ice_ocn_PEs !< If present and true, the ocean and the
-                                                         !! slow ice use the same PE list, so there is no need
-                                                         !! to change PE lists within this routine.
 
     integer       :: m
     integer       :: n
-    logical       :: used, shared_PEs
-    
-    shared_PEs = .false.
-    if (present(shared_ice_ocn_PEs)) shared_PEs = shared_ice_ocn_PEs
-
-    !Balaji
+    logical       :: used
+ 
     call mpp_clock_begin(cplOcnClock)
     call mpp_clock_begin(fluxIceOceanClock)
 
@@ -320,52 +292,54 @@ contains
     if(ASSOCIATED(Ice_Ocean_Boundary%q_flux) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
          Ice%flux_q, Ice_Ocean_Boundary%q_flux, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
 
-    !Balaji: moved data_override calls here from coupler_main
-    if( Ocean%is_ocean_pe )then
-       if (.not.shared_PEs) call mpp_set_current_pelist(Ocean%pelist)
-       call data_override('OCN', 'u_flux',    Ice_Ocean_Boundary%u_flux   , Time )
-       call data_override('OCN', 'v_flux',    Ice_Ocean_Boundary%v_flux   , Time )
-       call data_override('OCN', 't_flux',    Ice_Ocean_Boundary%t_flux   , Time )
-       call data_override('OCN', 'q_flux',    Ice_Ocean_Boundary%q_flux   , Time )
-       call data_override('OCN', 'salt_flux', Ice_Ocean_Boundary%salt_flux, Time )
-       call data_override('OCN', 'lw_flux',   Ice_Ocean_Boundary%lw_flux  , Time )
-       call data_override('OCN', 'sw_flux_nir_dir', Ice_Ocean_Boundary%sw_flux_nir_dir, Time )
-       call data_override('OCN', 'sw_flux_nir_dif', Ice_Ocean_Boundary%sw_flux_nir_dif, Time )
-       call data_override('OCN', 'sw_flux_vis_dir', Ice_Ocean_Boundary%sw_flux_vis_dir, Time )
-       call data_override('OCN', 'sw_flux_vis_dif', Ice_Ocean_Boundary%sw_flux_vis_dif, Time )
-       call data_override('OCN', 'lprec',     Ice_Ocean_Boundary%lprec    , Time )
-       call data_override('OCN', 'fprec',     Ice_Ocean_Boundary%fprec    , Time )
-       call data_override('OCN', 'runoff',    Ice_Ocean_Boundary%runoff   , Time )
-       call data_override('OCN', 'calving',   Ice_Ocean_Boundary%calving  , Time )
-       call data_override('OCN', 'runoff_hflx',    Ice_Ocean_Boundary%runoff_hflx   , Time )
-       call data_override('OCN', 'calving_hflx',   Ice_Ocean_Boundary%calving_hflx  , Time )
-       call data_override('OCN', 'p',         Ice_Ocean_Boundary%p        , Time )
-       call data_override('OCN', 'mi',        Ice_Ocean_Boundary%mi       , Time )
-      !Are these if statements needed, or does data_override routine check if variable is associated? 
-       if (ASSOCIATED(Ice_Ocean_Boundary%ustar_berg) ) &
-         call data_override('OCN', 'ustar_berg', Ice_Ocean_Boundary%ustar_berg, Time )
-       if (ASSOCIATED(Ice_Ocean_Boundary%area_berg)  ) &
-         call data_override('OCN', 'area_berg',  Ice_Ocean_Boundary%area_berg , Time )
-       if (ASSOCIATED(Ice_Ocean_Boundary%mass_berg)  ) &
-         call data_override('OCN', 'mass_berg',  Ice_Ocean_Boundary%mass_berg , Time )
-
-       ! Extra fluxes
-
-       call coupler_type_data_override('OCN', Ice_Ocean_Boundary%fluxes, Time )
-       call coupler_type_send_data(Ice_Ocean_Boundary%fluxes, Time )
-
-    endif
-
-    ! This call is dangerous, as it needs to revert to the pe_lists as
-    ! set in coupler_main. - RWH
-    if (.not.shared_PEs) call mpp_set_current_pelist()
-
-    !Balaji
     call mpp_clock_end(fluxIceOceanClock)
     call mpp_clock_end(cplOcnClock)
     !-----------------------------------------------------------------------
 
   end subroutine flux_ice_to_ocean
+
+  !> flux_ice_to_ocean_finish carrries out a final set of tasks that should only occur on
+  !! the ocean processors, including data override and perhaps saving diagnostics.
+  subroutine flux_ice_to_ocean_finish ( Time, Ice_Ocean_Boundary )
+
+    type(time_type),                 intent(in)  :: Time !< Current time
+    type(ice_ocean_boundary_type), intent(inout) :: Ice_Ocean_Boundary !< A derived data type to specify properties and fluxes
+                                                         !! passed from ice to ocean
+
+    call data_override('OCN', 'u_flux',    Ice_Ocean_Boundary%u_flux   , Time )
+    call data_override('OCN', 'v_flux',    Ice_Ocean_Boundary%v_flux   , Time )
+    call data_override('OCN', 't_flux',    Ice_Ocean_Boundary%t_flux   , Time )
+    call data_override('OCN', 'q_flux',    Ice_Ocean_Boundary%q_flux   , Time )
+    call data_override('OCN', 'salt_flux', Ice_Ocean_Boundary%salt_flux, Time )
+    call data_override('OCN', 'lw_flux',   Ice_Ocean_Boundary%lw_flux  , Time )
+    call data_override('OCN', 'sw_flux_nir_dir', Ice_Ocean_Boundary%sw_flux_nir_dir, Time )
+    call data_override('OCN', 'sw_flux_nir_dif', Ice_Ocean_Boundary%sw_flux_nir_dif, Time )
+    call data_override('OCN', 'sw_flux_vis_dir', Ice_Ocean_Boundary%sw_flux_vis_dir, Time )
+    call data_override('OCN', 'sw_flux_vis_dif', Ice_Ocean_Boundary%sw_flux_vis_dif, Time )
+    call data_override('OCN', 'lprec',     Ice_Ocean_Boundary%lprec    , Time )
+    call data_override('OCN', 'fprec',     Ice_Ocean_Boundary%fprec    , Time )
+    call data_override('OCN', 'runoff',    Ice_Ocean_Boundary%runoff   , Time )
+    call data_override('OCN', 'calving',   Ice_Ocean_Boundary%calving  , Time )
+    call data_override('OCN', 'runoff_hflx',    Ice_Ocean_Boundary%runoff_hflx   , Time )
+    call data_override('OCN', 'calving_hflx',   Ice_Ocean_Boundary%calving_hflx  , Time )
+    call data_override('OCN', 'p',         Ice_Ocean_Boundary%p        , Time )
+    call data_override('OCN', 'mi',        Ice_Ocean_Boundary%mi       , Time )
+
+   !Are these if statements needed, or does data_override routine check if variable is associated? 
+    if (ASSOCIATED(Ice_Ocean_Boundary%ustar_berg) ) &
+      call data_override('OCN', 'ustar_berg', Ice_Ocean_Boundary%ustar_berg, Time )
+    if (ASSOCIATED(Ice_Ocean_Boundary%area_berg)  ) &
+      call data_override('OCN', 'area_berg',  Ice_Ocean_Boundary%area_berg , Time )
+    if (ASSOCIATED(Ice_Ocean_Boundary%mass_berg)  ) &
+      call data_override('OCN', 'mass_berg',  Ice_Ocean_Boundary%mass_berg , Time )
+
+    ! Extra fluxes
+    call coupler_type_data_override('OCN', Ice_Ocean_Boundary%fluxes, Time )
+
+    ! The send_data call for any of the Ice_Ocean_Boundary fluxes would go here.
+    call coupler_type_send_data(Ice_Ocean_Boundary%fluxes, Time )
+
+  end subroutine flux_ice_to_ocean_finish
 
   !#######################################################################
   !> \brief Takes the ocean model state and interpolates it onto the bottom of the ice.
@@ -382,26 +356,18 @@ contains
   !!
   !! \throw FATAL, "Ocean_Ice_Boundary%xtype must be DIRECT or REDIST."
   !!    The value of variable xtype of ice_ocean_boundary_type data must be DIRECT or REDIST.
-  subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary, shared_ice_ocn_PEs )
+  subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
 
     type(time_type),                 intent(in)  :: Time  !< Current time
     type(ocean_public_type),         intent(in)  :: Ocean !< A derived data type to specify ocean boundary data
     type(ice_data_type),             intent(in)  :: Ice   !< A derived data type to specify ice boundary data
     type(ocean_ice_boundary_type), intent(inout) :: Ocean_Ice_Boundary !< A derived data type to specify properties and fluxes
                                                           !! passed from ocean to ice
-    logical,               optional, intent(in)  :: shared_ice_ocn_PEs !< If present and true, the ocean and the
-                                                         !! slow ice use the same PE list, so there is no need
-                                                         !! to change PE lists within this routine.
     real, allocatable, dimension(:,:) :: tmp
     integer       :: m
     integer       :: n
-    real          :: from_dq 
-    logical       :: used, shared_PEs
+    logical       :: used
 
-    shared_PEs = .false.
-    if (present(shared_ice_ocn_PEs)) shared_PEs = shared_ice_ocn_PEs
-
-    !Balaji
     call mpp_clock_begin(cplOcnClock)
     call mpp_clock_begin(fluxOceanIceClock)
 
@@ -460,47 +426,40 @@ contains
     case DEFAULT
        call mpp_error( FATAL, 'flux_ocean_to_ice: Ocean_Ice_Boundary%xtype must be DIRECT or REDIST.' )
     end select
-    if( Ice%slow_ice_pe )then
-       if (.not.shared_PEs) call mpp_set_current_pelist(Ice%slow_pelist)
-
-       !Balaji: data_override moved here from coupler_main
-       call data_override('ICE', 'u',         Ocean_Ice_Boundary%u,         Time)
-       call data_override('ICE', 'v',         Ocean_Ice_Boundary%v,         Time)
-       call data_override('ICE', 't',         Ocean_Ice_Boundary%t,         Time)
-       call data_override('ICE', 's',         Ocean_Ice_Boundary%s,         Time)
-       call data_override('ICE', 'frazil',    Ocean_Ice_Boundary%frazil,    Time)
-       call data_override('ICE', 'sea_level', Ocean_Ice_Boundary%sea_level, Time)
-       call coupler_type_data_override('ICE', Ocean_Ice_Boundary%fields, Time)
-
-       !
-       !       Perform diagnostic output for the ocean_ice_boundary fields
-       !
-       call coupler_type_send_data( Ocean_Ice_Boundary%fields, Time)
-    endif
-
-    if( Ocean%is_ocean_pe )then
-       if (.not.shared_PEs) call mpp_set_current_pelist(Ocean%pelist)
-
-       !       Perform diagnostic output for the ocean fields
-       call coupler_type_send_data( Ocean%fields, Time)
-    endif
-
-    if (Ice%slow_ice_pe) then
-       ! frazil (already in J/m^2 so no need to multiply by Dt_cpl)
-       from_dq = SUM( Ice%area * Ocean_Ice_Boundary%frazil )
-       Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
-       Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
-    endif
-
-    ! This call is dangerous, as it needs to revert to the pe_lists as
-    ! set in coupler_main. - RWH
-    if (.not.shared_PEs) call mpp_set_current_pelist()
 
     call mpp_clock_end(fluxOceanIceClock)
     call mpp_clock_end(cplOcnClock)
     !-----------------------------------------------------------------------
 
   end subroutine flux_ocean_to_ice
+
+  !> flux_ocean_to_ice_finish carrries out a final set of tasks that should only occur on
+  !! the slow-ice processors, including data override and perhaps saving diagnostics.
+  subroutine flux_ocean_to_ice_finish( Time, Ice, Ocean_Ice_Boundary )
+
+    type(time_type),                 intent(in)  :: Time  !< Current time
+    type(ice_data_type),             intent(in)  :: Ice   !< A derived data type to specify ice boundary data
+    type(ocean_ice_boundary_type), intent(inout) :: Ocean_Ice_Boundary !< A derived data type to specify properties and fluxes
+                                                          !! passed from ocean to ice
+    real          :: from_dq 
+
+    call data_override('ICE', 'u',         Ocean_Ice_Boundary%u,         Time)
+    call data_override('ICE', 'v',         Ocean_Ice_Boundary%v,         Time)
+    call data_override('ICE', 't',         Ocean_Ice_Boundary%t,         Time)
+    call data_override('ICE', 's',         Ocean_Ice_Boundary%s,         Time)
+    call data_override('ICE', 'frazil',    Ocean_Ice_Boundary%frazil,    Time)
+    call data_override('ICE', 'sea_level', Ocean_Ice_Boundary%sea_level, Time)
+    call coupler_type_data_override('ICE', Ocean_Ice_Boundary%fields, Time)
+
+    !  Perform diagnostic output for the ocean_ice_boundary fields
+    call coupler_type_send_data( Ocean_Ice_Boundary%fields, Time)
+
+    ! frazil (already in J/m^2 so no need to multiply by Dt_cpl)
+    from_dq = SUM( Ice%area * Ocean_Ice_Boundary%frazil )
+    Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
+    Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
+
+  end subroutine flux_ocean_to_ice_finish
 
 
   !#######################################################################
