@@ -72,8 +72,9 @@ module atm_land_ice_flux_exchange_mod
   use fms_mod,            only: open_namelist_file, write_version_number
   use data_override_mod,  only: data_override
   use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10
-  use coupler_types_mod,  only: coupler_type_spawn, coupler_type_set_diags
-  use coupler_types_mod,  only: coupler_type_initialized
+  use coupler_types_mod,  only: coupler_type_initialized, coupler_type_spawn
+  use coupler_types_mod,  only: coupler_type_send_data, coupler_type_set_diags
+  use coupler_types_mod,  only: coupler_type_data_override
   use ocean_model_mod,    only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
 #ifdef use_AM3_physics
   use atmos_tracer_driver_mod, only: atmos_tracer_flux_init
@@ -937,6 +938,9 @@ contains
     call data_override ('ICE', 'albedo_nir_dif', Ice%albedo_nir_dif, Time)
     call data_override ('ICE', 'u_surf',     Ice%u_surf,      Time)
     call data_override ('ICE', 'v_surf',     Ice%v_surf,      Time)
+    call coupler_type_data_override('ICE', Ice%ocean_fields, Time)
+    call coupler_type_send_data(Ice%ocean_fields, Time)
+
     call data_override_land ('LND', 't_surf',     Land%t_surf,     Time)
     call data_override_land ('LND', 't_ca',       Land%t_ca,       Time)
     call data_override_land ('LND', 'rough_mom',  Land%rough_mom,  Time)
@@ -952,14 +956,6 @@ contains
        call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
 #endif
     enddo
-    do n = 1, ice%ocean_fields%num_bcs  !{
-       do m = 1, ice%ocean_fields%bc(n)%num_fields  !{
-          call data_override('ICE', ice%ocean_fields%bc(n)%field(m)%name, ice%ocean_fields%bc(n)%field(m)%values, Time)
-          if ( Ice%ocean_fields%bc(n)%field(m)%id_diag > 0 ) then  !{
-             used = send_data(Ice%ocean_fields%bc(n)%field(m)%id_diag, Ice%ocean_fields%bc(n)%field(m)%values, Time )
-          endif  !}
-       enddo  !} m
-    enddo  !} n
     call data_override_land ('LND', 'albedo_vis_dir', Land%albedo_vis_dir,Time)
     call data_override_land ('LND', 'albedo_nir_dir', Land%albedo_nir_dir,Time)
     call data_override_land ('LND', 'albedo_vis_dif', Land%albedo_vis_dif,Time)
@@ -2389,15 +2385,9 @@ contains
     call data_override('ICE', 'coszen', Ice_boundary%coszen,  Time)
     call data_override('ICE', 'p',      Ice_boundary%p,       Time)
 
-    do n = 1, Ice_boundary%fluxes%num_bcs  !{
-       do m = 1, Ice_boundary%fluxes%bc(n)%num_fields  !{
-          call data_override('ICE', Ice_boundary%fluxes%bc(n)%field(m)%name,     &
-               Ice_boundary%fluxes%bc(n)%field(m)%values, Time)
-          if ( Ice_boundary%fluxes%bc(n)%field(m)%id_diag > 0 ) then  !{
-             used = send_data(Ice_boundary%fluxes%bc(n)%field(m)%id_diag, Ice_boundary%fluxes%bc(n)%field(m)%values, Time )
-          endif  !}
-       enddo  !} m
-    enddo  !} n
+    call coupler_type_data_override('ICE', Ice_boundary%fluxes, Time)
+
+    call coupler_type_send_data(Ice_boundary%fluxes, Time)
 
     ! compute stock changes
 
