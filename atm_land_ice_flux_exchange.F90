@@ -150,6 +150,8 @@ module atm_land_ice_flux_exchange_mod
              id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip, &
              id_hussLut_land, id_tasLut_land
   integer :: id_co2_atm_dvmr, id_co2_surf_dvmr
+! 2017/08/15 jgj added
+  integer :: id_co2_bot, id_co2_flux_pcair_atm, id_o2_flux_pcair_atm
 
   integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:)
 
@@ -892,6 +894,9 @@ contains
        call data_override('ATM', trim(tr_name)//'_bot', Atm%tr_bot(:,:,tr), Time, override=used)
        ! conversion for land co2 data override from dry vmr to moist mmr
        if (used .and. lowercase(trim(tr_name)).eq.'co2') then
+          ! 2017/08/08 jgj add co2_bot diagnostic in dry_vmr units
+          if ( id_co2_bot > 0 ) used = send_data ( id_co2_bot, Atm%tr_bot(:,:,tr), Time )
+
           isc = lbound(Atm%tr_bot,1); iec = ubound(Atm%tr_bot,1)
           jsc = lbound(Atm%tr_bot,2); jec = ubound(Atm%tr_bot,2)
           !$OMP parallel do default(none) shared(isc,iec,jsc,jec,Atm,tr,isphum)
@@ -903,6 +908,7 @@ contains
           enddo
        end if
     enddo
+
     ! data override for co2 to be passed to ocean (co2_flux_pcair_atm)
     ! atmos_co2.F90 already called: converts tr_bot passed to ocean via gas_flux
     ! from moist mmr to dry vmr.
@@ -911,6 +917,14 @@ contains
           call data_override('ATM', atm%fields%bc(n)%field(m)%name,      &
                atm%fields%bc(n)%field(m)%values, Time, override = atm%fields%bc(n)%field(m)%override)
           ex_gas_fields_atm%bc(n)%field(m)%override = atm%fields%bc(n)%field(m)%override
+          ! 2017/08/08 jgj add co2_flux_pcair_atm diagnostic
+          if ( atm%fields%bc(n)%field(m)%override .and. lowercase(trim(atm%fields%bc(n)%field(m)%name)) .eq. 'co2_flux_pcair_atm') then
+             if( id_co2_flux_pcair_atm > 0 ) used = send_data ( id_co2_flux_pcair_atm, atm%fields%bc(n)%field(m)%values, Time )
+          endif
+          ! 2017/08/15 jgj add o2_flux_pcair_atm diagnostic
+          if ( atm%fields%bc(n)%field(m)%override .and. lowercase(trim(atm%fields%bc(n)%field(m)%name)) .eq. 'o2_flux_pcair_atm') then
+             if( id_o2_flux_pcair_atm > 0 ) used = send_data ( id_o2_flux_pcair_atm, atm%fields%bc(n)%field(m)%values, Time )
+          endif
        enddo  !} m
     enddo  !} n
     do n = 1, atm%fields%num_bcs  !{
@@ -2817,8 +2831,14 @@ contains
           call get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr), xmap_sfc)
           if (id_tr_flux(tr) > 0 ) &
                used = send_data ( id_tr_flux(tr), diag_atm, Time )
-          if (id_tr_mol_flux(tr) > 0 ) &
-               used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
+    !     if (id_tr_mol_flux(tr) > 0 ) &
+    !          used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
+    ! 2017/08/08 jgj - replaced 2 lines above by the following
+          if (id_tr_mol_flux(tr) > 0 .and. lowercase(trim(tr_name))=='co2') then
+              used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
+          else
+             used = send_data ( id_tr_mol_flux(tr), diag_atm, Time)
+          endif
        endif
     enddo
 
@@ -3363,6 +3383,11 @@ contains
           id_tr_mol_flux(tr) = -1
        endif
     enddo
+
+    ! 2017/08/08 jgj add diagnostics for co2 data overrides even if co2 is not a tracer
+    ! register data calls not needed here for co2_flux_pcair_atm and o2_flux_pcair_atm as this happens elsewhere
+    id_co2_bot = register_diag_field (mod_name, 'co2_bot', atmos_axes, Time, &
+           'co2_bot from data_override', 'ppmv')
 
     id_q_flux = register_diag_field( mod_name, 'evap',       atmos_axes, Time, &
          'evaporation rate',        'kg/m2/s'  )
