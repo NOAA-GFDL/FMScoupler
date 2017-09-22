@@ -1676,16 +1676,12 @@ contains
             Land%tile_size, Time, mask = Land%mask )
 #endif
     endif
+
     if(id_rh_ref > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
-#ifndef _USE_LEGACY_LAND_
        used = send_data ( id_rh_ref, diag_atm, Time )
-#else
-       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
-               Land%tile_size, Time, mask = Land%mask )
-#endif
- 
     endif
+
     if(id_rh_ref_cmip > 0 .or. id_hurs > 0 .or. id_rhs > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref2, xmap_sfc)
        if (id_rh_ref_cmip > 0) used = send_data ( id_rh_ref_cmip, diag_atm, Time )
@@ -1702,13 +1698,14 @@ contains
        if (id_t_ref_land > 0.or.id_tasLut_land > 0) then
           call get_from_xgrid_land (diag_land, 'LND', ex_ref, xmap_sfc)
 #ifndef _USE_LEGACY_LAND_
-          call send_tile_data (id_t_ref_land, diag_land)
-          call send_tile_data (id_tasLut_land, diag_land)
+          if (id_t_ref_land > 0)  call send_tile_data (id_t_ref_land, diag_land)
+          if (id_tasLut_land > 0) call send_tile_data (id_tasLut_land, diag_land)
 #else
-          used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+          if (id_t_ref_land > 0) used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
                Land%tile_size, Time, mask = Land%mask )
 #endif
        endif
+
        if ( id_t_ref > 0 ) then
           call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
           used = send_data ( id_t_ref, diag_atm, Time )
@@ -1728,7 +1725,7 @@ contains
                                 diag_land, Time, Land%tile_size, Land%mask, Land )
        endif
 #else
-       used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
+       if (id_t_ref_land > 0) used = send_tile_averaged_data ( id_t_ref_land, diag_land, &
             Land%tile_size, Time, mask = Land%mask )
 #endif
     endif
