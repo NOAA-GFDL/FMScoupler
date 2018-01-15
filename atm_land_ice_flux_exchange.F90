@@ -1231,7 +1231,8 @@ contains
     ! where(ex_seawater.gt.0) ex_flux_tr(:,itracer) = F_ocn
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_gas_fluxes,  &
     !$OMP                                  tr_table_map,ex_land,ex_dfdtr_atm,ex_dfdtr_surf, &
-    !$OMP                                  ex_seawater,ex_flux_tr,ind_flux)                 &
+    !$OMP                                  ex_seawater,ex_flux_tr,ind_flux,                 &
+    !$OMP                                  tr_units, tr_name)                               &
     !$OMP                          private(is,ie,m)
     do l = 1, my_nblocks
        is=block_start(l)
