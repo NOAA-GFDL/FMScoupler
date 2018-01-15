@@ -738,7 +738,7 @@ contains
     real, dimension(size(Ice%albedo,1),size(Ice%albedo,2),size(Ice%albedo,3)) ::  tmp_open_sea
     real    :: zrefm, zrefh
     logical :: used
-    character(32) :: tr_name ! tracer name
+    character(32) :: tr_name, tr_units ! tracer name
     integer :: tr, n, m ! tracer indices
     integer :: i, ind_flux = 1
     integer :: is,ie,l,j
@@ -890,7 +890,7 @@ contains
     ! co2mmr = (wco2/wair) * co2vmr;  wet_mmr = dry_mmr * (1-Q)
     !
     do tr = 1,n_atm_tr
-       call get_tracer_names( MODEL_ATMOS, tr, tr_name )
+       call get_tracer_names( MODEL_ATMOS, tr, tr_name)
        call data_override('ATM', trim(tr_name)//'_bot', Atm%tr_bot(:,:,tr), Time, override=used)
        ! conversion for land co2 data override from dry vmr to moist mmr
        if (used .and. lowercase(trim(tr_name)).eq.'co2') then
@@ -1239,14 +1239,19 @@ contains
        do n = 1, ex_gas_fluxes%num_bcs  !{
           if (ex_gas_fluxes%bc(n)%atm_tr_index .gt. 0) then  !{
              m = tr_table_map(ex_gas_fluxes%bc(n)%atm_tr_index)%exch
+             call get_tracer_names( MODEL_ATMOS, m, tr_name, units=tr_units)
              do i = is,ie  !{
                 if (ex_land(i)) cycle  ! over land, don't do anything
                 ! on ocean or ice cells, flux is explicit therefore we zero derivatives.
                 ex_dfdtr_atm(i,m)  = 0.0
                 ex_dfdtr_surf(i,m) = 0.0
                 if (ex_seawater(i)>0.0) then
-                   ! jgj: convert to kg co2/m2/sec for atm
-                   ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(ind_flux)%values(i) * ex_gas_fluxes%bc(n)%mol_wt * 1.0e-03
+                   if (trim(tr_units).eq."mmr") then
+                      ! jgj: convert to kg co2/m2/sec for atm
+                      ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(ind_flux)%values(i) * ex_gas_fluxes%bc(n)%mol_wt * 1.0e-03
+                   else
+                      ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(ind_flux)%values(i) 
+                   end if
                 else
                    ex_flux_tr(i,m) = 0.0 ! pure ice exchange cell
                 endif  !}
