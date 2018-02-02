@@ -71,7 +71,7 @@ module atm_land_ice_flux_exchange_mod
   use fms_mod,            only: clock_flag_default, check_nml_error, error_mesg
   use fms_mod,            only: open_namelist_file, write_version_number
   use data_override_mod,  only: data_override
-  use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10
+  use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10, ind_flux, ind_flux0
   use ocean_model_mod,    only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
 #ifdef use_AM3_physics
   use atmos_tracer_driver_mod, only: atmos_tracer_flux_init
@@ -150,6 +150,7 @@ module atm_land_ice_flux_exchange_mod
              id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip, &
              id_hussLut_land, id_tasLut_land
   integer :: id_co2_atm_dvmr, id_co2_surf_dvmr
+  integer :: id_nh3_flux_atm0
 ! 2017/08/15 jgj added
   integer :: id_co2_bot, id_co2_flux_pcair_atm, id_o2_flux_pcair_atm
 
@@ -272,6 +273,7 @@ module atm_land_ice_flux_exchange_mod
   type(tracer_exch_ind_type), allocatable :: tr_table_map(:) !< map atm tracers to exchange, ice and land variables
   integer :: isphum = NO_TRACER       !< index of specific humidity tracer in tracer table
   integer :: ico2   = NO_TRACER       !< index of co2 tracer in tracer table
+  integer :: inh3   = NO_TRACER       !< index of nh3 tracer in tracer table
   type(coupler_1d_bc_type), pointer :: ex_gas_fields_atm=>NULL() !< gas fields in atm
                                                                  !< Place holder for various atmospheric fields.
   type(coupler_1d_bc_type), pointer :: ex_gas_fields_ice=>NULL() ! gas fields on ice
@@ -442,6 +444,10 @@ contains
        if(lowercase(tr_name)=='co2') then
           ico2 = i
           write(outunit,*)'Exchange tracer index for '//trim(tr_name),' : ',ico2
+       endif
+       if(lowercase(tr_name)=='nh3') then
+          inh3 = i
+          write(outunit,*)'Exchange tracer index for '//trim(tr_name),' : ',inh3
        endif
     enddo
 
@@ -740,7 +746,7 @@ contains
     logical :: used
     character(32) :: tr_name, tr_units ! tracer name
     integer :: tr, n, m ! tracer indices
-    integer :: i, ind_flux = 1
+    integer :: i
     integer :: is,ie,l,j
     integer :: isc,iec,jsc,jec
 
@@ -1175,7 +1181,7 @@ contains
     !$OMP                                  ex_b_star,ex_q_star,ex_del_m,ex_del_h,ex_del_q,ex_avail,  &
     !$OMP                                  ex_u10,ex_ref_u,ex_ref_v,ex_gas_fields_atm,ex_u_surf,     &
     !$OMP                                  ex_v_surf,ex_u_atm,ex_v_atm,atm,ind_u10,n_exch_tr,isphum, &
-    !$OMP                                  ex_dfdtr_atm,ex_dfdtr_surf,ex_flux_tr,ex_tr_surf,ex_tr_atm) &
+    !$OMP                                  ex_dfdtr_atm,ex_dfdtr_surf,ex_flux_tr,ex_tr_surf,ex_tr_atm,ex_t_surf) &
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
        is=block_start(l)
@@ -1222,7 +1228,19 @@ contains
     ! Combine explicit ocean flux and implicit land flux of extra flux fields.
 
     ! Calculate ocean explicit flux here
-    call atmos_ocean_fluxes_calc(ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes, ex_seawater, 2.*(ex_p_surf-ex_p_atm)/grav,1./(1.-ex_tr_atm(:,isphum)),dt)
+    call atmos_ocean_fluxes_calc(ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes, ex_seawater, ex_t_surf, 2.*(ex_p_surf-ex_p_atm)/grav,1./(1.-ex_tr_atm(:,isphum)),dt)
+
+
+    do n = 1, ex_gas_fluxes%num_bcs  !{
+       if (ex_gas_fluxes%bc(n)%atm_tr_index .gt. 0) then  !{
+          call get_tracer_names( MODEL_ATMOS, ex_gas_fluxes%bc(n)%atm_tr_index, tr_name, units=tr_units)
+          if (trim(tr_name).eq."nh3") then
+             call get_from_xgrid (diag_atm, 'ATM', ex_gas_fluxes%bc(n)%field(ind_flux0)%values(:), xmap_sfc)
+             used = send_data ( id_nh3_flux_atm0, diag_atm, Time )
+          end if
+       end if
+    end do
+
 
 
     ! The following statement is a concise version of what's following and worth
@@ -1922,8 +1940,6 @@ contains
     integer :: tr, n, m ! tracer indices
     integer :: is, ie, l, i
 
-    integer :: inh3 = NO_TRACER
-
     !Balaji
     call mpp_clock_begin(cplClock)
     call mpp_clock_begin(fluxAtmDnClock)
@@ -2151,13 +2167,6 @@ contains
     enddo
 #endif
 
-    do tr = 1,n_exch_tr
-       call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
-       if (lowercase(trim(tr_name)).eq."nh3") then
-          inh3=tr
-       end if
-    end do
-
     cp_inv = 1.0/cp_air
 
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_flux_lw,ex_flux_lwd, &
@@ -2165,7 +2174,7 @@ contains
     !$OMP                                  cp_inv,ex_e_t_n,ex_dhdt_surf,ex_f_t_delt_n,ex_delta_t,   &
     !$OMP                                  ex_flux_t,ex_dflux_tr,isphum,ex_dfdtr_atm,ex_e_q_n,      &
     !$OMP                                  ex_dedt_surf,n_exch_tr,ex_e_tr_n,ex_dfdtr_surf,          &
-    !$OMP                                  ex_f_tr_delt_n,ex_delta_tr,ex_flux_tr,inh3,ex_tr_surf )  &
+    !$OMP                                  ex_f_tr_delt_n,ex_delta_tr,ex_flux_tr,ex_tr_surf )  &
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
        is=block_start(l)
@@ -2205,20 +2214,6 @@ contains
                 ex_e_tr_n(i,tr)      =  ex_dtmass(i)*ex_dfdtr_surf(i,tr)*ex_gamma(i)
 
                 ex_f_tr_delt_n(i,tr) = (ex_delta_tr(i,tr)+ex_dtmass(i)*ex_flux_tr(i,tr))*ex_gamma(i)
-                !f1p
-                !over ocean, solver is explicit which can result in excessive removal
-                !this is a kludge
-                !if (ex_seawater(i)>0) then
-                !   if (tr.eq.inh3) then
-                !      if (ex_tr_surf(i,tr)+ex_f_tr_delt_n(i,tr).lt.EPSLN) then
-                !         write(*,*) 'correct_flux'
-!                         ex_tr_surf_new = ex_tr_surf + ex_f_tr_delt_n
-!                         ex_f_tr_delt_n = -ex_tr_surf
-!                         ex_f_tr_delt_n = -(ex_tr_surf/ex_gamma + ex_delta_tr)/ex_dtmass
-                !         ex_f_tr_delt_n(i,tr) = -(ex_tr_surf(i,tr)/ex_gamma(i) + ex_delta_tr(i,tr))/ex_dtmass(i)
-                !      end if
-                !   end if
-                !end if
                 ex_flux_tr(i,tr)     =  ex_flux_tr(i,tr) + ex_dfdtr_atm(i,tr)*ex_f_tr_delt_n(i,tr)
                 ex_dfdtr_surf(i,tr)  =  ex_dfdtr_surf(i,tr) + ex_dfdtr_atm(i,tr)*ex_e_tr_n(i,tr)
              enddo
@@ -3437,6 +3432,10 @@ contains
     ! register data calls not needed here for co2_flux_pcair_atm and o2_flux_pcair_atm as this happens elsewhere
     id_co2_bot = register_diag_field (mod_name, 'co2_bot', atmos_axes, Time, &
            'co2_bot from data_override', 'ppmv')
+
+    id_nh3_flux_atm0 = register_diag_field (mod_name, 'nh3_flux_atm0', atmos_axes, Time, &
+           'nh3 flux out of the ocean assuming not nh3 in the atmosphere', 'mol/m2/s')
+
 
     id_q_flux = register_diag_field( mod_name, 'evap',       atmos_axes, Time, &
          'evaporation rate',        'kg/m2/s'  )
