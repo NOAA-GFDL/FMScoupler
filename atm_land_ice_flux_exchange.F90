@@ -21,7 +21,7 @@
 module atm_land_ice_flux_exchange_mod
 
   use mpp_mod,            only: mpp_npes, mpp_pe, mpp_root_pe, mpp_error, stderr, &
-                                stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
+                                stdout, stdlog, FATAL, WARNING, NOTE, mpp_set_current_pelist, &
                                 mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
                                 CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
                                 input_nml_file
@@ -3665,7 +3665,7 @@ contains
 #if defined(_USE_LEGACY_LAND_) || defined(use_AM3_physics)
     if(id_tasl_g>0) then
        call mpp_error(WARNING, "diag_field_init: field tasl is registered, but macro "// &
-             "_USE_LEGACY_LAND_ or use_AM3_physics is defined, no data will be written out"
+             "_USE_LEGACY_LAND_ or use_AM3_physics is defined, no data will be written out")
     endif
 #endif
     if ( id_tasl_g > 0 .and. id_height2m > 0) &
