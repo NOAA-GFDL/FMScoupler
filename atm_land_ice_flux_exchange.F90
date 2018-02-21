@@ -400,12 +400,10 @@ contains
        tr_table(n)%lnd = get_tracer_index ( MODEL_LAND, tr_name )
        tr_table_map(i)%lnd = tr_table(n)%lnd
 
-       if (  tr_table(n)%lnd /= NO_TRACER ) then
-          if (query_method('dry_deposition', MODEL_ATMOS, i, method, parameters)) then
-             if ( parse(parameters, 'tracer_flux_exchange',  value) > 0 )         tr_table(n)%cd_tr_flux_exchange  = (value>0)
-             if ( tr_table(n)%cd_tr_flux_exchange ) then
-                cd_tr_flux_exchange = .true.
-             end if
+       if (query_method('dry_deposition', MODEL_ATMOS, i, method, parameters)) then
+          if ( parse(parameters, 'tracer_flux_exchange',  value) > 0 )         tr_table(n)%cd_tr_flux_exchange  = (value>0)
+          if ( tr_table(n)%cd_tr_flux_exchange ) then
+             cd_tr_flux_exchange = .true.
           end if
        end if
 
