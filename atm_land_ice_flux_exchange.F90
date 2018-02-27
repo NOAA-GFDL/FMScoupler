@@ -1,24 +1,27 @@
+!***********************************************************************
+!*                   GNU Lesser General Public License
+!*
+!* This file is part of the GFDL Flexible Modeling System (FMS) Coupler.
+!*
+!* FMS Coupler is free software: you can redistribute it and/or modify
+!* it under the terms of the GNU Lesser General Public License as
+!* published by the Free Software Foundation, either version 3 of the
+!* License, or (at your option) any later version.
+!*
+!* FMS Coupler is distributed in the hope that it will be useful, but
+!* WITHOUT ANY WARRANTY; without even the implied warranty of
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+!* General Public License for more details.
+!*
+!* You should have received a copy of the GNU Lesser General Public
+!* License along with FMS Coupler.
+!* If not, see <http://www.gnu.org/licenses/>.
+!***********************************************************************
+
 module atm_land_ice_flux_exchange_mod
 
-!-----------------------------------------------------------------------
-!                   GNU General Public License                        !
-! This program is free software; you can redistribute it and/or modify it and
-! are expected to follow the terms of the GNU General Public License
-! as published by the Free Software Foundation; either version 2 of
-! the License, or (at your option) any later version.
-!
-! MOM is distributed in the hope that it will be useful, but WITHOUT
-! ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-! or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
-! License for more details.
-!
-! For the full text of the GNU General Public License,
-! write to: Free Software Foundation, Inc.,
-!           675 Mass Ave, Cambridge, MA 02139, USA.
-! or see:   http://www.gnu.org/licenses/gpl.html
-!-----------------------------------------------------------------------
   use mpp_mod,            only: mpp_npes, mpp_pe, mpp_root_pe, mpp_error, stderr, &
-                                stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
+                                stdout, stdlog, FATAL, WARNING, NOTE, mpp_set_current_pelist, &
                                 mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
                                 CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
                                 input_nml_file
@@ -570,7 +573,7 @@ contains
 
     ! This call sets up a structure that is private to the ice model, and it
     ! does not belong here.  This line should be eliminated once an update
-    ! to the FMS coupler_types code is made available that overloads the 
+    ! to the FMS coupler_types code is made available that overloads the
     ! subroutine coupler_type_copy to use 2d and 3d coupler type sources. -RWH
     call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd,     &
          'ice_flux', Ice%axes, Time, suffix = '_ice_top')
@@ -3662,7 +3665,7 @@ contains
 #if defined(_USE_LEGACY_LAND_) || defined(use_AM3_physics)
     if(id_tasl_g>0) then
        call mpp_error(WARNING, "diag_field_init: field tasl is registered, but macro "// &
-             "_USE_LEGACY_LAND_ or use_AM3_physics is defined, no data will be written out"
+             "_USE_LEGACY_LAND_ or use_AM3_physics is defined, no data will be written out")
     endif
 #endif
     if ( id_tasl_g > 0 .and. id_height2m > 0) &
