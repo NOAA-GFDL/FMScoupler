@@ -207,8 +207,7 @@ subroutine surface_flux_1d (                                           &
      w_atm,     u_star,     b_star,     q_star,                        &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
-     dt,        land,      seawater,     avail,                        &
-     ct_tr_flux_exchange, dfdtr_surf, cd_tr, tr_star)
+     dt,        land,      seawater,     avail  )
   ! ---- arguments -----------------------------------------------------------
   logical, intent(in), dimension(:) :: land, & !< Indicates where land exists (.TRUE. if exchange cell is on land
                                        seawater, & !< Indicates where liquid ocean water exists (.TRUE. if exchange cell is on liquid ocean water)
@@ -248,11 +247,7 @@ subroutine surface_flux_1d (                                           &
                                      q_star, & !< Turbulent moisture scale
                                      cd_m, & !< Momentum exchange coefficient
                                      cd_t, & ! Heat exchange coefficient
-                                     cd_q, & !< Moisture exchange coefficient
-                                     cd_tr, dfdtr_surf,tr_star
-
-  logical, intent(in) :: ct_tr_flux_exchange
- 
+                                     cd_q !< Moisture exchange coefficient
   real, intent(inout), dimension(:) :: q_surf !< Mixing ratio at the Earth's surface (kg/kg)
   real, intent(in) :: dt !< Time step (it is not used presently)
 
@@ -266,8 +261,7 @@ subroutine surface_flux_1d (                                           &
        e_sat,    e_sat1,   q_sat,     q_sat1,    p_ratio,  &
        t_surf0,  t_surf1,  u_dif,     v_dif,               &
        rho_drag, drag_t,    drag_m,   drag_q,    rho,      &
-       q_atm,    q_surf0,  dw_atmdu,  dw_atmdv,  w_gust,   &
-       drag_ct,  rho_ct
+       q_atm,    q_surf0,  dw_atmdu,  dw_atmdv,  w_gust
 
   integer :: i, nbad
 
@@ -366,15 +360,6 @@ subroutine surface_flux_1d (                                           &
   endif
 
   !  monin-obukhov similarity theory
-  if (ct_tr_flux_exchange) then
-     call mo_drag (thv_atm, thv_surf, z_atm,                  &
-          rough_mom, rough_heat, rough_mom, w_atm,          &
-          cd_m, cd_t, cd_tr, u_star, tr_star, avail             )
-  else
-     cd_tr   = 0.
-     tr_star = 0.
-  end if
-
   call mo_drag (thv_atm, thv_surf, z_atm,                  &
        rough_mom, rough_heat, rough_moist, w_atm,          &
        cd_m, cd_t, cd_q, u_star, b_star, avail             )
@@ -392,7 +377,6 @@ subroutine surface_flux_1d (                                           &
      drag_t = cd_t * w_atm
      drag_q = cd_q * w_atm
      drag_m = cd_m * w_atm
-     drag_ct  = cd_tr * w_atm
 
      ! density
      rho = p_atm / (rdgas * tv_atm)
@@ -407,16 +391,11 @@ subroutine surface_flux_1d (                                           &
      rho_drag  =  drag_q * rho
      flux_q    =  rho_drag * (q_surf0 - q_atm) ! flux of water vapor  (Kg/(m**2 s))
 
-     !tracer
-     rho_ct = drag_ct * rho
-
      where (land)
         dedq_surf = rho_drag
-        dfdtr_surf = rho_ct
         dedt_surf = 0
      elsewhere
         dedq_surf = 0
-        dfdtr_surf = 0
         dedt_surf =  rho_drag * (q_sat1 - q_sat) *del_temp_inv
      endwhere
 
@@ -453,8 +432,6 @@ subroutine surface_flux_1d (                                           &
      q_star     = 0.0
      q_surf     = 0.0
      w_atm      = 0.0
-     tr_star    = 0.0
-     dfdtr_surf = 0.0
   endwhere
 
   ! calculate d(stress component)/d(atmos wind component)
@@ -486,8 +463,7 @@ subroutine surface_flux_0d (                                                 &
      w_atm_0,     u_star_0,     b_star_0,     q_star_0,                      &
      dhdt_surf_0, dedt_surf_0,  dedq_surf_0,  drdt_surf_0,                   &
      dhdt_atm_0,  dedq_atm_0,   dtaudu_atm_0, dtaudv_atm_0,                  &
-     dt,          land_0,       seawater_0,  avail_0,                        &
-     ct_tr_flux_exchange, dfdtr_surf_0, cd_tr_0,tr_star_0)     
+     dt,          land_0,       seawater_0,  avail_0  )
 
   ! ---- arguments -----------------------------------------------------------
   logical, intent(in) :: land_0, & !< Indicates where land exists (.TRUE. if exchange cell is on land
@@ -528,12 +504,9 @@ subroutine surface_flux_0d (                                                 &
                        q_star_0, & !< Turbulent moisture scale
                        cd_m_0, & !< Momentum exchange coefficient
                        cd_t_0, & ! Heat exchange coefficient
-                       cd_q_0, & !< Moisture exchange coefficient
-                       cd_tr_0, dfdtr_surf_0, tr_star_0
+                       cd_q_0 !< Moisture exchange coefficient
   real, intent(inout) :: q_surf_0 !< Mixing ratio at the Earth's surface (kg/kg)
   real, intent(in) :: dt !< Time step (it is not used presently)
-
-  logical, intent(in) :: ct_tr_flux_exchange
 
   ! ---- local vars ----------------------------------------------------------
   logical, dimension(1) :: land,  seawater, avail
@@ -547,9 +520,8 @@ subroutine surface_flux_0d (                                                 &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
        dhdt_atm,  dedq_atm,   dtaudu_atm,dtaudv_atm,         &
        w_atm,     u_star,     b_star,    q_star,             &
-       cd_m,      cd_t,       cd_q,      cd_tr, dfdtr_surf, tr_star
+       cd_m,      cd_t,       cd_q
   real, dimension(1) :: q_surf
-
 
 
   avail = .true.
@@ -585,7 +557,7 @@ subroutine surface_flux_0d (                                                 &
        w_atm,     u_star,     b_star,     q_star,                        &
        dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
        dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
-       dt,        land,      seawater, avail, ct_tr_flux_exchange, dfdtr_surf, cd_tr, tr_star  )
+       dt,        land,      seawater, avail  )
 
   flux_t_0     = flux_t(1)
   flux_q_0     = flux_q(1)
@@ -609,10 +581,6 @@ subroutine surface_flux_0d (                                                 &
   cd_t_0       = cd_t(1)
   cd_q_0       = cd_q(1)
 
-  cd_tr_0      = cd_tr(1)
-  tr_star_0    = tr_star(1)
-  dfdtr_surf_0 = dfdtr_surf(1)
-
 end subroutine surface_flux_0d
 
 subroutine surface_flux_2d (                                           &
@@ -625,8 +593,7 @@ subroutine surface_flux_2d (                                           &
      w_atm,     u_star,     b_star,     q_star,                        &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
-     dt,        land,       seawater,  avail,                          &
-     ct_tr_flux_exchange, dfdtr_surf, cd_tr, tr_star)
+     dt,        land,       seawater,  avail  )
 
   ! ---- arguments -----------------------------------------------------------
   logical, intent(in), dimension(:,:) :: land, & !< Indicates where land exists (.TRUE. if exchange cell is on land
@@ -667,12 +634,9 @@ subroutine surface_flux_2d (                                           &
                                        q_star, & !< Turbulent moisture scale
                                        cd_m, & !< Momentum exchange coefficient
                                        cd_t, & ! Heat exchange coefficient
-                                       cd_q, & !< Moisture exchange coefficient
-                                       cd_tr, dfdtr_surf, tr_star
+                                       cd_q !< Moisture exchange coefficient
   real, intent(inout), dimension(:,:) :: q_surf !< Mixing ratio at the Earth's surface (kg/kg)
   real, intent(in) :: dt !< Time step (it is not used presently)
-
-  logical, intent(in) :: ct_tr_flux_exchange
 
   ! ---- local vars -----------------------------------------------------------
   integer :: j
@@ -688,8 +652,7 @@ subroutine surface_flux_2d (                                           &
           w_atm(:,j),     u_star(:,j),     b_star(:,j),     q_star(:,j),                                  &
           dhdt_surf(:,j), dedt_surf(:,j),  dedq_surf(:,j),  drdt_surf(:,j),                               &
           dhdt_atm(:,j),  dedq_atm(:,j),   dtaudu_atm(:,j), dtaudv_atm(:,j),                              &
-          dt,             land(:,j),       seawater(:,j),  avail(:,j),                                    &
-          ct_tr_flux_exchange, dfdtr_surf(:,j), cd_tr(:,j), tr_star(:,j)  )
+          dt,             land(:,j),       seawater(:,j),  avail(:,j)  )
   end do
 end subroutine surface_flux_2d
 

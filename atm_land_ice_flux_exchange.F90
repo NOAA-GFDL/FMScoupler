@@ -71,7 +71,7 @@ module atm_land_ice_flux_exchange_mod
   use fms_mod,            only: clock_flag_default, check_nml_error, error_mesg
   use fms_mod,            only: open_namelist_file, write_version_number
   use data_override_mod,  only: data_override
-  use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10, ind_flux, ind_flux0
+  use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10, ind_flux
   use ocean_model_mod,    only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
 #ifdef use_AM3_physics
   use atmos_tracer_driver_mod, only: atmos_tracer_flux_init
@@ -150,12 +150,10 @@ module atm_land_ice_flux_exchange_mod
              id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip, &
              id_hussLut_land, id_tasLut_land
   integer :: id_co2_atm_dvmr, id_co2_surf_dvmr
-  integer :: id_nh3_flux_atm0
 ! 2017/08/15 jgj added
   integer :: id_co2_bot, id_co2_flux_pcair_atm, id_o2_flux_pcair_atm
 
   integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:)
-  integer, allocatable :: id_tr_ref(:), id_tr_ref_land(:)
 
   ! id's for cmip specific fields
   integer :: id_tas, id_uas, id_vas, id_ts, id_psl, &
@@ -232,8 +230,7 @@ module atm_land_ice_flux_exchange_mod
        ex_b_star,    &
        ex_u_star,    &
        ex_wind,      &
-       ex_z_atm,     &
-       ex_con_atm0
+       ex_z_atm
 
 #ifdef SCM
   real, allocatable, dimension(:) :: &
@@ -248,8 +245,7 @@ module atm_land_ice_flux_exchange_mod
        ex_dfdtr_surf, & !< d(tracer flux)/d(surf tracer)
        ex_dfdtr_atm,  & !< d(tracer flux)/d(atm tracer)
        ex_e_tr_n,     & !< coefficient in implicit scheme
-       ex_f_tr_delt_n,&   !< coefficient in implicit scheme
-       ex_con_atm
+       ex_f_tr_delt_n   !< coefficient in implicit scheme
 
   logical, allocatable, dimension(:) :: &
        ex_avail,     &   !< true where data on exchange grid are available
@@ -264,11 +260,8 @@ module atm_land_ice_flux_exchange_mod
   integer :: n_lnd_tr_tot  !< number of prognostic tracers in the land model
   integer :: n_exch_tr !< number of tracers exchanged between models
 
-  logical :: cd_tr_flux_exchange  
-
   type :: tracer_ind_type
      integer :: atm, ice, lnd !< indices of the tracer in the respective models
-     logical :: cd_tr_flux_exchange = .false.
   end type tracer_ind_type
   type(tracer_ind_type), allocatable :: tr_table(:) !< table of tracer indices
   type :: tracer_exch_ind_type
@@ -399,14 +392,6 @@ contains
        tr_table_map(i)%ice = tr_table(n)%ice
        tr_table(n)%lnd = get_tracer_index ( MODEL_LAND, tr_name )
        tr_table_map(i)%lnd = tr_table(n)%lnd
-
-       if (query_method('dry_deposition', MODEL_ATMOS, i, method, parameters)) then
-          if ( parse(parameters, 'tracer_flux_exchange',  value) > 0 )         tr_table(n)%cd_tr_flux_exchange  = (value>0)
-          if ( tr_table(n)%cd_tr_flux_exchange ) then
-             cd_tr_flux_exchange = .true.
-          end if
-       end if
-
        if(tr_table(n)%ice/=NO_TRACER.or.tr_table(n)%lnd/=NO_TRACER) then
           tr_table_map(i)%exch = n
           n = n + 1
@@ -616,7 +601,6 @@ contains
     allocate( land_ice_atmos_boundary%v_flux(is:ie,js:je) )
     allocate( land_ice_atmos_boundary%dtaudu(is:ie,js:je) )
     allocate( land_ice_atmos_boundary%dtaudv(is:ie,js:je) )
-    allocate( land_ice_atmos_boundary%con_atm(is:ie,js:je) )
     allocate( land_ice_atmos_boundary%u_star(is:ie,js:je) )
     allocate( land_ice_atmos_boundary%b_star(is:ie,js:je) )
     allocate( land_ice_atmos_boundary%q_star(is:ie,js:je) )
@@ -644,7 +628,6 @@ contains
     land_ice_atmos_boundary%v_flux=0.0
     land_ice_atmos_boundary%dtaudu=0.0
     land_ice_atmos_boundary%dtaudv=0.0
-    land_ice_atmos_boundary%con_atm=0.0
     land_ice_atmos_boundary%u_star=0.0
     land_ice_atmos_boundary%b_star=0.0
     land_ice_atmos_boundary%q_star=0.0
@@ -734,7 +717,6 @@ contains
          ex_rough_scale,&
          ex_q_star,     &
          ex_cd_q,       &
-         ex_cd_tr,      &
          ex_ref, ex_ref_u, ex_ref_v, ex_u10, &
          ex_ref2,       &
          ex_t_ref,      &
@@ -743,13 +725,9 @@ contains
          ex_del_m,      &
          ex_del_h,      &
          ex_del_q,      &
-         ex_dfdct_surf,  &
-         ex_frac_open_sea, &
-         ex_delp, &
-         ex_del_tr,     &  !this needs to be added for surface tracer concentration
-         ex_tr_star
+         ex_frac_open_sea
 
-    real, dimension(n_xgrid_sfc,n_exch_tr) :: ex_tr_atm, ex_tr_ref
+    real, dimension(n_xgrid_sfc,n_exch_tr) :: ex_tr_atm
     ! jgj: added for co2_atm diagnostic
     real, dimension(n_xgrid_sfc)           :: ex_co2_atm_dvmr
     real, dimension(size(Land_Ice_Atmos_Boundary%t,1),size(Land_Ice_Atmos_Boundary%t,2)) :: diag_atm
@@ -795,34 +773,30 @@ contains
          ex_flux_lw  (n_xgrid_sfc),  &
          ex_drag_q   (n_xgrid_sfc),  &
          ex_avail    (n_xgrid_sfc),  &
-         ex_f_t_delt_n(n_xgrid_sfc))
+         ex_f_t_delt_n(n_xgrid_sfc), &
 
-    allocate( &
          ex_tr_surf     (n_xgrid_sfc, n_exch_tr), &
-         ex_con_atm        (n_xgrid_sfc, n_exch_tr), &
-         ex_con_atm0        (n_xgrid_sfc),           &
          ex_dfdtr_surf  (n_xgrid_sfc, n_exch_tr), &
          ex_dfdtr_atm   (n_xgrid_sfc, n_exch_tr), &
          ex_flux_tr     (n_xgrid_sfc, n_exch_tr), &
          ex_f_tr_delt_n (n_xgrid_sfc, n_exch_tr), &
-         ex_e_tr_n      (n_xgrid_sfc, n_exch_tr))
+         ex_e_tr_n      (n_xgrid_sfc, n_exch_tr), &
 
-    ! MOD these were moved from local ! so they can be passed to flux down
-    allocate( &
+         ! MOD these were moved from local ! so they can be passed to flux down
          ex_flux_u(n_xgrid_sfc),    &
          ex_flux_v(n_xgrid_sfc),    &
          ex_dtaudu_atm(n_xgrid_sfc),&
          ex_dtaudv_atm(n_xgrid_sfc),&
-         ex_seawater(n_xgrid_sfc))
-    
-    ! values added for LM3
-    allocate( &
+         ex_seawater(n_xgrid_sfc),  &
+
+         ! values added for LM3
          ex_cd_t     (n_xgrid_sfc),  &
          ex_cd_m     (n_xgrid_sfc),  &
          ex_b_star   (n_xgrid_sfc),  &
          ex_u_star   (n_xgrid_sfc),  &
          ex_wind     (n_xgrid_sfc),  &
          ex_z_atm    (n_xgrid_sfc),  &
+
          ex_e_t_n    (n_xgrid_sfc),  &
          ex_e_q_n    (n_xgrid_sfc),  &
          ex_land     (n_xgrid_sfc)   )
@@ -877,7 +851,7 @@ contains
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_surf,ex_u_surf, &
     !$OMP                                  ex_v_surf,ex_albedo,ex_albedo_vis_dir,ex_albedo_nir_dir, &
     !$OMP                                  ex_albedo_vis_dif,ex_albedo_nir_dif,ex_cd_t,ex_cd_m,  &
-    !$OMP                                  ex_cd_q,ex_frac_open_sea,ex_cd_tr)                    &
+    !$OMP                                  ex_cd_q,ex_frac_open_sea)                             &
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
        is=block_start(l)
@@ -896,7 +870,6 @@ contains
           ex_cd_t(i) = 0.0
           ex_cd_m(i) = 0.0
           ex_cd_q(i) = 0.0
-          ex_cd_tr(i) = 0.0
           ex_frac_open_sea(i) =0.
        enddo
     enddo
@@ -924,7 +897,7 @@ contains
     ! co2mmr = (wco2/wair) * co2vmr;  wet_mmr = dry_mmr * (1-Q)
     !
     do tr = 1,n_atm_tr
-       call get_tracer_names( MODEL_ATMOS, tr, tr_name)
+       call get_tracer_names( MODEL_ATMOS, tr, tr_name )
        call data_override('ATM', trim(tr_name)//'_bot', Atm%tr_bot(:,:,tr), Time, override=used)
        ! conversion for land co2 data override from dry vmr to moist mmr
        if (used .and. lowercase(trim(tr_name)).eq.'co2') then
@@ -1158,8 +1131,7 @@ contains
     !$OMP                                  ex_dhdt_surf,ex_dedt_surf,ex_dfdtr_surf,   &
     !$OMP                                  ex_drdt_surf,ex_dhdt_atm,ex_dfdtr_atm,   &
     !$OMP                                  ex_dtaudu_atm, ex_dtaudv_atm,dt,ex_land, &
-    !$OMP                                  ex_seawater,ex_avail,block_start,block_end,isphum, &
-    !$OMP                                  ex_cd_tr, ex_dfdct_surf,cd_tr_flux_exchange,ex_tr_star) &
+    !$OMP                                  ex_seawater,ex_avail,block_start,block_end,isphum) &
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
        is=block_start(l)
@@ -1176,8 +1148,7 @@ contains
             ex_dhdt_surf(is:ie), ex_dedt_surf(is:ie), ex_dfdtr_surf(is:ie,isphum),  ex_drdt_surf(is:ie),        &
             ex_dhdt_atm(is:ie),  ex_dfdtr_atm(is:ie,isphum),  ex_dtaudu_atm(is:ie), ex_dtaudv_atm(is:ie),       &
             dt,                                                             &
-            ex_land(is:ie), ex_seawater(is:ie) .gt. 0.0,  ex_avail(is:ie),  &
-            cd_tr_flux_exchange, ex_dfdct_surf(is:ie), ex_cd_tr(is:ie), ex_tr_star(is:ie) )
+            ex_land(is:ie), ex_seawater(is:ie) .gt. 0.0,  ex_avail(is:ie)            )
     enddo
 
 #ifdef SCM
@@ -1205,25 +1176,17 @@ contains
     !  call mpp_clock_end(fluxClock)
     zrefm = 10.0
     zrefh = z_ref_heat
-    ex_con_atm = 0.
-    ex_con_atm0 = 0.
     !      ---- optimize calculation ----
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end, zrefm, zrefh, ex_z_atm, &
     !$OMP                                  ex_rough_mom,ex_rough_heat,ex_rough_moist,ex_u_star,      &
     !$OMP                                  ex_b_star,ex_q_star,ex_del_m,ex_del_h,ex_del_q,ex_avail,  &
     !$OMP                                  ex_u10,ex_ref_u,ex_ref_v,ex_gas_fields_atm,ex_u_surf,     &
     !$OMP                                  ex_v_surf,ex_u_atm,ex_v_atm,atm,ind_u10,n_exch_tr,isphum, &
-    !$OMP                                  ex_dfdtr_atm,ex_dfdtr_surf,ex_flux_tr,ex_tr_surf,ex_tr_atm, cd_tr_flux_exchange, ex_cd_tr,ex_con_atm,ex_con_atm0,ex_dfdct_surf,ex_land,tr_table,ex_wind,ex_cd_q,ex_tr_star,ex_del_tr) &
+    !$OMP                                  ex_dfdtr_atm,ex_dfdtr_surf,ex_flux_tr,ex_tr_surf,ex_tr_atm) &
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
        is=block_start(l)
        ie=block_end(l)
-       if ( cd_tr_flux_exchange ) then
-         call mo_profile ( zrefm, zrefh, ex_z_atm(is:ie), ex_rough_mom(is:ie), &
-              ex_rough_heat(is:ie), ex_rough_mom(is:ie),          &
-             ex_u_star(is:ie), ex_b_star(is:ie), ex_tr_star(is:ie),        &
-             ex_del_m(is:ie), ex_del_h(is:ie), ex_del_tr(is:ie), ex_avail(is:ie)  )
-       end if
        call mo_profile ( zrefm, zrefh, ex_z_atm(is:ie), ex_rough_mom(is:ie), &
             ex_rough_heat(is:ie), ex_rough_moist(is:ie),          &
             ex_u_star(is:ie), ex_b_star(is:ie), ex_q_star(is:ie),        &
@@ -1256,22 +1219,9 @@ contains
              ! dfdtr_atm for the dfdtr_surf derivative. This will break if ever the flux
              ! formulation is changed to be not symmetrical w.r.t. q_surf and q_atm, but
              ! then this whole section will have to be changed.
-             if (tr_table(tr)%cd_tr_flux_exchange) then
-                ex_con_atm(i,tr)        = ex_wind(i)*ex_cd_tr(i)
-                ex_con_atm0(i)          = ex_con_atm(i,tr)
-             else
-                ex_con_atm(i,tr) = ex_wind(i)*ex_cd_q(i)
-             end if
-
-             if ( ex_land(i) .and. tr_table(tr)%cd_tr_flux_exchange) then
-                ex_dfdtr_surf (i,tr) = ex_dfdct_surf(i)
-                ex_dfdtr_atm  (i,tr) = -ex_dfdtr_surf(i,tr)
-                ex_flux_tr    (i,tr) = ex_dfdtr_surf(i,tr)*(ex_tr_surf(i,tr)-ex_tr_atm(i,tr))
-             else
-                ex_dfdtr_atm  (i,tr) =  ex_dfdtr_atm  (i,isphum)
-                ex_dfdtr_surf (i,tr) = -ex_dfdtr_atm (i,isphum)
-                ex_flux_tr    (i,tr) =  ex_dfdtr_surf(i,tr)*(ex_tr_surf(i,tr)-ex_tr_atm(i,tr))
-             end if
+             ex_dfdtr_atm  (i,tr) =  ex_dfdtr_atm  (i,isphum)
+             ex_dfdtr_surf (i,tr) = -ex_dfdtr_atm (i,isphum)
+             ex_flux_tr    (i,tr) =  ex_dfdtr_surf(i,tr)*(ex_tr_surf(i,tr)-ex_tr_atm(i,tr))
           enddo
        enddo
     enddo ! end of block loop
@@ -1279,20 +1229,7 @@ contains
     ! Combine explicit ocean flux and implicit land flux of extra flux fields.
 
     ! Calculate ocean explicit flux here
-    call atmos_ocean_fluxes_calc(ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes, ex_seawater, ex_t_surf, 2.*(ex_p_surf-ex_p_atm)/grav,1./(1.-ex_tr_atm(:,isphum)),dt)
-
-
-    do n = 1, ex_gas_fluxes%num_bcs  !{
-       if (ex_gas_fluxes%bc(n)%atm_tr_index .gt. 0) then  !{
-          call get_tracer_names( MODEL_ATMOS, ex_gas_fluxes%bc(n)%atm_tr_index, tr_name, units=tr_units)
-          if (trim(tr_name).eq."nh3") then
-             call get_from_xgrid (diag_atm, 'ATM', ex_gas_fluxes%bc(n)%field(ind_flux0)%values(:), xmap_sfc)
-             used = send_data ( id_nh3_flux_atm0, diag_atm, Time )
-          end if
-       end if
-    end do
-
-
+    call atmos_ocean_fluxes_calc(ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes, ex_seawater, ex_t_surf)
 
     ! The following statement is a concise version of what's following and worth
     ! looking into in the future.
@@ -1418,7 +1355,6 @@ contains
     call get_from_xgrid (Land_Ice_Atmos_Boundary%dtaudu,    'ATM', ex_dtaudu_atm, xmap_sfc, complete=.false.)
     call get_from_xgrid (Land_Ice_Atmos_Boundary%dtaudv,    'ATM', ex_dtaudv_atm, xmap_sfc, complete=.false.)
     call get_from_xgrid (Land_Ice_Atmos_Boundary%u_star,    'ATM', ex_u_star    , xmap_sfc, complete=.false.)
-    call get_from_xgrid (Land_Ice_Atmos_Boundary%con_atm,   'ATM', ex_con_atm0    , xmap_sfc, complete=.false.)
     call get_from_xgrid (Land_Ice_Atmos_Boundary%b_star,    'ATM', ex_b_star    , xmap_sfc, complete=.false.)
     call get_from_xgrid (Land_Ice_Atmos_Boundary%q_star,    'ATM', ex_q_star    , xmap_sfc, complete=.true.)
 
@@ -1683,8 +1619,7 @@ contains
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,zrefm,zrefh,ex_z_atm, &
     !$OMP                                  ex_rough_mom,ex_rough_heat,ex_rough_moist,ex_u_star,   &
     !$OMP                                  ex_b_star,ex_q_star,ex_del_m,ex_del_h,ex_del_q,        &
-    !$OMP                                  ex_avail,ex_ref,ex_tr_surf,ex_tr_atm,isphum,ex_del_tr, &
-    !$OMP                                  ex_tr_ref,n_exch_tr,ex_land,tr_table)           &
+    !$OMP                                  ex_avail,ex_ref,ex_tr_surf,ex_tr_atm,isphum)           &
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
        is=block_start(l)
@@ -1700,17 +1635,8 @@ contains
        !cjg          id_q_ref > 0 .or. id_q_ref_land >0 ) then
        do i = is,ie
           ex_ref(i) = 1.0e-06
-          ex_tr_ref(i,:) = 1.e-20
-          if (ex_avail(i)) then
+          if (ex_avail(i)) &
                ex_ref(i)   = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i)
-               do tr=1,n_exch_tr
-                  if ( ex_land(i) .and. tr_table(tr)%cd_tr_flux_exchange ) then              
-                     ex_tr_ref(i,tr) = ex_tr_surf(i,tr) + (ex_tr_atm(i,tr)-ex_tr_surf(i,tr)) * ex_del_tr(i)
-                  else
-                     ex_tr_ref(i,tr) = ex_tr_surf(i,tr) + (ex_tr_atm(i,tr)-ex_tr_surf(i,tr)) * ex_del_q(i)
-                  end if
-               end do
-          end if
        enddo
     enddo
     call get_from_xgrid (Land_Ice_Atmos_Boundary%q_ref, 'ATM', ex_ref,   xmap_sfc)  ! cjg
@@ -1731,19 +1657,6 @@ contains
             Land%tile_size, Time, mask=Land%mask)
 #endif
     endif
-
-    do tr=1,n_exch_tr
-       if ( id_tr_ref(tr) > 0 ) then
-          call get_from_xgrid (diag_atm, 'ATM', ex_tr_ref(:,tr),   xmap_sfc)  
-          used = send_data(id_tr_ref(tr),diag_atm,Time)
-       end if
-       if ( id_tr_ref_land(tr) > 0 ) then
-          call get_from_xgrid_land(diag_land, 'LND', ex_tr_ref(:,tr),   xmap_sfc)  
-          call send_tile_data(id_tr_ref_land(tr), diag_land)
-          !used = send_tile_averaged_data(id_tr_ref_land(tr), diag_land, &
-          !       Land%tile_size, Time, mask=Land%mask)
-       end if
-    end do
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
     !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
     !$OMP                                  ex_ref,ex_qs_ref_cmip,ex_ref2 ) &
@@ -2288,6 +2201,7 @@ contains
 
                 ex_e_tr_n(i,tr)      =  ex_dtmass(i)*ex_dfdtr_surf(i,tr)*ex_gamma(i)
                 ex_f_tr_delt_n(i,tr) = (ex_delta_tr(i,tr)+ex_dtmass(i)*ex_flux_tr(i,tr))*ex_gamma(i)
+
                 ex_flux_tr(i,tr)     =  ex_flux_tr(i,tr) + ex_dfdtr_atm(i,tr)*ex_f_tr_delt_n(i,tr)
                 ex_dfdtr_surf(i,tr)  =  ex_dfdtr_surf(i,tr) + ex_dfdtr_atm(i,tr)*ex_e_tr_n(i,tr)
              enddo
@@ -2364,21 +2278,15 @@ contains
 
     Land_boundary%tr_flux = 0.0
     Land_boundary%dfdtr = 0.0
-
-  if(associated(Land_boundary%con_atm)) then
-     Land_boundary%con_atm = 0.
-  endif
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
 #ifndef _USE_LEGACY_LAND_
           call get_from_xgrid_land (Land_boundary%tr_flux(:,:,n), 'LND', ex_flux_tr(:,tr), xmap_sfc)
           call get_from_xgrid_land (Land_boundary%dfdtr(:,:,n),   'LND', ex_dfdtr_surf(:,tr), xmap_sfc)
-          call get_from_xgrid_land (Land_boundary%con_atm(:,:,n), 'LND', ex_con_atm(:,tr), xmap_sfc)
 #else
           call get_from_xgrid_land (Land_boundary%tr_flux(:,:,:,n), 'LND', ex_flux_tr(:,tr), xmap_sfc)
           call get_from_xgrid_land (Land_boundary%dfdtr(:,:,:,n),   'LND', ex_dfdtr_surf(:,tr), xmap_sfc)
-          call get_from_xgrid_land (Land_boundary%con_atm(:,:,n), 'LND', ex_con_atm(:,tr), xmap_sfc)
 #endif
 #ifdef SCM
           if (do_specified_land .and. do_specified_flux .and. tr.eq.isphum) then
@@ -2684,7 +2592,6 @@ contains
 
     integer :: is, ie, l
 
-
     !Balaji
     call mpp_clock_begin(cplClock)
     call mpp_clock_begin(fluxAtmUpClock)
@@ -2752,7 +2659,7 @@ contains
              if (ex_dfdtr_surf(i,tr)/=0.0) then
                 ex_dt_tr_surf(i,tr) = -ex_flux_tr(i,tr)/ex_dfdtr_surf(i,tr)
              else
-                ex_dt_tr_surf(i,tr) = 0.0 !f1p (ocean)
+                ex_dt_tr_surf(i,tr) = 0.0
              endif
              ex_tr_surf_new(i,tr) = ex_tr_surf(i,tr)+ex_dt_tr_surf(i,tr)
           enddo
@@ -3051,8 +2958,7 @@ contains
          ex_avail    ,  &
          ex_f_t_delt_n, &
          ex_tr_surf  ,  &
-         ex_con_atm,    &
-         ex_con_atm0,    &
+
          ex_dfdtr_surf  , &
          ex_dfdtr_atm   , &
          ex_flux_tr     , &
@@ -3417,7 +3323,6 @@ contains
          register_diag_field ( mod_name, 'del_q',      atmos_axes, Time,     &
          'ref height interp factor for moisture','none' )
 
-    allocate(id_tr_ref_land(n_exch_tr))
     if( land_pe ) then
        ! set the default filter (for area and subsampling) for consequent calls to
        ! register_tiled_diag_field
@@ -3455,16 +3360,6 @@ contains
             register_tiled_diag_field( 'cmor_land', 'hussLut', Land_axes, Time, &
             'Near-Surface Specific Humidity on Land Use Tile', '1.0', &
             standard_name='specific_humidity', missing_value=-1.0 )
-       do tr = 1, n_exch_tr
-          call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, name, longname, units )
-          if ( tr .ne. isphum ) then
-             id_tr_ref_land(tr) = &
-             register_tiled_diag_field ( 'flux_land', trim(name)//'_ref', Land_axes, Time, &
-                trim(longname)//' at '//trim(label_zh)//' over land', trim(units),missing_value=-1.0)
-          else
-             id_tr_ref_land(tr) = -1
-          end if
-       enddo
     endif
 
     id_q_ref = &
@@ -3477,9 +3372,7 @@ contains
     !-----------------------------------------------------------------------
 
     allocate(id_tr_atm(n_exch_tr))
-
     allocate(id_tr_surf(n_exch_tr))
-    allocate(id_tr_ref(n_exch_tr))    
     allocate(id_tr_flux(n_exch_tr))
     allocate(id_tr_mol_flux(n_exch_tr))
 
@@ -3491,12 +3384,6 @@ contains
             trim(longname)//' at the surface', trim(units))
        id_tr_flux(tr) = register_diag_field(mod_name, trim(name)//'_flux', atmos_axes, Time, &
             'flux of '//trim(longname), trim(units)//' kg air/(m2 s)')
-       if ( tr .ne. isphum ) then
-          id_tr_ref(tr) = register_diag_field (mod_name, trim(name)//'_ref',  atmos_axes, Time, &
-               trim(longname)//' at '//trim(label_zh), trim(units),missing_value=-1.0)
-       else
-          id_tr_ref(tr) = -1
-       end if
        !! add dryvmr co2_surf and co2_atm
        if ( lowercase(trim(name))=='co2') then
           ! - slm Mar 25, 2010: moved registration of mol_flux inside 'if' to disable
@@ -3519,8 +3406,8 @@ contains
     id_co2_bot = register_diag_field (mod_name, 'co2_bot', atmos_axes, Time, &
            'co2_bot from data_override', 'ppmv')
 
-    id_nh3_flux_atm0 = register_diag_field (mod_name, 'nh3_flux_atm0', atmos_axes, Time, &
-           'nh3 flux out of the ocean assuming not nh3 in the atmosphere', 'mol/m2/s')
+    ! id_nh3_flux_atm0 = register_diag_field (mod_name, 'nh3_flux_atm0', atmos_axes, Time, &
+    !        'nh3 flux out of the ocean assuming not nh3 in the atmosphere', 'mol/m2/s')
 
 
     id_q_flux = register_diag_field( mod_name, 'evap',       atmos_axes, Time, &
