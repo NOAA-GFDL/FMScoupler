@@ -1,7 +1,27 @@
+!***********************************************************************
+!*                   GNU Lesser General Public License
+!*
+!* This file is part of the GFDL Flexible Modeling System (FMS) Coupler.
+!*
+!* FMS Coupler is free software: you can redistribute it and/or modify
+!* it under the terms of the GNU Lesser General Public License as
+!* published by the Free Software Foundation, either version 3 of the
+!* License, or (at your option) any later version.
+!*
+!* FMS Coupler is distributed in the hope that it will be useful, but
+!* WITHOUT ANY WARRANTY; without even the implied warranty of
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+!* General Public License for more details.
+!*
+!* You should have received a copy of the GNU Lesser General Public
+!* License along with FMS Coupler.
+!* If not, see <http://www.gnu.org/licenses/>.
+!***********************************************************************
+
 module ice_ocean_flux_exchange_mod
 
   use mpp_mod,             only: mpp_error, FATAL, mpp_set_current_pelist, stdout
-  use mpp_mod,             only: mpp_clock_id, mpp_clock_begin, mpp_clock_end 
+  use mpp_mod,             only: mpp_clock_id, mpp_clock_begin, mpp_clock_end
   use mpp_mod,             only: CLOCK_COMPONENT, CLOCK_ROUTINE, mpp_sum, mpp_max
   use constants_mod,       only: HLF, HLV, CP_OCEAN
   use mpp_domains_mod,     only: mpp_get_compute_domain, operator(.EQ.), mpp_redistribute
@@ -14,7 +34,7 @@ module ice_ocean_flux_exchange_mod
   use ocean_model_mod,     only: ocean_public_type, ice_ocean_boundary_type
   use ocean_model_mod,     only: ocean_state_type, ocean_model_data_get
   use ocean_model_mod,     only: ocean_model_init_sfc
-  use stock_constants_mod, only: Ice_stock, Ocn_stock, ISTOCK_HEAT, ISTOCK_WATER 
+  use stock_constants_mod, only: Ice_stock, Ocn_stock, ISTOCK_HEAT, ISTOCK_WATER
   use stock_constants_mod, only: ISTOCK_BOTTOM, ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_SALT
   use coupler_types_mod,   only: coupler_type_copy, coupler_1d_bc_type
 
@@ -23,7 +43,7 @@ module ice_ocean_flux_exchange_mod
 
   public :: ice_ocean_flux_exchange_init, &
        flux_ice_to_ocean,    &
-       flux_ocean_to_ice,    & 
+       flux_ocean_to_ice,    &
        flux_ice_to_ocean_stocks,&
        flux_ocean_from_ice_stocks
 
@@ -125,7 +145,7 @@ contains
     allocate( ice_ocean_boundary%calving_hflx  (is:ie,js:je) ) ;    ice_ocean_boundary%calving_hflx = 0.0
     allocate( ice_ocean_boundary%p        (is:ie,js:je) ) ;         ice_ocean_boundary%p = 0.0
     allocate( ice_ocean_boundary%mi       (is:ie,js:je) ) ;         ice_ocean_boundary%mi = 0.0
-    !Allocating iceberg fields, if the corresponding fields are assosiated in the sea ice model(s) 
+    !Allocating iceberg fields, if the corresponding fields are assosiated in the sea ice model(s)
     if (associated(Ice%ustar_berg)) then
       allocate( ice_ocean_boundary%ustar_berg (is:ie,js:je) ) ;     ice_ocean_boundary%ustar_berg = 0.0
     endif
@@ -135,7 +155,7 @@ contains
     if (associated(Ice%mass_berg)) then
       allocate( ice_ocean_boundary%mass_berg  (is:ie,js:je) ) ;     ice_ocean_boundary%mass_berg = 0.0
     endif
-    ! Copy the stagger indication variables from the ice processors the ocean 
+    ! Copy the stagger indication variables from the ice processors the ocean
     ! PEs and vice versa.  The defaults are large negative numbers, so the
     ! global max here picks out only values that have been set on active PEs.
     call mpp_max(Ice%flux_uv_stagger)
@@ -257,7 +277,7 @@ contains
        enddo  !} m
     enddo  !} n
 
-    !--- The following variables may require conserved flux exchange from ice to ocean because the 
+    !--- The following variables may require conserved flux exchange from ice to ocean because the
     !--- ice area maybe different from ocean area.
     if(ASSOCIATED(Ice_Ocean_Boundary%t_flux) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
          Ice%flux_t, Ice_Ocean_Boundary%t_flux, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
@@ -331,7 +351,7 @@ contains
        call data_override('OCN', 'calving_hflx',   Ice_Ocean_Boundary%calving_hflx  , Time )
        call data_override('OCN', 'p',         Ice_Ocean_Boundary%p        , Time )
        call data_override('OCN', 'mi',        Ice_Ocean_Boundary%mi       , Time )
-      !Are these if statements needed, or does data_override routine check if variable is assosiated? 
+      !Are these if statements needed, or does data_override routine check if variable is assosiated?
        if (ASSOCIATED(Ice_Ocean_Boundary%ustar_berg) ) &
          call data_override('OCN', 'ustar_berg', Ice_Ocean_Boundary%ustar_berg, Time )
        if (ASSOCIATED(Ice_Ocean_Boundary%area_berg)  ) &
@@ -360,7 +380,7 @@ contains
           enddo  !} m
        enddo  !} n
     endif
-    
+
     ! This call is dangerous, as it needs to be kept up to date with the pe_lists as
     ! set in coupler_main. - RWH
     if (Ice%shared_slow_fast_PEs) &
@@ -398,7 +418,7 @@ contains
     real, allocatable, dimension(:,:) :: tmp
     integer       :: m
     integer       :: n
-    real          :: from_dq 
+    real          :: from_dq
     logical       :: used
 
     !Balaji
@@ -407,7 +427,7 @@ contains
 
     select case (Ocean_Ice_Boundary%xtype)
     case(DIRECT)
-       !same grid and domain decomp for ocean and ice    
+       !same grid and domain decomp for ocean and ice
        if( ASSOCIATED(Ocean_Ice_Boundary%u) )Ocean_Ice_Boundary%u = Ocean%u_surf
        if( ASSOCIATED(Ocean_Ice_Boundary%v) )Ocean_Ice_Boundary%v = Ocean%v_surf
        if( ASSOCIATED(Ocean_Ice_Boundary%t) )Ocean_Ice_Boundary%t = Ocean%t_surf
@@ -415,7 +435,7 @@ contains
        if( ASSOCIATED(Ocean_Ice_Boundary%sea_level) )Ocean_Ice_Boundary%sea_level = Ocean%sea_lev
        if( ASSOCIATED(Ocean_Ice_Boundary%frazil) ) then
           if(do_area_weighted_flux) then
-             Ocean_Ice_Boundary%frazil = Ocean%frazil * Ocean%area 
+             Ocean_Ice_Boundary%frazil = Ocean%frazil * Ocean%area
              call divide_by_area(data=Ocean_Ice_Boundary%frazil, area=Ice%area)
           else
              Ocean_Ice_Boundary%frazil = Ocean%frazil
@@ -431,7 +451,7 @@ contains
           enddo  !} m
        enddo  !} n
     case(REDIST)
-       !same grid, different domain decomp for ocean and ice    
+       !same grid, different domain decomp for ocean and ice
        if( ASSOCIATED(Ocean_Ice_Boundary%u) )                     &
             call mpp_redistribute(Ocean%Domain, Ocean%u_surf, Ice%slow_Domain_NH, Ocean_Ice_Boundary%u)
        if( ASSOCIATED(Ocean_Ice_Boundary%v) )                     &
@@ -547,7 +567,7 @@ contains
 
     real           :: from_dq
 
-    ! fluxes from ice -> ocean, integrate over surface and in time 
+    ! fluxes from ice -> ocean, integrate over surface and in time
 
     ! precip - evap
     from_dq = Dt_cpl * SUM( Ice%area * (Ice%lprec+Ice%fprec-Ice%flux_q) )
@@ -615,7 +635,7 @@ contains
     call ocean_model_data_get(ocean_state,Ocean,'c_p', cp_ocn )
 
 
-    ! fluxes from ice -> ocean, integrate over surface and in time 
+    ! fluxes from ice -> ocean, integrate over surface and in time
 
     ! precip - evap
     from_dq = SUM( ocean_cell_area * wet * (Ice_Ocean_Boundary%lprec+Ice_Ocean_Boundary%fprec-Ice_Ocean_Boundary%q_flux) )
@@ -640,7 +660,7 @@ contains
     from_dq = SUM( ocean_cell_area * wet * cp_ocn *&
          ((Ice_Ocean_Boundary%lprec+Ice_Ocean_Boundary%fprec-Ice_Ocean_Boundary%q_flux)*t_pme &
          +Ice_Ocean_Boundary%calving * t_calving &
-         +Ice_Ocean_Boundary%runoff  * t_runoff  ))       
+         +Ice_Ocean_Boundary%runoff  * t_runoff  ))
 
     Ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE ) + from_dq * Dt_cpl
 
@@ -655,7 +675,7 @@ contains
     Ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE ) + from_dq
 
     !SALT flux
-    from_dq = SUM( ocean_cell_area * wet * ( -Ice_Ocean_Boundary%salt_flux))  
+    from_dq = SUM( ocean_cell_area * wet * ( -Ice_Ocean_Boundary%salt_flux))
     Ocn_stock(ISTOCK_SALT)%dq_IN(ISTOCK_TOP  ) = Ocn_stock(ISTOCK_SALT)%dq_IN(ISTOCK_TOP   ) + from_dq  * Dt_cpl
 
 
@@ -688,7 +708,7 @@ contains
     case (DIRECT)
        if(do_area_weighted) then
           ocn_bnd_data = ice_data * ice%area
-          call divide_by_area(data=ocn_bnd_data, area=ocean%area)          
+          call divide_by_area(data=ocn_bnd_data, area=ocean%area)
        else
           ocn_bnd_data = ice_data
        endif
@@ -699,7 +719,7 @@ contains
             tmp(:,:) = ice_data(:,:) * ice%area(:,:)
           endif
           call mpp_redistribute(Ice%slow_Domain_NH, tmp, ocean%Domain, ocn_bnd_data)
-          if (ocean%is_ocean_pe) call divide_by_area(ocn_bnd_data, area=ocean%area) 
+          if (ocean%is_ocean_pe) call divide_by_area(ocn_bnd_data, area=ocean%area)
           if (Ice%slow_ice_pe) deallocate(tmp)
        else
           call mpp_redistribute(Ice%slow_Domain_NH, ice_data, ocean%Domain, ocn_bnd_data)
@@ -721,7 +741,7 @@ contains
        return
     endif
 
-    where(area /= 0.0) 
+    where(area /= 0.0)
        data = data / area
     end where
 
@@ -753,7 +773,7 @@ contains
     ocn_data = 0.0
     call flux_ice_to_ocean_redistribute( Ice, Ocean, ice_data, ocn_data, Ice_Ocean_Boundary%xtype, .true.)
     area_weighted_sum = sum(ocn_data*ocean%area)
-    call mpp_sum(area_weighted_sum)  
+    call mpp_sum(area_weighted_sum)
     write(outunit,*)"NOTE from flux_exchange_mod: check for flux conservation for flux_ice_to_ocean"
     write(outunit,*)"***** The global area sum of random number on ice domain (input data) is ", ice_sum
     write(outunit,*)"***** The global area sum of data after flux_ice_to_ocean_redistribute with "// &

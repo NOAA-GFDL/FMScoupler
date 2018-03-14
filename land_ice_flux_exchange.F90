@@ -1,6 +1,26 @@
+!***********************************************************************
+!*                   GNU Lesser General Public License
+!*
+!* This file is part of the GFDL Flexible Modeling System (FMS) Coupler.
+!*
+!* FMS Coupler is free software: you can redistribute it and/or modify
+!* it under the terms of the GNU Lesser General Public License as
+!* published by the Free Software Foundation, either version 3 of the
+!* License, or (at your option) any later version.
+!*
+!* FMS Coupler is distributed in the hope that it will be useful, but
+!* WITHOUT ANY WARRANTY; without even the implied warranty of
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+!* General Public License for more details.
+!*
+!* You should have received a copy of the GNU Lesser General Public
+!* License along with FMS Coupler.
+!* If not, see <http://www.gnu.org/licenses/>.
+!***********************************************************************
+
 module land_ice_flux_exchange_mod
 
-  use mpp_mod,             only: mpp_pe, mpp_clock_id, mpp_clock_begin, mpp_clock_end, CLOCK_ROUTINE 
+  use mpp_mod,             only: mpp_pe, mpp_clock_id, mpp_clock_begin, mpp_clock_end, CLOCK_ROUTINE
   use mpp_domains_mod,     only: mpp_get_compute_domain
   use fms_mod,             only: clock_flag_default
   use constants_mod,       only: RADIUS
@@ -17,7 +37,7 @@ module land_ice_flux_exchange_mod
 
 
   !---- exchange grid maps -----
-  
+
   type(xmap_type), save :: xmap_runoff
   integer         :: n_xgrid_runoff=0
 
@@ -29,7 +49,7 @@ module land_ice_flux_exchange_mod
   integer :: cplClock, fluxLandIceClock
   logical :: do_runoff
   real    :: Dt_cpl
-contains 
+contains
 
   subroutine land_ice_flux_exchange_init(Land, Ice, land_ice_boundary, Dt_cpl_in, do_runoff_in, cplClock_in)
     type(land_data_type),         intent(in)    :: Land !< A derived data type to specify land boundary data
@@ -37,7 +57,7 @@ contains
     type(land_ice_boundary_type), intent(inout) :: land_ice_boundary !< A derived data type to specify properties
                                                                      !! and fluxes passed from land to ice
     real,                         intent(in)    :: Dt_cpl_in
-    logical,                      intent(in)    :: do_runoff_in 
+    logical,                      intent(in)    :: do_runoff_in
     integer,                      intent(in)    :: cplClock_in
 
     integer :: is, ie, js, je
@@ -131,10 +151,10 @@ contains
             & delta_t=Dt_cpl, &
             & from_side=ISTOCK_SIDE, to_side=ISTOCK_SIDE, &
             & radius=Radius, ier=ier, verbose='stock move RUNOFF+CALVING (Lnd->Ice) ')
-    else   
-       Land_Ice_Boundary%runoff = 0.0 
+    else
+       Land_Ice_Boundary%runoff = 0.0
        Land_Ice_Boundary%calving = 0.0
-       Land_Ice_Boundary%runoff_hflx = 0.0 
+       Land_Ice_Boundary%runoff_hflx = 0.0
        Land_Ice_Boundary%calving_hflx = 0.0
     endif
 
@@ -147,5 +167,3 @@ contains
 !#######################################################################
 
 end module land_ice_flux_exchange_mod
-
-
