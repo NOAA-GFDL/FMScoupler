@@ -74,7 +74,7 @@ module atm_land_ice_flux_exchange_mod
   use fms_mod,            only: clock_flag_default, check_nml_error, error_mesg
   use fms_mod,            only: open_namelist_file, write_version_number
   use data_override_mod,  only: data_override
-  use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10, ind_flux
+  use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10, ind_flux, ind_flux0
   use ocean_model_mod,    only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
 #ifdef use_AM3_physics
   use atmos_tracer_driver_mod, only: atmos_tracer_flux_init
@@ -157,6 +157,7 @@ module atm_land_ice_flux_exchange_mod
   integer :: id_co2_bot, id_co2_flux_pcair_atm, id_o2_flux_pcair_atm
 
   integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:)
+  integer, allocatable :: id_tr_mol_flux0(:) !f1p
 
   ! id's for cmip specific fields
   integer :: id_tas, id_uas, id_vas, id_ts, id_psl, &
@@ -1234,6 +1235,17 @@ contains
     ! Calculate ocean explicit flux here
     call atmos_ocean_fluxes_calc(ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes, ex_seawater, ex_t_surf)
 
+   do n = 1, ex_gas_fluxes%num_bcs  !{
+      if (ex_gas_fluxes%bc(n)%atm_tr_index .gt. 0) then  !{
+         m = tr_table_map(ex_gas_fluxes%bc(n)%atm_tr_index)%exch
+         if (id_tr_mol_flux0(m) .gt. 0) then
+            call get_from_xgrid (diag_atm, 'ATM', ex_gas_fluxes%bc(n)%field(ind_flux0)%values(:), xmap_sfc)
+            used = send_data ( id_tr_mol_flux0(m), diag_atm, Time )
+         end if
+      end if
+   end do
+
+
     ! The following statement is a concise version of what's following and worth
     ! looking into in the future.
     ! ex_flux_tr(:,itracer) = ex_gas_fluxes%bc(itracer_ocn)%field(ind_flux)%values(:)
@@ -1249,8 +1261,6 @@ contains
           if (ex_gas_fluxes%bc(n)%atm_tr_index .gt. 0) then  !{
              m = tr_table_map(ex_gas_fluxes%bc(n)%atm_tr_index)%exch
              call get_tracer_names( MODEL_ATMOS, ex_gas_fluxes%bc(n)%atm_tr_index, tr_name, units=tr_units)
-!             if (mpp_root_pe().eq.mpp_pe()) &
-!                  write(*,*) 'exchanging: ',n,m, tr_name,tr_units
              do i = is,ie  !{
                 if (ex_land(i)) cycle  ! over land, don't do anything
                 ! on ocean or ice cells, flux is explicit therefore we zero derivatives.
@@ -1261,8 +1271,6 @@ contains
                       ! in mol/m2/s but from land model it should be in vmr * kg/m2/s
                       ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(ind_flux)%values(i) * WTMAIR*1.0e-3 &
                            / (1.-ex_tr_atm(i,isphum))
-!                      if (mpp_root_pe().eq.mpp_pe()) &
-!                           write(*,*) 'vmr conversion:', tr_name
                    else
                       ! jgj: convert to kg co2/m2/sec for atm
                       ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(ind_flux)%values(i) * ex_gas_fluxes%bc(n)%mol_wt * 1.0e-03
@@ -2854,7 +2862,8 @@ contains
     ! 2017/08/08 jgj - replaced 2 lines above by the following
           if (id_tr_mol_flux(tr) > 0 .and. lowercase(trim(tr_name))=='co2') then
               used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
-           elseif (id_tr_mol_flux(tr) > 0 .and. lowercase(trim(tr_units)).eq."vmr") then
+    !sometimes in 2018 f1p for vmr tracers
+           elseif (id_tr_mol_flux(tr) > 0 .and. lowercase(trim(tr_units)).eq."vmr") then 
               call get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
               used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMAIR, Time)
           endif
@@ -3378,6 +3387,7 @@ contains
     allocate(id_tr_surf(n_exch_tr))
     allocate(id_tr_flux(n_exch_tr))
     allocate(id_tr_mol_flux(n_exch_tr))
+    allocate(id_tr_mol_flux0(n_exch_tr))
 
     do tr = 1, n_exch_tr
        call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, name, longname, units )
@@ -3399,9 +3409,14 @@ contains
           id_co2_surf_dvmr = register_diag_field (mod_name, trim(name)//'_surf_dvmr', atmos_axes, Time, &
                trim(longname)//' at the surface', 'mol CO2 /mol air')
        else
+!f1p
           id_tr_mol_flux(tr) = register_diag_field(mod_name, trim(name)//'_mol_flux', atmos_axes, Time, &
                'flux of '//trim(longname), 'mol/(m2 s)')          
        endif
+!f1p
+       id_tr_mol_flux0(tr) = register_diag_field(mod_name, trim(name)//'_mol_flux_atm0', atmos_axes, Time, &
+            'gross flux of '//trim(longname), 'mol/(m2 s)')          
+
     enddo
 
     ! 2017/08/08 jgj add diagnostics for co2 data overrides even if co2 is not a tracer
