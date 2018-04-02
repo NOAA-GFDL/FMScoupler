@@ -1,23 +1,24 @@
+!***********************************************************************
+!*                   GNU Lesser General Public License
+!*
+!* This file is part of the GFDL Flexible Modeling System (FMS) Coupler.
+!*
+!* FMS Coupler is free software: you can redistribute it and/or modify
+!* it under the terms of the GNU Lesser General Public License as
+!* published by the Free Software Foundation, either version 3 of the
+!* License, or (at your option) any later version.
+!*
+!* FMS Coupler is distributed in the hope that it will be useful, but
+!* WITHOUT ANY WARRANTY; without even the implied warranty of
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+!* General Public License for more details.
+!*
+!* You should have received a copy of the GNU Lesser General Public
+!* License along with FMS Coupler.
+!* If not, see <http://www.gnu.org/licenses/>.
+!***********************************************************************
 
 module flux_exchange_mod
-
-!-----------------------------------------------------------------------
-!                   GNU General Public License                        !                                                                      
-! This program is free software; you can redistribute it and/or modify it and  
-! are expected to follow the terms of the GNU General Public License  
-! as published by the Free Software Foundation; either version 2 of   
-! the License, or (at your option) any later version.                 
-!                                                                      
-! MOM is distributed in the hope that it will be useful, but WITHOUT    
-! ANY WARRANTY; without even the implied warranty of MERCHANTABILITY  
-! or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public    
-! License for more details.                                           
-!                                                                      
-! For the full text of the GNU General Public License,                
-! write to: Free Software Foundation, Inc.,                           
-!           675 Mass Ave, Cambridge, MA 02139, USA.                   
-! or see:   http://www.gnu.org/licenses/gpl.html                      
-!-----------------------------------------------------------------------
 
 !> \author Bruce Wyman <Bruce.Wyman@noaa.gov>
 !! \author V. Balaji <V.Balaji@noaa.gov>
@@ -491,7 +492,7 @@ module flux_exchange_mod
        mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
        CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
        input_nml_file
-                    
+
   use mpp_domains_mod, only: mpp_get_compute_domain, mpp_get_compute_domains, &
                              mpp_global_sum, mpp_redistribute, operator(.EQ.)
   use mpp_domains_mod, only: mpp_get_global_domain, mpp_get_data_domain
@@ -591,7 +592,7 @@ private
 
   logical :: partition_fprec_from_lprec = .FALSE.  !< option for ATM override experiments where liquid+frozen precip are combined
   !! This option will convert liquid precip to snow when t_ref is less than
-  !! tfreeze parameter                
+  !! tfreeze parameter
   real, parameter    :: tfreeze = 273.15
   logical :: scale_precip_2d = .false.
 
@@ -642,7 +643,7 @@ contains
     type(ice_data_type),               intent(inout)  :: Ice !< A derived data type to specify ice boundary data
     type(ocean_public_type),           intent(inout)  :: Ocean !< A derived data type to specify ocean boundary data
     type(ocean_state_type),            pointer        :: Ocean_state
-    ! All intent(OUT) derived types with pointer components must be 
+    ! All intent(OUT) derived types with pointer components must be
     ! COMPLETELY allocated here and in subroutines called from here;
     ! NO pointer components should have been allocated before entry if the
     ! derived type has intent(OUT) otherwise they may be lost.
@@ -674,7 +675,7 @@ contains
     !       ocean_tracer_flux_init is called first since it has the meaningful value to set
     !       for the input/output file names for the tracer flux values used in restarts. These
     !       values could be set in the field table, and this ordering allows this.
-    !       atmos_tracer_flux_init is called last since it will use the values set in 
+    !       atmos_tracer_flux_init is called last since it will use the values set in
     !       ocean_tracer_flux_init with the exception of atm_tr_index, which can only
     !       be meaningfully set from the atmospheric model (not from the field table)
     !
@@ -770,12 +771,12 @@ contains
 
        if(present(Atm)) then
           ref_value = 0.0
-          call Atm_stock_pe(Atm, index=i, value=ref_value)        
+          call Atm_stock_pe(Atm, index=i, value=ref_value)
           if(i==ISTOCK_WATER .and. Atm%pe ) then
              ! decrease the Atm stock by the precip adjustment to reflect the fact that
              ! after an update_atmos_up call, the precip will be that of the future time step.
-             ! Thus, the stock call will represent the (explicit ) precip at 
-             ! the beginning of the preceding time step, and the (implicit) evap at the 
+             ! Thus, the stock call will represent the (explicit ) precip at
+             ! the beginning of the preceding time step, and the (implicit) evap at the
              ! end of the preceding time step
              call atm_stock_integrate(Atm, ATM_PRECIP_NEW)
              ref_value = ref_value + ATM_PRECIP_NEW
@@ -824,10 +825,10 @@ contains
     integer i
 
     stocks_file=stdout()
-    ! Divert output file for stocks if requested 
+    ! Divert output file for stocks if requested
     if(mpp_pe()==mpp_root_pe() .and. divert_stocks_report) then
        call mpp_open( stocks_file, 'stocks.out', action=MPP_OVERWR, threading=MPP_SINGLE, &
-            fileset=MPP_SINGLE, nohdrs=.TRUE. )       
+            fileset=MPP_SINGLE, nohdrs=.TRUE. )
     endif
 
     ! Initialize stock values
