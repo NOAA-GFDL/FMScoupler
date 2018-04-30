@@ -392,6 +392,8 @@ program coupler_main
   use flux_exchange_mod,       only: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
   use flux_exchange_mod,       only: flux_atmos_to_ocean, flux_ex_arrays_dealloc
 
+  use coupler_flux_tracers_mod, only: coupler_flux_tracers_init
+
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
   use mpp_mod,                 only: mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_chksum
@@ -1648,6 +1650,20 @@ contains
     if (mpp_pe().EQ.mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Finished initializing tracer_manager at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
+!
+!       Initialize the coupler flux tracers.
+!
+    if (mpp_pe().EQ.mpp_root_pe()) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Starting to initialize coupler_flux_tracers at '&
+                       //trim(walldate)//' '//trim(walltime)
+    endif
+    call coupler_flux_tracers_init
+    if (mpp_pe().EQ.mpp_root_pe()) then
+      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+      write(errunit,*) 'Finished initializing coupler_flux_tracers at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
 !
