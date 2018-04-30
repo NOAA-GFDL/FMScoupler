@@ -58,12 +58,14 @@ module ice_ocean_flux_exchange_mod
 
   integer :: cplOcnClock, fluxOceanIceClock, fluxIceOceanClock
   real    :: Dt_cpl
+  integer, allocatable :: slow_ice_ocean_pelist(:)
 
 contains
 
   subroutine ice_ocean_flux_exchange_init(Time, Ice, Ocean, Ocean_state, ice_ocean_boundary, &
                                           ocean_ice_boundary, Dt_cpl_in, debug_stocks_in,    &
-                                          do_area_weighted_flux_in, ex_gas_fields_ice, ex_gas_fluxes, do_ocean )
+                                          do_area_weighted_flux_in, ex_gas_fields_ice, ex_gas_fluxes, &
+                                          do_ocean, slow_ice_ocean_pelist_in )
 
     type(time_type),               intent(in)    :: Time !< The model's current time
     type(ice_data_type),           intent(inout) :: Ice !< A derived data type to specify ice boundary data
@@ -76,6 +78,7 @@ contains
     logical,                       intent(in)    :: do_area_weighted_flux_in
     type(coupler_1d_bc_type),      intent(in)    :: ex_gas_fields_ice, ex_gas_fluxes
     logical,                       intent(in)    :: do_ocean
+    integer, dimension(:),         intent(in)    :: slow_ice_ocean_pelist_in
     character(len=24)    :: diag_name
     integer              :: is, ie, js, je
 
@@ -196,15 +199,13 @@ contains
        call ocean_model_init_sfc(Ocean_state, Ocean)
     endif
     call mpp_set_current_pelist()
+
     !z1l check the flux conservation.
     if(debug_stocks) call check_flux_conservation(Ice, Ocean, Ice_Ocean_Boundary)
-    if (Ice%shared_slow_fast_PEs) then
-      call mpp_set_current_pelist()
-      cplOcnClock = mpp_clock_id( 'Ice-ocean coupler', flags=clock_flag_default, grain=CLOCK_COMPONENT )
-      fluxIceOceanClock = mpp_clock_id( 'Flux ice to ocean', flags=clock_flag_default, grain=CLOCK_ROUTINE )
-      fluxOceanIceClock = mpp_clock_id( 'Flux ocean to ice', flags=clock_flag_default, grain=CLOCK_ROUTINE )
-    elseif ( Ocean%is_ocean_pe ) then
-      call mpp_set_current_pelist(Ocean%pelist)
+    if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
+      allocate(slow_ice_ocean_pelist(size(slow_ice_ocean_pelist_in(:))))
+      slow_ice_ocean_pelist = slow_ice_ocean_pelist_in
+      call mpp_set_current_pelist(slow_ice_ocean_pelist)
       cplOcnClock = mpp_clock_id( 'Ice-ocean coupler', flags=clock_flag_default, grain=CLOCK_COMPONENT )
       fluxIceOceanClock = mpp_clock_id( 'Flux ice to ocean', flags=clock_flag_default, grain=CLOCK_ROUTINE )
       fluxOceanIceClock = mpp_clock_id( 'Flux ocean to ice', flags=clock_flag_default, grain=CLOCK_ROUTINE )
@@ -384,7 +385,7 @@ contains
     ! This call is dangerous, as it needs to be kept up to date with the pe_lists as
     ! set in coupler_main. - RWH
     if (Ice%shared_slow_fast_PEs) &
-      call mpp_set_current_pelist()
+      call mpp_set_current_pelist(slow_ice_ocean_pelist)
 
     !Balaji
     call mpp_clock_end(fluxIceOceanClock)
@@ -547,7 +548,7 @@ contains
     ! This call is dangerous, as it needs to be kept up to date with the pe_lists as
     ! set in coupler_main. - RWH
     if (Ice%shared_slow_fast_PEs) &
-      call mpp_set_current_pelist()
+      call mpp_set_current_pelist(slow_ice_ocean_pelist)
     !Balaji
     call mpp_clock_end(fluxOceanIceClock)
     call mpp_clock_end(cplOcnClock)
@@ -785,6 +786,5 @@ contains
 
 
   end subroutine check_flux_conservation
-
-
+  
 end module ice_ocean_flux_exchange_mod

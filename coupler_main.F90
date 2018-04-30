@@ -543,6 +543,7 @@ program coupler_main
   integer :: outunit
   integer :: ensemble_id = 1
   integer, allocatable :: ensemble_pelist(:, :)
+  integer, allocatable :: slow_ice_ocean_pelist(:)
   integer :: conc_nthreads = 1
   integer :: omp_get_thread_num, omp_get_num_threads
   real :: omp_get_wtime
@@ -580,11 +581,7 @@ program coupler_main
      newClock1 = mpp_clock_id( 'generate_sfc_xgrid' )
   endif
   if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-     if (slow_ice_with_ocean) then
-        call mpp_set_current_pelist(Ocean%pelist)
-     else
-        call mpp_set_current_pelist()
-     endif
+     call mpp_set_current_pelist(slow_ice_ocean_pelist)
      newClock2 = mpp_clock_id( 'flux_ocean_to_ice' )
      newClock3 = mpp_clock_id( 'flux_ice_to_ocean' )
   endif
@@ -656,7 +653,7 @@ program coupler_main
      ! concurrent mode to avoid multiple synchronizations within the main loop.
      if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
        ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
-       if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
+       call mpp_set_current_pelist(slow_ice_ocean_pelist)
        call mpp_clock_begin(newClock2)
        !Redistribute quantities from Ocean to Ocean_ice_boundary
        !Ice intent is In.
@@ -682,7 +679,7 @@ program coupler_main
     ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
     if (use_lag_fluxes) then
         if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-          if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
+          call mpp_set_current_pelist(slow_ice_ocean_pelist)
           call mpp_clock_begin(newClock3)
           !Redistribute Ice quantities to Ice_ocean_boundary
           !Ocean intent is in
@@ -951,14 +948,13 @@ program coupler_main
         call mpp_clock_end(newClock5)
     endif                     !Atm%pe block
 
+     call mpp_clock_begin(newClock5) !Ice is still using ATM pelist and need to be included in ATM clock
+                                        !ATM clock is used for load-balancing the coupled models 
      if (do_ice .and. Ice%pe) then
-        call mpp_clock_begin(newClock5) !Ice is still using ATM pelist and need to be included in ATM clock
-                                        !ATM clock is used for load-balancing the coupled models
 
         if (Ice%fast_ice_PE) then
-           call mpp_clock_begin(newClock10f)
            if (ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Ice%fast_pelist)
-
+           call mpp_clock_begin(newClock10f)
           ! These two calls occur on whichever PEs handle the fast ice processess.
            call ice_model_fast_cleanup(Ice)
 
@@ -992,9 +988,11 @@ program coupler_main
         endif
 
         if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
-
-        call mpp_clock_end(newClock5)
      endif  ! End of Ice%pe block
+
+     call mpp_set_current_pelist(Atm%pelist)
+     call mpp_clock_end(newClock5)
+
 
     ! Update Ice_ocean_boundary using the newly calculated fluxes.
     if (concurrent_ice .OR. .NOT.use_lag_fluxes) then
@@ -1328,6 +1326,19 @@ contains
       Ice%pelist(:) = Ice%fast_pelist(:)
       allocate( Ice%slow_pelist(ice_npes) )
       Ice%slow_pelist(:) = Ice%fast_pelist(:)
+      if(concurrent) then
+         allocate(slow_ice_ocean_pelist(ocean_npes+ice_npes))
+         slow_ice_ocean_pelist(1:ice_npes) = Ice%slow_pelist(:)
+         slow_ice_ocean_pelist(ice_npes+1:ice_npes+ocean_npes) = Ocean%pelist(:)
+      else
+         if(ice_npes .GE. ocean_npes) then
+            allocate(slow_ice_ocean_pelist(ice_npes))
+            slow_ice_ocean_pelist(:) = Ice%slow_pelist(:)
+         else
+            allocate(slow_ice_ocean_pelist(ocean_npes))
+            slow_ice_ocean_pelist(:) = Ocean%pelist(:)
+         endif
+      endif
     else
       ! Fast ice processes occur a subset of the atmospheric PEs, while
       ! slow ice processes occur on the ocean PEs.
@@ -1338,12 +1349,14 @@ contains
       ! Set Ice%pelist() to be the union of Ice%fast_pelist and Ice%slow_pelist.
       Ice%pelist(1:ice_npes) = Ice%fast_pelist(:)
       Ice%pelist(ice_npes+1:ice_npes+ocean_npes) = Ocean%pelist(:)
+      allocate(slow_ice_ocean_pelist(ocean_npes))
+      slow_ice_ocean_pelist(:) = Ocean%pelist(:)
     endif
 
     Ice%fast_ice_pe = ANY(Ice%fast_pelist(:) .EQ. mpp_pe())
     Ice%slow_ice_pe = ANY(Ice%slow_pelist(:) .EQ. mpp_pe())
     Ice%pe = Ice%fast_ice_pe .OR. Ice%slow_ice_pe
-
+    call mpp_declare_pelist(slow_ice_ocean_pelist)
     !Why is the following needed?
 !$  call omp_set_dynamic(.FALSE.)
 !$  call omp_set_nested(.TRUE.)
@@ -1823,7 +1836,7 @@ contains
     call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
          atmos_ice_boundary, land_ice_atmos_boundary, &
          land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
-         do_ocean, dt_atmos=dt_atmos, dt_cpld=dt_cpld)
+         do_ocean, slow_ice_ocean_pelist, dt_atmos=dt_atmos, dt_cpld=dt_cpld)
     call mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
     call mpp_clock_end(id_flux_exchange_init)
     call mpp_set_current_pelist()
