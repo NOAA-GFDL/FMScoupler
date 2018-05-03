@@ -948,8 +948,10 @@ program coupler_main
         call mpp_clock_end(newClock5)
     endif                     !Atm%pe block
 
+    if(Atm%pe) then
      call mpp_clock_begin(newClock5) !Ice is still using ATM pelist and need to be included in ATM clock
                                         !ATM clock is used for load-balancing the coupled models 
+    endif
      if (do_ice .and. Ice%pe) then
 
         if (Ice%fast_ice_PE) then
@@ -990,9 +992,10 @@ program coupler_main
         if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
      endif  ! End of Ice%pe block
 
-     call mpp_set_current_pelist(Atm%pelist)
-     call mpp_clock_end(newClock5)
-
+     if(Atm%pe) then
+        call mpp_set_current_pelist(Atm%pelist)
+        call mpp_clock_end(newClock5)
+     endif
 
     ! Update Ice_ocean_boundary using the newly calculated fluxes.
     if (concurrent_ice .OR. .NOT.use_lag_fluxes) then
