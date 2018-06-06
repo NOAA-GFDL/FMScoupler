@@ -223,7 +223,9 @@
 !!     <td>radiation_nthreads</td>
 !!     <td>integer</td>
 !!     <td>1</td>
-!!     <td>Number of threads to use for the concurrent radiation.</td>
+!!     <td>Number of threads to use for the concurrent radiation
+!!       when do_concurrent_radiation = .true., otherwise is equal
+!!       to atmos_nthreads </td>
 !!   </tr>
 !!   <tr>
 !!     <td>use_lag_fluxes</td>
