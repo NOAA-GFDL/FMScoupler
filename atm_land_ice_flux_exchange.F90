@@ -100,8 +100,10 @@ module atm_land_ice_flux_exchange_mod
   use land_model_mod,          only: Lnd_stock_pe
   use ocean_model_mod,         only: Ocean_stock_pe
   use atmos_model_mod,         only: Atm_stock_pe
-  use atmos_ocean_fluxes_mod,  only: atmos_ocean_fluxes_init, atmos_ocean_fluxes_calc
-  use atmos_ocean_fluxes_mod,  only: atmos_ocean_dep_fluxes_calc
+  use atmos_ocean_fluxes_mod,  only: atmos_ocean_fluxes_init
+  use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
+  use atmos_ocean_dep_fluxes_calc_mod, only: atmos_ocean_dep_fluxes_calc
+  
 #ifdef SCM
   ! option to override various surface boundary conditions for SCM
   use scm_forc_mod,            only: do_specified_flux, scm_surface_flux,             &

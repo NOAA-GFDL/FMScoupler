@@ -528,7 +528,8 @@ module flux_exchange_mod
   use fms_mod,                    only: field_exist, field_size, read_data, get_mosaic_tile_grid
   use data_override_mod,          only: data_override
   use coupler_types_mod,          only: coupler_1d_bc_type
-  use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init, atmos_ocean_fluxes_calc
+  use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init
+  use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
   use ocean_model_mod,            only: ocean_model_init_sfc, ocean_model_flux_init
   use atmos_tracer_driver_mod,    only: atmos_tracer_flux_init
   use stock_constants_mod,        only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
