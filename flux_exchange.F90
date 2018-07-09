@@ -528,7 +528,7 @@ module flux_exchange_mod
   use fms_mod,                    only: field_exist, field_size, read_data, get_mosaic_tile_grid
   use data_override_mod,          only: data_override
   use coupler_types_mod,          only: coupler_1d_bc_type
-  use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init
+  use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init, atmos_ocean_type_fluxes_init
   use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
   use ocean_model_mod,            only: ocean_model_init_sfc, ocean_model_flux_init
   use atmos_tracer_driver_mod,    only: atmos_tracer_flux_init
@@ -680,6 +680,7 @@ contains
     !       ocean_tracer_flux_init with the exception of atm_tr_index, which can only
     !       be meaningfully set from the atmospheric model (not from the field table)
     !
+    call atmos_ocean_type_fluxes_init()
     call ocean_model_flux_init(Ocean_state)
     call atmos_tracer_flux_init
     call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
