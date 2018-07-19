@@ -1,23 +1,24 @@
+!***********************************************************************
+!*                   GNU Lesser General Public License
+!*
+!* This file is part of the GFDL Flexible Modeling System (FMS) Coupler.
+!*
+!* FMS Coupler is free software: you can redistribute it and/or modify
+!* it under the terms of the GNU Lesser General Public License as
+!* published by the Free Software Foundation, either version 3 of the
+!* License, or (at your option) any later version.
+!*
+!* FMS Coupler is distributed in the hope that it will be useful, but
+!* WITHOUT ANY WARRANTY; without even the implied warranty of
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+!* General Public License for more details.
+!*
+!* You should have received a copy of the GNU Lesser General Public
+!* License along with FMS Coupler.
+!* If not, see <http://www.gnu.org/licenses/>.
+!***********************************************************************
 
 module flux_exchange_mod
-
-!-----------------------------------------------------------------------
-!                   GNU General Public License                        !                                                                      
-! This program is free software; you can redistribute it and/or modify it and  
-! are expected to follow the terms of the GNU General Public License  
-! as published by the Free Software Foundation; either version 2 of   
-! the License, or (at your option) any later version.                 
-!                                                                      
-! MOM is distributed in the hope that it will be useful, but WITHOUT    
-! ANY WARRANTY; without even the implied warranty of MERCHANTABILITY  
-! or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public    
-! License for more details.                                           
-!                                                                      
-! For the full text of the GNU General Public License,                
-! write to: Free Software Foundation, Inc.,                           
-!           675 Mass Ave, Cambridge, MA 02139, USA.                   
-! or see:   http://www.gnu.org/licenses/gpl.html                      
-!-----------------------------------------------------------------------
 
 !> \author Bruce Wyman <Bruce.Wyman@noaa.gov>
 !! \author V. Balaji <V.Balaji@noaa.gov>
@@ -85,9 +86,9 @@ module flux_exchange_mod
 !!
 !! -# Any field passed from one component to another may be "faked" to a
 !!    constant value, or to data acquired from a file, using the
-!!    data_override feature of FMS. The fields to override are runtime
-!!    configurable, using the text file <tt>data_table</tt> for input.
-!!    See the data_override_mod documentation for more details.
+!!   data_override feature of FMS. The fields to override are runtime
+!!   configurable, using the text file <tt>data_table</tt> for input.
+!!   See the data_override_mod documentation for more details.
 !!
 !!   We DO NOT RECOMMEND exercising the data override capabilities of
 !!   the FMS coupler until the user has acquired considerable
@@ -534,7 +535,8 @@ module flux_exchange_mod
   use fms_mod,                    only: field_exist, field_size, read_data, get_mosaic_tile_grid
   use data_override_mod,          only: data_override
   use coupler_types_mod,          only: coupler_1d_bc_type
-  use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init, atmos_ocean_fluxes_calc
+  use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init, atmos_ocean_type_fluxes_init
+  use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
   use ocean_model_mod,            only: ocean_model_init_sfc, ocean_model_flux_init
   use atmos_tracer_driver_mod,    only: atmos_tracer_flux_init
   use stock_constants_mod,        only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
@@ -687,7 +689,7 @@ contains
   subroutine flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
        atmos_ice_boundary, land_ice_atmos_boundary, &
        land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
-       do_ocean, dt_atmos, dt_cpld )
+       do_ocean, slow_ice_ocean_pelist, dt_atmos, dt_cpld )
 
     type(time_type),                   intent(in)     :: Time !< The model's current time
     type(atmos_data_type),             intent(inout)  :: Atm !< A derived data type to specify atmosphere boundary data
@@ -706,6 +708,7 @@ contains
     type(ice_ocean_boundary_type),     intent(inout) :: ice_ocean_boundary !< A derived data type to specify properties and fluxes passed from ice to ocean
     type(ocean_ice_boundary_type),     intent(inout) :: ocean_ice_boundary !< A derived data type to specify properties and fluxes passed from ocean to ice
     logical,                           intent(in)    :: do_ocean
+    integer, dimension(:),             intent(in)    :: slow_ice_ocean_pelist
     integer, optional,                 intent(in)    :: dt_atmos !< Atmosphere time step in seconds
     integer, optional,                 intent(in)    :: dt_cpld !< Coupled time step in seconds
 
@@ -731,9 +734,10 @@ contains
     !       be meaningfully set from the atmospheric model (not from the field table)
     !
     if (.not.gas_fluxes_initialized) then
-      call ocean_model_flux_init(Ocean_state)
+      call atmos_ocean_type_fluxes_init()
+    call ocean_model_flux_init(Ocean_state)
       call atmos_tracer_flux_init()
-      call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
+    call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
       gas_fluxes_initialized = .true.
     endif
 
@@ -797,7 +801,7 @@ contains
 
     call mpp_set_current_pelist()
     call ice_ocean_flux_exchange_init(Time, Ice, Ocean, Ocean_state,ice_ocean_boundary, ocean_ice_boundary, &
-         Dt_cpl, debug_stocks, do_area_weighted_flux, ex_gas_fields_ice, ex_gas_fluxes, do_ocean )
+         Dt_cpl, debug_stocks, do_area_weighted_flux, ex_gas_fields_ice, ex_gas_fluxes, do_ocean, slow_ice_ocean_pelist )
 
     !---- done ----
     do_init = .false.

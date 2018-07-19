@@ -1,21 +1,22 @@
-!-----------------------------------------------------------------------
-!                   GNU General Public License
-!
-! This program is free software; you can redistribute it and/or modify it and
-! are expected to follow the terms of the GNU General Public License
-! as published by the Free Software Foundation; either version 2 of
-! the License, or (at your option) any later version.
-!
-! MOM is distributed in the hope that it will be useful, but WITHOUT
-! ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
-! or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
-! License for more details.
-!
-! For the full text of the GNU General Public License,
-! write to: Free Software Foundation, Inc.,
-!           675 Mass Ave, Cambridge, MA 02139, USA.
-! or see:   http://www.gnu.org/licenses/gpl.html
-!-----------------------------------------------------------------------
+!***********************************************************************
+!*                   GNU Lesser General Public License
+!*
+!* This file is part of the GFDL Flexible Modeling System (FMS) Coupler.
+!*
+!* FMS Coupler is free software: you can redistribute it and/or modify
+!* it under the terms of the GNU Lesser General Public License as
+!* published by the Free Software Foundation, either version 3 of the
+!* License, or (at your option) any later version.
+!*
+!* FMS Coupler is distributed in the hope that it will be useful, but
+!* WITHOUT ANY WARRANTY; without even the implied warranty of
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+!* General Public License for more details.
+!*
+!* You should have received a copy of the GNU Lesser General Public
+!* License along with FMS Coupler.
+!* If not, see <http://www.gnu.org/licenses/>.
+!***********************************************************************
 !
 !> \mainpage
 !!
@@ -222,7 +223,9 @@
 !!     <td>radiation_nthreads</td>
 !!     <td>integer</td>
 !!     <td>1</td>
-!!     <td>Number of threads to use for the concurrent radiation.</td>
+!!     <td>Number of threads to use for the concurrent radiation
+!!       when do_concurrent_radiation = .true., otherwise is equal
+!!       to atmos_nthreads </td>
 !!   </tr>
 !!   <tr>
 !!     <td>use_lag_fluxes</td>
@@ -412,6 +415,7 @@ program coupler_main
   use mpp_domains_mod,         only: mpp_broadcast_domain
 
   use memutils_mod,            only: print_memuse_stats
+  use iso_fortran_env
 
   implicit none
 
@@ -556,12 +560,45 @@ program coupler_main
   integer :: outunit
   integer :: ensemble_id = 1
   integer, allocatable :: ensemble_pelist(:, :)
+  integer, allocatable :: slow_ice_ocean_pelist(:)
   integer :: conc_nthreads = 1
   integer :: omp_get_thread_num, omp_get_num_threads
   real :: omp_get_wtime
   real :: dsec, omp_sec(2)=0.0, imb_sec(2)=0.0
 
 !#######################################################################
+  INTEGER :: i, status, arg_count
+  CHARACTER(len=256) :: executable_name, arg, fredb_id
+
+#ifdef FREDB_ID
+#define xstr(s) str(s)
+#define str(s) #s
+  fredb_id = xstr(FREDB_ID)
+#else
+#warning "FREDB_ID not defined. Continuing as normal."
+  fredb_id = 'FREDB_ID was not defined (e.g. -DFREDB_ID=...) during preprocessing'
+#endif
+
+  arg_count = command_argument_count()
+  DO i=0, arg_count
+     CALL get_command_argument(i, arg, status=status)
+     if (status .ne. 0) then
+        write (error_unit,*) 'get_command_argument failed: status = ', status, ' arg = ', i
+        stop 1
+     end if
+
+     if (i .eq. 0) then
+       executable_name = arg
+     else if (arg == '--fredb_id') then
+        write (output_unit,*) TRIM(fredb_id)
+        stop
+     end if
+  END DO
+
+  if (arg_count .ge. 1) then
+    write (error_unit,*) 'Usage: '//TRIM(executable_name)//' [--fredb_id]'
+    stop 1
+  end if
 
   call mpp_init()
 !these clocks are on the global pelist
@@ -593,11 +630,7 @@ program coupler_main
     newClock1 = mpp_clock_id( 'generate_sfc_xgrid' )
   endif
   if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-    if (slow_ice_with_ocean) then
-      call mpp_set_current_pelist(Ocean%pelist)
-    else
-      call mpp_set_current_pelist()
-    endif
+     call mpp_set_current_pelist(slow_ice_ocean_pelist)
     newClock2 = mpp_clock_id( 'flux_ocean_to_ice' )
     newClock3 = mpp_clock_id( 'flux_ice_to_ocean' )
   endif
@@ -671,8 +704,11 @@ program coupler_main
     ! With concurrent_ice, these only occur on the ocean PEs.
     if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
       ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
-      if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
+       call mpp_set_current_pelist(slow_ice_ocean_pelist)
       call mpp_clock_begin(newClock2)
+       !Redistribute quantities from Ocean to Ocean_ice_boundary
+       !Ice intent is In.
+       !Ice is used only for accessing Ice%area and knowing if we are on an Ice pe
       call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
       Time_flux_ocean_to_ice = Time
       call mpp_clock_end(newClock2)
@@ -802,7 +838,7 @@ program coupler_main
 !$OMP&      SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&      SHARED(Ocean_ice_boundary) &
 !$OMP&      SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&      SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
+!$OMP&      SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl) 
 !$        call omp_set_num_threads(atmos_nthreads)
 !$        dsec=omp_get_wtime()
           if (do_concurrent_radiation) call mpp_clock_begin(newClocki)
@@ -964,12 +1000,15 @@ program coupler_main
       call mpp_clock_end(newClock5)
     endif                     !Atm%pe block
 
+    if(Atm%pe) then
+     call mpp_clock_begin(newClock5) !Ice is still using ATM pelist and need to be included in ATM clock
+                                        !ATM clock is used for load-balancing the coupled models 
+    endif
     if (do_ice .and. Ice%pe) then
 
       if (Ice%fast_ice_PE) then
+           if (ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Ice%fast_pelist)
         call mpp_clock_begin(newClock10f)
-        if (ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Ice%fast_pelist)
-
        ! These two calls occur on whichever PEs handle the fast ice processess.
         call ice_model_fast_cleanup(Ice)
 
@@ -1001,8 +1040,12 @@ program coupler_main
       endif
 
       if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
+     endif  ! End of Ice%pe block
 
-    endif  ! End of Ice%pe block
+     if(Atm%pe) then
+        call mpp_set_current_pelist(Atm%pelist)
+        call mpp_clock_end(newClock5)
+     endif
 
     ! Update Ice_ocean_boundary using the newly calculated fluxes.
     if ((concurrent_ice .OR. .NOT.use_lag_fluxes) .and. .not.combined_ice_and_ocean) then
@@ -1031,12 +1074,12 @@ program coupler_main
         call update_slow_ice_and_ocean(ice_ocean_driver_CS, Ice, Ocean_state, Ocean, &
                       Ice_ocean_boundary, Time_ocean, Time_step_cpld )
       else
-        if (do_chksum) call ocean_chksum('update_ocean_model-', nc, Ocean, Ice_ocean_boundary)
-        ! update_ocean_model since fluxes don't change here
+      if (do_chksum) call ocean_chksum('update_ocean_model-', nc, Ocean, Ice_ocean_boundary)
+      ! update_ocean_model since fluxes don't change here
 
-        if (do_ocean) &
-          call update_ocean_model( Ice_ocean_boundary, Ocean_state, Ocean, &
-                                   Time_ocean, Time_step_cpld )
+      if (do_ocean) &
+        call update_ocean_model( Ice_ocean_boundary, Ocean_state,  Ocean, &
+                                 Time_ocean, Time_step_cpld )
       endif
 
       if (do_chksum) call ocean_chksum('update_ocean_model+', nc, Ocean, Ice_ocean_boundary)
@@ -1352,6 +1395,19 @@ contains
       Ice%pelist(:) = Ice%fast_pelist(:)
       allocate( Ice%slow_pelist(ice_npes) )
       Ice%slow_pelist(:) = Ice%fast_pelist(:)
+      if(concurrent) then
+         allocate(slow_ice_ocean_pelist(ocean_npes+ice_npes))
+         slow_ice_ocean_pelist(1:ice_npes) = Ice%slow_pelist(:)
+         slow_ice_ocean_pelist(ice_npes+1:ice_npes+ocean_npes) = Ocean%pelist(:)
+    else
+         if(ice_npes .GE. ocean_npes) then
+            allocate(slow_ice_ocean_pelist(ice_npes))
+            slow_ice_ocean_pelist(:) = Ice%slow_pelist(:)
+         else
+            allocate(slow_ice_ocean_pelist(ocean_npes))
+            slow_ice_ocean_pelist(:) = Ocean%pelist(:)
+         endif
+      endif
     else
       ! Fast ice processes occur a subset of the atmospheric PEs, while
       ! slow ice processes occur on the ocean PEs.
@@ -1361,12 +1417,14 @@ contains
       ! Set Ice%pelist() to be the union of Ice%fast_pelist and Ice%slow_pelist.
       Ice%pelist(1:ice_npes) = Ice%fast_pelist(:)
       Ice%pelist(ice_npes+1:ice_npes+ocean_npes) = Ocean%pelist(:)
+      allocate(slow_ice_ocean_pelist(ocean_npes))
+      slow_ice_ocean_pelist(:) = Ocean%pelist(:)
     endif
 
     Ice%fast_ice_pe = ANY(Ice%fast_pelist(:) .EQ. mpp_pe())
     Ice%slow_ice_pe = ANY(Ice%slow_pelist(:) .EQ. mpp_pe())
     Ice%pe = Ice%fast_ice_pe .OR. Ice%slow_ice_pe
-
+    call mpp_declare_pelist(slow_ice_ocean_pelist)
     !Why is the following needed?
 !$  call omp_set_dynamic(.FALSE.)
 !$  call omp_set_nested(.TRUE.)
@@ -1760,7 +1818,7 @@ contains
       endif
       call mpp_clock_begin(id_ice_model_init)
       call ice_model_init(Ice, Time_init, Time, Time_step_atmos, &
-                          Time_step_cpld, Verona_coupler=.false., &
+                           Time_step_cpld, Verona_coupler=.false., &
                           concurrent_ice=concurrent_ice, &
                           gas_fluxes=gas_fluxes, gas_fields_ocn=gas_fields_ocn )
       call mpp_clock_end(id_ice_model_init)
@@ -1798,7 +1856,7 @@ contains
 !$      call omp_set_num_threads(ocean_nthreads)
         call mpp_set_current_pelist( Ocean%pelist )
 !$      base_cpu = get_cpu_affinity()
-!$OMP PARALLEL private(adder)
+!$OMP PARALLEL private(adder)    
 !$      if (use_hyper_thread) then
 !$        if (mod(omp_get_thread_num(),2) == 0) then
 !$          adder = omp_get_thread_num()/2
@@ -1813,7 +1871,7 @@ contains
 !$        write(6,*) " ocean  ", get_cpu_affinity(), adder, omp_get_thread_num()
 !$        call flush(6)
 !$      endif
-!$OMP END PARALLEL
+!$OMP END PARALLEL  
       else
         ocean_nthreads = atmos_nthreads
 !$      call omp_set_num_threads(ocean_nthreads)
@@ -1864,7 +1922,7 @@ contains
     call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
              atmos_ice_boundary, land_ice_atmos_boundary, &
              land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
-             do_ocean, dt_atmos=dt_atmos, dt_cpld=dt_cpld)
+         do_ocean, slow_ice_ocean_pelist, dt_atmos=dt_atmos, dt_cpld=dt_cpld)
     call mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
     call mpp_clock_end(id_flux_exchange_init)
     call mpp_set_current_pelist()
@@ -1887,15 +1945,15 @@ contains
                num_ice_bc_restart, Ice%slow_domain_NH, ocean_restart=.false.)
 
       ! Restore the fields from the restart files
-      do l = 1, num_ice_bc_restart
+        do l = 1, num_ice_bc_restart
         call restore_state(Ice_bc_restart(l), directory='INPUT', &
                            nonfatal_missing_files=.true.)
-      enddo
+        enddo
 
       ! Check whether the restarts were read successfully.
       call coupler_type_restore_state(Ice%ocean_fluxes, directory='INPUT', &
                                       test_by_field=.true.)
-    endif
+        endif
 
     if ( Ocean%is_ocean_pe ) then
       call mpp_set_current_pelist(Ocean%pelist)
@@ -1904,15 +1962,15 @@ contains
                num_ocn_bc_restart, Ocean%domain, ocean_restart=.true.)
 
       ! Restore the fields from the restart files
-      do l = 1, num_ocn_bc_restart
+        do l = 1, num_ocn_bc_restart
         call restore_state(Ocn_bc_restart(l), directory='INPUT', &
                            nonfatal_missing_files=.true.)
-      enddo
+        enddo
 
       ! Check whether the restarts were read successfully.
       call coupler_type_restore_state(Ocean%fields, directory='INPUT', &
                                       test_by_field=.true.)
-    endif
+        endif
 
     call mpp_set_current_pelist()
 
