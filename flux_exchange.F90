@@ -660,6 +660,7 @@ contains
       !! that impact the fluxes.
 
     if (.not.gas_fluxes_initialized) then
+      call atmos_ocean_type_fluxes_init( )
       call ocean_model_flux_init( )
       call atmos_tracer_flux_init( )
       call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
@@ -733,13 +734,6 @@ contains
     !       ocean_tracer_flux_init with the exception of atm_tr_index, which can only
     !       be meaningfully set from the atmospheric model (not from the field table)
     !
-    if (.not.gas_fluxes_initialized) then
-      call atmos_ocean_type_fluxes_init()
-    call ocean_model_flux_init(Ocean_state)
-      call atmos_tracer_flux_init()
-    call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
-      gas_fluxes_initialized = .true.
-    endif
 
     call sat_vapor_pres_init()
 
