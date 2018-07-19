@@ -1718,33 +1718,18 @@ contains
       write(errunit,*) 'Starting to initialize tracer_manager at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
-    call tracer_manager_init
+    call tracer_manager_init()
+!   Initialize the gas-exchange fluxes so this information can be made
+!   available to the individual components.
+    call gas_exchange_init(gas_fields_atm, gas_fields_ocn, gas_fluxes)
+    call coupler_types_init()
     if (mpp_pe().EQ.mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Finished initializing tracer_manager at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
-!
-!       Initialize the coupler types
-!
 
-    if (mpp_pe().EQ.mpp_root_pe()) then
-      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-      write(errunit,*) 'Starting to initialize coupler_types at '&
-                       //trim(walldate)//' '//trim(walltime)
-    endif
-    call coupler_types_init
-    if (mpp_pe().EQ.mpp_root_pe()) then
-      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-      write(errunit,*) 'Finished initializing coupler_types at '&
-                       //trim(walldate)//' '//trim(walltime)
-    endif
 
-!   Initialize the gas-exchange fluxes so this information can be made
-!   available to the individual components.
-    call mpp_clock_begin(id_flux_exchange_init)
-    call gas_exchange_init(gas_fields_atm, gas_fields_ocn, gas_fluxes)
-    call mpp_clock_end(id_flux_exchange_init)
 
 !-----------------------------------------------------------------------
 !------ initialize component models ------
