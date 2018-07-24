@@ -1054,7 +1054,8 @@ program coupler_main
         call mpp_set_current_pelist()
 
       if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-        if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
+        ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
+        call mpp_set_current_pelist(slow_ice_ocean_pelist)
         call mpp_clock_begin(newClock3)
         call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
         Time_flux_ice_to_ocean = Time
