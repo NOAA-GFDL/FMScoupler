@@ -67,7 +67,7 @@ module flux_exchange_mod
 !!    that update the surface temperature must be called on the atmospheric time step
 !!
 !! -# The surface fluxes of all other tracers and of momentum are assumed to be explicit
-!!    functions of all surface parameters.
+!!    functions of all surface parameters
 !!
 !! -# While no explicit reference is made within this module to the implicit treatment
 !!    of vertical diffusion in the atmosphere and in the land or sea-ice models, the
@@ -75,14 +75,7 @@ module flux_exchange_mod
 !!    sides of the surface interface.
 !!
 !! -# Due to #5, the diffusion part of the land and ice models must be called on the
-!!    atmospheric time step, although in the case of concurrent-ice coupling, this
-!!    version of the sea-ice that is called by the atmosphere may later be replaced
-!!    by a version of the ice that is tightly coupled with the ocean.
-!!
-!! -# The fluxes of additional tracers related to biological quantities or the
-!!    air-sea exchange of gases are accomplished by specifying fields that will
-!!    be passed between components via the "field_table" and the use of named
-!!    fields in the coupler_..._bc_types.
+!!    atmospheric time step.
 !!
 !! -# Any field passed from one component to another may be "faked" to a
 !!    constant value, or to data acquired from a file, using the
@@ -499,7 +492,7 @@ module flux_exchange_mod
        mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
        CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
        input_nml_file
-                    
+
   use mpp_domains_mod, only: mpp_get_compute_domain, mpp_get_compute_domains, &
                              mpp_global_sum, mpp_redistribute, operator(.EQ.)
   use mpp_domains_mod, only: mpp_get_global_domain, mpp_get_data_domain
@@ -551,14 +544,13 @@ module flux_exchange_mod
   use atm_land_ice_flux_exchange_mod, only: flux_up_to_atmos, atm_stock_integrate, send_ice_mask_sic
   use atm_land_ice_flux_exchange_mod, only: flux_atmos_to_ocean, flux_ex_arrays_dealloc
   use land_ice_flux_exchange_mod,     only: flux_land_to_ice, land_ice_flux_exchange_init
-  use ice_ocean_flux_exchange_mod,    only: ice_ocean_flux_exchange_init
-  use ice_ocean_flux_exchange_mod,    only: flux_ocean_to_ice, flux_ocean_to_ice_finish
-  use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean, flux_ice_to_ocean_finish
-  use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
+  use ice_ocean_flux_exchange_mod,    only: ice_ocean_flux_exchange_init, flux_ocean_to_ice
+  use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
 
-  implicit none ; private
+  implicit none
+private
 
-  public :: flux_exchange_init, gas_exchange_init, &
+  public :: flux_exchange_init,   &
      sfc_boundary_layer,   &
      generate_sfc_xgrid,   &
      flux_down_from_atmos, &
@@ -567,9 +559,7 @@ module flux_exchange_mod
      flux_atmos_to_ocean,  &
      flux_ex_arrays_dealloc,&
      flux_ice_to_ocean,    &
-     flux_ice_to_ocean_finish, &
      flux_ocean_to_ice,    &
-     flux_ocean_to_ice_finish, &
      flux_check_stocks,    &
      flux_init_stocks,     &
      flux_ice_to_ocean_stocks,&
@@ -603,7 +593,7 @@ module flux_exchange_mod
 
   logical :: partition_fprec_from_lprec = .FALSE.  !< option for ATM override experiments where liquid+frozen precip are combined
   !! This option will convert liquid precip to snow when t_ref is less than
-  !! tfreeze parameter                
+  !! tfreeze parameter
   real, parameter    :: tfreeze = 273.15
   logical :: scale_precip_2d = .false.
 
@@ -611,19 +601,12 @@ module flux_exchange_mod
        & do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks,&
        & partition_fprec_from_lprec, scale_precip_2d
 
-  logical :: gas_fluxes_initialized = .false.  ! This is set to true when the following types are initialized.
-  type(coupler_1d_bc_type), target :: ex_gas_fields_atm  ! gas fields in atm
-      !< Structure containing atmospheric surfacevariables that are used in the
-      !! calculation of the atmosphere-ocean gas fluxes, as well as parameters
-      !! regulating these fluxes.
-  type(coupler_1d_bc_type), target :: ex_gas_fields_ice  ! gas fields atop the ice or ocean
-      !< Structure containing ice-top and ocean surface variables that are used
-      !! in the calculation of the atmosphere-ocean gas fluxes, as well as parameters
-      !! regulating these fluxes.
-  type(coupler_1d_bc_type), target :: ex_gas_fluxes      ! gas fluxes between the atm and ocean
-      !< A structure for exchanging gas or tracer fluxes between the atmosphere and ocean,
-      !! defined by the field table, as well as a place holder of intermediate calculations,
-      !! such as piston velocities, and parameters that impact the fluxes.
+  type(coupler_1d_bc_type), save        :: ex_gas_fields_atm  !< gas fields in atm
+  !< Place holder for various atmospheric fields.
+  type(coupler_1d_bc_type), save        :: ex_gas_fields_ice  ! gas fields on ice
+  type(coupler_1d_bc_type), save        :: ex_gas_fluxes      ! gas flux
+  !< Place holder of intermediate calculations, such as
+  !< piston velocities etc.
 
   integer :: ni_atm, nj_atm !< to do atmos diagnostic from flux_ocean_to_ice
   real, dimension(3) :: ccc !< for conservation checks
@@ -635,43 +618,6 @@ module flux_exchange_mod
   real    :: ATM_PRECIP_NEW
 
 contains
-
-  !#######################################################################
-  !> \brief Gas and tracer exchange initialization routine.
-  !!
-  !! This routine causes the field table to be read to determine which fields
-  !! will be needed for the exchanges of gasses and tracers between the
-  !! atmosphere and ocean.  The metadata for these fields are stored in the
-  !! ex_gas_fluxes and ex_gas_fields arrays, although the data is not allocated yet.
-  !! This is intended to be called (optionally) prior to flux_exchange_init.
-  subroutine gas_exchange_init (gas_fields_atm, gas_fields_ice, gas_fluxes)
-    type(coupler_1d_bc_type), optional, pointer :: gas_fields_atm 
-      !< Pointer to a structure containing atmospheric surface variables that
-      !! are used in the calculation of the atmosphere-ocean gas fluxes, as well
-      !! as parameters regulating these fluxes.
-    type(coupler_1d_bc_type), optional, pointer :: gas_fields_ice
-      !< Pointer to a structure containing ice-top and ocean surface variables
-      !! that are used in the calculation of the atmosphere-ocean gas fluxes,
-      !! as well as parameters regulating these fluxes.
-    type(coupler_1d_bc_type), optional, pointer :: gas_fluxes
-      !< Pointer to a s structure for exchanging gas or tracer fluxes between the
-      !! atmosphere and ocean, defined by the field table, as well as a place holder
-      !! of intermediate calculations, such as piston velocities, and parameters
-      !! that impact the fluxes.
-
-    if (.not.gas_fluxes_initialized) then
-      call atmos_ocean_type_fluxes_init( )
-      call ocean_model_flux_init( )
-      call atmos_tracer_flux_init( )
-      call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
-      gas_fluxes_initialized = .true.
-    endif
-
-    if (present(gas_fields_atm)) gas_fields_atm => ex_gas_fields_atm
-    if (present(gas_fields_ice)) gas_fields_ice => ex_gas_fields_ice
-    if (present(gas_fluxes)) gas_fluxes => ex_gas_fluxes
-
-  end subroutine gas_exchange_init
 
   !#######################################################################
   !> \brief Initialization routine.
@@ -698,7 +644,7 @@ contains
     type(ice_data_type),               intent(inout)  :: Ice !< A derived data type to specify ice boundary data
     type(ocean_public_type),           intent(inout)  :: Ocean !< A derived data type to specify ocean boundary data
     type(ocean_state_type),            pointer        :: Ocean_state
-    ! All intent(OUT) derived types with pointer components must be 
+    ! All intent(OUT) derived types with pointer components must be
     ! COMPLETELY allocated here and in subroutines called from here;
     ! NO pointer components should have been allocated before entry if the
     ! derived type has intent(OUT) otherwise they may be lost.
@@ -730,11 +676,14 @@ contains
     !       ocean_tracer_flux_init is called first since it has the meaningful value to set
     !       for the input/output file names for the tracer flux values used in restarts. These
     !       values could be set in the field table, and this ordering allows this.
-    !       atmos_tracer_flux_init is called last since it will use the values set in 
+    !       atmos_tracer_flux_init is called last since it will use the values set in
     !       ocean_tracer_flux_init with the exception of atm_tr_index, which can only
     !       be meaningfully set from the atmospheric model (not from the field table)
     !
-
+    call atmos_ocean_type_fluxes_init()
+    call ocean_model_flux_init(Ocean_state)
+    call atmos_tracer_flux_init
+    call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
     call sat_vapor_pres_init()
 
     nthreads = 1
@@ -824,12 +773,12 @@ contains
 
        if(present(Atm)) then
           ref_value = 0.0
-          call Atm_stock_pe(Atm, index=i, value=ref_value)        
+          call Atm_stock_pe(Atm, index=i, value=ref_value)
           if(i==ISTOCK_WATER .and. Atm%pe ) then
              ! decrease the Atm stock by the precip adjustment to reflect the fact that
              ! after an update_atmos_up call, the precip will be that of the future time step.
-             ! Thus, the stock call will represent the (explicit ) precip at 
-             ! the beginning of the preceding time step, and the (implicit) evap at the 
+             ! Thus, the stock call will represent the (explicit ) precip at
+             ! the beginning of the preceding time step, and the (implicit) evap at the
              ! end of the preceding time step
              call atm_stock_integrate(Atm, ATM_PRECIP_NEW)
              ref_value = ref_value + ATM_PRECIP_NEW
@@ -875,13 +824,13 @@ contains
     type(ice_data_type)          :: Ice
     type(ocean_state_type), pointer :: Ocn_state
 
-    integer :: i
+    integer i
 
     stocks_file=stdout()
-    ! Divert output file for stocks if requested 
+    ! Divert output file for stocks if requested
     if(mpp_pe()==mpp_root_pe() .and. divert_stocks_report) then
        call mpp_open( stocks_file, 'stocks.out', action=MPP_OVERWR, threading=MPP_SINGLE, &
-            fileset=MPP_SINGLE, nohdrs=.TRUE. )       
+            fileset=MPP_SINGLE, nohdrs=.TRUE. )
     endif
 
     ! Initialize stock values
@@ -907,7 +856,6 @@ contains
   subroutine check_atm_grid(Atm, grid_file)
     type(atmos_data_type),    intent(in) :: Atm
     character(len=*),         intent(in) :: grid_file
-
     integer        :: isg, ieg, jsg, jeg
     integer        :: isc, iec, jsc, jec
     integer        :: isd, ied, jsd, jed
@@ -919,6 +867,7 @@ contains
     real, dimension(:,:), allocatable :: tmpx, tmpy
     real, dimension(:),   allocatable :: atmlonb, atmlatb
     character(len=256)              :: atm_mosaic_file, tile_file
+
 
     call mpp_get_global_domain(Atm%domain, isg, ieg, jsg, jeg, xsize=nxg, ysize=nyg)
     call mpp_get_compute_domain(Atm%domain, isc, iec, jsc, jec)
@@ -1024,6 +973,8 @@ contains
     else
        call mpp_error(FATAL, 'atm_land_ice_flux_exchange_mod: both AREA_ATMxOCN and ocn_mosaic_file does not exist in '//trim(grid_file))
     end if
+
+
 
   end subroutine check_atm_grid
 
