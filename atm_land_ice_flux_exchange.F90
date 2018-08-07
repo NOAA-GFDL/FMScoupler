@@ -75,6 +75,9 @@ module atm_land_ice_flux_exchange_mod
   use fms_mod,            only: open_namelist_file, write_version_number
   use data_override_mod,  only: data_override
   use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10, ind_flux, ind_flux0
+  use coupler_types_mod,  only: coupler_type_initialized, coupler_type_spawn
+  use coupler_types_mod,  only: coupler_type_send_data, coupler_type_set_diags
+  use coupler_types_mod,  only: coupler_type_data_override
   use ocean_model_mod,    only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
 #ifdef use_AM3_physics
   use atmos_tracer_driver_mod, only: atmos_tracer_flux_init
@@ -579,15 +582,19 @@ contains
 
     !--- Ice%ocean_fields and Ice%ocean_fluxes_top will not be passed to ocean, so these two
     !--- coupler_type_copy calls are moved from ice_ocean_flux_init to here.
-    call coupler_type_copy(ex_gas_fields_ice, Ice%ocean_fields, is, ie, js, je, kd,     &
-         'ice_flux', Ice%axes, Time, suffix = '_ice')
+    if (.not.coupler_type_initialized(Ice%ocean_fields)) &
+      call coupler_type_spawn(ex_gas_fields_ice, Ice%ocean_fields, (/is,is,ie,ie/), &
+                              (/js,js,je,je/), (/1, kd/), suffix = '_ice')
+    call coupler_type_set_diags(Ice%ocean_fields, 'ice_flux', Ice%axes, Time)
 
     ! This call sets up a structure that is private to the ice model, and it
     ! does not belong here.  This line should be eliminated once an update
-    ! to the FMS coupler_types code is made available that overloads the
+    ! to the FMS coupler_types code is made available that overloads the 
     ! subroutine coupler_type_copy to use 2d and 3d coupler type sources. -RWH
-    call coupler_type_copy(ex_gas_fluxes, Ice%ocean_fluxes_top, is, ie, js, je, kd,     &
-         'ice_flux', Ice%axes, Time, suffix = '_ice_top')
+    if (.not.coupler_type_initialized(Ice%ocean_fluxes_top)) &
+      call coupler_type_spawn(ex_gas_fields_ice, Ice%ocean_fluxes_top, (/is,is,ie,ie/), &
+                              (/js,js,je,je/), (/1, kd/), suffix = '_ice_top')
+    call coupler_type_set_diags(Ice%ocean_fluxes_top, 'ice_flux', Ice%axes, Time)
 
     !allocate land_ice_atmos_boundary
     call mpp_get_compute_domain( Atm%domain, is, ie, js, je )
@@ -959,6 +966,9 @@ contains
     call data_override ('ICE', 'albedo_nir_dif', Ice%albedo_nir_dif, Time)
     call data_override ('ICE', 'u_surf',     Ice%u_surf,      Time)
     call data_override ('ICE', 'v_surf',     Ice%v_surf,      Time)
+    call coupler_type_data_override('ICE', Ice%ocean_fields, Time)
+    call coupler_type_send_data(Ice%ocean_fields, Time)
+
     call data_override_land ('LND', 't_surf',     Land%t_surf,     Time)
     call data_override_land ('LND', 't_ca',       Land%t_ca,       Time)
     call data_override_land ('LND', 'rough_mom',  Land%rough_mom,  Time)
@@ -974,14 +984,6 @@ contains
        call data_override_land('LND', trim(tr_name)//'_surf', Land%tr(:,:,:,tr), Time)
 #endif
     enddo
-    do n = 1, ice%ocean_fields%num_bcs  !{
-       do m = 1, ice%ocean_fields%bc(n)%num_fields  !{
-          call data_override('ICE', ice%ocean_fields%bc(n)%field(m)%name, ice%ocean_fields%bc(n)%field(m)%values, Time)
-          if ( Ice%ocean_fields%bc(n)%field(m)%id_diag > 0 ) then  !{
-             used = send_data(Ice%ocean_fields%bc(n)%field(m)%id_diag, Ice%ocean_fields%bc(n)%field(m)%values, Time )
-          endif  !}
-       enddo  !} m
-    enddo  !} n
     call data_override_land ('LND', 'albedo_vis_dir', Land%albedo_vis_dir,Time)
     call data_override_land ('LND', 'albedo_nir_dir', Land%albedo_nir_dir,Time)
     call data_override_land ('LND', 'albedo_vis_dif', Land%albedo_vis_dif,Time)
@@ -1169,7 +1171,7 @@ contains
             ex_rough_mom, ex_rough_heat, ex_rough_moist, ex_rough_scale,               &
             ex_gust,                                                                   &
             ex_flux_t, ex_flux_tr(:,isphum), ex_flux_lw, ex_flux_u, ex_flux_v,         &
-            ex_cd_m,   ex_cd_t, ex_cd_q,                                     &
+            ex_cd_m,   ex_cd_t, ex_cd_q,                                               &
             ex_wind,   ex_u_star, ex_b_star, ex_q_star,                                &
             ex_dhdt_surf, ex_dedt_surf, ex_dfdtr_surf(:,isphum),  ex_drdt_surf,        &
             ex_dhdt_atm,  ex_dfdtr_atm(:,isphum),  ex_dtaudu_atm, ex_dtaudv_atm,       &
@@ -1184,13 +1186,7 @@ contains
     zrefm = 10.0
     zrefh = z_ref_heat
     !      ---- optimize calculation ----
-    !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end, zrefm, zrefh, ex_z_atm, &
-    !$OMP                                  ex_rough_mom,ex_rough_heat,ex_rough_moist,ex_u_star,      &
-    !$OMP                                  ex_b_star,ex_q_star,ex_del_m,ex_del_h,ex_del_q,ex_avail,  &
-    !$OMP                                  ex_u10,ex_ref_u,ex_ref_v,ex_gas_fields_atm,ex_u_surf,     &
-    !$OMP                                  ex_v_surf,ex_u_atm,ex_v_atm,atm,ind_u10,n_exch_tr,isphum, &
-    !$OMP                                  ex_dfdtr_atm,ex_dfdtr_surf,ex_flux_tr,ex_tr_surf,ex_tr_atm) &
-    !$OMP                          private(is,ie)
+    !$OMP parallel do default(shared) private(is,ie)
     do l = 1, my_nblocks
        is=block_start(l)
        ie=block_end(l)
@@ -1253,10 +1249,7 @@ contains
     ! looking into in the future.
     ! ex_flux_tr(:,itracer) = ex_gas_fluxes%bc(itracer_ocn)%field(ind_flux)%values(:)
     ! where(ex_seawater.gt.0) ex_flux_tr(:,itracer) = F_ocn
-    !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_gas_fluxes,  &
-    !$OMP                                  tr_table_map,ex_land,ex_dfdtr_atm,ex_dfdtr_surf, &
-    !$OMP                                  ex_seawater,ex_flux_tr,ind_flux,isphum,ex_tr_atm)&
-    !$OMP                          private(is,ie,m,tr_units,tr_name)
+    !$OMP parallel do default(shared) private(is,ie,m,tr_units,tr_name)
     do l = 1, my_nblocks
        is=block_start(l)
        ie=block_end(l)
@@ -1275,8 +1268,8 @@ contains
                       ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(ind_flux)%values(i) * WTMAIR*1.0e-3 &
                            / (1.-ex_tr_atm(i,isphum))
                    else
-                      ! jgj: convert to kg co2/m2/sec for atm
-                      ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(ind_flux)%values(i) * ex_gas_fluxes%bc(n)%mol_wt * 1.0e-03
+                   ! jgj: convert to kg co2/m2/sec for atm
+                   ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(ind_flux)%values(i) * ex_gas_fluxes%bc(n)%mol_wt * 1.0e-03
                    end if
                 else
                    ex_flux_tr(i,m) = 0.0 ! pure ice exchange cell
@@ -1712,7 +1705,7 @@ contains
        call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
        used = send_data ( id_rh_ref, diag_atm, Time )
     endif
-
+ 
     if(id_rh_ref_cmip > 0 .or. id_hurs > 0 .or. id_rhs > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref2, xmap_sfc)
        if (id_rh_ref_cmip > 0) used = send_data ( id_rh_ref_cmip, diag_atm, Time )
@@ -2434,15 +2427,9 @@ contains
     call data_override('ICE', 'coszen', Ice_boundary%coszen,  Time)
     call data_override('ICE', 'p',      Ice_boundary%p,       Time)
 
-    do n = 1, Ice_boundary%fluxes%num_bcs  !{
-       do m = 1, Ice_boundary%fluxes%bc(n)%num_fields  !{
-          call data_override('ICE', Ice_boundary%fluxes%bc(n)%field(m)%name,     &
-               Ice_boundary%fluxes%bc(n)%field(m)%values, Time)
-          if ( Ice_boundary%fluxes%bc(n)%field(m)%id_diag > 0 ) then  !{
-             used = send_data(Ice_boundary%fluxes%bc(n)%field(m)%id_diag, Ice_boundary%fluxes%bc(n)%field(m)%values, Time )
-          endif  !}
-       enddo  !} m
-    enddo  !} n
+    call coupler_type_data_override('ICE', Ice_boundary%fluxes, Time)
+
+    call coupler_type_send_data(Ice_boundary%fluxes, Time)
 
     ! compute stock changes
 
@@ -2864,12 +2851,12 @@ contains
     !          used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
     ! 2017/08/08 jgj - replaced 2 lines above by the following
           if (id_tr_mol_flux(tr) > 0 .and. lowercase(trim(tr_name))=='co2') then
-              used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
+               used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
     !sometimes in 2018 f1p for vmr tracers
            elseif (id_tr_mol_flux(tr) > 0 .and. lowercase(trim(tr_units)).eq."vmr") then
               call get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
               used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMAIR, Time)
-          endif
+       endif
        endif
     enddo
 
@@ -3078,14 +3065,7 @@ contains
 
   call atmos_ocean_dep_fluxes_calc(ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes, ex_seawater)
 
-  !Niki: The following loop should be on Ice_boundary%fluxes but the problem is
-  !      Ice_boundary%fluxes%flux_type is not set. Perhaps the subroutine
-  !      call coupler_type_copy(ex_gas_fluxes, atmos_ice_boundary%fluxes,...)
-  !      does not copy the strings?
   do n = 1, Ice_boundary%fluxes%num_bcs  !{
-     Ice_boundary%fluxes%bc(n)%flux_type = trim(ex_gas_fluxes%bc(n)%flux_type)
-     Ice_boundary%fluxes%bc(n)%implementation = trim(ex_gas_fluxes%bc(n)%implementation)
-
      if(Ice_boundary%fluxes%bc(n)%flux_type  .eq. 'air_sea_deposition') then
         do m = 1, Ice_boundary%fluxes%bc(n)%num_fields  !{
            call get_from_xgrid (Ice_boundary%fluxes%bc(n)%field(m)%values, 'OCN',  &
