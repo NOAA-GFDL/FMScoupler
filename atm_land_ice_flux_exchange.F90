@@ -40,7 +40,7 @@ module atm_land_ice_flux_exchange_mod
   use    land_model_mod,  only: land_data_type, atmos_land_boundary_type
 #ifndef _USE_LEGACY_LAND_
   use    land_model_mod,  only: set_default_diag_filter, register_tiled_diag_field
-  use    land_model_mod,  only: send_tile_data
+  use    land_model_mod,  only: send_tile_data, dump_tile_diag_fields
 #else
   use  diag_manager_mod,  only: register_tiled_diag_field=>register_diag_field
 #endif
@@ -2896,7 +2896,7 @@ contains
     if( id_q_flux_land > 0 ) then
        call get_from_xgrid_land (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
 #ifndef _USE_LEGACY_LAND_
-       call send_tile_data (id_q_flux_land, diag_land, send_immediately=.TRUE.)
+       call send_tile_data (id_q_flux_land, diag_land)
 #else
        used = send_tile_averaged_data(id_q_flux_land, diag_land, &
             Land%tile_size, Time, mask=Land%mask)
@@ -2907,9 +2907,14 @@ contains
     if (id_evspsbl_g > 0) used = send_global_diag ( id_evspsbl_g, evap_atm, Time )
 #endif
 
+#ifndef _USE_LEGACY_LAND_
+    ! need this to avoid diag issues with tiling changes in update_land_slow
+    call send_tile_data (id_q_flux_land, diag_land, send_immediately=.TRUE.)
+#endif
+
     ! compute stock changes
 
-    call get_from_xgrid_land(data_lnd, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
+    call dump_tile_diag_fields(Time)
 
     ! Lnd -> Atm (evap)
     call stock_move_land( &
