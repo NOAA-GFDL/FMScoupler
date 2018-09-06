@@ -2919,13 +2919,14 @@ contains
 #endif
 
 #ifndef _USE_LEGACY_LAND_
+    call send_tile_data (id_q_flux_land, diag_land)
     ! need this to avoid diag issues with tiling changes in update_land_slow
-    call send_tile_data (id_q_flux_land, diag_land, send_immediately=.TRUE.)
+    call dump_tile_diag_fields(Time)
 #endif
 
     ! compute stock changes
 
-    call dump_tile_diag_fields(Time)
+    call get_from_xgrid_land(data_lnd, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
 
     ! Lnd -> Atm (evap)
     call stock_move_land( &
