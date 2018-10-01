@@ -223,7 +223,9 @@
 !!     <td>radiation_nthreads</td>
 !!     <td>integer</td>
 !!     <td>1</td>
-!!     <td>Number of threads to use for the concurrent radiation.</td>
+!!     <td>Number of threads to use for the concurrent radiation
+!!       when do_concurrent_radiation = .true., otherwise is equal
+!!       to atmos_nthreads </td>
 !!   </tr>
 !!   <tr>
 !!     <td>use_lag_fluxes</td>
@@ -325,7 +327,8 @@ program coupler_main
   use fms_mod,                 only: read_data, write_data
 
   use fms_io_mod,              only: fms_io_exit
-  use fms_io_mod,              only: restart_file_type, register_restart_field, save_restart
+  use fms_io_mod,              only: restart_file_type, register_restart_field
+  use fms_io_mod,              only: save_restart, restore_state
 
   use diag_manager_mod,        only: diag_manager_init, diag_manager_end, diag_grid_end
   use diag_manager_mod,        only: DIAG_OCEAN, DIAG_OTHER, DIAG_ALL, get_base_date
@@ -336,7 +339,9 @@ program coupler_main
   use tracer_manager_mod,      only: tracer_manager_init, get_tracer_index
   use tracer_manager_mod,      only: get_number_tracers, get_tracer_names, NO_TRACER
 
-  use coupler_types_mod,       only: coupler_types_init
+  use coupler_types_mod,       only: coupler_types_init, coupler_1d_bc_type
+  use coupler_types_mod,       only: coupler_type_write_chksums
+  use coupler_types_mod,       only: coupler_type_register_restarts, coupler_type_restore_state
 
   use data_override_mod,       only: data_override_init
 
@@ -380,14 +385,18 @@ program coupler_main
   use ocean_model_mod,         only: ocean_public_type, ocean_state_type, ice_ocean_boundary_type
   use ocean_model_mod,         only: ocean_model_restart
   use ocean_model_mod,         only: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
+
+  use combined_ice_ocean_driver, only: update_slow_ice_and_ocean, ice_ocean_driver_type
+  use combined_ice_ocean_driver, only: ice_ocean_driver_init, ice_ocean_driver_end
 !
 ! flux_ calls translate information between model grids - see flux_exchange.f90
 !
 
-  use flux_exchange_mod,       only: flux_exchange_init, sfc_boundary_layer
+  use flux_exchange_mod,       only: flux_exchange_init, gas_exchange_init, sfc_boundary_layer
   use flux_exchange_mod,       only: generate_sfc_xgrid, send_ice_mask_sic
   use flux_exchange_mod,       only: flux_down_from_atmos, flux_up_to_atmos
   use flux_exchange_mod,       only: flux_land_to_ice, flux_ice_to_ocean, flux_ocean_to_ice
+  use flux_exchange_mod,       only: flux_ice_to_ocean_finish, flux_ocean_to_ice_finish
   use flux_exchange_mod,       only: flux_check_stocks, flux_init_stocks
   use flux_exchange_mod,       only: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
   use flux_exchange_mod,       only: flux_atmos_to_ocean, flux_ex_arrays_dealloc
@@ -406,6 +415,7 @@ program coupler_main
   use mpp_domains_mod,         only: mpp_broadcast_domain
 
   use memutils_mod,            only: print_memuse_stats
+  use iso_fortran_env
 
   implicit none
 
@@ -430,6 +440,7 @@ program coupler_main
   type(land_ice_boundary_type)       :: Land_ice_boundary
   type(ice_ocean_boundary_type)      :: Ice_ocean_boundary
   type(ocean_ice_boundary_type)      :: Ocean_ice_boundary
+  type(ice_ocean_driver_type), pointer :: ice_ocean_driver_CS => NULL()
 
 !-----------------------------------------------------------------------
 ! ----- coupled model time -----
@@ -437,12 +448,14 @@ program coupler_main
   type (time_type) :: Time, Time_init, Time_end, &
                       Time_step_atmos, Time_step_cpld
   type(time_type) :: Time_atmos, Time_ocean
+  type(time_type) :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
+
   integer :: num_atmos_calls, na
   integer :: num_cpld_calls, nc
 
 !------ for intermediate restart
-  type(restart_file_type), allocatable :: Ice_bc_restart(:), Ocn_bc_restart(:)
-  character(len=64),       allocatable :: ice_bc_restart_file(:), ocn_bc_restart_file(:)
+  type(restart_file_type), dimension(:), pointer :: &
+    Ice_bc_restart => NULL(), Ocn_bc_restart => NULL()
   integer                              :: num_ice_bc_restart=0, num_ocn_bc_restart=0
   type(time_type)                      :: Time_restart, Time_restart_current, Time_start
   character(len=32)                    :: timestamp
@@ -506,8 +519,11 @@ program coupler_main
                                     !! slow_ice_with_ocean=.TRUE., this approach allows the atmosphere and
                                     !! ocean to run concurrently even if use_lag_fluxes=.FALSE., and it can
                                     !! be shown to ameliorate or eliminate several ice-ocean coupled instabilities.
-  logical :: slow_ice_with_ocean=.FALSE.  !< If true, the slow sea-ice is advanced on the ocean processors.  Otherwise
-                                   !! the slow sea-ice processes are on the same PEs as the fast sea-ice.
+  logical :: slow_ice_with_ocean=.FALSE. !< If true, the slow sea-ice is advanced on the ocean processors.  Otherwise
+                                    !! the slow sea-ice processes are on the same PEs as the fast sea-ice.
+  logical :: combined_ice_and_ocean=.FALSE. !< If true, there is a single call from the coupler to advance
+                                    !! both the slow sea-ice and the ocean. slow_ice_with_ocean and
+                                    !! concurrent_ice must both be true if combined_ice_and_ocean is true.
   logical :: do_chksum=.FALSE.      !! If .TRUE., do multiple checksums throughout the execution of the model.
   logical :: do_endpoint_chksum=.TRUE.  !< If .TRUE., do checksums of the initial and final states.
   logical :: do_debug=.FALSE.       !< If .TRUE. print additional debugging messages.
@@ -524,7 +540,8 @@ program coupler_main
                          concurrent, do_concurrent_radiation, use_lag_fluxes,      &
                          check_stocks, restart_interval, do_debug, do_chksum,      &
                          use_hyper_thread, ncores_per_node, debug_affinity,        &
-                         concurrent_ice, slow_ice_with_ocean, do_endpoint_chksum
+                         concurrent_ice, slow_ice_with_ocean, do_endpoint_chksum,  &
+                         combined_ice_and_ocean
 
   integer :: initClock, mainClock, termClock
 
@@ -543,12 +560,45 @@ program coupler_main
   integer :: outunit
   integer :: ensemble_id = 1
   integer, allocatable :: ensemble_pelist(:, :)
+  integer, allocatable :: slow_ice_ocean_pelist(:)
   integer :: conc_nthreads = 1
   integer :: omp_get_thread_num, omp_get_num_threads
   real :: omp_get_wtime
   real :: dsec, omp_sec(2)=0.0, imb_sec(2)=0.0
 
 !#######################################################################
+  INTEGER :: i, status, arg_count
+  CHARACTER(len=256) :: executable_name, arg, fredb_id
+
+#ifdef FREDB_ID
+#define xstr(s) str(s)
+#define str(s) #s
+  fredb_id = xstr(FREDB_ID)
+#else
+#warning "FREDB_ID not defined. Continuing as normal."
+  fredb_id = 'FREDB_ID was not defined (e.g. -DFREDB_ID=...) during preprocessing'
+#endif
+
+  arg_count = command_argument_count()
+  DO i=0, arg_count
+     CALL get_command_argument(i, arg, status=status)
+     if (status .ne. 0) then
+        write (error_unit,*) 'get_command_argument failed: status = ', status, ' arg = ', i
+        stop 1
+     end if
+
+     if (i .eq. 0) then
+       executable_name = arg
+     else if (arg == '--fredb_id') then
+        write (output_unit,*) TRIM(fredb_id)
+        stop
+     end if
+  END DO
+
+  if (arg_count .ge. 1) then
+    write (error_unit,*) 'Usage: '//TRIM(executable_name)//' [--fredb_id]'
+    stop 1
+  end if
 
   call mpp_init()
 !these clocks are on the global pelist
@@ -571,64 +621,60 @@ program coupler_main
 !------ ocean/slow-ice integration loop ------
 
   if (check_stocks >= 0) then
-     call mpp_set_current_pelist()
-     call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
+    call mpp_set_current_pelist()
+    call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
   endif
 
   if (Atm%pe) then
-     call mpp_set_current_pelist(Atm%pelist)
-     newClock1 = mpp_clock_id( 'generate_sfc_xgrid' )
+    call mpp_set_current_pelist(Atm%pelist)
+    newClock1 = mpp_clock_id( 'generate_sfc_xgrid' )
   endif
   if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-     if (slow_ice_with_ocean) then
-        call mpp_set_current_pelist(Ocean%pelist)
-     else
-        call mpp_set_current_pelist()
-     endif
-     newClock2 = mpp_clock_id( 'flux_ocean_to_ice' )
-     newClock3 = mpp_clock_id( 'flux_ice_to_ocean' )
+     call mpp_set_current_pelist(slow_ice_ocean_pelist)
+    newClock2 = mpp_clock_id( 'flux_ocean_to_ice' )
+    newClock3 = mpp_clock_id( 'flux_ice_to_ocean' )
   endif
   if (Atm%pe) then
-     call mpp_set_current_pelist(Atm%pelist)
-     newClock5 = mpp_clock_id( 'ATM' )
-     newClock7  = mpp_clock_id( ' ATM: atmos loop' )
-     newClocka  = mpp_clock_id( '  A-L: atmos_tracer_driver_gather_data' )
-     newClockb  = mpp_clock_id( '  A-L: sfc_boundary_layer' )
-     newClockl  = mpp_clock_id( '  A-L: update_atmos_model_dynamics')
-     if (.not. do_concurrent_radiation) then
-       newClockj  = mpp_clock_id( '  A-L: serial radiation' )
-     endif
-     newClockc  = mpp_clock_id( '  A-L: update_atmos_model_down' )
-     newClockd  = mpp_clock_id( '  A-L: flux_down_from_atmos' )
-     newClocke  = mpp_clock_id( '  A-L: update_land_model_fast' )
-     newClockf  = mpp_clock_id( '  A-L: update_ice_model_fast' )
-     newClockg  = mpp_clock_id( '  A-L: flux_up_to_atmos' )
-     newClockh  = mpp_clock_id( '  A-L: update_atmos_model_up' )
-     if (do_concurrent_radiation) then
-       newClockj  = mpp_clock_id( '  A-L: concurrent radiation' )
-       newClocki  = mpp_clock_id( '  A-L: concurrent atmos' )
-     endif
-     newClockk  = mpp_clock_id( '  A-L: update_atmos_model_state')
-     newClock8  = mpp_clock_id( ' ATM: update_land_model_slow' )
-     newClock9  = mpp_clock_id( ' ATM: flux_land_to_ice' )
+    call mpp_set_current_pelist(Atm%pelist)
+    newClock5 = mpp_clock_id( 'ATM' )
+    newClock7  = mpp_clock_id( ' ATM: atmos loop' )
+    newClocka  = mpp_clock_id( '  A-L: atmos_tracer_driver_gather_data' )
+    newClockb  = mpp_clock_id( '  A-L: sfc_boundary_layer' )
+    newClockl  = mpp_clock_id( '  A-L: update_atmos_model_dynamics')
+    if (.not. do_concurrent_radiation) then
+      newClockj  = mpp_clock_id( '  A-L: serial radiation' )
+    endif
+    newClockc  = mpp_clock_id( '  A-L: update_atmos_model_down' )
+    newClockd  = mpp_clock_id( '  A-L: flux_down_from_atmos' )
+    newClocke  = mpp_clock_id( '  A-L: update_land_model_fast' )
+    newClockf  = mpp_clock_id( '  A-L: update_ice_model_fast' )
+    newClockg  = mpp_clock_id( '  A-L: flux_up_to_atmos' )
+    newClockh  = mpp_clock_id( '  A-L: update_atmos_model_up' )
+    if (do_concurrent_radiation) then
+      newClockj  = mpp_clock_id( '  A-L: concurrent radiation' )
+      newClocki  = mpp_clock_id( '  A-L: concurrent atmos' )
+    endif
+    newClockk  = mpp_clock_id( '  A-L: update_atmos_model_state')
+    newClock8  = mpp_clock_id( ' ATM: update_land_model_slow' )
+    newClock9  = mpp_clock_id( ' ATM: flux_land_to_ice' )
   endif
   if (Ice%pe) then
-     if (Ice%fast_ice_pe) call mpp_set_current_pelist(Ice%fast_pelist)
-     newClock6f = mpp_clock_id( ' Ice: set_ice_surface fast' )
-     newClock10f = mpp_clock_id( ' Ice: update_ice_model_slow fast' )
+    if (Ice%fast_ice_pe) call mpp_set_current_pelist(Ice%fast_pelist)
+    newClock6f = mpp_clock_id( ' Ice: set_ice_surface fast' )
+    newClock10f = mpp_clock_id( ' Ice: update_ice_model_slow fast' )
 
-     if (Ice%slow_ice_pe) call mpp_set_current_pelist(Ice%slow_pelist)
-     newClock6s = mpp_clock_id( ' Ice: set_ice_surface slow' )
-     newClock10s = mpp_clock_id( ' Ice: update_ice_model_slow slow' )
-     newClock11 = mpp_clock_id( ' Ice: flux_ice_to_ocean_stocks' )
+    if (Ice%slow_ice_pe) call mpp_set_current_pelist(Ice%slow_pelist)
+    newClock6s = mpp_clock_id( ' Ice: set_ice_surface slow' )
+    newClock10s = mpp_clock_id( ' Ice: update_ice_model_slow slow' )
+    newClock11 = mpp_clock_id( ' Ice: flux_ice_to_ocean_stocks' )
 
-     call mpp_set_current_pelist(Ice%pelist)
-     newClock6e = mpp_clock_id( ' Ice: set_ice_surface exchange' )
-     newClock10e = mpp_clock_id( ' Ice: update_ice_model_slow exchange' )
+    call mpp_set_current_pelist(Ice%pelist)
+    newClock6e = mpp_clock_id( ' Ice: set_ice_surface exchange' )
+    newClock10e = mpp_clock_id( ' Ice: update_ice_model_slow exchange' )
   endif
   if (Ocean%is_ocean_pe) then
-     call mpp_set_current_pelist(Ocean%pelist)
-     newClock12 = mpp_clock_id( 'OCN' )
+    call mpp_set_current_pelist(Ocean%pelist)
+    newClock12 = mpp_clock_id( 'OCN' )
   endif
   call mpp_set_current_pelist()
   newClock4 = mpp_clock_id( 'flux_check_stocks' )
@@ -637,86 +683,89 @@ program coupler_main
 
   do nc = 1, num_cpld_calls
     if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc)
-     call mpp_set_current_pelist()
-    if (do_chksum) then
-       if (Atm%pe) then
-         call mpp_set_current_pelist(Atm%pelist)
-         call atmos_ice_land_chksum('MAIN_LOOP-', nc, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-       endif
-       if (Ocean%is_ocean_pe) then
-         call mpp_set_current_pelist(Ocean%pelist)
-         call ocean_chksum('MAIN_LOOP-', nc, Ocean, Ice_ocean_boundary)
-       endif
-       call mpp_set_current_pelist()
-     endif
+    call mpp_set_current_pelist()
 
-     ! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
-     ! points when running concurrently. The calls are placed next to each other in
-     ! concurrent mode to avoid multiple synchronizations within the main loop.
-     if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-       ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
-       if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
-       call mpp_clock_begin(newClock2)
+    if (do_chksum) then
+      if (Atm%pe) then
+        call mpp_set_current_pelist(Atm%pelist)
+        call atmos_ice_land_chksum('MAIN_LOOP-', nc, Atm, Land, Ice, &
+                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+      endif
+      if (Ocean%is_ocean_pe) then
+        call mpp_set_current_pelist(Ocean%pelist)
+        call ocean_chksum('MAIN_LOOP-', nc, Ocean, Ice_ocean_boundary)
+      endif
+      call mpp_set_current_pelist()
+    endif
+
+    ! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
+    ! points when running concurrently. The calls are placed next to each other in
+    ! concurrent mode to avoid multiple synchronizations within the main loop.
+    ! With concurrent_ice, these only occur on the ocean PEs.
+    if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
+      ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
+       call mpp_set_current_pelist(slow_ice_ocean_pelist)
+      call mpp_clock_begin(newClock2)
        !Redistribute quantities from Ocean to Ocean_ice_boundary
        !Ice intent is In.
        !Ice is used only for accessing Ice%area and knowing if we are on an Ice pe
-       call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
-       call mpp_clock_end(newClock2)
-     endif
+      call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
+      Time_flux_ocean_to_ice = Time
+      call mpp_clock_end(newClock2)
 
-    if (do_chksum) then
-       call coupler_chksum('flux_ocn2ice+', nc)
-       if (Atm%pe) then
-         call mpp_set_current_pelist(Atm%pelist)
-         call atmos_ice_land_chksum('fluxocn2ice+', nc, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-       endif
-       if (Ocean%is_ocean_pe) then
-         call mpp_set_current_pelist(Ocean%pelist)
-         call ocean_public_type_chksum('fluxocn2ice+', nc, Ocean)
-       endif
-       call mpp_set_current_pelist()
-     endif
-
-    ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
-    if (use_lag_fluxes) then
-        if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-          if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
-          call mpp_clock_begin(newClock3)
-          !Redistribute Ice quantities to Ice_ocean_boundary
-          !Ocean intent is in
-          !Ocean is used only to access ocean%area and ocean%domain
-          call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
-          call mpp_clock_end(newClock3)
-        endif
+      ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
+      if (use_lag_fluxes) then
+        call mpp_clock_begin(newClock3)
+        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
+        Time_flux_ice_to_ocean = Time
+        call mpp_clock_end(newClock3)
+      endif
     endif
 
-     ! To print the value of frazil heat flux at the right time the following block
-     ! needs to sit here rather than at the end of the coupler loop.
-    if (check_stocks > 0) then
-        call mpp_clock_begin(newClock4)
-      if (check_stocks*((nc-1)/check_stocks) == nc-1 .AND. nc > 1) then
-           call mpp_set_current_pelist()
-           call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
-        endif
-        call mpp_clock_end(newClock4)
-     endif
+    if (do_chksum) then
+      call coupler_chksum('flux_ocn2ice+', nc)
+      if (Atm%pe) then
+        call mpp_set_current_pelist(Atm%pelist)
+        call atmos_ice_land_chksum('fluxocn2ice+', nc, Atm, Land, Ice, &
+                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+      endif
+      if (Ocean%is_ocean_pe) then
+        call mpp_set_current_pelist(Ocean%pelist)
+        call ocean_public_type_chksum('fluxocn2ice+', nc, Ocean)
+      endif
+      call mpp_set_current_pelist()
+    endif
 
-     if (do_ice .and. Ice%pe) then
-        if (Ice%slow_ice_pe) then
-           call mpp_set_current_pelist(Ice%slow_pelist)
-           call mpp_clock_begin(newClock6s)
-           call unpack_ocean_ice_boundary( Ocean_ice_boundary, Ice )
-           if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
-           call mpp_clock_end(newClock6s)
-        endif
+    ! To print the value of frazil heat flux at the right time the following block
+    ! needs to sit here rather than at the end of the coupler loop.
+    if (check_stocks > 0) then
+      call mpp_clock_begin(newClock4)
+      if (check_stocks*((nc-1)/check_stocks) == nc-1 .AND. nc > 1) then
+        call mpp_set_current_pelist()
+        call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
+      endif
+      call mpp_clock_end(newClock4)
+    endif
+
+    if (do_ice .and. Ice%pe) then
+      if (Ice%slow_ice_pe) then
+        call mpp_set_current_pelist(Ice%slow_pelist)
+        call mpp_clock_begin(newClock6s)
+
+        ! This may do data override or diagnostics on Ice_ocean_boundary.
+        call flux_ocean_to_ice_finish( Time_flux_ocean_to_ice, Ice, Ocean_Ice_Boundary )
+
+        call unpack_ocean_ice_boundary( Ocean_ice_boundary, Ice )
+        if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
+        call mpp_clock_end(newClock6s)
+      endif
+
       ! This could be a point where the model is serialized if the fast and
       ! slow ice are on different PEs.
-        if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
-        call mpp_clock_begin(newClock6e)
-        call exchange_slow_to_fast_ice(Ice)
-        call mpp_clock_end(newClock6e)
+      if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
+      call mpp_clock_begin(newClock6e)
+      call exchange_slow_to_fast_ice(Ice)
+      call mpp_clock_end(newClock6e)
 
       if (concurrent_ice) then
         ! This call occurs all ice PEs.
@@ -725,348 +774,359 @@ program coupler_main
         call mpp_clock_end(newClock10e)
       endif
 
-        if (Ice%fast_ice_pe) then
-          if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%fast_pelist)
-          call mpp_clock_begin(newClock6f)
-          call set_ice_surface_fields(Ice)
-          call mpp_clock_end(newClock6f)
-        endif
-     endif
+      if (Ice%fast_ice_pe) then
+        if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%fast_pelist)
+        call mpp_clock_begin(newClock6f)
+        call set_ice_surface_fields(Ice)
+        call mpp_clock_end(newClock6f)
+      endif
+    endif
 
     if (Atm%pe) then
-        if (.NOT.(do_ice .and. Ice%pe) .OR. (ice_npes .NE. atmos_npes)) &
-           call mpp_set_current_pelist(Atm%pelist)
+      if (.NOT.(do_ice .and. Ice%pe) .OR. (ice_npes .NE. atmos_npes)) &
+         call mpp_set_current_pelist(Atm%pelist)
 
-        call mpp_clock_begin(newClock5)
+      call mpp_clock_begin(newClock5)
       if (do_chksum) call atmos_ice_land_chksum('set_ice_surface+', nc, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-        call mpp_clock_begin(newClock1)
-        call generate_sfc_xgrid( Land, Ice )
-        call mpp_clock_end(newClock1)
+                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+      call mpp_clock_begin(newClock1)
+      call generate_sfc_xgrid( Land, Ice )
+      call mpp_clock_end(newClock1)
 
-        call send_ice_mask_sic(Time)
+      call send_ice_mask_sic(Time)
 
-        !-----------------------------------------------------------------------
-        !   ------ atmos/fast-land/fast-ice integration loop -------
+      !-----------------------------------------------------------------------
+      !   ------ atmos/fast-land/fast-ice integration loop -------
 
-        call mpp_clock_begin(newClock7)
-        do na = 1, num_atmos_calls
+      call mpp_clock_begin(newClock7)
+      do na = 1, num_atmos_calls
         if (do_chksum) call atmos_ice_land_chksum('top_of_atmos_loop-', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
 
-          Time_atmos = Time_atmos + Time_step_atmos
+        Time_atmos = Time_atmos + Time_step_atmos
 
-          if (do_atmos) then
-            call mpp_clock_begin(newClocka)
-            call atmos_tracer_driver_gather_data(Atm%fields, Atm%tr_bot)
-            call mpp_clock_end(newClocka)
-          endif
-
-          if (do_flux) then
-            call mpp_clock_begin(newClockb)
-            call sfc_boundary_layer( REAL(dt_atmos), Time_atmos, &
-                 Atm, Land, Ice, Land_ice_atmos_boundary )
-          if (do_chksum)  call atmos_ice_land_chksum('sfc+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-            call mpp_clock_end(newClockb)
+        if (do_atmos) then
+          call mpp_clock_begin(newClocka)
+          call atmos_tracer_driver_gather_data(Atm%fields, Atm%tr_bot)
+          call mpp_clock_end(newClocka)
         endif
 
-!$OMP PARALLEL  &
-!$OMP&       NUM_THREADS(conc_nthreads)  &
-!$OMP&       DEFAULT(NONE)  &
-!$OMP&       PRIVATE(conc_nthreads) &
-!$OMP&       SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
-!$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
-!$OMP&       SHARED(Ocean_ice_boundary) &
-!$OMP&       SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
-!$        if (omp_get_thread_num() == 0) then
-!$OMP PARALLEL &
-!$OMP&       NUM_THREADS(1) &
-!$OMP&       DEFAULT(NONE) &
-!$OMP&       PRIVATE(dsec) &
-!$OMP&       SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
-!$OMP&       SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
-!$OMP&       SHARED(Ocean_ice_boundary) &
-!$OMP&       SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&       SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
-!$          call omp_set_num_threads(atmos_nthreads)
-!$          dsec=omp_get_wtime()
-            if (do_concurrent_radiation) call mpp_clock_begin(newClocki)
+        if (do_flux) then
+          call mpp_clock_begin(newClockb)
+          call sfc_boundary_layer( REAL(dt_atmos), Time_atmos, &
+               Atm, Land, Ice, Land_ice_atmos_boundary )
+          if (do_chksum)  call atmos_ice_land_chksum('sfc+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
+                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+          call mpp_clock_end(newClockb)
+        endif
 
-            !      ---- atmosphere dynamics ----
-            if (do_atmos) then
-              call mpp_clock_begin(newClockl)
-              call update_atmos_model_dynamics( Atm )
-              call mpp_clock_end(newClockl)
-            endif
+!$OMP   PARALLEL  &
+!$OMP&    NUM_THREADS(conc_nthreads)  &
+!$OMP&    DEFAULT(NONE)  &
+!$OMP&    PRIVATE(conc_nthreads) &
+!$OMP&    SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
+!$OMP&    SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
+!$OMP&    SHARED(Ocean_ice_boundary) &
+!$OMP&    SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
+!$OMP&    SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
+!$      if (omp_get_thread_num() == 0) then
+!$OMP     PARALLEL &
+!$OMP&      NUM_THREADS(1) &
+!$OMP&      DEFAULT(NONE) &
+!$OMP&      PRIVATE(dsec) &
+!$OMP&      SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
+!$OMP&      SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
+!$OMP&      SHARED(Ocean_ice_boundary) &
+!$OMP&      SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
+!$OMP&      SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl) 
+!$        call omp_set_num_threads(atmos_nthreads)
+!$        dsec=omp_get_wtime()
+          if (do_concurrent_radiation) call mpp_clock_begin(newClocki)
+
+          !      ---- atmosphere dynamics ----
+          if (do_atmos) then
+            call mpp_clock_begin(newClockl)
+            call update_atmos_model_dynamics( Atm )
+            call mpp_clock_end(newClockl)
+          endif
           if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_dynamics', (nc-1)*num_atmos_calls+na, &
                  Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      if (do_debug)  call print_memuse_stats( 'update dyn')
+          if (do_debug)  call print_memuse_stats( 'update dyn')
 
-            !      ---- SERIAL atmosphere radiation ----
-            if (.not.do_concurrent_radiation) then
-              call mpp_clock_begin(newClockj)
-              call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
-              call mpp_clock_end(newClockj)
-            endif
+          !      ---- SERIAL atmosphere radiation ----
+          if (.not.do_concurrent_radiation) then
+            call mpp_clock_begin(newClockj)
+            call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
+            call mpp_clock_end(newClockj)
+          endif
           if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(ser)', (nc-1)*num_atmos_calls+na, &
                  Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      if (do_debug)  call print_memuse_stats( 'update serial rad')
+          if (do_debug)  call print_memuse_stats( 'update serial rad')
 
-            !      ---- atmosphere down ----
-            if (do_atmos) then
-              call mpp_clock_begin(newClockc)
-              call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
-              call mpp_clock_end(newClockc)
-            endif
+          !      ---- atmosphere down ----
+          if (do_atmos) then
+            call mpp_clock_begin(newClockc)
+            call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
+            call mpp_clock_end(newClockc)
+          endif
           if (do_chksum) call atmos_ice_land_chksum('update_atmos_down+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      if (do_debug)  call print_memuse_stats( 'update down')
+                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+          if (do_debug)  call print_memuse_stats( 'update down')
 
-            call mpp_clock_begin(newClockd)
-            call flux_down_from_atmos( Time_atmos, Atm, Land, Ice, &
-                                       Land_ice_atmos_boundary, &
-                                       Atmos_land_boundary, &
-                                       Atmos_ice_boundary )
-            call mpp_clock_end(newClockd)
+          call mpp_clock_begin(newClockd)
+          call flux_down_from_atmos( Time_atmos, Atm, Land, Ice, &
+                                     Land_ice_atmos_boundary, &
+                                     Atmos_land_boundary, &
+                                     Atmos_ice_boundary )
+          call mpp_clock_end(newClockd)
           if (do_chksum) call atmos_ice_land_chksum('flux_down_from_atmos+', (nc-1)*num_atmos_calls+na, Atm, Land, &
                  Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
 
-            !      --------------------------------------------------------------
-            !      ---- land model ----
-            call mpp_clock_begin(newClocke)
-            if (do_land .AND. land%pe) then
+          !      --------------------------------------------------------------
+          !      ---- land model ----
+          call mpp_clock_begin(newClocke)
+          if (do_land .AND. land%pe) then
             if (land_npes .NE. atmos_npes) call mpp_set_current_pelist(Land%pelist)
-              call update_land_model_fast( Atmos_land_boundary, Land )
-            endif
+            call update_land_model_fast( Atmos_land_boundary, Land )
+          endif
           if (land_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
-            call mpp_clock_end(newClocke)
+          call mpp_clock_end(newClocke)
           if (do_chksum) call atmos_ice_land_chksum('update_land_fast+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      if (do_debug)  call print_memuse_stats( 'update land')
+                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+          if (do_debug)  call print_memuse_stats( 'update land')
 
-            !      ---- ice model ----
-            call mpp_clock_begin(newClockf)
-            if (do_ice .AND. Ice%fast_ice_pe) then
+          !      ---- ice model ----
+          call mpp_clock_begin(newClockf)
+          if (do_ice .AND. Ice%fast_ice_pe) then
             if (ice_npes .NE. atmos_npes)call mpp_set_current_pelist(Ice%fast_pelist)
-              call update_ice_model_fast( Atmos_ice_boundary, Ice )
-            endif
+            call update_ice_model_fast( Atmos_ice_boundary, Ice )
+          endif
           if (ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
-            call mpp_clock_end(newClockf)
+          call mpp_clock_end(newClockf)
           if (do_chksum) call atmos_ice_land_chksum('update_ice_fast+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      if (do_debug)  call print_memuse_stats( 'update ice')
+                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+          if (do_debug)  call print_memuse_stats( 'update ice')
 
-            !      --------------------------------------------------------------
-            !      ---- atmosphere up ----
-            call mpp_clock_begin(newClockg)
-            call flux_up_to_atmos( Time_atmos, Land, Ice, Land_ice_atmos_boundary, &
+          !      --------------------------------------------------------------
+          !      ---- atmosphere up ----
+          call mpp_clock_begin(newClockg)
+          call flux_up_to_atmos( Time_atmos, Land, Ice, Land_ice_atmos_boundary, &
                                  Atmos_land_boundary, Atmos_ice_boundary )
-            call mpp_clock_end(newClockg)
+          call mpp_clock_end(newClockg)
           if (do_chksum) call atmos_ice_land_chksum('flux_up2atmos+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
 
-            call mpp_clock_begin(newClockh)
-            if (do_atmos) &
-                call update_atmos_model_up( Land_ice_atmos_boundary, Atm)
-            call mpp_clock_end(newClockh)
+          call mpp_clock_begin(newClockh)
+          if (do_atmos) &
+            call update_atmos_model_up( Land_ice_atmos_boundary, Atm)
+          call mpp_clock_end(newClockh)
           if (do_chksum) call atmos_ice_land_chksum('update_atmos_up+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      if (do_debug)  call print_memuse_stats( 'update up')
+                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+          if (do_debug)  call print_memuse_stats( 'update up')
 
-            call flux_atmos_to_ocean(Time_atmos, Atm, Atmos_ice_boundary, Ice)
+          call flux_atmos_to_ocean(Time_atmos, Atm, Atmos_ice_boundary, Ice)
 
-            call flux_ex_arrays_dealloc
+          call flux_ex_arrays_dealloc
 
-            !--------------
-            if (do_concurrent_radiation) call mpp_clock_end(newClocki)
-!$          omp_sec(1) = omp_sec(1) + (omp_get_wtime() - dsec)
+          !--------------
+          if (do_concurrent_radiation) call mpp_clock_end(newClocki)
+!$        omp_sec(1) = omp_sec(1) + (omp_get_wtime() - dsec)
 !$OMP END PARALLEL
-!$        endif
-!$        if (omp_get_thread_num() == max(0,omp_get_num_threads()-1)) then
-            !      ---- atmosphere radiation ----
-            if (do_concurrent_radiation) then
+!$      endif
+!$      if (omp_get_thread_num() == max(0,omp_get_num_threads()-1)) then
+          !      ---- atmosphere radiation ----
+          if (do_concurrent_radiation) then
 !$OMP PARALLEL &
-!$OMP&       NUM_THREADS(1) &
-!$OMP&       DEFAULT(NONE) &
-!$OMP&       PRIVATE(dsec) &
-!$OMP&       SHARED(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Ocean_ice_boundary, Atmos_land_boundary) &
-!$OMP&       SHARED(do_chksum, do_debug, omp_sec, num_atmos_calls, na, radiation_nthreads) &
-!$OMP&       SHARED(newClockj)
-!$            call omp_set_num_threads(radiation_nthreads)
-!$            dsec=omp_get_wtime()
-              call mpp_clock_begin(newClockj)
-              call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
-              call mpp_clock_end(newClockj)
-!$            omp_sec(2) = omp_sec(2) + (omp_get_wtime() - dsec)
+!$OMP&      NUM_THREADS(1) &
+!$OMP&      DEFAULT(NONE) &
+!$OMP&      PRIVATE(dsec) &
+!$OMP&      SHARED(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Ocean_ice_boundary, Atmos_land_boundary) &
+!$OMP&      SHARED(do_chksum, do_debug, omp_sec, num_atmos_calls, na, radiation_nthreads) &
+!$OMP&      SHARED(newClockj)
+!$          call omp_set_num_threads(radiation_nthreads)
+!$          dsec=omp_get_wtime()
+            call mpp_clock_begin(newClockj)
+            call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
+            call mpp_clock_end(newClockj)
+!$          omp_sec(2) = omp_sec(2) + (omp_get_wtime() - dsec)
 !---CANNOT PUT AN MPP_CHKSUM HERE AS IT REQUIRES THE ABILITY TO HAVE TWO DIFFERENT OPENMP THREADS
 !---INSIDE OF MPI AT THE SAME TIME WHICH IS NOT CURRENTLY ALLOWED
-!              if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(conc)', (nc-1)*num_atmos_calls+na, &
+!           if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(conc)', (nc-1)*num_atmos_calls+na, &
 !                   Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-               if (do_debug)  call print_memuse_stats( 'update concurrent rad')
+            if (do_debug)  call print_memuse_stats( 'update concurrent rad')
 !$OMP END PARALLEL
-            endif
-!$        endif
-!$        imb_sec(omp_get_thread_num()+1) = imb_sec(omp_get_thread_num()+1) - omp_get_wtime()
+          endif
+!$      endif
+!$      imb_sec(omp_get_thread_num()+1) = imb_sec(omp_get_thread_num()+1) - omp_get_wtime()
 !$OMP END PARALLEL
-!$        imb_sec(1) = imb_sec(1) + omp_get_wtime()
-!$        if (do_concurrent_radiation) imb_sec(2) = imb_sec(2) + omp_get_wtime()
-!$        call omp_set_num_threads(atmos_nthreads+(conc_nthreads-1)*radiation_nthreads)
+!$      imb_sec(1) = imb_sec(1) + omp_get_wtime()
+!$      if (do_concurrent_radiation) imb_sec(2) = imb_sec(2) + omp_get_wtime()
+!$      call omp_set_num_threads(atmos_nthreads+(conc_nthreads-1)*radiation_nthreads)
 
-          call mpp_clock_begin(newClockk)
-          call update_atmos_model_state( Atm )
+        call mpp_clock_begin(newClockk)
+        call update_atmos_model_state( Atm )
         if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_state+', (nc-1)*num_atmos_calls+na, Atm, Land, &
                   Ice,Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-          if (do_debug)  call print_memuse_stats( 'update state')
-          call mpp_clock_end(newClockk)
+        if (do_debug)  call print_memuse_stats( 'update state')
+        call mpp_clock_end(newClockk)
 
-        enddo ! end of na (fast loop)
+      enddo ! end of na (fast loop)
 
-        call mpp_clock_end(newClock7)
+      call mpp_clock_end(newClock7)
 
-        call mpp_clock_begin(newClock8)
-        !   ------ end of atmospheric time step loop -----
-        if (do_land .AND. Land%pe) then
+      call mpp_clock_begin(newClock8)
+      !   ------ end of atmospheric time step loop -----
+      if (do_land .AND. Land%pe) then
         if (land_npes .NE. atmos_npes) call mpp_set_current_pelist(Land%pelist)
-           call update_land_model_slow(Atmos_land_boundary,Land)
-        endif
+        call update_land_model_slow(Atmos_land_boundary,Land)
+      endif
       if (land_npes .NE. atmos_npes) call mpp_set_current_pelist(Atm%pelist)
-        !-----------------------------------------------------------------------
-        call mpp_clock_end(newClock8)
+      !-----------------------------------------------------------------------
+      call mpp_clock_end(newClock8)
       if (do_chksum) call atmos_ice_land_chksum('update_land_slow+', nc, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
 
-        !
-        !     need flux call to put runoff and p_surf on ice grid
-        !
-        call mpp_clock_begin(newClock9)
-        call flux_land_to_ice( Time, Land, Ice, Land_ice_boundary )
-        call mpp_clock_end(newClock9)
+      !
+      !     need flux call to put runoff and p_surf on ice grid
+      !
+      call mpp_clock_begin(newClock9)
+      call flux_land_to_ice( Time, Land, Ice, Land_ice_boundary )
+      call mpp_clock_end(newClock9)
       if (do_chksum) call atmos_ice_land_chksum('fluxlnd2ice+', nc, Atm, Land, Ice, &
-                   Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
 
-        Atmos_ice_boundary%p = 0.0 ! call flux_atmos_to_ice_slow ?
-        Time = Time_atmos
-        call mpp_clock_end(newClock5)
+      Atmos_ice_boundary%p = 0.0 ! call flux_atmos_to_ice_slow ?
+      Time = Time_atmos
+      call mpp_clock_end(newClock5)
     endif                     !Atm%pe block
 
-     if (do_ice .and. Ice%pe) then
-        call mpp_clock_begin(newClock5) !Ice is still using ATM pelist and need to be included in ATM clock
-                                        !ATM clock is used for load-balancing the coupled models
+    if(Atm%pe) then
+     call mpp_clock_begin(newClock5) !Ice is still using ATM pelist and need to be included in ATM clock
+                                        !ATM clock is used for load-balancing the coupled models 
+    endif
+    if (do_ice .and. Ice%pe) then
 
-        if (Ice%fast_ice_PE) then
-           call mpp_clock_begin(newClock10f)
+      if (Ice%fast_ice_PE) then
            if (ice_npes .NE. atmos_npes) call mpp_set_current_pelist(Ice%fast_pelist)
+        call mpp_clock_begin(newClock10f)
+       ! These two calls occur on whichever PEs handle the fast ice processess.
+        call ice_model_fast_cleanup(Ice)
 
-          ! These two calls occur on whichever PEs handle the fast ice processess.
-           call ice_model_fast_cleanup(Ice)
-
-           call unpack_land_ice_boundary(Ice, Land_ice_boundary)
-           call mpp_clock_end(newClock10f)
-        endif
+        call unpack_land_ice_boundary(Ice, Land_ice_boundary)
+        call mpp_clock_end(newClock10f)
+      endif
 
       if (.not.concurrent_ice) then
         ! This could be a point where the model is serialized.
-        !   Uncomment this for efficiency:
-        !      if (.not.Ice%shared_slow_fast_PEs)
-        call mpp_set_current_pelist(Ice%pelist)
+        if (.not.Ice%shared_slow_fast_PEs) call mpp_set_current_pelist(Ice%pelist)
         ! This call occurs all ice PEs.
         call mpp_clock_begin(newClock10e)
         call exchange_fast_to_slow_ice(Ice)
         call mpp_clock_end(newClock10e)
       endif
 
-        !   ------ slow-ice model ------
+      !   ------ slow-ice model ------
 
-        ! This call occurs on whichever PEs handle the slow ice processess.
-        if (Ice%slow_ice_PE) then
-           if (slow_ice_with_ocean) call mpp_set_current_pelist(Ice%slow_pelist)
-           call mpp_clock_begin(newClock10s)
-           call update_ice_model_slow(Ice)
+      ! This call occurs on whichever PEs handle the slow ice processess.
+      if (Ice%slow_ice_PE .and. .not.combined_ice_and_ocean) then
+        if (slow_ice_with_ocean) call mpp_set_current_pelist(Ice%slow_pelist)
+        call mpp_clock_begin(newClock10s)
+        call update_ice_model_slow(Ice)
 
-           call mpp_clock_begin(newClock11)
-           call flux_ice_to_ocean_stocks(Ice)
-           call mpp_clock_end(newClock11)
-           call mpp_clock_end(newClock10s)
-        endif
+        call mpp_clock_begin(newClock11)
+        call flux_ice_to_ocean_stocks(Ice)
+        call mpp_clock_end(newClock11)
+        call mpp_clock_end(newClock10s)
+      endif
 
-        if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
-
-        call mpp_clock_end(newClock5)
+      if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
      endif  ! End of Ice%pe block
 
-    ! Update Ice_ocean_boundary using the newly calculated fluxes.
-    if (concurrent_ice .OR. .NOT.use_lag_fluxes) then
-      !this could serialize unless slow_ice_with_ocean is true.
-        if ((.not.do_ice) .or. (.not.slow_ice_with_ocean)) &
-          call mpp_set_current_pelist()
-
-        if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-          if (slow_ice_with_ocean) call mpp_set_current_pelist(Ocean%pelist)
-          call mpp_clock_begin(newClock3)
-          call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
-          call mpp_clock_end(newClock3)
-       endif
+     if(Atm%pe) then
+        call mpp_set_current_pelist(Atm%pelist)
+        call mpp_clock_end(newClock5)
      endif
+
+    ! Update Ice_ocean_boundary using the newly calculated fluxes.
+    if ((concurrent_ice .OR. .NOT.use_lag_fluxes) .and. .not.combined_ice_and_ocean) then
+      !this could serialize unless slow_ice_with_ocean is true.
+      if ((.not.do_ice) .or. (.not.slow_ice_with_ocean)) &
+        call mpp_set_current_pelist()
+
+      if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
+        ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
+        call mpp_set_current_pelist(slow_ice_ocean_pelist)
+        call mpp_clock_begin(newClock3)
+        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
+        Time_flux_ice_to_ocean = Time
+        call mpp_clock_end(newClock3)
+      endif
+    endif
 
     if (Ocean%is_ocean_pe) then
-        call mpp_set_current_pelist(Ocean%pelist)
-        call mpp_clock_begin(newClock12)
+      call mpp_set_current_pelist(Ocean%pelist)
+      call mpp_clock_begin(newClock12)
 
-        if (do_chksum) call ocean_chksum('update_ocean_model-', nc, Ocean, Ice_ocean_boundary)
-        ! update_ocean_model since fluxes don't change here
+      ! This may do data override or diagnostics on Ice_ocean_boundary.
+      call flux_ice_to_ocean_finish(Time_flux_ice_to_ocean, Ice_ocean_boundary)
 
-        if (do_ocean) &
-          call update_ocean_model( Ice_ocean_boundary, Ocean_state,  Ocean, &
-                                   Time_ocean, Time_step_cpld )
+      if (combined_ice_and_ocean) then
+        call flux_ice_to_ocean_stocks(Ice)
+        call update_slow_ice_and_ocean(ice_ocean_driver_CS, Ice, Ocean_state, Ocean, &
+                      Ice_ocean_boundary, Time_ocean, Time_step_cpld )
+      else
+      if (do_chksum) call ocean_chksum('update_ocean_model-', nc, Ocean, Ice_ocean_boundary)
+      ! update_ocean_model since fluxes don't change here
 
-        if (do_chksum) call ocean_chksum('update_ocean_model+', nc, Ocean, Ice_ocean_boundary)
-        ! Get stocks from "Ice_ocean_boundary" and add them to Ocean stocks.
-        ! This call is just for record keeping of stocks transfer and
-        ! does not modify either Ocean or Ice_ocean_boundary
-        call flux_ocean_from_ice_stocks(Ocean_state, Ocean, Ice_ocean_boundary)
+      if (do_ocean) &
+        call update_ocean_model( Ice_ocean_boundary, Ocean_state,  Ocean, &
+                                 Time_ocean, Time_step_cpld )
+      endif
 
-        Time_ocean = Time_ocean +  Time_step_cpld
+      if (do_chksum) call ocean_chksum('update_ocean_model+', nc, Ocean, Ice_ocean_boundary)
+      ! Get stocks from "Ice_ocean_boundary" and add them to Ocean stocks.
+      ! This call is just for record keeping of stocks transfer and
+      ! does not modify either Ocean or Ice_ocean_boundary
+      call flux_ocean_from_ice_stocks(Ocean_state, Ocean, Ice_ocean_boundary)
 
-        !-----------------------------------------------------------------------
-        Time = Time_ocean
+      Time_ocean = Time_ocean +  Time_step_cpld
+      Time = Time_ocean
 
-        call mpp_clock_end(newClock12)
+      call mpp_clock_end(newClock12)
     endif
 
-     !--- write out intermediate restart file when needed.
+    !--- write out intermediate restart file when needed.
     if (Time >= Time_restart) then
-        Time_restart_current = Time
-        Time_restart = increment_date(Time, restart_interval(1), restart_interval(2), &
-             restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
-        timestamp = date_to_string(time_restart_current)
-        outunit= stdout()
-        write(outunit,*) '=> NOTE from program coupler: intermediate restart file is written and ', &
-             trim(timestamp),' is appended as prefix to each restart file name'
+      Time_restart_current = Time
+      Time_restart = increment_date(Time, restart_interval(1), restart_interval(2), &
+           restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
+      timestamp = date_to_string(time_restart_current)
+      outunit= stdout()
+      write(outunit,*) '=> NOTE from program coupler: intermediate restart file is written and ', &
+           trim(timestamp),' is appended as prefix to each restart file name'
       if (Atm%pe) then
-           call atmos_model_restart(Atm, timestamp)
-           call land_model_restart(timestamp)
-           call ice_model_restart(Ice, timestamp)
-        endif
+        call atmos_model_restart(Atm, timestamp)
+        call land_model_restart(timestamp)
+        call ice_model_restart(Ice, timestamp)
+      endif
       if (Ocean%is_ocean_pe) then
-           call ocean_model_restart(Ocean_state, timestamp)
-        endif
-        call coupler_restart(Time, Time_restart_current, timestamp)
+        call ocean_model_restart(Ocean_state, timestamp)
+      endif
+      call coupler_restart(Time, Time_restart_current, timestamp)
     endif
 
-     !--------------
+    !--------------
     if (do_chksum) call coupler_chksum('MAIN_LOOP+', nc)
-     write( text,'(a,i6)' )'Main loop at coupling timestep=', nc
-     call print_memuse_stats(text)
-     outunit= stdout()
-     if (mpp_pe() == mpp_root_pe() .and. Atm%pe .and. do_concurrent_radiation) then
-            write(outunit,102) 'At coupling step ', nc,' of ',num_cpld_calls, &
-                ' Atm & Rad (imbalance): ',omp_sec(1),' (',imb_sec(1),')  ',omp_sec(2),' (',imb_sec(2),')'
-     endif
-     omp_sec(:)=0.
-     imb_sec(:)=0.
-     call flush(outunit)
+    write( text,'(a,i6)' )'Main loop at coupling timestep=', nc
+    call print_memuse_stats(text)
+    outunit= stdout()
+    if (mpp_pe() == mpp_root_pe() .and. Atm%pe .and. do_concurrent_radiation) then
+      write(outunit,102) 'At coupling step ', nc,' of ',num_cpld_calls, &
+           ' Atm & Rad (imbalance): ',omp_sec(1),' (',imb_sec(1),')  ',omp_sec(2),' (',imb_sec(2),')'
+    endif
+    omp_sec(:)=0.
+    imb_sec(:)=0.
+    call flush(outunit)
 
   enddo
 102 FORMAT(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
@@ -1074,8 +1134,8 @@ program coupler_main
   call mpp_set_current_pelist()
   call mpp_clock_begin(newClock14)
   if (check_stocks >= 0) then
-     call mpp_set_current_pelist()
-     call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
+    call mpp_set_current_pelist()
+    call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
   endif
   call mpp_clock_end(newClock14)
 
@@ -1140,6 +1200,14 @@ contains
     character(len=10) :: walltime
     character(len=5)  :: wallzone
     integer           :: wallvalues(8)
+
+    type(coupler_1d_bc_type), pointer :: &
+      gas_fields_atm => NULL(), &  ! A pointer to the type describing the
+              ! atmospheric fields that will participate in the gas fluxes.
+      gas_fields_ocn => NULL(), &  ! A pointer to the type describing the ocean
+              ! and ice surface fields that will participate in the gas fluxes.
+      gas_fluxes => NULL()   ! A pointer to the type describing the
+              ! atmosphere-ocean gas and tracer fluxes.
 !-----------------------------------------------------------------------
 
     outunit = stdout()
@@ -1163,8 +1231,8 @@ contains
 #else
     unit = open_namelist_file()
     ierr=1; do while (ierr /= 0)
-       read  (unit, nml=coupler_nml, iostat=io, end=10)
-       ierr = check_nml_error (io, 'coupler_nml')
+      read (unit, nml=coupler_nml, iostat=io, end=10)
+      ierr = check_nml_error (io, 'coupler_nml')
     enddo
 10  call mpp_close(unit)
 #endif
@@ -1174,9 +1242,9 @@ contains
 !---- so need to make sure it will not happen
     if (concurrent) then
       if (mpp_io_clock_on()) then
-          call error_mesg ('program coupler', 'when coupler_nml variable concurrent is set to true, '// &
-              'mpp_io_nml variable io_clock_non can not be set to true.', FATAL )
-       endif
+        call error_mesg ('program coupler', 'when coupler_nml variable concurrent is set to true, '// &
+             'mpp_io_nml variable io_clock_non can not be set to true.', FATAL )
+      endif
     endif
 
 !---- ncores_per_node must be set when use_hyper_thread = .true.
@@ -1188,44 +1256,44 @@ contains
 
     if (file_exist('INPUT/coupler.res')) then
 !Balaji: currently written in binary, needs form=MPP_NATIVE
-        call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY )
-        read( unit,*,err=999 )calendar_type
-        read( unit,* )date_init
-        read( unit,* )date
-        goto 998 !back to fortran-4
+      call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY )
+      read( unit,*,err=999 )calendar_type
+      read( unit,* )date_init
+      read( unit,* )date
+      goto 998 !back to fortran-4
 !read old-style coupler.res
-999     call mpp_close(unit)
-        call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY, form=MPP_NATIVE )
-        read(unit)calendar_type
-        read(unit)date
-998     call mpp_close(unit)
+999   call mpp_close(unit)
+      call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY, form=MPP_NATIVE )
+      read(unit)calendar_type
+      read(unit)date
+998   call mpp_close(unit)
     else
-        force_date_from_namelist = .true.
+      force_date_from_namelist = .true.
     endif
 
 !----- use namelist value (either no restart or override flag on) ---
 
     if ( force_date_from_namelist ) then
 
-        if ( sum(current_date) <= 0 ) then
-            call error_mesg ('program coupler',  &
-                 'no namelist value for base_date or current_date', FATAL)
-        else
-            date      = current_date
-        endif
+      if ( sum(current_date) <= 0 ) then
+        call error_mesg ('program coupler',  &
+             'no namelist value for base_date or current_date', FATAL)
+      else
+        date      = current_date
+      endif
 
 !----- override calendar type with namelist value -----
 
-        select case( uppercase(trim(calendar)) )
-        case( 'JULIAN' )
-            calendar_type = JULIAN
-        case( 'NOLEAP' )
-            calendar_type = NOLEAP
-        case( 'THIRTY_DAY' )
-            calendar_type = THIRTY_DAY_MONTHS
-        case( 'NO_CALENDAR' )
-            calendar_type = NO_CALENDAR
-        end select
+      select case( uppercase(trim(calendar)) )
+      case( 'JULIAN' )
+        calendar_type = JULIAN
+      case( 'NOLEAP' )
+        calendar_type = NOLEAP
+      case( 'THIRTY_DAY' )
+        calendar_type = THIRTY_DAY_MONTHS
+      case( 'NO_CALENDAR' )
+        calendar_type = NO_CALENDAR
+      end select
 
     endif
 
@@ -1279,17 +1347,17 @@ contains
       if (ocean_npes.EQ.0 ) ocean_npes = npes - atmos_npes
 !both must now be non-zero
       if (atmos_npes.EQ.0 .OR. ocean_npes.EQ.0 ) &
-             call mpp_error( FATAL, 'coupler_init: atmos_npes or ocean_npes must be specified for concurrent coupling.' )
+        call mpp_error( FATAL, 'coupler_init: atmos_npes or ocean_npes must be specified for concurrent coupling.' )
       if (atmos_npes+ocean_npes.NE.npes ) &
-             call mpp_error( FATAL, 'coupler_init: atmos_npes+ocean_npes must equal npes for concurrent coupling.' )
+        call mpp_error( FATAL, 'coupler_init: atmos_npes+ocean_npes must equal npes for concurrent coupling.' )
     else                        !serial timestepping
       if ((atmos_npes.EQ.0) .and. (do_atmos .or. do_land .or. do_ice)) atmos_npes = npes
       if ((ocean_npes.EQ.0) .and. (do_ocean)) ocean_npes = npes
       if (max(atmos_npes,ocean_npes).EQ.npes) then !overlapping pelists
-            ! do nothing
-        else                    !disjoint pelists
+        ! do nothing
+      else                    !disjoint pelists
         if (atmos_npes+ocean_npes.NE.npes ) call mpp_error( FATAL,  &
-                 'coupler_init: atmos_npes+ocean_npes must equal npes for serial coupling on disjoint pelists.' )
+             'coupler_init: atmos_npes+ocean_npes must equal npes for serial coupling on disjoint pelists.' )
       endif
     endif
 
@@ -1328,103 +1396,117 @@ contains
       Ice%pelist(:) = Ice%fast_pelist(:)
       allocate( Ice%slow_pelist(ice_npes) )
       Ice%slow_pelist(:) = Ice%fast_pelist(:)
+      if(concurrent) then
+         allocate(slow_ice_ocean_pelist(ocean_npes+ice_npes))
+         slow_ice_ocean_pelist(1:ice_npes) = Ice%slow_pelist(:)
+         slow_ice_ocean_pelist(ice_npes+1:ice_npes+ocean_npes) = Ocean%pelist(:)
+    else
+         if(ice_npes .GE. ocean_npes) then
+            allocate(slow_ice_ocean_pelist(ice_npes))
+            slow_ice_ocean_pelist(:) = Ice%slow_pelist(:)
+         else
+            allocate(slow_ice_ocean_pelist(ocean_npes))
+            slow_ice_ocean_pelist(:) = Ocean%pelist(:)
+         endif
+      endif
     else
       ! Fast ice processes occur a subset of the atmospheric PEs, while
       ! slow ice processes occur on the ocean PEs.
-      !### THIS OPTION IS WHOLLY UNTESTED AND I DO NOT KNOW IF IT WILL WORK! - RWH
       allocate( Ice%slow_pelist(ocean_npes) )
       Ice%slow_pelist(:) = Ocean%pelist(:)
       allocate( Ice%pelist  (ice_npes+ocean_npes) )
       ! Set Ice%pelist() to be the union of Ice%fast_pelist and Ice%slow_pelist.
       Ice%pelist(1:ice_npes) = Ice%fast_pelist(:)
       Ice%pelist(ice_npes+1:ice_npes+ocean_npes) = Ocean%pelist(:)
+      allocate(slow_ice_ocean_pelist(ocean_npes))
+      slow_ice_ocean_pelist(:) = Ocean%pelist(:)
     endif
 
     Ice%fast_ice_pe = ANY(Ice%fast_pelist(:) .EQ. mpp_pe())
     Ice%slow_ice_pe = ANY(Ice%slow_pelist(:) .EQ. mpp_pe())
     Ice%pe = Ice%fast_ice_pe .OR. Ice%slow_ice_pe
-
+    call mpp_declare_pelist(slow_ice_ocean_pelist)
     !Why is the following needed?
 !$  call omp_set_dynamic(.FALSE.)
 !$  call omp_set_nested(.TRUE.)
     if (Atm%pe) then
-        call mpp_set_current_pelist( Atm%pelist )
-!$      if (.not.do_concurrent_radiation) radiation_nthreads=atmos_nthreads
-!$      if (do_concurrent_radiation) conc_nthreads=2
-!$      call omp_set_num_threads(conc_nthreads)
-!$      base_cpu = get_cpu_affinity()
+      call mpp_set_current_pelist( Atm%pelist )
+!$    if (.not.do_concurrent_radiation) radiation_nthreads=atmos_nthreads
+!$    if (do_concurrent_radiation) conc_nthreads=2
+!$    call omp_set_num_threads(conc_nthreads)
+!$    base_cpu = get_cpu_affinity()
 !$OMP PARALLEL
 !$    if (omp_get_thread_num() == 0) then
-!$        call omp_set_num_threads(atmos_nthreads)
-!$OMP PARALLEL private(adder)      !!!!atmos_nthreads nested parallel
-!$        if (use_hyper_thread) then
-!$          if (mod(omp_get_thread_num(),2) == 0) then
-!$            adder = omp_get_thread_num()/2
-!$          else
-!$            adder = ncores_per_node + omp_get_thread_num()/2
-!$          endif
-!$        else
-!$          adder = omp_get_thread_num()
-!$        endif
-!$       call set_cpu_affinity (base_cpu + adder)
-!$        if (debug_affinity) then
-!$          write(6,*) " atmos  ", get_cpu_affinity(), adder, omp_get_thread_num()
-!$          call flush(6)
-!$        endif
-!$OMP END PARALLEL   !!!!end atmos_nthreads nested parallel
-!$      endif
-!$    if (omp_get_thread_num() == 1) then
-!$        call omp_set_num_threads(radiation_nthreads)
-!$        if (use_hyper_thread) then
-!$          base_cpu_r = atmos_nthreads/2 + mod(atmos_nthreads,2)
-!$        else
-!$          base_cpu_r = atmos_nthreads
-!$        endif
-!$OMP PARALLEL private(adder)       !!!!radiation_nthreads nested parallel
-!$        if (use_hyper_thread) then
-!$          if (mod(omp_get_thread_num()+mod(atmos_nthreads,2),2) == 0) then
-!$            adder = base_cpu_r + omp_get_thread_num()/2
-!$          else
-!$            adder = base_cpu_r + ncores_per_node + omp_get_thread_num()/2 - mod(atmos_nthreads,2)
-!$          endif
-!$        else
-!$          adder = base_cpu_r + omp_get_thread_num()
-!$        endif
-!$        call set_cpu_affinity (base_cpu + adder)
-!$        if (debug_affinity) then
-!$          write(6,*) " rad    ", get_cpu_affinity(), base_cpu_r, adder, omp_get_thread_num()
-!$          call flush(6)
-!$        endif
-!$OMP END PARALLEL   !!!!end radiation_nthreads nested parallel
-!$      endif
-!$OMP END PARALLEL
 !$      call omp_set_num_threads(atmos_nthreads)
+!$OMP PARALLEL private(adder)      !!!!atmos_nthreads nested parallel
+!$      if (use_hyper_thread) then
+!$        if (mod(omp_get_thread_num(),2) == 0) then
+!$          adder = omp_get_thread_num()/2
+!$        else
+!$          adder = ncores_per_node + omp_get_thread_num()/2
+!$        endif
+!$      else
+!$        adder = omp_get_thread_num()
+!$      endif
+!$      call set_cpu_affinity (base_cpu + adder)
+!$      if (debug_affinity) then
+!$        write(6,*) " atmos  ", get_cpu_affinity(), adder, omp_get_thread_num()
+!$        call flush(6)
+!$      endif
+!$OMP END PARALLEL   !!!!end atmos_nthreads nested parallel
+!$    endif
+!$    if (omp_get_thread_num() == 1) then
+!$      call omp_set_num_threads(radiation_nthreads)
+!$      if (use_hyper_thread) then
+!$        base_cpu_r = atmos_nthreads/2 + mod(atmos_nthreads,2)
+!$      else
+!$        base_cpu_r = atmos_nthreads
+!$      endif
+!$OMP PARALLEL private(adder)       !!!!radiation_nthreads nested parallel
+!$      if (use_hyper_thread) then
+!$        if (mod(omp_get_thread_num()+mod(atmos_nthreads,2),2) == 0) then
+!$          adder = base_cpu_r + omp_get_thread_num()/2
+!$        else
+!$          adder = base_cpu_r + ncores_per_node + omp_get_thread_num()/2 - mod(atmos_nthreads,2)
+!$        endif
+!$      else
+!$        adder = base_cpu_r + omp_get_thread_num()
+!$      endif
+!$      call set_cpu_affinity (base_cpu + adder)
+!$      if (debug_affinity) then
+!$        write(6,*) " rad    ", get_cpu_affinity(), base_cpu_r, adder, omp_get_thread_num()
+!$        call flush(6)
+!$      endif
+!$OMP END PARALLEL   !!!!end radiation_nthreads nested parallel
+!$    endif
+!$OMP END PARALLEL
+!$    call omp_set_num_threads(atmos_nthreads)
     endif
 
    !--- initialization clock
     if (Atm%pe) then
-       call mpp_set_current_pelist(Atm%pelist)
-       id_atmos_model_init = mpp_clock_id( '  Init: atmos_model_init ' )
+      call mpp_set_current_pelist(Atm%pelist)
+      id_atmos_model_init = mpp_clock_id( '  Init: atmos_model_init ' )
     endif
     if (Land%pe) then
-       call mpp_set_current_pelist(Land%pelist)
-       id_land_model_init  = mpp_clock_id( '  Init: land_model_init ' )
+      call mpp_set_current_pelist(Land%pelist)
+      id_land_model_init  = mpp_clock_id( '  Init: land_model_init ' )
     endif
     if (Ice%pe) then
       if (Ice%shared_slow_fast_PEs) then
         call mpp_set_current_pelist(Ice%pelist)
       elseif (Ice%fast_ice_pe) then
-          call mpp_set_current_pelist(Ice%fast_pelist)
-        elseif (Ice%slow_ice_pe) then
-          call mpp_set_current_pelist(Ice%slow_pelist)
-        else
-          call mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
-        endif
-       id_ice_model_init   = mpp_clock_id( '  Init: ice_model_init ' )
+        call mpp_set_current_pelist(Ice%fast_pelist)
+      elseif (Ice%slow_ice_pe) then
+        call mpp_set_current_pelist(Ice%slow_pelist)
+      else
+        call mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
+      endif
+      id_ice_model_init   = mpp_clock_id( '  Init: ice_model_init ' )
     endif
     if (Ocean%is_ocean_pe) then
-       call mpp_set_current_pelist(Ocean%pelist)
-       id_ocean_model_init = mpp_clock_id( '  Init: ocean_model_init ' )
+      call mpp_set_current_pelist(Ocean%pelist)
+      id_ocean_model_init = mpp_clock_id( '  Init: ocean_model_init ' )
     endif
     call mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
     id_flux_exchange_init = mpp_clock_id( '  Init: flux_exchange_init' )
@@ -1435,42 +1517,48 @@ contains
 
     !Write out messages on root PEs
     if (mpp_pe().EQ.mpp_root_pe()) then
-       write( text,'(a,2i6,a,i2.2)' )'Atmos PE range: ', Atm%pelist(1)  , Atm%pelist(atmos_npes)  ,&
-            ' ens_', ensemble_id
-       call mpp_error( NOTE, 'coupler_init: '//trim(text) )
-       if (ocean_npes .gt. 0) then
-         write( text,'(a,2i6,a,i2.2)' )'Ocean PE range: ', Ocean%pelist(1), Ocean%pelist(ocean_npes), &
-              ' ens_', ensemble_id
-         call mpp_error( NOTE, 'coupler_init: '//trim(text) )
-       else
-         write( text,'(a,i2.2)' )'Ocean PE range is not set (do_ocean=.false. and concurrent=.false.) for ens_', &
-               ensemble_id
-         call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+      write( text,'(a,2i6,a,i2.2)' )'Atmos PE range: ', Atm%pelist(1)  , Atm%pelist(atmos_npes)  ,&
+           ' ens_', ensemble_id
+      call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+      if (ocean_npes .gt. 0) then
+        write( text,'(a,2i6,a,i2.2)' )'Ocean PE range: ', Ocean%pelist(1), Ocean%pelist(ocean_npes), &
+             ' ens_', ensemble_id
+        call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+      else
+        write( text,'(a,i2.2)' )'Ocean PE range is not set (do_ocean=.false. and concurrent=.false.) for ens_', &
+              ensemble_id
+        call mpp_error( NOTE, 'coupler_init: '//trim(text) )
       endif
-       write( text,'(a,2i6,a,i2.2)' )'Land PE range: ', Land%pelist(1)  , Land%pelist(land_npes)  ,&
-            ' ens_', ensemble_id
-       call mpp_error( NOTE, 'coupler_init: '//trim(text) )
-       write( text,'(a,2i6,a,i2.2)' )'Ice PE range: ', Ice%pelist(1), Ice%pelist(ice_npes), &
-            ' ens_', ensemble_id
-       call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+      write( text,'(a,2i6,a,i2.2)' )'Land PE range: ', Land%pelist(1)  , Land%pelist(land_npes)  ,&
+           ' ens_', ensemble_id
+      call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+      write( text,'(a,2i6,a,i2.2)' )'Ice PE range: ', Ice%pelist(1), Ice%pelist(ice_npes), &
+           ' ens_', ensemble_id
+      call mpp_error( NOTE, 'coupler_init: '//trim(text) )
 
       if (concurrent) then
-          call mpp_error( NOTE, 'coupler_init: Running with CONCURRENT coupling.' )
+        call mpp_error( NOTE, 'coupler_init: Running with CONCURRENT coupling.' )
 
-          write( logunit,'(a)' )'Using concurrent coupling...'
-          write( logunit,'(a,4i6)' ) &
-               'atmos_pe_start, atmos_pe_end, ocean_pe_start, ocean_pe_end=', &
-               Atm%pelist(1)  , Atm%pelist(atmos_npes), Ocean%pelist(1), Ocean%pelist(ocean_npes)
-       else
-          call mpp_error( NOTE, 'coupler_init: Running with SERIAL coupling.' )
+        write( logunit,'(a)' )'Using concurrent coupling...'
+        write( logunit,'(a,4i6)' ) &
+              'atmos_pe_start, atmos_pe_end, ocean_pe_start, ocean_pe_end=', &
+              Atm%pelist(1)  , Atm%pelist(atmos_npes), Ocean%pelist(1), Ocean%pelist(ocean_npes)
+      else
+        call mpp_error( NOTE, 'coupler_init: Running with SERIAL coupling.' )
       endif
       if (use_lag_fluxes) then
-          call mpp_error( NOTE, 'coupler_init: Sending LAG fluxes to ocean.' )
-       else
-          call mpp_error( NOTE, 'coupler_init: Sending most recent fluxes to ocean.' )
+        call mpp_error( NOTE, 'coupler_init: Sending LAG fluxes to ocean.' )
+      else
+        call mpp_error( NOTE, 'coupler_init: Sending most recent fluxes to ocean.' )
       endif
-      if (concurrent_ice ) call mpp_error( NOTE, &
+      if (concurrent_ice) call mpp_error( NOTE, &
         'coupler_init: using lagged slow-ice coupling mode.')
+      if (combined_ice_and_ocean) call mpp_error( NOTE, &
+        'coupler_init: advancing the ocean and slow-ice in a single call.')
+      if (combined_ice_and_ocean .and. .not.concurrent_ice) call mpp_error( FATAL, &
+        'coupler_init: concurrent_ice must be true if combined_ice_and_ocean is true.')
+      if (combined_ice_and_ocean .and. .not.slow_ice_with_ocean) call mpp_error( FATAL, &
+        'coupler_init: slow_ice_with_ocean must be true if combined_ice_and_ocean is true.')
     endif
 
 !----- write namelist to logfile -----
@@ -1479,7 +1567,7 @@ contains
 !----- write current/initial date actually used to logfile file -----
 
     if ( mpp_pe().EQ.mpp_root_pe() ) &
-         write( logunit, 16 )date(1),trim(month_name(date(2))),date(3:6)
+      write( logunit, 16 )date(1),trim(month_name(date(2))),date(3:6)
 16  format ('  current date used = ',i4,1x,a,2i3,2(':',i2.2),' gmt')
 
 !-----------------------------------------------------------------------
@@ -1494,10 +1582,10 @@ contains
 
     diag_model_subset=DIAG_ALL
     if (Atm%pe) then
-        call mpp_set_current_pelist(Atm%pelist)
+      call mpp_set_current_pelist(Atm%pelist)
       if (atmos_npes /= npes) diag_model_subset = DIAG_OTHER  ! change diag_model_subset from DIAG_ALL
     elseif (Ocean%is_ocean_pe) then  ! Error check above for disjoint pelists should catch any problem
-        call mpp_set_current_pelist(Ocean%pelist)
+      call mpp_set_current_pelist(Ocean%pelist)
       ! The FMS diag manager has a convention that segregates files with "ocean"
       ! in their names from the other files to handle long diag tables.  This
       ! does not work if the ice is on the ocean PEs.
@@ -1582,7 +1670,7 @@ contains
     if ( mpp_pe().EQ.mpp_root_pe() ) write (unit,20) date, month(1:3)
 
     call get_date (Time_end, date(1), date(2), date(3),  &
-         date(4), date(5), date(6))
+                   date(4), date(5), date(6))
     month = month_name(date(2))
     if ( mpp_pe().EQ.mpp_root_pe() ) write (unit,20) date, month(1:3)
 
@@ -1612,13 +1700,13 @@ contains
 !----- make sure run length is a multiple of ocean time step ------
 
     if ( num_cpld_calls * Time_step_cpld  /= Run_length )  &
-         call error_mesg ('program coupler',  &
+      call error_mesg ('program coupler',  &
          'run length must be multiple of coupled time step', FATAL)
 
 ! ---- make sure cpld time step is a multiple of atmos time step ----
 
     if ( num_atmos_calls * Time_step_atmos /= Time_step_cpld )  &
-         call error_mesg ('program coupler',   &
+      call error_mesg ('program coupler',   &
          'cpld time step is not a multiple of the atmos time step', FATAL)
 
 !
@@ -1631,27 +1719,18 @@ contains
       write(errunit,*) 'Starting to initialize tracer_manager at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
-    call tracer_manager_init
+    call tracer_manager_init()
+!   Initialize the gas-exchange fluxes so this information can be made
+!   available to the individual components.
+    call gas_exchange_init(gas_fields_atm, gas_fields_ocn, gas_fluxes)
+    call coupler_types_init()
     if (mpp_pe().EQ.mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Finished initializing tracer_manager at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
-!
-!       Initialize the coupler types
-!
 
-    if (mpp_pe().EQ.mpp_root_pe()) then
-      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-      write(errunit,*) 'Starting to initialize coupler_types at '&
-                       //trim(walldate)//' '//trim(walltime)
-    endif
-    call coupler_types_init
-    if (mpp_pe().EQ.mpp_root_pe()) then
-      call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-      write(errunit,*) 'Finished initializing coupler_types at '&
-                       //trim(walldate)//' '//trim(walltime)
-    endif
+
 
 !-----------------------------------------------------------------------
 !------ initialize component models ------
@@ -1685,121 +1764,127 @@ contains
         endif
         call print_memuse_stats( 'atmos_model_init' )
         call data_override_init(Atm_domain_in = Atm%domain)
-     endif
+    endif
 !---- land ----------
     if (Land%pe) then
-        call mpp_set_current_pelist(Land%pelist)
+      call mpp_set_current_pelist(Land%pelist)
       if (mpp_pe().EQ.mpp_root_pe()) then
-          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-          write(errunit,*) 'Starting to initialize land model at '&
-                           //trim(walldate)//' '//trim(walltime)
-        endif
-        call mpp_clock_begin(id_land_model_init)
-        call land_model_init( Atmos_land_boundary, Land, Time_init, Time, &
-             Time_step_atmos, Time_step_cpld )
-        call mpp_clock_end(id_land_model_init)
+        call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+        write(errunit,*) 'Starting to initialize land model at '&
+                         //trim(walldate)//' '//trim(walltime)
+      endif
+      call mpp_clock_begin(id_land_model_init)
+      call land_model_init( Atmos_land_boundary, Land, Time_init, Time, &
+                            Time_step_atmos, Time_step_cpld )
+      call mpp_clock_end(id_land_model_init)
       if (mpp_pe().EQ.mpp_root_pe()) then
-          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-          write(errunit,*) 'Finished initializing land model at '&
-                           //trim(walldate)//' '//trim(walltime)
-        endif
-        call print_memuse_stats( 'land_model_init' )
-        call data_override_init(Land_domain_in = Land%domain)
+        call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+        write(errunit,*) 'Finished initializing land model at '&
+                         //trim(walldate)//' '//trim(walltime)
+      endif
+      call print_memuse_stats( 'land_model_init' )
+      call data_override_init(Land_domain_in = Land%domain)
 #ifndef _USE_LEGACY_LAND_
-        call data_override_init(Land_domainUG_in = Land%ug_domain)
+      call data_override_init(Land_domainUG_in = Land%ug_domain)
 #endif
-     endif
+    endif
 !---- ice -----------
     if (Ice%pe) then  ! This occurs for all fast or slow ice PEs.
-        if (Ice%fast_ice_pe) then
-          call mpp_set_current_pelist(Ice%fast_pelist)
-        elseif (Ice%slow_ice_pe) then
-          call mpp_set_current_pelist(Ice%slow_pelist)
-        else
-          call mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
-        endif
+      if (Ice%fast_ice_pe) then
+        call mpp_set_current_pelist(Ice%fast_pelist)
+      elseif (Ice%slow_ice_pe) then
+        call mpp_set_current_pelist(Ice%slow_pelist)
+      else
+        call mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
+      endif
       if (mpp_pe().EQ.mpp_root_pe()) then
-          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-          write(errunit,*) 'Starting to initialize ice model at '&
-                           //trim(walldate)//' '//trim(walltime)
-        endif
-        call mpp_clock_begin(id_ice_model_init)
-        call ice_model_init( Ice, Time_init, Time, Time_step_atmos, &
+        call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+        write(errunit,*) 'Starting to initialize ice model at '&
+                         //trim(walldate)//' '//trim(walltime)
+      endif
+      call mpp_clock_begin(id_ice_model_init)
+      call ice_model_init(Ice, Time_init, Time, Time_step_atmos, &
                            Time_step_cpld, Verona_coupler=.false., &
-                           concurrent_ice=concurrent_ice )
-        call mpp_clock_end(id_ice_model_init)
+                          concurrent_ice=concurrent_ice, &
+                          gas_fluxes=gas_fluxes, gas_fields_ocn=gas_fields_ocn )
+      call mpp_clock_end(id_ice_model_init)
 
-        ! This must be called using the union of the ice PE_lists.
-        call mpp_set_current_pelist(Ice%pelist)
-        call share_ice_domains(Ice)
+      ! This must be called using the union of the ice PE_lists.
+      call mpp_set_current_pelist(Ice%pelist)
+      call share_ice_domains(Ice)
 
       if (mpp_pe().EQ.mpp_root_pe()) then
-          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-          write(errunit,*) 'Finished initializing ice model at '&
-                           //trim(walldate)//' '//trim(walltime)
-        endif
-        call print_memuse_stats( 'ice_model_init' )
-        if (Ice%fast_ice_pe) then
-          call mpp_set_current_pelist(Ice%fast_pelist)
-          call data_override_init(Ice_domain_in = Ice%domain)
-        endif
+        call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+        write(errunit,*) 'Finished initializing ice model at '&
+                         //trim(walldate)//' '//trim(walltime)
+      endif
+      call print_memuse_stats( 'ice_model_init' )
+      if (Ice%fast_ice_pe) then
+        call mpp_set_current_pelist(Ice%fast_pelist)
+        call data_override_init(Ice_domain_in = Ice%domain)
+      endif
     endif
+
 !---- ocean ---------
     if (Ocean%is_ocean_pe) then
-        call mpp_set_current_pelist(Ocean%pelist)
+      call mpp_set_current_pelist(Ocean%pelist)
       if (mpp_pe().EQ.mpp_root_pe()) then
-          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-          write(errunit,*) 'Starting to initialize ocean model at '&
-                           //trim(walldate)//' '//trim(walltime)
-        endif
-        call mpp_clock_begin(id_ocean_model_init)
-        call ocean_model_init( Ocean, Ocean_state, Time_init, Time )
-        call mpp_clock_end(id_ocean_model_init)
+        call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+        write(errunit,*) 'Starting to initialize ocean model at '&
+                         //trim(walldate)//' '//trim(walltime)
+      endif
+      call mpp_clock_begin(id_ocean_model_init)
+      call ocean_model_init( Ocean, Ocean_state, Time_init, Time, &
+                             gas_fields_ocn=gas_fields_ocn  )
+      call mpp_clock_end(id_ocean_model_init)
 
       if (concurrent) then
-!$           call omp_set_num_threads(ocean_nthreads)
-       call mpp_set_current_pelist( Ocean%pelist )
-!$           base_cpu = get_cpu_affinity()
-!$OMP PARALLEL private(adder)
-!$        if (use_hyper_thread) then
-!$          if (mod(omp_get_thread_num(),2) == 0) then
-!$            adder = omp_get_thread_num()/2
-!$          else
-!$            adder = ncores_per_node + omp_get_thread_num()/2
-!$          endif
+!$      call omp_set_num_threads(ocean_nthreads)
+        call mpp_set_current_pelist( Ocean%pelist )
+!$      base_cpu = get_cpu_affinity()
+!$OMP PARALLEL private(adder)    
+!$      if (use_hyper_thread) then
+!$        if (mod(omp_get_thread_num(),2) == 0) then
+!$          adder = omp_get_thread_num()/2
 !$        else
-!$          adder = omp_get_thread_num()
+!$          adder = ncores_per_node + omp_get_thread_num()/2
 !$        endif
-!$       call set_cpu_affinity (base_cpu + adder)
-!$        if (debug_affinity) then
-!$          write(6,*) " ocean  ", get_cpu_affinity(), adder, omp_get_thread_num()
-!$          call flush(6)
-!$        endif
-!$OMP END PARALLEL
-       else
-          ocean_nthreads = atmos_nthreads
-!$        call omp_set_num_threads(ocean_nthreads)
+!$      else
+!$        adder = omp_get_thread_num()
+!$      endif
+!$      call set_cpu_affinity (base_cpu + adder)
+!$      if (debug_affinity) then
+!$        write(6,*) " ocean  ", get_cpu_affinity(), adder, omp_get_thread_num()
+!$        call flush(6)
+!$      endif
+!$OMP END PARALLEL  
+      else
+        ocean_nthreads = atmos_nthreads
+!$      call omp_set_num_threads(ocean_nthreads)
       endif
 
+      if (mpp_pe().EQ.mpp_root_pe()) then
+        call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+        write(errunit,*) 'Finished initializing ocean model at '&
+                         //trim(walldate)//' '//trim(walltime)
+      endif
+      call print_memuse_stats( 'ocean_model_init' )
+      if (mpp_pe().EQ.mpp_root_pe()) then
+        call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+        write(errunit,*) 'Starting to initialize data_override at '&
+                         //trim(walldate)//' '//trim(walltime)
+      endif
+      call data_override_init(Ocean_domain_in = Ocean%domain )
+      if (mpp_pe().EQ.mpp_root_pe()) then
+        call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
+        write(errunit,*) 'Finished initializing data_override at '&
+                         //trim(walldate)//' '//trim(walltime)
+      endif
 
-      if (mpp_pe().EQ.mpp_root_pe()) then
-          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-          write(errunit,*) 'Finished initializing ocean model at '&
-                           //trim(walldate)//' '//trim(walltime)
-        endif
-        call print_memuse_stats( 'ocean_model_init' )
-      if (mpp_pe().EQ.mpp_root_pe()) then
-          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-          write(errunit,*) 'Starting to initialize data_override at '&
-                           //trim(walldate)//' '//trim(walltime)
-        endif
-        call data_override_init(Ocean_domain_in = Ocean%domain )
-      if (mpp_pe().EQ.mpp_root_pe()) then
-          call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
-          write(errunit,*) 'Finished initializing data_override at '&
-                           //trim(walldate)//' '//trim(walltime)
-        endif
-    endif
+      if (combined_ice_and_ocean) &
+        call ice_ocean_driver_init(ice_ocean_driver_CS, Time_init, Time)
+
+    endif ! end of Ocean%is_ocean_pe
 
 !---------------------------------------------
     if (mpp_pe().EQ.mpp_root_pe()) then
@@ -1821,9 +1906,9 @@ contains
     endif
     call mpp_clock_begin(id_flux_exchange_init)
     call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
-         atmos_ice_boundary, land_ice_atmos_boundary, &
-         land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
-         do_ocean, dt_atmos=dt_atmos, dt_cpld=dt_cpld)
+             atmos_ice_boundary, land_ice_atmos_boundary, &
+             land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
+         do_ocean, slow_ice_ocean_pelist, dt_atmos=dt_atmos, dt_cpld=dt_cpld)
     call mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
     call mpp_clock_end(id_flux_exchange_init)
     call mpp_set_current_pelist()
@@ -1841,68 +1926,37 @@ contains
 !
     if ( Ice%slow_ice_pe ) then
       call mpp_set_current_pelist(Ice%slow_pelist)
-      allocate(Ice_bc_restart(Ice%ocean_fluxes%num_bcs))
-      allocate(ice_bc_restart_file(Ice%ocean_fluxes%num_bcs))
-      do n = 1, Ice%ocean_fluxes%num_bcs  !{
-        if (Ice%ocean_fluxes%bc(n)%num_fields .LE. 0) cycle
-        filename = trim(Ice%ocean_fluxes%bc(n)%ice_restart_file)
+
+      call coupler_type_register_restarts(Ice%ocean_fluxes, Ice_bc_restart, &
+               num_ice_bc_restart, Ice%slow_domain_NH, ocean_restart=.false.)
+
+      ! Restore the fields from the restart files
         do l = 1, num_ice_bc_restart
-           if (trim(filename) == ice_bc_restart_file(l)) exit
+        call restore_state(Ice_bc_restart(l), directory='INPUT', &
+                           nonfatal_missing_files=.true.)
         enddo
-        if (l>num_ice_bc_restart) then
-           num_ice_bc_restart = num_ice_bc_restart + 1
-           ice_bc_restart_file(l) = trim(filename)
+
+      ! Check whether the restarts were read successfully.
+      call coupler_type_restore_state(Ice%ocean_fluxes, directory='INPUT', &
+                                      test_by_field=.true.)
         endif
-        filename = 'INPUT/'//trim(filename)
-        other_fields_exist = .false.
-        do m = 1, Ice%ocean_fluxes%bc(n)%num_fields  !{
-          fieldname = trim(Ice%ocean_fluxes%bc(n)%field(m)%name)
-          id_restart = register_restart_field(Ice_bc_restart(l), ice_bc_restart_file(l), &
-                       fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%slow_domain_NH   )
-          if ( field_exist(filename, fieldname, Ice%slow_domain_NH) ) then
-            other_fields_exist = .true.
-            write (outunit,*) trim(note_header), ' Reading restart info for ',         &
-                 trim(fieldname), ' from ',  trim(filename)
-            call read_data(filename, fieldname, Ice%ocean_fluxes%bc(n)%field(m)%values, Ice%slow_domain_NH)
-          elseif (other_fields_exist) then
-            call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
-                 trim(fieldname) // ' in file ' //trim(filename))
-          endif
-        enddo  !} m
-      enddo  !} n
-    endif
+
     if ( Ocean%is_ocean_pe ) then
       call mpp_set_current_pelist(Ocean%pelist)
-      allocate(Ocn_bc_restart(Ocean%fields%num_bcs))
-      allocate(ocn_bc_restart_file(Ocean%fields%num_bcs))
-      do n = 1, Ocean%fields%num_bcs  !{
-        if (Ocean%fields%bc(n)%num_fields .LE. 0) cycle
-        filename = trim(Ocean%fields%bc(n)%ocean_restart_file)
+
+      call coupler_type_register_restarts(Ocean%fields, Ocn_bc_restart, &
+               num_ocn_bc_restart, Ocean%domain, ocean_restart=.true.)
+
+      ! Restore the fields from the restart files
         do l = 1, num_ocn_bc_restart
-           if (trim(filename) == ocn_bc_restart_file(l)) exit
+        call restore_state(Ocn_bc_restart(l), directory='INPUT', &
+                           nonfatal_missing_files=.true.)
         enddo
-        if (l>num_ocn_bc_restart) then
-           num_ocn_bc_restart = num_ocn_bc_restart + 1
-           ocn_bc_restart_file(l) = trim(filename)
+
+      ! Check whether the restarts were read successfully.
+      call coupler_type_restore_state(Ocean%fields, directory='INPUT', &
+                                      test_by_field=.true.)
         endif
-        filename = 'INPUT/'//trim(filename)
-        other_fields_exist = .false.
-        do m = 1, Ocean%fields%bc(n)%num_fields  !{
-          fieldname = trim(Ocean%fields%bc(n)%field(m)%name)
-          id_restart = register_restart_field(Ocn_bc_restart(l), Ocn_bc_restart_file(l), &
-                       fieldname, Ocean%fields%bc(n)%field(m)%values, Ocean%domain    )
-          if ( field_exist(filename, fieldname, Ocean%domain) ) then
-            other_fields_exist = .true.
-            write (outunit,*) trim(note_header), ' Reading restart info for ',         &
-                 trim(fieldname), ' from ', trim(filename)
-            call read_data(filename, fieldname, Ocean%fields%bc(n)%field(m)%values, Ocean%domain)
-          elseif (other_fields_exist) then
-            call mpp_error(FATAL, trim(error_header) // ' Couldn''t find field ' //     &
-                 trim(fieldname) // ' in file ' //trim(filename))
-          endif
-        enddo  !} m
-      enddo  !} n
-    endif
 
     call mpp_set_current_pelist()
 
@@ -1976,24 +2030,24 @@ contains
 !this will work for serial code or concurrent (disjoint pelists)
 !but will fail on overlapping but unequal pelists
     if (Ocean%is_ocean_pe) then
-        call mpp_set_current_pelist(Ocean%pelist)
-        call ocean_model_end (Ocean, Ocean_state, Time)
+      call mpp_set_current_pelist(Ocean%pelist)
+      call ocean_model_end (Ocean, Ocean_state, Time)
     endif
     if (Atm%pe) then
-        call mpp_set_current_pelist(Atm%pelist)
-        call atmos_model_end ( Atm )
+      call mpp_set_current_pelist(Atm%pelist)
+      call atmos_model_end ( Atm )
     endif
     if (Land%pe) then
-        call mpp_set_current_pelist(Land%pelist)
-        call land_model_end (Atmos_land_boundary, Land)
+      call mpp_set_current_pelist(Land%pelist)
+      call land_model_end (Atmos_land_boundary, Land)
     endif
     if (Ice%pe) then  ! This happens on all fast or slow ice PEs.
       if (Ice%slow_ice_PE) then
-           call mpp_set_current_pelist(Ice%slow_pelist)
-        else ! This must be a fast ice PE.
-           call mpp_set_current_pelist(Ice%fast_pelist)
-        endif
-        call ice_model_end (Ice)
+        call mpp_set_current_pelist(Ice%slow_pelist)
+      else ! This must be a fast ice PE.
+        call mpp_set_current_pelist(Ice%fast_pelist)
+      endif
+      call ice_model_end (Ice)
     endif
 
     !----- write restart file ------
@@ -2018,11 +2072,11 @@ contains
 
     ! write restart file
     if (present(time_stamp)) then
-       file_run = 'RESTART/'//trim(time_stamp)//'.coupler.res'
-       file_res = 'RESTART/'//trim(time_stamp)//'.coupler.intermediate.res'
+      file_run = 'RESTART/'//trim(time_stamp)//'.coupler.res'
+      file_res = 'RESTART/'//trim(time_stamp)//'.coupler.intermediate.res'
     else
-       file_run = 'RESTART/coupler.res'
-       file_res = 'RESTART/coupler.intermediate.res'
+      file_run = 'RESTART/coupler.res'
+      file_res = 'RESTART/coupler.intermediate.res'
     endif
 
     !----- compute current date ------
@@ -2030,39 +2084,38 @@ contains
                    date(4), date(5), date(6))
     call mpp_open( unit, file_run, nohdrs=.TRUE. )
     if ( mpp_pe().EQ.mpp_root_pe()) then
-        write( unit, '(i6,8x,a)' )calendar_type, &
-             '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
+       write( unit, '(i6,8x,a)' )calendar_type, &
+            '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
 
-        write( unit, '(6i6,8x,a)' )date_init, &
-             'Model start time:   year, month, day, hour, minute, second'
-        write( unit, '(6i6,8x,a)' )date, &
-             'Current model time: year, month, day, hour, minute, second'
+       write( unit, '(6i6,8x,a)' )date_init, &
+            'Model start time:   year, month, day, hour, minute, second'
+       write( unit, '(6i6,8x,a)' )date, &
+            'Current model time: year, month, day, hour, minute, second'
     endif
     call mpp_close(unit)
 
     if (Time_res > Time_start) then
-       call mpp_open( unit, file_res, nohdrs=.TRUE. )
+      call mpp_open( unit, file_res, nohdrs=.TRUE. )
       if ( mpp_pe().EQ.mpp_root_pe()) then
-          call get_date(Time_res ,yr,mon,day,hr,min,sec)
-          write( unit, '(6i6,8x,a)' )yr,mon,day,hr,min,sec, &
-               'Current intermediate restart time: year, month, day, hour, minute, second'
+        call get_date(Time_res ,yr,mon,day,hr,min,sec)
+        write( unit, '(6i6,8x,a)' )yr,mon,day,hr,min,sec, &
+             'Current intermediate restart time: year, month, day, hour, minute, second'
       endif
-       call mpp_close(unit)
+      call mpp_close(unit)
     endif
 
     if (Ocean%is_ocean_pe) then
-        call mpp_set_current_pelist(Ocean%pelist)
-        do n = 1, num_ocn_bc_restart
-           call save_restart(Ocn_bc_restart(n), time_stamp)
-        enddo
+      call mpp_set_current_pelist(Ocean%pelist)
+      do n = 1, num_ocn_bc_restart
+        call save_restart(Ocn_bc_restart(n), time_stamp)
+      enddo
     endif
     if (Atm%pe) then
-        call mpp_set_current_pelist(Atm%pelist)
-        do n = 1, num_ice_bc_restart
-           call save_restart(Ice_bc_restart(n), time_stamp)
-        enddo
+      call mpp_set_current_pelist(Atm%pelist)
+      do n = 1, num_ice_bc_restart
+        call save_restart(Ice_bc_restart(n), time_stamp)
+      enddo
     endif
-
 
   end subroutine coupler_restart
 
@@ -2075,7 +2128,7 @@ contains
     integer         , intent(in) :: timestep
 
     type :: tracer_ind_type
-       integer :: atm, ice, lnd ! indices of the tracer in the respective models
+      integer :: atm, ice, lnd ! indices of the tracer in the respective models
     end type tracer_ind_type
     integer                            :: n_atm_tr, n_lnd_tr, n_exch_tr
     integer                            :: n_atm_tr_tot, n_lnd_tr_tot
@@ -2094,10 +2147,10 @@ contains
     allocate(tr_table(n_atm_tr))
     n = 1
     do i = 1,n_atm_tr
-       call get_tracer_names( MODEL_ATMOS, i, tr_name )
-       tr_table(n)%atm = i
-       tr_table(n)%ice = get_tracer_index ( MODEL_ICE,  tr_name )
-       tr_table(n)%lnd = get_tracer_index ( MODEL_LAND, tr_name )
+      call get_tracer_names( MODEL_ATMOS, i, tr_name )
+      tr_table(n)%atm = i
+      tr_table(n)%ice = get_tracer_index ( MODEL_ICE,  tr_name )
+      tr_table(n)%lnd = get_tracer_index ( MODEL_LAND, tr_name )
       if (tr_table(n)%ice/=NO_TRACER .or. tr_table(n)%lnd/=NO_TRACER) n = n+1
     enddo
     n_exch_tr = n-1
@@ -2106,62 +2159,56 @@ contains
 101 FORMAT("CHECKSUM::",A16,a,'%',a," = ",Z20)
 
     if (Atm%pe) then
-       call mpp_set_current_pelist(Atm%pelist)
+      call mpp_set_current_pelist(Atm%pelist)
 
-       outunit = stdout()
-       write(outunit,*) 'BEGIN CHECKSUM(Atm):: ', id, timestep
-       write(outunit,100) 'atm%t_bot', mpp_chksum(atm%t_bot)
-       write(outunit,100) 'atm%z_bot', mpp_chksum(atm%z_bot)
-       write(outunit,100) 'atm%p_bot', mpp_chksum(atm%p_bot)
-       write(outunit,100) 'atm%u_bot', mpp_chksum(atm%u_bot)
-       write(outunit,100) 'atm%v_bot', mpp_chksum(atm%v_bot)
-       write(outunit,100) 'atm%p_surf', mpp_chksum(atm%p_surf)
-       write(outunit,100) 'atm%gust', mpp_chksum(atm%gust)
-       do tr = 1,n_exch_tr
-          n = tr_table(tr)%atm
+      outunit = stdout()
+      write(outunit,*) 'BEGIN CHECKSUM(Atm):: ', id, timestep
+      write(outunit,100) 'atm%t_bot', mpp_chksum(atm%t_bot)
+      write(outunit,100) 'atm%z_bot', mpp_chksum(atm%z_bot)
+      write(outunit,100) 'atm%p_bot', mpp_chksum(atm%p_bot)
+      write(outunit,100) 'atm%u_bot', mpp_chksum(atm%u_bot)
+      write(outunit,100) 'atm%v_bot', mpp_chksum(atm%v_bot)
+      write(outunit,100) 'atm%p_surf', mpp_chksum(atm%p_surf)
+      write(outunit,100) 'atm%gust', mpp_chksum(atm%gust)
+      do tr = 1,n_exch_tr
+         n = tr_table(tr)%atm
          if (n /= NO_TRACER) then
-             call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
-             write(outunit,100) 'atm%'//trim(tr_name), mpp_chksum(Atm%tr_bot(:,:,n))
-          endif
-       enddo
+            call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
+            write(outunit,100) 'atm%'//trim(tr_name), mpp_chksum(Atm%tr_bot(:,:,n))
+         endif
+      enddo
 
-       write(outunit,100) 'land%t_surf', mpp_chksum(land%t_surf)
-       write(outunit,100) 'land%t_ca', mpp_chksum(land%t_ca)
-       write(outunit,100) 'land%rough_mom', mpp_chksum(land%rough_mom)
-       write(outunit,100) 'land%rough_heat', mpp_chksum(land%rough_heat)
-       write(outunit,100) 'land%rough_scale', mpp_chksum(land%rough_scale)
-       do tr = 1,n_exch_tr
-          n = tr_table(tr)%lnd
+      write(outunit,100) 'land%t_surf', mpp_chksum(land%t_surf)
+      write(outunit,100) 'land%t_ca', mpp_chksum(land%t_ca)
+      write(outunit,100) 'land%rough_mom', mpp_chksum(land%rough_mom)
+      write(outunit,100) 'land%rough_heat', mpp_chksum(land%rough_heat)
+      write(outunit,100) 'land%rough_scale', mpp_chksum(land%rough_scale)
+      do tr = 1,n_exch_tr
+        n = tr_table(tr)%lnd
         if (n /= NO_TRACER) then
-             call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
+          call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
 #ifndef _USE_LEGACY_LAND_
-             write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,n))
+          write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,n))
 #else
-             write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,:,n))
+          write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,:,n))
 #endif
-          endif
-       enddo
+        endif
+      enddo
 
-       write(outunit,100) 'ice%t_surf', mpp_chksum(ice%t_surf)
-       write(outunit,100) 'ice%rough_mom', mpp_chksum(ice%rough_mom)
-       write(outunit,100) 'ice%rough_heat', mpp_chksum(ice%rough_heat)
-       write(outunit,100) 'ice%rough_moist', mpp_chksum(ice%rough_moist)
-       write(outunit,*) 'STOP CHECKSUM(Atm):: ', id, timestep
+      write(outunit,100) 'ice%t_surf', mpp_chksum(ice%t_surf)
+      write(outunit,100) 'ice%rough_mom', mpp_chksum(ice%rough_mom)
+      write(outunit,100) 'ice%rough_heat', mpp_chksum(ice%rough_heat)
+      write(outunit,100) 'ice%rough_moist', mpp_chksum(ice%rough_moist)
+      write(outunit,*) 'STOP CHECKSUM(Atm):: ', id, timestep
 
     !endif
 
     !if (Ocean%is_ocean_pe) then
-        !call mpp_set_current_pelist(Ocean%pelist)
+       !call mpp_set_current_pelist(Ocean%pelist)
 
-       write(outunit,*) 'BEGIN CHECKSUM(Ice):: ', id, timestep
-       do n = 1, ice%ocean_fields%num_bcs  !{
-          do m = 1, ice%ocean_fields%bc(n)%num_fields  !{
-             !write(outunit,101) 'ice%', m, n, mpp_chksum(Ice%ocean_fields%bc(n)%field(m)%values)
-             write(outunit,101) 'ice%',trim(ice%ocean_fields%bc(n)%name), &
-                  trim(ice%ocean_fields%bc(n)%field(m)%name), mpp_chksum(Ice%ocean_fields%bc(n)%field(m)%values)
-          enddo  !} m
-       enddo  !} n
-       write(outunit,*) 'STOP CHECKSUM(Ice):: ', id, timestep
+      write(outunit,*) 'BEGIN CHECKSUM(Ice):: ', id, timestep
+      call coupler_type_write_chksums(Ice%ocean_fields, outunit, 'ice%')
+      write(outunit,*) 'STOP CHECKSUM(Ice):: ', id, timestep
 
     endif
 
@@ -2204,21 +2251,21 @@ contains
     type(atmos_ice_boundary_type), intent(in)      :: Atmos_ice_boundary
     type(atmos_land_boundary_type), intent(in)     :: Atmos_land_boundary
 
-     call atmos_data_type_chksum(     id, timestep, Atm)
-     call lnd_ice_atm_bnd_type_chksum(id, timestep, Land_ice_atmos_boundary)
+    call atmos_data_type_chksum(     id, timestep, Atm)
+    call lnd_ice_atm_bnd_type_chksum(id, timestep, Land_ice_atmos_boundary)
 
     if (Ice%fast_ice_pe) then
-        call mpp_set_current_pelist(Ice%fast_pelist)
-        call ice_data_type_chksum(   id, timestep, Ice)
-        call atm_ice_bnd_type_chksum(id, timestep, Atmos_ice_boundary)
-     endif
+      call mpp_set_current_pelist(Ice%fast_pelist)
+      call ice_data_type_chksum(   id, timestep, Ice)
+      call atm_ice_bnd_type_chksum(id, timestep, Atmos_ice_boundary)
+    endif
     if (Land%pe) then
-        call mpp_set_current_pelist(Land%pelist)
-        call land_data_type_chksum(  id, timestep, Land)
-        call atm_lnd_bnd_type_chksum(id, timestep, Atmos_land_boundary)
-     endif
+      call mpp_set_current_pelist(Land%pelist)
+      call land_data_type_chksum(  id, timestep, Land)
+      call atm_lnd_bnd_type_chksum(id, timestep, Atmos_land_boundary)
+    endif
 
-     call mpp_set_current_pelist(Atm%pelist)
+    call mpp_set_current_pelist(Atm%pelist)
 
   end subroutine atmos_ice_land_chksum
 
@@ -2278,8 +2325,8 @@ contains
     type (ocean_public_type), intent(in) :: Ocean
     type(ice_ocean_boundary_type), intent(in) :: Ice_ocean_boundary
 
-        call ocean_public_type_chksum(id, timestep, Ocean)
-        call ice_ocn_bnd_type_chksum( id, timestep, Ice_ocean_boundary)
+    call ocean_public_type_chksum(id, timestep, Ocean)
+    call ice_ocn_bnd_type_chksum( id, timestep, Ice_ocean_boundary)
 
   end subroutine ocean_chksum
 
