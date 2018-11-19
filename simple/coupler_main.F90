@@ -126,11 +126,12 @@ character(len=128) :: tag = '$Name$'
       integer :: dt_ocean = 0
 
       logical :: do_chksum = .FALSE.  !! If .TRUE., do multiple checksums throughout the execution of the model.
+      logical :: do_land = .FALSE. !! If true, will call update_land_model_fast
 
       namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
                              months, days, hours, minutes, seconds,  &
                              dt_atmos, dt_ocean, &
-                             do_chksum
+                             do_chksum, do_land
 
 !#######################################################################
 
@@ -184,8 +185,10 @@ character(len=128) :: tag = '$Name$'
 
      !--- land and ice models ---
 
-      call update_land_model_fast ( Atmos_land_boundary, Land )
-    if (do_chksum) call coupler_chksum('update_land+', na)
+    if (do_land ) then
+       call update_land_model_fast ( Atmos_land_boundary, Land )
+       if (do_chksum) call coupler_chksum('update_land+', na)
+    endif 
       call update_ice_model_fast  ( Atmos_ice_boundary,  Ice  )
     if (do_chksum) call coupler_chksum('update_ice+', na)
 
@@ -203,9 +206,10 @@ character(len=128) :: tag = '$Name$'
  enddo
 
     !--- call land slow for diagnostics ---
+    if (do_land) then
       call update_land_model_slow ( Atmos_land_boundary, Land )
-    if (do_chksum) call coupler_chksum('land_slow_diag+', nc)
-
+      if (do_chksum) call coupler_chksum('land_slow_diag+', nc)
+    endif
     ! need flux call to put runoff and p_surf on ice grid
 
     ! call flux_land_to_ice ( Time_atmos, Land, Ice, Land_ice_boundary )
