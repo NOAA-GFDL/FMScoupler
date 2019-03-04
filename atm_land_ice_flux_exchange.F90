@@ -40,7 +40,7 @@ module atm_land_ice_flux_exchange_mod
   use    land_model_mod,  only: land_data_type, atmos_land_boundary_type
 #ifndef _USE_LEGACY_LAND_
   use    land_model_mod,  only: set_default_diag_filter, register_tiled_diag_field
-  use    land_model_mod,  only: send_tile_data
+  use    land_model_mod,  only: send_tile_data, dump_tile_diag_fields
 #else
   use  diag_manager_mod,  only: register_tiled_diag_field=>register_diag_field
 #endif
@@ -156,13 +156,14 @@ module atm_land_ice_flux_exchange_mod
              id_t_ca,   id_q_surf, id_q_atm, id_z_atm, id_p_atm, id_gust, &
              id_t_ref_land, id_rh_ref_land, id_u_ref_land, id_v_ref_land, &
              id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip, &
-             id_hussLut_land, id_tasLut_land
+             id_hussLut_land, id_tasLut_land, id_t_flux_land
   integer :: id_co2_atm_dvmr, id_co2_surf_dvmr
 ! 2017/08/15 jgj added
   integer :: id_co2_bot, id_co2_flux_pcair_atm, id_o2_flux_pcair_atm
 
   integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:)
   integer, allocatable :: id_tr_mol_flux0(:) !f1p
+  integer, allocatable :: id_tr_flux_land(:), id_tr_mol_flux_land(:)
 
   ! id's for cmip specific fields
   integer :: id_tas, id_uas, id_vas, id_ts, id_psl, &
@@ -2852,12 +2853,36 @@ contains
           if (id_tr_mol_flux(tr) > 0 .and. lowercase(trim(tr_name))=='co2') then
                used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
     !sometimes in 2018 f1p for vmr tracers
-           elseif (id_tr_mol_flux(tr) > 0 .and. lowercase(trim(tr_units)).eq."vmr") then 
+           elseif (id_tr_mol_flux(tr) > 0 .and. lowercase(trim(tr_units)).eq."vmr") then
               call get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
               used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMAIR, Time)
        endif
        endif
     enddo
+
+#ifndef _USE_LEGACY_LAND_
+    if ( id_t_flux_land > 0 ) then
+       call get_from_xgrid_land (diag_land, 'LND', ex_flux_t, xmap_sfc)
+       call send_tile_data ( id_t_flux_land, diag_land )
+    endif
+    !------- tracer fluxes for land
+    do tr=1,n_exch_tr
+       if ( id_tr_flux_land(tr) > 0 .or. id_tr_mol_flux_land(tr) > 0 ) then
+          call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name, units=tr_units )
+          call get_from_xgrid_land (diag_land, 'LND', ex_flux_tr(:,tr), xmap_sfc)
+          if (id_tr_flux_land(tr) > 0 ) &
+                 call send_tile_data (id_tr_flux_land(tr), diag_land )
+          if (id_tr_mol_flux_land(tr) > 0) then
+             if (lowercase(trim(tr_name))=='co2') then
+                call send_tile_data (id_tr_mol_flux_land(tr), diag_land*1000./WTMCO2)
+             elseif (lowercase(trim(tr_units)).eq.'vmr') then
+                call get_from_xgrid_land (diag_land, 'LND', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
+                call send_tile_data (id_tr_mol_flux_land(tr), diag_atm*1000./WTMAIR )
+             endif
+          endif
+       endif
+    enddo
+#endif
 
     !-----------------------------------------------------------------------
     !---- accumulate global integral of evaporation (mm/day) -----
@@ -2871,7 +2896,7 @@ contains
     if( id_q_flux_land > 0 ) then
        call get_from_xgrid_land (diag_land, 'LND', ex_flux_tr(:,isphum), xmap_sfc)
 #ifndef _USE_LEGACY_LAND_
-       call send_tile_data (id_q_flux_land, diag_land, send_immediately=.TRUE.)
+       call send_tile_data (id_q_flux_land, diag_land)
 #else
        used = send_tile_averaged_data(id_q_flux_land, diag_land, &
             Land%tile_size, Time, mask=Land%mask)
@@ -2880,6 +2905,12 @@ contains
     call sum_diag_integral_field ('evap', evap_atm*86400.)
 #ifndef use_AM3_physics
     if (id_evspsbl_g > 0) used = send_global_diag ( id_evspsbl_g, evap_atm, Time )
+#endif
+
+#ifndef _USE_LEGACY_LAND_
+    call send_tile_data (id_q_flux_land, diag_land)
+    ! need this to avoid diag issues with tiling changes in update_land_slow
+    call dump_tile_diag_fields(Time)
 #endif
 
     ! compute stock changes
@@ -3346,6 +3377,9 @@ contains
        id_q_flux_land = &
             register_tiled_diag_field( 'flux_land', 'evap', Land_axes, Time, &
             'evaporation rate over land', 'kg/m2/s', missing_value=-1.0 )
+       id_t_flux_land = &
+            register_tiled_diag_field( 'flux_land', 'shflx', Land_axes, Time, &
+            'sensible heat flux', 'W/m2', missing_value=-1.0 )
        id_tasLut_land = &
             register_tiled_diag_field( 'cmor_land', 'tasLut', Land_axes, Time, &
             'Near-Surface Air Temperature ('//trim(label_zh)//' Above Displacement Height) on Land Use Tile', &
@@ -3354,6 +3388,20 @@ contains
             register_tiled_diag_field( 'cmor_land', 'hussLut', Land_axes, Time, &
             'Near-Surface Specific Humidity on Land Use Tile', '1.0', &
             standard_name='specific_humidity', missing_value=-1.0 )
+       allocate(id_tr_flux_land(n_exch_tr))
+       allocate(id_tr_mol_flux_land(n_exch_tr))
+       do tr = 1, n_exch_tr
+          call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, name, longname, units )
+          id_tr_flux_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_flux', Land_axes, Time, &
+               'flux of '//trim(longname), trim(units)//' kg air/(m2 s)', missing_value=-1.0 )
+          if ( lowercase(trim(name))=='co2') then
+             id_tr_mol_flux_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_mol_flux', Land_axes, Time, &
+                  'flux of '//trim(longname), 'mol CO2/(m2 s)', missing_value=-1.0 )
+          else
+             id_tr_mol_flux_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_mol_flux', Land_axes, Time, &
+                  'flux of '//trim(longname), 'mol/(m2 s)', missing_value=-1.0 )
+          endif
+       enddo
     endif
 
     id_q_ref = &
@@ -3393,11 +3441,11 @@ contains
        else
 !f1p
           id_tr_mol_flux(tr) = register_diag_field(mod_name, trim(name)//'_mol_flux', atmos_axes, Time, &
-               'flux of '//trim(longname), 'mol/(m2 s)')          
+               'flux of '//trim(longname), 'mol/(m2 s)')
        endif
 !f1p
        id_tr_mol_flux0(tr) = register_diag_field(mod_name, trim(name)//'_mol_flux_atm0', atmos_axes, Time, &
-            'gross flux of '//trim(longname), 'mol/(m2 s)')          
+            'gross flux of '//trim(longname), 'mol/(m2 s)')
 
     enddo
 
