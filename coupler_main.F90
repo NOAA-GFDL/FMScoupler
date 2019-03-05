@@ -556,6 +556,7 @@ program coupler_main
 
   character(len=80) :: text
   character(len=48), parameter                    :: mod_name = 'coupler_main_mod'
+  character(len=32) :: hname = 'host'
 
   integer :: outunit
   integer :: ensemble_id = 1
@@ -1195,7 +1196,7 @@ contains
     character(len=64)  :: filename, fieldname
     integer :: id_restart, l
     integer :: omp_get_thread_num, omp_get_num_threads
-    integer :: get_cpu_affinity, base_cpu, base_cpu_r, adder
+    integer :: get_cpu_affinity, set_cpu_affinity, base_cpu, base_cpu_r, adder
     character(len=8)  :: walldate
     character(len=10) :: walltime
     character(len=5)  :: wallzone
@@ -1435,6 +1436,12 @@ contains
 !$    if (do_concurrent_radiation) conc_nthreads=2
 !$    call omp_set_num_threads(conc_nthreads)
 !$    base_cpu = get_cpu_affinity()
+!$    if (base_cpu == -1) then
+!$       write(err_msg, *) 'get_cpu_affinity has returned an invalid &
+!$                         &value. Check your mpi-task spacing, ncores_per_node, and thread &
+!$                         &values. File a helpdesk ticket if issues persist.'
+!$       call error_mesg(trim(mod_name)//'::atmos affinity', trim(err_msg), FATAL)
+!$    endif
 !$OMP PARALLEL
 !$    if (omp_get_thread_num() == 0) then
 !$      call omp_set_num_threads(atmos_nthreads)
@@ -1445,12 +1452,27 @@ contains
 !$        else
 !$          adder = ncores_per_node + omp_get_thread_num()/2
 !$        endif
+!$        ierr = set_cpu_affinity (base_cpu + adder)
+!$        if (ierr == -1) then
+!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
+!$                         &value. Hyperthreading is enabled, make &
+!$                         &sure ncores_per_node is correct.'
+!$          call error_mesg(trim(mod_name)//'::atmos affinity', trim(err_msg), FATAL)
+!$        endif
 !$      else
 !$        adder = omp_get_thread_num()
+!$        ierr = set_cpu_affinity (base_cpu + adder)
+!$        if (ierr == -1) then
+!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
+!$                         &value. Make sure your srun command is correct &
+!$                         &for the model configuration. File a helpdesk &
+!$                         &ticket if issues persist.'
+!$          call error_mesg(trim(mod_name)//'::atmos affinity', trim(err_msg), FATAL)
+!$        endif
 !$      endif
-!$      call set_cpu_affinity (base_cpu + adder)
 !$      if (debug_affinity) then
-!$        write(6,*) " atmos  ", get_cpu_affinity(), adder, omp_get_thread_num()
+!$        call hostnm(hname)
+!$        write(6,*) mpp_pe(), " atmos  ", trim(hname), get_cpu_affinity(), base_cpu, omp_get_thread_num()
 !$        call flush(6)
 !$      endif
 !$OMP END PARALLEL   !!!!end atmos_nthreads nested parallel
@@ -1469,12 +1491,27 @@ contains
 !$        else
 !$          adder = base_cpu_r + ncores_per_node + omp_get_thread_num()/2 - mod(atmos_nthreads,2)
 !$        endif
+!$        ierr = set_cpu_affinity (base_cpu + adder)
+!$        if (ierr == -1) then
+!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
+!$                         &value. Hyperthreading is enabled, make &
+!$                         &sure ncores_per_node is correct.'
+!$          call error_mesg(trim(mod_name)//'::conc_rad affinity', trim(err_msg), FATAL)
+!$        endif
 !$      else
 !$        adder = base_cpu_r + omp_get_thread_num()
+!$        ierr = set_cpu_affinity (base_cpu + adder)
+!$        if (ierr == -1) then
+!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
+!$                         &value. Make sure your srun command is correct &
+!$                         &for the model configuration. File a helpdesk &
+!$                         &ticket if issues persist.'
+!$          call error_mesg(trim(mod_name)//'::conc_rad affinity', trim(err_msg), FATAL)
+!$        endif
 !$      endif
-!$      call set_cpu_affinity (base_cpu + adder)
 !$      if (debug_affinity) then
-!$        write(6,*) " rad    ", get_cpu_affinity(), base_cpu_r, adder, omp_get_thread_num()
+!$        call hostnm(hname)
+!$        write(6,*) mpp_pe(), " rad    ", trim(hname), get_cpu_affinity(), base_cpu+base_cpu_r, omp_get_thread_num()
 !$        call flush(6)
 !$      endif
 !$OMP END PARALLEL   !!!!end radiation_nthreads nested parallel
@@ -1839,9 +1876,15 @@ contains
       call mpp_clock_end(id_ocean_model_init)
 
       if (concurrent) then
-!$      call omp_set_num_threads(ocean_nthreads)
         call mpp_set_current_pelist( Ocean%pelist )
+!$      call omp_set_num_threads(ocean_nthreads)
 !$      base_cpu = get_cpu_affinity()
+!$      if (base_cpu == -1) then
+!$         write(err_msg, *) 'get_cpu_affinity has returned an invalid &
+!$                           &value. Check your mpi-task spacing, ncores_per_node, and thread &
+!$                           &values. File a helpdesk ticket if issues persist.'
+!$         call error_mesg(trim(mod_name)//'::ocean affinity', trim(err_msg), FATAL)
+!$      endif
 !$OMP PARALLEL private(adder)    
 !$      if (use_hyper_thread) then
 !$        if (mod(omp_get_thread_num(),2) == 0) then
@@ -1849,12 +1892,27 @@ contains
 !$        else
 !$          adder = ncores_per_node + omp_get_thread_num()/2
 !$        endif
+!$        ierr = set_cpu_affinity (base_cpu + adder)
+!$        if (ierr == -1) then
+!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
+!$                         &value. Hyperthreading is enabled, make &
+!$                         &sure ncores_per_node is correct.'
+!$          call error_mesg(trim(mod_name)//'::ocean affinity', trim(err_msg), FATAL)
+!$        endif
 !$      else
 !$        adder = omp_get_thread_num()
+!$        ierr = set_cpu_affinity (base_cpu + adder)
+!$        if (ierr == -1) then
+!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
+!$                         &value. Make sure your srun command is correct &
+!$                         &for the model configuration. File a helpdesk &
+!$                         &ticket if issues persist.'
+!$          call error_mesg(trim(mod_name)//'::ocean affinity', trim(err_msg), FATAL)
+!$        endif
 !$      endif
-!$      call set_cpu_affinity (base_cpu + adder)
 !$      if (debug_affinity) then
-!$        write(6,*) " ocean  ", get_cpu_affinity(), adder, omp_get_thread_num()
+!$        call hostnm(hname)
+!$        write(6,*) mpp_pe(), " ocean  ", trim(hname), get_cpu_affinity(), base_cpu, omp_get_thread_num()
 !$        call flush(6)
 !$      endif
 !$OMP END PARALLEL  
