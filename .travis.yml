@@ -11,7 +11,7 @@ dist: xenial
 sudo: false
 
 addons:
-  atp:
+  apt:
     sources:
       - ubuntu-toolchain-r-test
     packages:
