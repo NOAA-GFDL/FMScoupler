@@ -21,7 +21,7 @@ mkdir $src_dir
 # mkmf -- used for now to build the model
 git clone https://github.com/NOAA-GFDL/mkmf.git
 export PATH=${PATH}:${bld_dir}/mkmf/bin
-mk_template=${bld_dir}/mkmf/templates/linux-ubuntu-trusty-gnu.mk
+mk_template=${bld_dir}/mkmf/templates/linux-ubuntu-xenial-gnu.mk
 
 # FMS
 git clone https://github.com/NOAA-GFDL/FMS.git $src_dir/FMS
