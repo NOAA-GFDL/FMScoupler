@@ -1,4 +1,3 @@
-
 module flux_exchange_mod
 
 !-----------------------------------------------------------------------
@@ -19,7 +18,9 @@ use  diag_manager_mod, only: register_diag_field,  &
 use  time_manager_mod, only: time_type
 
 use sat_vapor_pres_mod, only: escomp, compute_qs, sat_vapor_pres_init
+#ifndef use_AM3_physics
 use atmos_cmip_diag_mod,   only: register_cmip_diag_field_2d
+#endif
 use diag_data_mod,      only: CMOR_MISSING_VALUE 
 use      constants_mod, only: RDGAS, RVGAS, CP_AIR, HLV, HLF, PI
 use            fms_mod, only: file_exist, open_namelist_file, &
@@ -1064,6 +1065,7 @@ subroutine diag_field_init ( Time, atmos_axes )
     !-----------------------------------------------------------------------
     !  register cmip variable names
     !-----------------------------------------------------------------------
+#ifndef use_AM3_physics
     id_tas = register_cmip_diag_field_2d ( mod_name, 'tas', Time, &
                             'Near-Surface Air Temperature', 'K' , &
                              standard_name='air_temperature' )
@@ -1130,7 +1132,7 @@ subroutine diag_field_init ( Time, atmos_axes )
     id_hfss = register_cmip_diag_field_2d ( mod_name, 'hfss', Time, &
                       'Surface Upward Sensible Heat Flux', 'W m-2', &
                   standard_name='surface_upward_sensible_heat_flux' )
-
+#endif
 
 !-----------------------------------------------------------------------
 
