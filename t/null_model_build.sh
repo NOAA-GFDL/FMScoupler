@@ -176,11 +176,14 @@ mkdir ${bld_dir}/run
 cd ${bld_dir}/run
 mkdir RESTART
 # Get the data files required for the run
-wget ftp://ftp.gfdl.noaa.gov/perm/GFDL_pubrelease/test_data/coupler_null_test_data.tar.gz
-tar zxf coupler_null_test_data.tar.gz
+tarFile=coupler_null_test_data_full_simple.tar.gz
+wget ftp://ftp.gfdl.noaa.gov/perm/GFDL_pubrelease/test_data/${tarFile}
+tar zxf ${tarFile}
+
+# Get the full namelist
+ln -s input-full.nml input.nml
 # Run the null model with the full coupler
-ln -s ${bld_dir}/coupler_full_test.x .
-mpiexec -n 1 ./coupler_full_test.x
+mpiexec -n 1 ${bld_dir}/coupler_full_test.x
 
 # Report on the status of the run with the full coupler
 if [ $? -eq 0 ]
@@ -190,3 +193,14 @@ else
   echo "<NOTE> : run failed - full coupler."
   exit 1
 fi
+
+# Using the same run directory, setup for the simple coupler
+# Clear out the RESTART directory
+mv RESTART RESTART_full
+mkdir RESTART
+# Get the simple namelist
+rm input.nml
+ln -s input-simple.nml input.nml
+# Run the null simple coupler test
+mpiexec -n 1 ${bld_dir}/coupler_simple_test.x
+

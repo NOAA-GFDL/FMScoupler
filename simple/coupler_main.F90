@@ -54,7 +54,7 @@ use mpp_mod, only: mpp_chksum, mpp_set_current_pelist
 use mpp_io_mod, only: mpp_open, mpp_close, &
                       MPP_NATIVE, MPP_RDONLY, MPP_DELETE
 
-use mpp_domains_mod, only: mpp_get_global_domain, mpp_global_field, CORNER
+use mpp_domains_mod, only: mpp_get_global_domain, mpp_global_field, CORNER, mpp_set_domain_symmetry
 
 use flux_exchange_mod, only: flux_exchange_init,   &
                              sfc_boundary_layer,   &
@@ -439,8 +439,10 @@ num_atmos_calls = Time_step_ocean / Time_step_atmos
 
       call mpp_get_global_domain(Atm%Domain, xsize=gnlon, ysize=gnlat)
       allocate ( glon_bnd(gnlon+1,gnlat+1), glat_bnd(gnlon+1,gnlat+1) )
+      call mpp_set_domain_symmetry(Atm%Domain, .true.)
       call mpp_global_field(Atm%Domain, Atm%lon_bnd, glon_bnd, position=CORNER)
       call mpp_global_field(Atm%Domain, Atm%lat_bnd, glat_bnd, position=CORNER)
+      call mpp_set_domain_symmetry(Atm%Domain, .false.)
 
       call   land_model_init (Atmos_land_boundary, Land, &
                               Time_init, Time_atmos, Time_step_atmos, Time_step_ocean, &
