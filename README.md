@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/NOAA-GFDL/coupler.svg?branch=master)](https://travis-ci.org/NOAA-GFDL/coupler)
+
 # Flexible Modeling System (FMS) Coupler
 
 The Flexible Modeling System (FMS) is a software framework for supporting the 
