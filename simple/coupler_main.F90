@@ -50,7 +50,7 @@ use flux_exchange_mod,  only: flux_exchange_init,   &
                               flux_up_to_atmos,     &
                               flux_exchange_end       ! may not be used?
 
-use fms_affinity_mod    only: fms_affinity_init, fms_affinity_set
+use fms_affinity_mod,   only: fms_affinity_init, fms_affinity_set
 
 use fms_mod,            only: open_namelist_file, file_exist, check_nml_error,  &
                               error_mesg, fms_init, fms_end, close_file,        &
