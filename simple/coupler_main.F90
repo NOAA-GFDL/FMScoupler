@@ -83,6 +83,11 @@ use tracer_manager_mod, only: tracer_manager_init, get_tracer_index, &
 implicit none
 
 !-----------------------------------------------------------------------
+
+  character(len=128) :: version = 'unknown'
+  character(len=128) :: tag = 'FMSCoupler_SIMPLE'
+
+!-----------------------------------------------------------------------
 !---- model defined-types ----
 
  type (atmos_data_type) :: Atm
