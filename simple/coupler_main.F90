@@ -50,11 +50,11 @@ use flux_exchange_mod,  only: flux_exchange_init,   &
                               flux_up_to_atmos,     &
                               flux_exchange_end       ! may not be used?
 
-use fms_affinity_mod    only: fms_affinity_init, fms_affinity_set
+use fms_affinity_mod,   only: fms_affinity_init, fms_affinity_set
 
 use fms_mod,            only: open_namelist_file, file_exist, check_nml_error,  &
                               error_mesg, fms_init, fms_end, close_file,        &
-                              write_version_number, uppercase. stdout
+                              write_version_number, uppercase, stdout
 
 use fms_io_mod,         only: fms_io_exit
 
@@ -81,6 +81,11 @@ use tracer_manager_mod, only: tracer_manager_init, get_tracer_index, &
                               NO_TRACER
 
 implicit none
+
+!-----------------------------------------------------------------------
+
+  character(len=128) :: version = 'unknown'
+  character(len=128) :: tag = 'FMSCoupler_SIMPLE'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
