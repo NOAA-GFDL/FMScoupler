@@ -1,5 +1,5 @@
-# This is an automake file for the GFDL AM4 model.
-# This builds directory ..
+# This is an automake file for the GFDL FMScoupler project.
+# This builds the main directory.
 #
 # Ed Hartnett 2019-09-10
 
