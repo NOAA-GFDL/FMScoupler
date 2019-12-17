@@ -74,6 +74,12 @@ character(len=64) :: sst_method = 'specified'  ! specified, uniform, or mixed_la
                                                !   aqua_planet_50N = Control shifted by 50N
                                                !   aqua_planet_55N = Control shifted by 55N
                                                !   aqua_planet_60N = Control shifted by 60N
+                                               !   aqua_planet_65N = Control shifted by 65N
+                                               !   aqua_planet_70N = Control shifted by 70N
+                                               !   aqua_planet_75N = Control shifted by 75N
+                                               !   aqua_planet_80N = Control shifted by 80N
+                                               !   aqua_planet_85N = Control shifted by 85N
+                                               !   aqua_planet_90N = Control shifted by 90N
 real              :: temp_ice = 270.      ! used when ice_method = 'uniform'
 real              :: temp_sst = 280.      ! used when sst_method = 'uniform'
 real              :: sst_anom = 0.        ! sst perturbation used for sensitivity experiments
@@ -456,6 +462,12 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
        trim(sst_method) /= 'aqua_planet_50N'      .and. &
        trim(sst_method) /= 'aqua_planet_55N'      .and. &
        trim(sst_method) /= 'aqua_planet_60N'      .and. &
+       trim(sst_method) /= 'aqua_planet_65N'      .and. &
+       trim(sst_method) /= 'aqua_planet_70N'      .and. &
+       trim(sst_method) /= 'aqua_planet_75N'      .and. &
+       trim(sst_method) /= 'aqua_planet_80N'      .and. &
+       trim(sst_method) /= 'aqua_planet_85N'      .and. &
+       trim(sst_method) /= 'aqua_planet_90N'      .and. &
        trim(sst_method) /= 'aqua_walker'          .and. &
        trim(sst_method) /= 'aqua_walker_cos'      .and. &
        trim(sst_method) /= 'aqua_walker_guass'    .and. &
@@ -995,6 +1007,85 @@ endif
                   Ice%t_surf(i,j) = 27.*(1.-sin(min(90./55.*(Ice%lat(i,j)-pi/3.),pi*0.5))**2) + TFREEZE
               else
                   Ice%t_surf(i,j) = 27.*(1.-sin(max(90./65.*(Ice%lat(i,j)-pi/3.),-pi*0.5))**2) + TFREEZE
+              endif
+           endif
+        enddo
+    else if (sst_method == "aqua_planet_65N") then
+        ice_method = 'none'
+        Ice%ice_mask = .false.
+        do j = js, je
+        do i = is, ie
+           if (Ice%mask(i,j)) then
+              if (Ice%lat(i,j) > 13.*pi/36.) then
+                  Ice%t_surf(i,j) = 27.*(1.-sin(min(90./55.*(Ice%lat(i,j)-13.*pi/36.),pi*0.5))**2) + TFREEZE
+              else
+                  Ice%t_surf(i,j) = 27.*(1.-sin(max(90./65.*(Ice%lat(i,j)-13.*pi/36.),-pi*0.5))**2) + TFREEZE
+              endif
+           endif
+        enddo
+    else if (sst_method == "aqua_planet_70N") then
+        ice_method = 'none'
+        Ice%ice_mask = .false.
+        do j = js, je
+        do i = is, ie
+           if (Ice%mask(i,j)) then
+              if (Ice%lat(i,j) > 7.*pi/18.) then
+                  Ice%t_surf(i,j) = 27.*(1.-sin(min(90./55.*(Ice%lat(i,j)-7.*pi/18.),pi*0.5))**2) + TFREEZE
+              else
+                  Ice%t_surf(i,j) = 27.*(1.-sin(max(90./65.*(Ice%lat(i,j)-7.*pi/18.),-pi*0.5))**2) + TFREEZE
+              endif
+           endif
+        enddo
+    else if (sst_method == "aqua_planet_75N") then
+        ice_method = 'none'
+        Ice%ice_mask = .false.
+        do j = js, je
+        do i = is, ie
+           if (Ice%mask(i,j)) then
+              if (Ice%lat(i,j) > 5.*pi/12.) then
+                  Ice%t_surf(i,j) = 27.*(1.-sin(min(90./55.*(Ice%lat(i,j)-5.*pi/12.),pi*0.5))**2) + TFREEZE
+              else
+                  Ice%t_surf(i,j) = 27.*(1.-sin(max(90./65.*(Ice%lat(i,j)-5.*pi/12.),-pi*0.5))**2) + TFREEZE
+              endif
+           endif
+        enddo
+    else if (sst_method == "aqua_planet_80N") then
+        ice_method = 'none'
+        Ice%ice_mask = .false.
+        do j = js, je
+        do i = is, ie
+           if (Ice%mask(i,j)) then
+              if (Ice%lat(i,j) > 4.*pi/9.) then
+                  Ice%t_surf(i,j) = 27.*(1.-sin(min(90./55.*(Ice%lat(i,j)-4.*pi/9.),pi*0.5))**2) + TFREEZE
+              else
+                  Ice%t_surf(i,j) = 27.*(1.-sin(max(90./65.*(Ice%lat(i,j)-4.*pi/9.),-pi*0.5))**2) + TFREEZE
+              endif
+           endif
+        enddo
+    else if (sst_method == "aqua_planet_85N") then
+        ice_method = 'none'
+        Ice%ice_mask = .false.
+        do j = js, je
+        do i = is, ie
+           if (Ice%mask(i,j)) then
+              if (Ice%lat(i,j) > 17.*pi/36.) then
+                  Ice%t_surf(i,j) = 27.*(1.-sin(min(90./55.*(Ice%lat(i,j)-17.*pi/36.),pi*0.5))**2) + TFREEZE
+              else
+                  Ice%t_surf(i,j) = 27.*(1.-sin(max(90./65.*(Ice%lat(i,j)-17.*pi/36.),-pi*0.5))**2) + TFREEZE
+              endif
+           endif
+        enddo
+        enddo
+    else if (sst_method == "aqua_planet_90N") then
+        ice_method = 'none'
+        Ice%ice_mask = .false.
+        do j = js, je
+        do i = is, ie
+           if (Ice%mask(i,j)) then
+              if (Ice%lat(i,j) > pi/2.) then
+                  Ice%t_surf(i,j) = 27.*(1.-sin(min(90./55.*(Ice%lat(i,j)-pi/2.),pi*0.5))**2) + TFREEZE
+              else
+                  Ice%t_surf(i,j) = 27.*(1.-sin(max(90./65.*(Ice%lat(i,j)-pi/2.),-pi*0.5))**2) + TFREEZE
               endif
            endif
         enddo
