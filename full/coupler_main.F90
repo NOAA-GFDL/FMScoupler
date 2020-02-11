@@ -310,7 +310,12 @@
 !!     This error should probably not occur because of checks done at initialization time.
 program coupler_main
 
+  !--- F90 module for OpenMP
+  use omp_lib
+
   use constants_mod,           only: constants_init
+
+  use fms_affinity_mod,        only: fms_affinity_init, fms_affinity_set
 
   use time_manager_mod,        only: time_type, set_calendar_type, set_time
   use time_manager_mod,        only: set_date, get_date, days_in_month, month_name
@@ -529,8 +534,6 @@ program coupler_main
   logical :: do_debug=.FALSE.       !< If .TRUE. print additional debugging messages.
   integer :: check_stocks = 0 ! -1: never 0: at end of run only n>0: every n coupled steps
   logical :: use_hyper_thread = .false.
-  integer :: ncores_per_node = 0
-  logical :: debug_affinity = .false.
 
   namelist /coupler_nml/ current_date, calendar, force_date_from_namelist,         &
                          months, days, hours, minutes, seconds, dt_cpld, dt_atmos, &
@@ -539,9 +542,8 @@ program coupler_main
                          atmos_nthreads, ocean_nthreads, radiation_nthreads,       &
                          concurrent, do_concurrent_radiation, use_lag_fluxes,      &
                          check_stocks, restart_interval, do_debug, do_chksum,      &
-                         use_hyper_thread, ncores_per_node, debug_affinity,        &
-                         concurrent_ice, slow_ice_with_ocean, do_endpoint_chksum,  &
-                         combined_ice_and_ocean
+                         use_hyper_thread, concurrent_ice, slow_ice_with_ocean,    &
+                         do_endpoint_chksum, combined_ice_and_ocean
 
   integer :: initClock, mainClock, termClock
 
@@ -556,15 +558,12 @@ program coupler_main
 
   character(len=80) :: text
   character(len=48), parameter                    :: mod_name = 'coupler_main_mod'
-  character(len=32) :: hname = 'host'
 
   integer :: outunit
   integer :: ensemble_id = 1
   integer, allocatable :: ensemble_pelist(:, :)
   integer, allocatable :: slow_ice_ocean_pelist(:)
   integer :: conc_nthreads = 1
-  integer :: omp_get_thread_num, omp_get_num_threads
-  real :: omp_get_wtime
   real :: dsec, omp_sec(2)=0.0, imb_sec(2)=0.0
 
 !#######################################################################
@@ -608,6 +607,7 @@ program coupler_main
 
   call fms_init
   call constants_init
+  call fms_affinity_init
 
   call coupler_init
   if (do_chksum) call coupler_chksum('coupler_init+', 0)
@@ -839,9 +839,10 @@ program coupler_main
 !$OMP&      SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&      SHARED(Ocean_ice_boundary) &
 !$OMP&      SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&      SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl) 
+!$OMP&      SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
 !$        call omp_set_num_threads(atmos_nthreads)
 !$        dsec=omp_get_wtime()
+
           if (do_concurrent_radiation) call mpp_clock_begin(newClocki)
 
           !      ---- atmosphere dynamics ----
@@ -946,6 +947,7 @@ program coupler_main
 !$OMP&      SHARED(newClockj)
 !$          call omp_set_num_threads(radiation_nthreads)
 !$          dsec=omp_get_wtime()
+
             call mpp_clock_begin(newClockj)
             call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
             call mpp_clock_end(newClockj)
@@ -1195,8 +1197,6 @@ contains
     integer :: date_restart(6)
     character(len=64)  :: filename, fieldname
     integer :: id_restart, l
-    integer :: omp_get_thread_num, omp_get_num_threads
-    integer :: get_cpu_affinity, set_cpu_affinity, base_cpu, base_cpu_r, adder
     character(len=8)  :: walldate
     character(len=10) :: walltime
     character(len=5)  :: wallzone
@@ -1248,13 +1248,7 @@ contains
       endif
     endif
 
-!---- ncores_per_node must be set when use_hyper_thread = .true.
-    if (use_hyper_thread .and. ncores_per_node == 0) then
-      call error_mesg ('program copuler', 'coupler_nml ncores_per_node must be set when use_hyper_thread=true', FATAL)
-    endif
-
 !----- read date and calendar type from restart file -----
-
     if (file_exist('INPUT/coupler.res')) then
 !Balaji: currently written in binary, needs form=MPP_NATIVE
       call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY )
@@ -1427,96 +1421,21 @@ contains
     Ice%slow_ice_pe = ANY(Ice%slow_pelist(:) .EQ. mpp_pe())
     Ice%pe = Ice%fast_ice_pe .OR. Ice%slow_ice_pe
     call mpp_declare_pelist(slow_ice_ocean_pelist)
-    !Why is the following needed?
+    !--- dynamic threading turned off when affinity placement is in use
 !$  call omp_set_dynamic(.FALSE.)
+    !--- nested OpenMP enabled for OpenMP concurrent components
 !$  call omp_set_nested(.TRUE.)
+
     if (Atm%pe) then
       call mpp_set_current_pelist( Atm%pelist )
 !$    if (.not.do_concurrent_radiation) radiation_nthreads=atmos_nthreads
 !$    if (do_concurrent_radiation) conc_nthreads=2
-!$    call omp_set_num_threads(conc_nthreads)
-!$    base_cpu = get_cpu_affinity()
-!$    if (base_cpu == -1) then
-!$       write(err_msg, *) 'get_cpu_affinity has returned an invalid &
-!$                         &value. Check your mpi-task spacing, ncores_per_node, and thread &
-!$                         &values. File a helpdesk ticket if issues persist.'
-!$       call error_mesg(trim(mod_name)//'::atmos affinity', trim(err_msg), FATAL)
-!$    endif
-!$OMP PARALLEL
-!$    if (omp_get_thread_num() == 0) then
-!$      call omp_set_num_threads(atmos_nthreads)
-!$OMP PARALLEL private(adder)      !!!!atmos_nthreads nested parallel
-!$      if (use_hyper_thread) then
-!$        if (mod(omp_get_thread_num(),2) == 0) then
-!$          adder = omp_get_thread_num()/2
-!$        else
-!$          adder = ncores_per_node + omp_get_thread_num()/2
-!$        endif
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Hyperthreading is enabled, make &
-!$                         &sure ncores_per_node is correct.'
-!$          call error_mesg(trim(mod_name)//'::atmos affinity', trim(err_msg), FATAL)
-!$        endif
-!$      else
-!$        adder = omp_get_thread_num()
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Make sure your srun command is correct &
-!$                         &for the model configuration. File a helpdesk &
-!$                         &ticket if issues persist.'
-!$          call error_mesg(trim(mod_name)//'::atmos affinity', trim(err_msg), FATAL)
-!$        endif
-!$      endif
-!$      if (debug_affinity) then
-!$        call hostnm(hname)
-!$        write(6,*) mpp_pe(), " atmos  ", trim(hname), get_cpu_affinity(), base_cpu, omp_get_thread_num()
-!$        call flush(6)
-!$      endif
-!$OMP END PARALLEL   !!!!end atmos_nthreads nested parallel
-!$    endif
-!$    if (omp_get_thread_num() == 1) then
-!$      call omp_set_num_threads(radiation_nthreads)
-!$      if (use_hyper_thread) then
-!$        base_cpu_r = atmos_nthreads/2 + mod(atmos_nthreads,2)
-!$      else
-!$        base_cpu_r = atmos_nthreads
-!$      endif
-!$OMP PARALLEL private(adder)       !!!!radiation_nthreads nested parallel
-!$      if (use_hyper_thread) then
-!$        if (mod(omp_get_thread_num()+mod(atmos_nthreads,2),2) == 0) then
-!$          adder = base_cpu_r + omp_get_thread_num()/2
-!$        else
-!$          adder = base_cpu_r + ncores_per_node + omp_get_thread_num()/2 - mod(atmos_nthreads,2)
-!$        endif
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Hyperthreading is enabled, make &
-!$                         &sure ncores_per_node is correct.'
-!$          call error_mesg(trim(mod_name)//'::conc_rad affinity', trim(err_msg), FATAL)
-!$        endif
-!$      else
-!$        adder = base_cpu_r + omp_get_thread_num()
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Make sure your srun command is correct &
-!$                         &for the model configuration. File a helpdesk &
-!$                         &ticket if issues persist.'
-!$          call error_mesg(trim(mod_name)//'::conc_rad affinity', trim(err_msg), FATAL)
-!$        endif
-!$      endif
-!$      if (debug_affinity) then
-!$        call hostnm(hname)
-!$        write(6,*) mpp_pe(), " rad    ", trim(hname), get_cpu_affinity(), base_cpu+base_cpu_r, omp_get_thread_num()
-!$        call flush(6)
-!$      endif
-!$OMP END PARALLEL   !!!!end radiation_nthreads nested parallel
-!$    endif
-!$OMP END PARALLEL
+      !--- setting affinity
+      if (do_concurrent_radiation) then
+!$      call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads + radiation_nthreads)
+      else
+!$      call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads)
+      endif
 !$    call omp_set_num_threads(atmos_nthreads)
     endif
 
@@ -1877,45 +1796,7 @@ contains
 
       if (concurrent) then
         call mpp_set_current_pelist( Ocean%pelist )
-!$      call omp_set_num_threads(ocean_nthreads)
-!$      base_cpu = get_cpu_affinity()
-!$      if (base_cpu == -1) then
-!$         write(err_msg, *) 'get_cpu_affinity has returned an invalid &
-!$                           &value. Check your mpi-task spacing, ncores_per_node, and thread &
-!$                           &values. File a helpdesk ticket if issues persist.'
-!$         call error_mesg(trim(mod_name)//'::ocean affinity', trim(err_msg), FATAL)
-!$      endif
-!$OMP PARALLEL private(adder)    
-!$      if (use_hyper_thread) then
-!$        if (mod(omp_get_thread_num(),2) == 0) then
-!$          adder = omp_get_thread_num()/2
-!$        else
-!$          adder = ncores_per_node + omp_get_thread_num()/2
-!$        endif
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Hyperthreading is enabled, make &
-!$                         &sure ncores_per_node is correct.'
-!$          call error_mesg(trim(mod_name)//'::ocean affinity', trim(err_msg), FATAL)
-!$        endif
-!$      else
-!$        adder = omp_get_thread_num()
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Make sure your srun command is correct &
-!$                         &for the model configuration. File a helpdesk &
-!$                         &ticket if issues persist.'
-!$          call error_mesg(trim(mod_name)//'::ocean affinity', trim(err_msg), FATAL)
-!$        endif
-!$      endif
-!$      if (debug_affinity) then
-!$        call hostnm(hname)
-!$        write(6,*) mpp_pe(), " ocean  ", trim(hname), get_cpu_affinity(), base_cpu, omp_get_thread_num()
-!$        call flush(6)
-!$      endif
-!$OMP END PARALLEL  
+!$      call fms_affinity_set('OCEAN', use_hyper_thread, ocean_nthreads)
       else
         ocean_nthreads = atmos_nthreads
 !$      call omp_set_num_threads(ocean_nthreads)
