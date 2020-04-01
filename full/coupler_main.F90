@@ -335,6 +335,8 @@ program coupler_main
   use fms_io_mod,              only: restart_file_type, register_restart_field
   use fms_io_mod,              only: save_restart, restore_state
 
+  use fms2_io_mod,             only: FmsNetcdfDomainFile_t, FmsNetcdfFile_t
+
   use diag_manager_mod,        only: diag_manager_init, diag_manager_end, diag_grid_end
   use diag_manager_mod,        only: DIAG_OCEAN, DIAG_OTHER, DIAG_ALL, get_base_date
   use diag_manager_mod,        only: diag_manager_set_time_end
@@ -464,7 +466,8 @@ program coupler_main
   integer                              :: num_ice_bc_restart=0, num_ocn_bc_restart=0
   type(time_type)                      :: Time_restart, Time_restart_current, Time_start
   character(len=32)                    :: timestamp
-
+  type(FmsNetcdfDomainFile_t)          :: ice_restart_fileobj !< restart file object returned by call
+                                                              !! open_file
 ! ----- coupled model initial date -----
 
   integer :: date_init(6) = (/ 0, 0, 0, 0, 0, 0 /)
@@ -1759,8 +1762,8 @@ contains
                          //trim(walldate)//' '//trim(walltime)
       endif
       call mpp_clock_begin(id_ice_model_init)
-      call ice_model_init(Ice, Time_init, Time, Time_step_atmos, &
-                           Time_step_cpld, Verona_coupler=.false., &
+      call ice_model_init(Ice, ice_restart_fileobj, Time_init, Time, Time_step_atmos, &
+                          Time_step_cpld, Verona_coupler=.false., &
                           concurrent_ice=concurrent_ice, &
                           gas_fluxes=gas_fluxes, gas_fields_ocn=gas_fields_ocn )
       call mpp_clock_end(id_ice_model_init)
@@ -1986,7 +1989,7 @@ contains
       else ! This must be a fast ice PE.
         call mpp_set_current_pelist(Ice%fast_pelist)
       endif
-      call ice_model_end (Ice)
+      call ice_model_end (Ice, ice_restart_fileobj)
     endif
 
     !----- write restart file ------
