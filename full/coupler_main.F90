@@ -1113,7 +1113,7 @@ program coupler_main
       if (Atm%pe) then
         call atmos_model_restart(Atm, timestamp)
         call land_model_restart(timestamp)
-        call ice_model_restart(Ice, timestamp)
+        call ice_model_restart(ice_restart_fileobj)
       endif
       if (Ocean%is_ocean_pe) then
         call ocean_model_restart(Ocean_state, timestamp)
