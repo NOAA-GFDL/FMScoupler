@@ -1113,7 +1113,7 @@ program coupler_main
       if (Atm%pe) then
         call atmos_model_restart(Atm, timestamp)
         call land_model_restart(timestamp)
-        call ice_model_restart(ice_restart_fileobj)
+        call ice_model_restart(ice_restart_fileobj, Time_restart_current)
       endif
       if (Ocean%is_ocean_pe) then
         call ocean_model_restart(Ocean_state, timestamp)
@@ -1989,7 +1989,7 @@ contains
       else ! This must be a fast ice PE.
         call mpp_set_current_pelist(Ice%fast_pelist)
       endif
-      call ice_model_end (Ice, ice_restart_fileobj)
+      call ice_model_end (Ice, ice_restart_fileobj, Time)
     endif
 
     !----- write restart file ------
