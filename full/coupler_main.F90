@@ -464,7 +464,6 @@ program coupler_main
   integer                              :: num_ice_bc_restart=0, num_ocn_bc_restart=0
   type(time_type)                      :: Time_restart, Time_restart_current, Time_start
   character(len=32)                    :: timestamp
-
 ! ----- coupled model initial date -----
 
   integer :: date_init(6) = (/ 0, 0, 0, 0, 0, 0 /)
@@ -1110,7 +1109,7 @@ program coupler_main
       if (Atm%pe) then
         call atmos_model_restart(Atm, timestamp)
         call land_model_restart(timestamp)
-        call ice_model_restart(Ice, timestamp)
+        call ice_model_restart(Ice, restart_time=Time_restart_current, time_stamp=timestamp)
       endif
       if (Ocean%is_ocean_pe) then
         call ocean_model_restart(Ocean_state, timestamp)
