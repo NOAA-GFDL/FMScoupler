@@ -117,7 +117,7 @@ contains
                     & gas_fields_atm%bc(n)%field(ind_u10)%values(i) /&
                     & (770.+45.*gas_fluxes%bc(n)%param(1)**(1./3.)) *&
                     & 101325./(rdgas*wtmair*1e-3*tsurf(i) *&
-                    & gas_fields_ice%bc(n)%field(ind_alpha)%values(i))
+                    & max(gas_fields_ice%bc(n)%field(ind_alpha)%values(i),epsln))
                 !alpha: mol/m3/atm
                 cair(i) = &
                     gas_fields_ice%bc(n)%field(ind_alpha)%values(i) * &
@@ -150,7 +150,7 @@ contains
                     & calc_kw(tsurf(i),&
                     & gas_fields_atm%bc(n)%field(ind_psurf)%values(i),&
                     & gas_fields_atm%bc(n)%field(ind_u10)%values(i),&
-                    & 101325./(rdgas*wtmair*1e-3*tsurf(i)*gas_fields_ice%bc(n)%field(ind_alpha)%values(i)),&
+                    & 101325./(rdgas*wtmair*1e-3*tsurf(i)*max(gas_fields_ice%bc(n)%field(ind_alpha)%values(i),epsln)),&
                     & gas_fluxes%bc(n)%param(2),&
                     & gas_fluxes%bc(n)%param(1),&
                     & gas_fields_ice%bc(n)%field(ind_sc_no)%values(i))
