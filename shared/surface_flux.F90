@@ -373,7 +373,7 @@ subroutine surface_flux_1d (                                           &
        cd_m, cd_t, cd_q, u_star, b_star, avail             )
 
   ! override with ocean fluxes from NCAR calculation
-  if (ncar_ocean_flux .or. ncar_ocean_flux_orig) then
+  if ((ncar_ocean_flux .or. ncar_ocean_flux_orig) .and. (.not.ncar_ocean_flux_multilevel)) then
     call  ncar_ocean_fluxes (w_atm, th_atm, t_surf0, q_atm, q_surf0, z_atm, &
                              seawater, cd_m, cd_t, cd_q, u_star, b_star     )
   end if
