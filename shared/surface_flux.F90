@@ -174,20 +174,28 @@ logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent f
                                            !! contains a bug in the specification of the exchange coefficient for the sensible
                                            !! heat.  This option is available for legacy purposes, and is not recommended for
                                            !! new experiments.
+logical :: ncar_ocean_flux_multilevel  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.
+real :: bulk_zu                           !< Reference height for wind speed
+real :: bulk_zt                           !< Reference height for atm temperature
+real :: bulk_zq                           !< Reference height for atm humidity
 logical :: raoult_sat_vap        = .false. !< Reduce saturation vapor pressure to account for seawater
 logical :: do_simple             = .false.
 
 
-namelist /surface_flux_nml/ no_neg_q,             &
-                            use_virtual_temp,     &
-                            alt_gustiness,        &
-                            gust_const,           &
-                            gust_min,             &
-                            old_dtaudv,           &
-                            use_mixing_ratio,     &
-                            ncar_ocean_flux,      &
-                            ncar_ocean_flux_orig, &
-                            raoult_sat_vap,       &
+namelist /surface_flux_nml/ no_neg_q,                   &
+                            use_virtual_temp,           &
+                            alt_gustiness,              &
+                            gust_const,                 &
+                            gust_min,                   &
+                            old_dtaudv,                 &
+                            use_mixing_ratio,           &
+                            ncar_ocean_flux,            &
+                            ncar_ocean_flux_orig,       &
+                            ncar_ocean_flux_multilevel, &
+                            bulk_zu,                    &
+                            bulk_zt,                    &
+                            bulk_zq,                    &
+                            raoult_sat_vap,             &
                             do_simple
 
 
@@ -259,8 +267,9 @@ subroutine surface_flux_1d (                                           &
        thv_atm,  th_atm,   tv_atm,    thv_surf,            &
        e_sat,    e_sat1,   q_sat,     q_sat1,    p_ratio,  &
        t_surf0,  t_surf1,  u_dif,     v_dif,               &
-       rho_drag, drag_t,    drag_m,   drag_q,    rho,      &
-       q_atm,    q_surf0,  dw_atmdu,  dw_atmdv,  w_gust
+       rho_drag, drag_t,   drag_m,    drag_q,    rho,      &
+       q_atm,    q_surf0,  dw_atmdu,  dw_atmdv,  w_gust,   &
+       zu,       zt,       zq
 
   integer :: i, nbad
 
@@ -367,6 +376,16 @@ subroutine surface_flux_1d (                                           &
   if (ncar_ocean_flux .or. ncar_ocean_flux_orig) then
     call  ncar_ocean_fluxes (w_atm, th_atm, t_surf0, q_atm, q_surf0, z_atm, &
                              seawater, cd_m, cd_t, cd_q, u_star, b_star     )
+  end if
+
+  if (ncar_ocean_flux_multilevel) then
+    zu(:) = bulk_zu  ! using constant value from namelist
+    zt(:) = bulk_zt  ! but allows for variable heights
+    zq(:) = bulk_zq  ! if needed in the future
+    call  ncar_ocean_fluxes_multilevel (w_atm, th_atm, t_surf0, q_atm, q_surf0, zu, zt, zq, &
+                                        seawater, cd_m, cd_t, cd_q, u_star, b_star          )
+    ! at this point th_atm and q_atm have been updated to the 10m values
+    ! to be consistent with the transfer coef. when computing fluxes
   end if
 
   where (avail)
@@ -827,5 +846,153 @@ real   , intent(inout), dimension(:) :: cd, ch, ce, ustar, bstar
 
 end subroutine ncar_ocean_fluxes
 
+!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
+!> \brief Over-ocean fluxes following Large and Yeager (used in NCAR models)           !
+!!
+!! Original  code: Multi-level capable LY2004, R. Dussin 2020 <br \>
+!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
+!
+subroutine ncar_ocean_fluxes_multilevel (u_del, t, ts, q, qs, zu, zt, zq, avail, &
+                                         cd, ch, ce, ustar, bstar                )
+real   , intent(in)   , dimension(:) :: u_del        ! wind speed at z = zu
+real   , intent(inout), dimension(:) :: t            ! atm temp at z = zt, will be updated to zu in output
+real   , intent(in)   , dimension(:) :: ts           ! surface temp (SST)
+real   , intent(inout), dimension(:) :: q            ! at spec. hum. at z = zq, will be updated to zu in output
+real   , intent(in)   , dimension(:) :: qs           ! saturation humidity
+real   , intent(in)   , dimension(:) :: zu           ! ref height for wind
+real   , intent(in)   , dimension(:) :: zt           ! ref height for atm temp
+real   , intent(in)   , dimension(:) :: zq           ! ref height for atm spec. hum.
+logical, intent(in)   , dimension(:) :: avail        ! is point over sea
+real   , intent(out)  , dimension(:) :: cd           ! momentum transfer coef.
+real   , intent(out)  , dimension(:) :: ch           ! heat transfer coef.
+real   , intent(out)  , dimension(:) :: ce           ! evaporation transfer coef.
+real   , intent(out)  , dimension(:) :: ustar        ! turbulent scale for momentum
+real   , intent(out)  , dimension(:) :: bstar        ! turbulent scale for buoyancy?
+
+  real :: cd_n10, ce_n10, ch_n10, cd_n10_rt          ! neutral 10m drag coefficients
+  real :: cd_rt                                      ! sqrt drag coefficients for z = zu
+  real :: zeta_zu, x2_zu, x_zu, psi_m_zu, psi_h_zu   ! stability parameters for z = zu
+  real :: zeta_zt, x2_zt, x_zt, psi_m_zt, psi_h_zt   ! stability parameters for z = zt
+  real :: zeta_zq, x2_zq, x_zq, psi_m_zq, psi_h_zq   ! stability parameters for z = zq
+  real :: u                                          ! wind speed > 0.5 m/s
+  real :: u10                                        ! neutral wind at 10m
+  real :: t10                                        ! temperature at 10m
+  real :: q10                                        ! humidity at 10m
+  real :: tv                                         ! virtual temperature
+  real :: tstar                                      ! turbulent scale for heat
+  real :: qstar                                      ! turbulent scale for evap/latent
+  real :: xx                                         ! cosmetics
+  real :: stab                                       ! stability flag
+  integer, parameter :: n_itts = 2                   ! number of iterations
+  integer :: i
+  integer :: kiter
+
+  do i=1,size(u_del(:))
+     if (avail(i)) then
+         u = max(u_del(i), 0.5)                                                       ! 0.5 m/s floor on wind (undocumented NCAR)
+         u10 = u                                                                      ! first guess 10m wind
+         t10 = t(i)                                                                   ! first guess: T(z=10) = T(zt)
+         q10 = q(i)                                                                   ! first guess: Q(z=10) = Q(zq)
+
+         cd_n10 = (2.7/u10+0.142+u10/13.09)/1e3                                       ! L-Y eqn. 6a
+         cd_n10_rt = sqrt(cd_n10)
+         ce_n10 = 34.6*cd_n10_rt/1e3                                                  ! L-Y eqn. 6b
+         stab = 0.5 + sign(0.5,t10-ts(i))
+         ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3                             ! L-Y eqn. 6c
+
+         cd(i) = cd_n10                                                               ! first guess for exchange coeff's at z
+         ch(i) = ch_n10
+         ce(i) = ce_n10
+         do kiter=1,n_itts                                                            ! loop twice
+            ! compute virtual temperature:
+            ! in first iteration it will use T(zt) and Q(zq)
+            ! in second iteration it will use T(zu) and Q(zu)
+            tv = t10*(1+0.608*q10)
+
+            cd_rt = sqrt(cd(i))
+            ! in first iteration, we use the first guess U10N = U(zu)
+            ! in second iteration, we use the updated version
+            ustar(i) = cd_rt*u10                                                      ! L-Y eqn. 7a
+            ! same goes for T(zt), Q(zq) updated to T(zu), Q(zu)
+            ! used in the turbulent scales computation
+            tstar    = (ch(i)/cd_rt)*(t10-ts(i))                                      ! L-Y eqn. 7b
+            qstar    = (ce(i)/cd_rt)*(q10-qs(i))                                      ! L-Y eqn. 7c
+            bstar(i) = grav*(tstar/tv+qstar/(q10+1/0.608))
+            ! stability parameters for the different heights
+            zeta_zu   = vonkarm*bstar(i)*zu(i)/(ustar(i)*ustar(i))                    ! L-Y eqn. 8a
+            zeta_zt   = vonkarm*bstar(i)*zt(i)/(ustar(i)*ustar(i))                    ! L-Y eqn. 8a
+            zeta_zq   = vonkarm*bstar(i)*zq(i)/(ustar(i)*ustar(i))                    ! L-Y eqn. 8a
+            ! ensure that abs(zeta) < 10., looks like a limiter but unsure if
+            ! for stable or unstable conditions
+            zeta_zu = sign( min(abs(zeta_zu),10.0), zeta_zu )                         ! undocumented NCAR
+            zeta_zt = sign( min(abs(zeta_zt),10.0), zeta_zt )                         ! undocumented NCAR
+            zeta_zq = sign( min(abs(zeta_zq),10.0), zeta_zq )                         ! undocumented NCAR
+
+            x2_zu = sqrt(abs(1-16*zeta_zu))                                           ! L-Y eqn. 8b
+            x2_zt = sqrt(abs(1-16*zeta_zt))                                           ! L-Y eqn. 8b
+            x2_zq = sqrt(abs(1-16*zeta_zq))                                           ! L-Y eqn. 8b
+
+            ! another limiter
+            x2_zu = max(x2_zu, 1.0)
+            x2_zt = max(x2_zt, 1.0)
+            x2_zq = max(x2_zq, 1.0)
+
+            x_zu = sqrt(x2_zu)
+            x_zt = sqrt(x2_zt)
+            x_zq = sqrt(x2_zq)
+
+            ! flux profiles
+            ! I doubt zeta_X have different stabilities but let's do it anyway
+            if (zeta_zu >= 0) then
+                psi_m_zu = -5*zeta_zu                                                 ! L-Y eqn. 8c
+                psi_h_zu = -5*zeta_zu                                                 ! L-Y eqn. 8c
+            else
+                psi_m_zu = log((1+2*x_zu+x2_zu)*(1+x2_zu)/8)-2*(atan(x_zu)-atan(1.0)) ! L-Y eqn. 8d
+                psi_h_zu = 2*log((1+x2_zu)/2)                                         ! L-Y eqn. 8e
+            end if
+
+            if (zeta_zt >= 0) then
+                psi_m_zt = -5*zeta_zt                                                 ! L-Y eqn. 8c
+                psi_h_zt = -5*zeta_zt                                                 ! L-Y eqn. 8c
+            else
+                psi_m_zt = log((1+2*x_zt+x2_zt)*(1+x2_zt)/8)-2*(atan(x_zt)-atan(1.0)) ! L-Y eqn. 8d
+                psi_h_zt = 2*log((1+x2_zt)/2)                                         ! L-Y eqn. 8e
+            end if
+
+            if (zeta_zq >= 0) then
+                psi_m_zq = -5*zeta_zq                                                 ! L-Y eqn. 8c
+                psi_h_zq = -5*zeta_zq                                                 ! L-Y eqn. 8c
+            else
+                psi_m_zq = log((1+2*x_zq+x2_zq)*(1+x2_zq)/8)-2*(atan(x_zq)-atan(1.0)) ! L-Y eqn. 8d
+                psi_h_zq = 2*log((1+x2_zq)/2)                                         ! L-Y eqn. 8e
+            end if
+
+            ! at the end of the first iteration, compute the real neutral wind at 10m
+            ! and update temp and spec. hum. to wind height
+            u10 = u / (1+cd_n10_rt*(log(zu(i)/10.)-psi_m_zu)/vonkarm)                 ! L-Y eqn. 9a
+            t10 = t(i) - (tstar/vonkarm)*(log(zt(i)/zu(i)) + psi_h_zu - psi_h_zt)     ! L-Y eqn. 9b
+            q10 = q(i) - (qstar/vonkarm)*(log(zq(i)/zu(i)) + psi_h_zu - psi_h_zq)     ! L-Y eqn. 9c
+
+            ! update neutral 10m transfer coeficients
+            cd_n10 = (2.7/u10+0.142+u10/13.09)/1e3                                    ! L-Y eqn. 6a again
+            cd_n10_rt = sqrt(cd_n10)
+            ce_n10 = 34.6*cd_n10_rt/1e3                                               ! L-Y eqn. 6b again
+            stab = 0.5 + sign(0.5,zeta_zu)                                            ! need to pick a zeta
+            ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3                          ! L-Y eqn. 6c again
+
+            xx = (log(zu(i)/10.)-psi_m_zu)/vonkarm
+            cd(i) = cd_n10/(1+cd_n10_rt*xx)**2                                        ! L-Y 10a
+            xx = (log(zu(i)/10.)-psi_h_zu)/vonkarm
+            ch(i) = ch_n10/(1+ch_n10*xx/cd_n10_rt)*sqrt(cd(i)/cd_n10)                 ! 10b (corrected code)
+            ce(i) = ce_n10/(1+ce_n10*xx/cd_n10_rt)*sqrt(cd(i)/cd_n10)                 ! 10c (corrected code)
+
+         end do
+         ! update T,Q for flux computation outside of routine
+         t(i) = t10
+         q(i) = q10
+     end if
+  end do
+
+end subroutine ncar_ocean_fluxes_multilevel
 
 end module surface_flux_mod
