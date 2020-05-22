@@ -855,9 +855,9 @@ end subroutine ncar_ocean_fluxes
 subroutine ncar_ocean_fluxes_multilevel (u_del, t, ts, q, qs, zu, zt, zq, avail, &
                                          cd, ch, ce, ustar, bstar                )
 real   , intent(in)   , dimension(:) :: u_del        ! wind speed at z = zu
-real   , intent(inout), dimension(:) :: t            ! atm temp at z = zt, will be updated to zu in output
+real   , intent(in)   , dimension(:) :: t            ! atm temp at z = zt
 real   , intent(in)   , dimension(:) :: ts           ! surface temp (SST)
-real   , intent(inout), dimension(:) :: q            ! at spec. hum. at z = zq, will be updated to zu in output
+real   , intent(in)   , dimension(:) :: q            ! at spec. hum. at z = zq
 real   , intent(in)   , dimension(:) :: qs           ! saturation humidity
 real   , intent(in)   , dimension(:) :: zu           ! ref height for wind
 real   , intent(in)   , dimension(:) :: zt           ! ref height for atm temp
@@ -881,7 +881,8 @@ real   , intent(out)  , dimension(:) :: bstar        ! turbulent scale for buoya
   real :: tv                                         ! virtual temperature
   real :: tstar                                      ! turbulent scale for heat
   real :: qstar                                      ! turbulent scale for evap/latent
-  real :: xx                                         ! cosmetics
+  real :: xxm_zu, xxm_zt, xxm_xq, xxh_zt, xxh_zq
+  real :: cd_zu, cd_zt, cd_xq                        ! drag at various heights
   real :: stab                                       ! stability flag
   integer, parameter :: n_itts = 2                   ! number of iterations
   integer :: i
@@ -980,16 +981,25 @@ real   , intent(out)  , dimension(:) :: bstar        ! turbulent scale for buoya
             stab = 0.5 + sign(0.5,zeta_zu)                                            ! need to pick a zeta
             ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3                          ! L-Y eqn. 6c again
 
-            xx = (log(zu(i)/10.)-psi_m_zu)/vonkarm
-            cd(i) = cd_n10/(1+cd_n10_rt*xx)**2                                        ! L-Y 10a
-            xx = (log(zu(i)/10.)-psi_h_zu)/vonkarm
-            ch(i) = ch_n10/(1+ch_n10*xx/cd_n10_rt)*sqrt(cd(i)/cd_n10)                 ! 10b (corrected code)
-            ce(i) = ce_n10/(1+ce_n10*xx/cd_n10_rt)*sqrt(cd(i)/cd_n10)                 ! 10c (corrected code)
+            ! compute drag coeficient at various heights
+            xxm_zu = (log(zu(i)/10.)-psi_m_zu)/vonkarm
+            xxm_zt = (log(zt(i)/10.)-psi_m_zt)/vonkarm
+            xxm_zq = (log(zq(i)/10.)-psi_m_zq)/vonkarm
+
+            cd_zu = cd_n10/(1+cd_n10_rt*xxm_zu)**2                                    ! L-Y 10a for z=zu
+            cd_zt = cd_n10/(1+cd_n10_rt*xxm_zt)**2                                    ! L-Y 10a for z=zt
+            cd_zq = cd_n10/(1+cd_n10_rt*xxm_zq)**2                                    ! L-Y 10a for z=zq
+
+            cd(i) = cd_zu
+
+            ! compute exchange coeficients at given height of temperature and humidity
+            xxh_zt = (log(zt(i)/10.)-psi_h_zt)/vonkarm
+            xxh_zq = (log(zq(i)/10.)-psi_h_zq)/vonkarm
+
+            ch(i) = ch_n10/(1+ch_n10*xxh_zt/cd_n10_rt)*sqrt(cd_zt/cd_n10)             ! 10b for z=zt
+            ce(i) = ce_n10/(1+ce_n10*xxh_zq/cd_n10_rt)*sqrt(cd_zq/cd_n10)             ! 10c for z=zq
 
          end do
-         ! update T,Q for flux computation outside of routine
-         t(i) = t10
-         q(i) = q10
      end if
   end do
 
