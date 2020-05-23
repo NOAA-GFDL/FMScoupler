@@ -881,8 +881,8 @@ real   , intent(out)  , dimension(:) :: bstar        ! turbulent scale for buoya
   real :: tv                                         ! virtual temperature
   real :: tstar                                      ! turbulent scale for heat
   real :: qstar                                      ! turbulent scale for evap/latent
-  real :: xxm_zu, xxm_zt, xxm_xq, xxh_zt, xxh_zq
-  real :: cd_zu, cd_zt, cd_xq                        ! drag at various heights
+  real :: xxm_zu, xxm_zt, xxm_zq, xxh_zt, xxh_zq
+  real :: cd_zu, cd_zt, cd_zq                        ! drag at various heights
   real :: stab                                       ! stability flag
   integer, parameter :: n_itts = 2                   ! number of iterations
   integer :: i
