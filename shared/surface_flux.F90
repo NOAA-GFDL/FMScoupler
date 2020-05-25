@@ -895,7 +895,7 @@ real   , intent(out)  , dimension(:) :: bstar        ! turbulent scale for buoya
          t10 = t(i)                                                                   ! first guess: T(z=10) = T(zt)
          q10 = q(i)                                                                   ! first guess: Q(z=10) = Q(zq)
 
-         cd_n10 = (2.7/u10+0.142+u10/13.09)/1e3                                       ! L-Y eqn. 6a
+         cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3                                      ! L-Y eqn. 6a
          cd_n10_rt = sqrt(cd_n10)
          ce_n10 = 34.6*cd_n10_rt/1e3                                                  ! L-Y eqn. 6b
          stab = 0.5 + sign(0.5,t10-ts(i))
@@ -912,7 +912,9 @@ real   , intent(out)  , dimension(:) :: bstar        ! turbulent scale for buoya
 
             cd_rt = sqrt(cd(i))
             ! in first iteration, we use the first guess U10N = U(zu)
-            ! in second iteration, we use the updated version
+            ! in second iteration, we use the updated neutral wind.
+            ! Originally u instead of u10 was used in all iterations
+            ! this changes answers
             ustar(i) = cd_rt*u10                                                      ! L-Y eqn. 7a
             ! same goes for T(zt), Q(zq) updated to T(zu), Q(zu)
             ! used in the turbulent scales computation
@@ -975,7 +977,7 @@ real   , intent(out)  , dimension(:) :: bstar        ! turbulent scale for buoya
             q10 = q(i) - (qstar/vonkarm)*(log(zq(i)/zu(i)) + psi_h_zu - psi_h_zq)     ! L-Y eqn. 9c
 
             ! update neutral 10m transfer coeficients
-            cd_n10 = (2.7/u10+0.142+u10/13.09)/1e3                                    ! L-Y eqn. 6a again
+            cd_n10 = (2.7/u10+0.142+0.0764*u10)/1e3                                   ! L-Y eqn. 6a again
             cd_n10_rt = sqrt(cd_n10)
             ce_n10 = 34.6*cd_n10_rt/1e3                                               ! L-Y eqn. 6b again
             stab = 0.5 + sign(0.5,zeta_zu)                                            ! need to pick a zeta
