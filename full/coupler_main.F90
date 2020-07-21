@@ -127,7 +127,7 @@
 !!     <td>character(len=17)</td>
 !!     <td>''</td>
 !!     <td>The calendar type used by the current integration. Valid values are
-!!       consistent with the time_manager module: 'julian', 'noleap', or
+!!       consistent with the time_manager module: 'gregorian', 'julian', 'noleap', or
 !!       'thirty_day'. The value 'no_calendar' can not be used because the
 !!       time_manager's date function are used. All values must be
 !!       lowercase.</td>
@@ -296,7 +296,7 @@
 !!     A namelist value for current_date must be given if no restart file for
 !!     coupler_main (INPUT/coupler.res) is found.
 !! \throw FATAL, "invalid namelist value for calendar"
-!!     The value of calendar must be 'julian', 'noleap', or 'thirty_day'.
+!!     The value of calendar must be 'gregorian', 'julian', 'noleap', or 'thirty_day'.
 !!     See the namelist documentation.
 !! \throw FATAL, "no namelist value for calendar"
 !!     If no restart file is present, then a namelist value for calendar
@@ -322,7 +322,7 @@ program coupler_main
   use time_manager_mod,        only: operator(+), operator(-), operator (<)
   use time_manager_mod,        only: operator (>), operator ( /= ), operator ( / )
   use time_manager_mod,        only: operator (*), THIRTY_DAY_MONTHS, JULIAN
-  use time_manager_mod,        only: NOLEAP, NO_CALENDAR, INVALID_CALENDAR
+  use time_manager_mod,        only: GREGORIAN, NOLEAP, NO_CALENDAR, INVALID_CALENDAR
   use time_manager_mod,        only: date_to_string, increment_date
   use time_manager_mod,        only: operator(>=), operator(<=), operator(==)
 
@@ -479,7 +479,7 @@ program coupler_main
   integer, dimension(6) :: current_date     = (/ 0, 0, 0, 0, 0, 0 /) !< The date that the current integration starts with.  (See
                                                                      !! force_date_from_namelist.)
   character(len=17) :: calendar = '                 ' !< The calendar type used by the current integration.  Valid values are
-                                                      !! consistent with the time_manager module: 'julian', 'noleap', or 'thirty_day'.
+                                                      !! consistent with the time_manager module: 'gregorian', 'julian', 'noleap', or 'thirty_day'.
                                                       !! The value 'no_calendar' cannot be used because the time_manager's date
                                                       !! functions are used.  All values must be lower case.
   logical :: force_date_from_namelist = .false.  !< Flag that determines whether the namelist variable current_date should override
@@ -1280,6 +1280,8 @@ contains
 !----- override calendar type with namelist value -----
 
       select case( uppercase(trim(calendar)) )
+      case( 'GREGORIAN' )
+        calendar_type = GREGORIAN
       case( 'JULIAN' )
         calendar_type = JULIAN
       case( 'NOLEAP' )

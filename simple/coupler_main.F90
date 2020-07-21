@@ -74,7 +74,7 @@ use time_manager_mod,   only: time_type, set_calendar_type, set_time,  &
                               operator(+), operator (<), operator (>), &
                               operator (/=), operator (/), get_date,   &
                               operator (*), THIRTY_DAY_MONTHS, JULIAN, &
-                              NOLEAP, NO_CALENDAR
+                              GREGORIAN, NOLEAP, NO_CALENDAR
 
 use tracer_manager_mod, only: tracer_manager_init, get_tracer_index, &
                               get_number_tracers, get_tracer_names,  &
@@ -327,6 +327,8 @@ contains
 !----- override calendar type with namelist value -----
 
       select case( uppercase(trim(calendar)) )
+      case( 'GREGORIAN' )
+          calendar_type = GREGORIAN
       case( 'JULIAN' )
           calendar_type = JULIAN
       case( 'NOLEAP' )
@@ -337,7 +339,7 @@ contains
           calendar_type = NO_CALENDAR
       case default
           call mpp_error ( FATAL, 'COUPLER_MAIN: coupler_nml entry calendar must '// &
-                                  'be one of JULIAN|NOLEAP|THIRTY_DAY|NO_CALENDAR.' )
+                                  'be one of GREGORIAN|JULIAN|NOLEAP|THIRTY_DAY|NO_CALENDAR.' )
       end select
 
     endif
