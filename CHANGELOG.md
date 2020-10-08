@@ -6,6 +6,19 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2020.03] - 2020-10-08
+
+### Added
+- COUPLER_MAIN: Adds support for gregorian calenders
+
+### Removed
+- ATM_LAND_ICE_FLUX_EXCHANGE: Removed deprecated calls for creating and setting up Ice%ocean_fluxes_top
+
+### Tag Commit Hashes
+- 2020.03-beta2 (0b99d9ec5601cf907767806e265b252a1720b301)
+- 2020.03-beta3 (0b99d9ec5601cf907767806e265b252a1720b301)
+- 2020.03-beta4 (0b99d9ec5601cf907767806e265b252a1720b301)
+
 ## [2020.02] - 2020-05-01
 
 ### Fixed
