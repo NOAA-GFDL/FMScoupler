@@ -15,9 +15,9 @@ sequential patch number (starting from `01`).
 - ATM_LAND_ICE_FLUX_EXCHANGE: Removed deprecated calls for creating and setting up Ice%ocean_fluxes_top
 
 ### Tag Commit Hashes
-- 2020.03-beta2 (0b99d9ec5601cf907767806e265b252a1720b301)
-- 2020.03-beta3 (0b99d9ec5601cf907767806e265b252a1720b301)
 - 2020.03-beta4 (0b99d9ec5601cf907767806e265b252a1720b301)
+- 2020.03-beta3 (0b99d9ec5601cf907767806e265b252a1720b301)
+- 2020.03-beta2 (0b99d9ec5601cf907767806e265b252a1720b301)
 
 ## [2020.02] - 2020-05-01
 
