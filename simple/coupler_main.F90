@@ -476,9 +476,6 @@ contains
     call data_override_init(Atm_domain_in = Atm%domain)
     call data_override_init(Ice_domain_in = Ice%domain)
     call data_override_init(Land_domain_in = Land%domain)
-#ifndef _USE_LEGACY_LAND_
-    call data_override_init(Land_domainUG_in = Land%ug_domain)
-#endif
 
 !------------------------------------------------------------------------
 !---- setup allocatable storage for fluxes exchanged between models ----
