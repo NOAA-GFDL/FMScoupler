@@ -133,6 +133,7 @@ implicit none
    integer :: dt_ocean = 0
    integer :: atmos_nthreads = 1
 
+   logical :: do_data_override = .FALSE.  !! If .TRUE., execute data_override_init to allow for data_override
    logical :: do_chksum = .FALSE.  !! If .TRUE., do multiple checksums throughout the execution of the model.
    logical :: do_land = .FALSE. !! If true, will call update_land_model_fast
    logical :: use_hyper_thread = .false.
@@ -140,6 +141,7 @@ implicit none
    namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
                           months, days, hours, minutes, seconds,            &
                           dt_atmos, dt_ocean, atmos_nthreads,               &
+                          do_data_override,                                  &
                           do_chksum, do_land, use_hyper_thread
 
 !#######################################################################
@@ -473,9 +475,11 @@ contains
     call    ice_model_init (Ice,  Time_init, Time_atmos, Time_step_atmos, Time_step_ocean, &
                             glon_bnd, glat_bnd, atmos_domain=Atm%Domain)
 
-    call data_override_init(Atm_domain_in = Atm%domain)
-    call data_override_init(Ice_domain_in = Ice%domain)
-    call data_override_init(Land_domain_in = Land%domain)
+    if(do_data_override)
+      call data_override_init(Atm_domain_in = Atm%domain)
+      call data_override_init(Ice_domain_in = Ice%domain)
+      call data_override_init(Land_domain_in = Land%domain)
+    endif
 
 !------------------------------------------------------------------------
 !---- setup allocatable storage for fluxes exchanged between models ----
