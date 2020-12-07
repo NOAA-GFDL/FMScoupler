@@ -6,6 +6,13 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2020.04] - 2020-12-07
+
+## Tag Commit Hashes
+- 2020.04-beta1 (c8d7687653659a06de23c95785038c21857e5792)
+- 2020.04-alpha3 (825b948e390fd68fa3bc46200c83623c5b66a293)
+- 2020.04-alpha1 (3b4ed9f9327f341d3a690264acd46416293dbe1f)
+
 ## [2020.03] - 2020-10-08
 
 ### Added
