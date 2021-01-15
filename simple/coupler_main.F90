@@ -133,7 +133,6 @@ implicit none
    integer :: dt_ocean = 0
    integer :: atmos_nthreads = 1
 
-   logical :: do_data_override = .FALSE.  !! If .TRUE., execute data_override_init to allow for data_override
    logical :: do_chksum = .FALSE.  !! If .TRUE., do multiple checksums throughout the execution of the model.
    logical :: do_land = .FALSE. !! If true, will call update_land_model_fast
    logical :: use_hyper_thread = .false.
@@ -141,7 +140,6 @@ implicit none
    namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
                           months, days, hours, minutes, seconds,            &
                           dt_atmos, dt_ocean, atmos_nthreads,               &
-                          do_data_override,                                  &
                           do_chksum, do_land, use_hyper_thread
 
 !#######################################################################
@@ -262,6 +260,7 @@ contains
     integer :: total_days, total_seconds, unit, ierr, io
     integer :: n, gnlon, gnlat
     integer :: date(6), flags
+    integer :: dt_size
     type (time_type) :: Run_length
     character(len=9) :: month
     logical :: use_namelist
@@ -475,10 +474,17 @@ contains
     call    ice_model_init (Ice,  Time_init, Time_atmos, Time_step_atmos, Time_step_ocean, &
                             glon_bnd, glat_bnd, atmos_domain=Atm%Domain)
 
-    if(do_data_override)
-      call data_override_init(Atm_domain_in = Atm%domain)
-      call data_override_init(Ice_domain_in = Ice%domain)
-      call data_override_init(Land_domain_in = Land%domain)
+    if (file_exist('data_table')) then
+      inquire(file='data_table', size=dt_size)
+      if (dt_size > 0.) then
+        call data_override_init(Atm_domain_in = Atm%domain)
+        call data_override_init(Ice_domain_in = Ice%domain)
+        call data_override_init(Land_domain_in = Land%domain)
+      else
+        call error_mesg ('program coupler', 'empty data table, skipping data override init', WARNING)
+      endif
+    else
+      call error_mesg ('program coupler', 'no data table, skipping data override init', WARNING)
     endif
 
 !------------------------------------------------------------------------
