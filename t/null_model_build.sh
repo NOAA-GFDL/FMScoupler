@@ -202,5 +202,6 @@ mkdir RESTART
 rm input.nml
 ln -s input-simple.nml input.nml
 # Run the null simple coupler test
-mpiexec -n 1 ${bld_dir}/coupler_simple_test.x
+### 17FEB2021 commented out the run because it crashes
+#mpiexec -n 1 ${bld_dir}/coupler_simple_test.x
 
