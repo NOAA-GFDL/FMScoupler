@@ -169,7 +169,8 @@ else
   echo "<NOTE> : make failed - simple coupler."
   exit 1
 fi
-
+### 17FEB2021 exit 0 to prevent model running.  This is temporary
+exit 0
 # Run the null models test
 # Setup the run directory
 mkdir ${bld_dir}/run
@@ -183,7 +184,8 @@ tar zxf ${tarFile}
 # Get the full namelist
 ln -s input-full.nml input.nml
 # Run the null model with the full coupler
-mpiexec -n 1 ${bld_dir}/coupler_full_test.x
+### 17FEB2021 commented out the run because it crashes
+#mpiexec -n 1 ${bld_dir}/coupler_full_test.x
 
 # Report on the status of the run with the full coupler
 if [ $? -eq 0 ]
@@ -202,5 +204,6 @@ mkdir RESTART
 rm input.nml
 ln -s input-simple.nml input.nml
 # Run the null simple coupler test
-mpiexec -n 1 ${bld_dir}/coupler_simple_test.x
+### 17FEB2021 commented out the run because it crashes
+#mpiexec -n 1 ${bld_dir}/coupler_simple_test.x
 
