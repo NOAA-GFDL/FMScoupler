@@ -1,0 +1,20 @@
+name: FMScoupler build test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: underwoo/ubuntu_libfms_gnu
+      env: 
+        CC: mpicc
+        FC: mpif90
+        CPPFLAGS: '-I/usr/include -Duse_LARGEFILE -DMAXFIELDMETHODS_=500'
+        FCFLAGS: '-fcray-pointer -fdefault-double-8 -fdefault-real-8 -Waliasing -ffree-line-length-none -fno-range-check'
+        LDFLAGS: '-L/usr/lib'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Run build test 
+        run: t/null_model_build.sh
