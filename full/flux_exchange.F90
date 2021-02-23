@@ -498,13 +498,14 @@ module flux_exchange_mod
        mpp_error, stderr, stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
        mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
        CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
-       input_nml_file
-                    
+       input_nml_file, mpp_get_current_pelist
+  use mpp_domains_mod, only: mpp_create_super_grid, mpp_define_io_domain
   use mpp_domains_mod, only: mpp_get_compute_domain, mpp_get_compute_domains, &
                              mpp_global_sum, mpp_redistribute, operator(.EQ.)
   use mpp_domains_mod, only: mpp_get_global_domain, mpp_get_data_domain
   use mpp_domains_mod, only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
   use mpp_domains_mod, only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
+  use mpp_domains_mod, only: mpp_get_layout, mpp_define_layout
 
   use mpp_io_mod,      only: mpp_close, mpp_open, MPP_MULTI, MPP_SINGLE, MPP_OVERWR
 
@@ -530,9 +531,11 @@ module flux_exchange_mod
                                 WTMCO2, WTMC
 !Balaji
 !utilities stuff into use fms_mod
+  use fms2_io_mod,                only: open_file, close_file, FmsNetcdfDomainFile_t, FmsNetcdfFile_t
+  use fms2_io_mod,                only: get_variable_size, get_variable_dimension_names, variable_exists
+  use fms2_io_mod,                only: read_data, register_field, register_axis
   use fms_mod,                    only: clock_flag_default, check_nml_error, error_mesg
   use fms_mod,                    only: open_namelist_file, write_version_number
-  use fms_mod,                    only: field_exist, field_size, read_data, get_mosaic_tile_grid
   use data_override_mod,          only: data_override
   use coupler_types_mod,          only: coupler_1d_bc_type
   use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init, atmos_ocean_type_fluxes_init
@@ -918,19 +921,36 @@ contains
     type(domain2d) :: domain2
     real, dimension(:,:), allocatable :: tmpx, tmpy
     real, dimension(:),   allocatable :: atmlonb, atmlatb
-    character(len=256)              :: atm_mosaic_file, tile_file
+    character(len=256)              :: atm_mosaic_file, tile_file, buffer
+
+    integer, dimension(:), allocatable :: pes !> Current pelist
+    type(FmsNetcdfFile_t) :: grid_file_obj, atm_mosaic_file_obj          !> Fms2io file obj
+    type(FmsNetcdfDomainFile_t) :: tile_file_obj          !> Fms2io file obj
+    character(len=20) :: dim_names(2) !> Array of dimension names
+    integer :: ppos
 
     call mpp_get_global_domain(Atm%domain, isg, ieg, jsg, jeg, xsize=nxg, ysize=nyg)
     call mpp_get_compute_domain(Atm%domain, isc, iec, jsc, jec)
     call mpp_get_data_domain(Atm%domain, isd, ied, jsd, jed)
+
+    !< Open the grid files with pelist argument so that only one pes open/reads the file
+    allocate(pes(mpp_npes()))
+    call mpp_get_current_pelist(pes)
+
+    if ( .not. open_file(grid_file_obj, grid_file, "read", pelist=pes)) then
+         call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+              & 'Error opening '//trim(grid_file), FATAL)
+    endif
+
     if(size(Atm%lon_bnd,1) .NE. iec-isc+2 .OR. size(Atm%lon_bnd,2) .NE. jec-jsc+2) then
        call error_mesg ('atm_land_ice_flux_exchange_mod',  &
             'size of Atm%lon_bnd does not match the Atm computational domain', FATAL)
     endif
     ioff = lbound(Atm%lon_bnd,1) - isc
     joff = lbound(Atm%lon_bnd,2) - jsc
-    if(field_exist(grid_file, "AREA_ATM" ) ) then  ! old grid
-       call field_size(grid_file, "AREA_ATM", siz)
+
+    if(variable_exists(grid_file_obj, "AREA_ATM" ) ) then  ! old grid
+       call get_variable_size(grid_file_obj, "AREA_ATM", siz)
        nlon = siz(1)
        nlat = siz(2)
 
@@ -945,8 +965,8 @@ contains
        end if
        allocate( atmlonb(isg:ieg+1) )
        allocate( atmlatb(jsg:jeg+1) )
-       call read_data(grid_file, 'xba', atmlonb, no_domain=.true. )
-       call read_data(grid_file, 'yba', atmlatb, no_domain=.true. )
+       call read_data(grid_file_obj, 'xba', atmlonb)
+       call read_data(grid_file_obj, 'yba', atmlatb)
 
        do i=isc, iec+1
           if(abs(atmlonb(i)-Atm%lon_bnd(i+ioff,jsc+joff)*45.0/atan(1.0))>bound_tol) then
@@ -967,10 +987,39 @@ contains
           endif
        enddo
        deallocate(atmlonb, atmlatb)
-    else if(field_exist(grid_file, "atm_mosaic_file" ) ) then  ! mosaic grid file.
-       call read_data(grid_file, 'atm_mosaic_file', atm_mosaic_file)
-       call get_mosaic_tile_grid(tile_file, 'INPUT/'//trim(atm_mosaic_file), Atm%domain)
-       call field_size(tile_file, 'area', siz)
+    else if(variable_exists(grid_file_obj, "atm_mosaic_file" ) ) then  ! mosaic grid file.
+       call read_data(grid_file_obj, 'atm_mosaic_file', atm_mosaic_file)
+
+       if ( .not. open_file(atm_mosaic_file_obj, "INPUT/"//trim(atm_mosaic_file)//"", "read", pelist=pes)) then
+           call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+              & 'Error opening '//trim(atm_mosaic_file), FATAL)
+       endif
+
+       call read_data(atm_mosaic_file_obj, "gridfiles", buffer, corner=1)
+
+       !< Remove the .tile from the filename to get basename
+       ppos = scan(trim(buffer),".tile")
+       if ( ppos > 0 ) tile_file = buffer(1:ppos+1)//".nc"
+
+       call close_file(atm_mosaic_file_obj)
+
+       call mpp_copy_domain(Atm%domain, domain2)
+       call mpp_create_super_grid(domain2)
+       call mpp_define_io_domain  (domain2, (/1,1/))
+
+       call mpp_get_compute_domain(domain2, isc2, iec2, jsc2, jec2)
+
+       if(isc2 .NE. 2*isc-1 .OR. iec2 .NE. 2*iec+1 .OR. jsc2 .NE. 2*jsc-1 .OR. jec2 .NE. 2*jec+1) then
+          call mpp_error(FATAL, 'atm_land_ice_flux_exchange_mod: supergrid domain is not set properly')
+       endif
+
+       !< This is will open the correct atm_mosaic_file for the current tile, i.e "C96_grid.tile1.nc"
+       if ( .not. open_file(tile_file_obj, "INPUT/"//trim(tile_file)//"", "read", domain2)) then
+          call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+              & 'Error opening '//trim(tile_file), FATAL)
+       endif
+
+       call get_variable_size(tile_file_obj, 'area', siz(1:2))
        nlon = siz(1); nlat = siz(2)
        if( mod(nlon,2) .NE. 0) call mpp_error(FATAL,  &
             'atm_land_ice_flux_exchange_mod: atmos supergrid longitude size can not be divided by 2')
@@ -987,19 +1036,21 @@ contains
                'atmosphere mosaic tile grid file incompatible with atmosphere resolution', FATAL)
        end if
 
-       call mpp_copy_domain(Atm%domain, domain2)
-       call mpp_set_compute_domain(domain2, 2*isc-1, 2*iec+1, 2*jsc-1, 2*jec+1, 2*(iec-isc)+3, 2*(jec-jsc)+3 )
-       call mpp_set_data_domain   (domain2, 2*isd-1, 2*ied+1, 2*jsd-1, 2*jed+1, 2*(ied-isd)+3, 2*(jed-jsd)+3 )
-       call mpp_set_global_domain (domain2, 2*isg-1, 2*ieg+1, 2*jsg-1, 2*jeg+1, 2*(ieg-isg)+3, 2*(jeg-jsg)+3 )
-       call mpp_get_compute_domain(domain2, isc2, iec2, jsc2, jec2)
-       if(isc2 .NE. 2*isc-1 .OR. iec2 .NE. 2*iec+1 .OR. jsc2 .NE. 2*jsc-1 .OR. jec2 .NE. 2*jec+1) then
-          call mpp_error(FATAL, 'atm_land_ice_flux_exchange_mod: supergrid domain is not set properly')
-       endif
-
        allocate(tmpx(isc2:iec2,jsc2:jec2), tmpy(isc2:iec2,jsc2:jec2) )
 
-       call read_data( tile_file, 'x', tmpx, domain2)
-       call read_data( tile_file, 'y', tmpy, domain2)
+       !< Register the dimension of the variables "x" and "y" in the atm_mosaic_file
+       call get_variable_dimension_names(tile_file_obj, "x", dim_names)
+       call register_axis(tile_file_obj, dim_names(1), "x")
+       call register_axis(tile_file_obj, dim_names(2), "y")
+       call register_field(tile_file_obj, "x", "double", dim_names)
+       call register_field(tile_file_obj, "y", "double", dim_names)
+
+       !< Read the variables "x" and "y" as domain decomposed variables from the atm_moasic_file
+       call read_data( tile_file_obj, 'x', tmpx)
+       call read_data( tile_file_obj, 'y', tmpy)
+
+       call close_file(tile_file_obj)
+
        call mpp_deallocate_domain(domain2)
 
        do j = jsc, jec+1
@@ -1025,6 +1076,7 @@ contains
        call mpp_error(FATAL, 'atm_land_ice_flux_exchange_mod: both AREA_ATMxOCN and ocn_mosaic_file does not exist in '//trim(grid_file))
     end if
 
+    call close_file(grid_file_obj)
   end subroutine check_atm_grid
 
 end module flux_exchange_mod

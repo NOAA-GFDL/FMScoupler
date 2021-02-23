@@ -326,14 +326,16 @@ program coupler_main
   use time_manager_mod,        only: date_to_string, increment_date
   use time_manager_mod,        only: operator(>=), operator(<=), operator(==)
 
-  use fms_mod,                 only: open_namelist_file, field_exist, file_exist, check_nml_error
+  use fms_mod,                 only: open_namelist_file, check_nml_error
   use fms_mod,                 only: uppercase, error_mesg, write_version_number
   use fms_mod,                 only: fms_init, fms_end, stdout
-  use fms_mod,                 only: read_data, write_data
 
-  use fms_io_mod,              only: fms_io_exit
-  use fms_io_mod,              only: restart_file_type, register_restart_field
-  use fms_io_mod,              only: save_restart, restore_state
+  use fms_io_mod,              only: fms_io_exit !< Can't get rid of this until fms_io is no longer used at all
+
+  use fms2_io_mod,             only: FmsNetcdfDomainFile_t
+  use fms2_io_mod,             only: write_restart, read_restart, write_data
+  use fms2_io_mod,             only: get_global_io_domain_indices
+  use fms2_io_mod,             only: close_file, check_if_open, file_exists
 
   use diag_manager_mod,        only: diag_manager_init, diag_manager_end, diag_grid_end
   use diag_manager_mod,        only: DIAG_OCEAN, DIAG_OTHER, DIAG_ALL, get_base_date
@@ -458,9 +460,9 @@ program coupler_main
   integer :: num_atmos_calls, na
   integer :: num_cpld_calls, nc
 
-!------ for intermediate restart
-  type(restart_file_type), dimension(:), pointer :: &
-    Ice_bc_restart => NULL(), Ocn_bc_restart => NULL()
+  type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ice_bc_restart => NULL()
+  type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ocn_bc_restart => NULL()
+
   integer                              :: num_ice_bc_restart=0, num_ocn_bc_restart=0
   type(time_type)                      :: Time_restart, Time_restart_current, Time_start
   character(len=32)                    :: timestamp
@@ -1249,7 +1251,7 @@ contains
     endif
 
 !----- read date and calendar type from restart file -----
-    if (file_exist('INPUT/coupler.res')) then
+    if (file_exists('INPUT/coupler.res')) then
 !Balaji: currently written in binary, needs form=MPP_NATIVE
       call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY )
       read( unit,*,err=999 )calendar_type
@@ -1599,7 +1601,7 @@ contains
     Run_length = Time_end - Time
 
 !--- get the time that last intermediate restart file was written out.
-    if (file_exist('INPUT/coupler.intermediate.res')) then
+    if (file_exists('INPUT/coupler.intermediate.res')) then
        call mpp_open(unit,'INPUT/coupler.intermediate.res',action=MPP_RDONLY)
        read(unit,*) date_restart
        call mpp_close(unit)
@@ -1869,35 +1871,41 @@ contains
       call mpp_set_current_pelist(Ice%slow_pelist)
 
       call coupler_type_register_restarts(Ice%ocean_fluxes, Ice_bc_restart, &
-               num_ice_bc_restart, Ice%slow_domain_NH, ocean_restart=.false.)
+             num_ice_bc_restart, Ice%slow_domain_NH, to_read=.true., ocean_restart=.false., directory="INPUT/")
 
-      ! Restore the fields from the restart files
-        do l = 1, num_ice_bc_restart
-        call restore_state(Ice_bc_restart(l), directory='INPUT', &
-                           nonfatal_missing_files=.true.)
-        enddo
+          ! Restore the fields from the restart files
+      do l = 1, num_ice_bc_restart
+         if(check_if_open(Ice_bc_restart(l))) call read_restart(Ice_bc_restart(l))
+      enddo
 
       ! Check whether the restarts were read successfully.
-      call coupler_type_restore_state(Ice%ocean_fluxes, directory='INPUT', &
-                                      test_by_field=.true.)
-        endif
+      call coupler_type_restore_state(Ice%ocean_fluxes, use_fms2_io=.true., &
+              test_by_field=.true.)
+
+      do l = 1, num_ice_bc_restart
+         if(check_if_open(Ice_bc_restart(l))) call close_file(Ice_bc_restart(l))
+      enddo
+    endif !< ( Ice%slow_ice_pe )
 
     if ( Ocean%is_ocean_pe ) then
       call mpp_set_current_pelist(Ocean%pelist)
 
       call coupler_type_register_restarts(Ocean%fields, Ocn_bc_restart, &
-               num_ocn_bc_restart, Ocean%domain, ocean_restart=.true.)
+               num_ocn_bc_restart, Ocean%domain, to_read=.true., ocean_restart=.true., directory="INPUT/")
 
       ! Restore the fields from the restart files
-        do l = 1, num_ocn_bc_restart
-        call restore_state(Ocn_bc_restart(l), directory='INPUT', &
-                           nonfatal_missing_files=.true.)
-        enddo
+      do l = 1, num_ocn_bc_restart
+         if(check_if_open(Ocn_bc_restart(l))) call read_restart(Ocn_bc_restart(l))
+      enddo
 
       ! Check whether the restarts were read successfully.
-      call coupler_type_restore_state(Ocean%fields, directory='INPUT', &
-                                      test_by_field=.true.)
-        endif
+      call coupler_type_restore_state(Ocean%fields, use_fms2_io=.true., &
+              test_by_field=.true.)
+
+      do l = 1, num_ocn_bc_restart
+         if(check_if_open(Ocn_bc_restart(l))) call close_file(Ocn_bc_restart(l))
+      enddo
+    endif !< ( Ocean%is_ocean_pe )
 
     call mpp_set_current_pelist()
 
@@ -2002,6 +2010,24 @@ contains
 
   end subroutine coupler_end
 
+  !>@brief Register the axis data as a variable in the netcdf file and add some dummy data.
+  !! This is needed so the combiner can work correctly when the io_layout is not 1,1
+  subroutine add_domain_dimension_data(fileobj)
+    type(FmsNetcdfDomainFile_t) :: fileobj !< Fms2io domain decomposed fileobj
+    integer, dimension(:), allocatable :: buffer !< Buffer with axis data
+    integer :: is, ie !< Starting and Ending indices for data
+
+    call get_global_io_domain_indices(fileobj, "xaxis_1", is, ie, indices=buffer)
+    call write_data(fileobj, "xaxis_1", buffer)
+    deallocate(buffer)
+
+    call get_global_io_domain_indices(fileobj, "yaxis_1", is, ie, indices=buffer)
+    call write_data(fileobj, "yaxis_1", buffer)
+    deallocate(buffer)
+
+   end subroutine add_domain_dimension_data
+
+
   !> \brief Writing restart file that contains running time and restart file writing time.
   subroutine coupler_restart(Time_run, Time_res, time_stamp)
     type(time_type),   intent(in)           :: Time_run, Time_res
@@ -2047,16 +2073,33 @@ contains
 
     if (Ocean%is_ocean_pe) then
       call mpp_set_current_pelist(Ocean%pelist)
+      if (associated(Ocn_bc_restart)) deallocate(Ocn_bc_restart)
+
+      call coupler_type_register_restarts(Ocean%fields, Ocn_bc_restart, &
+               num_ocn_bc_restart, Ocean%domain, to_read=.false., ocean_restart=.true., directory="RESTART/")
       do n = 1, num_ocn_bc_restart
-        call save_restart(Ocn_bc_restart(n), time_stamp)
-      enddo
-    endif
+         if (check_if_open(Ocn_bc_restart(n))) then
+             call write_restart(Ocn_bc_restart(n))
+             call add_domain_dimension_data(Ocn_bc_restart(n))
+             call close_file(Ocn_bc_restart(n))
+          endif
+       enddo
+    endif !< (Ocean%is_ocean_pe)
+
     if (Atm%pe) then
       call mpp_set_current_pelist(Atm%pelist)
+
+      if (associated(Ice_bc_restart)) deallocate(Ice_bc_restart)
+      call coupler_type_register_restarts(Ice%ocean_fluxes, Ice_bc_restart, &
+               num_ice_bc_restart, Ice%slow_domain_NH, to_read=.false., ocean_restart=.false., directory="RESTART/")
       do n = 1, num_ice_bc_restart
-        call save_restart(Ice_bc_restart(n), time_stamp)
+         if (check_if_open(Ice_bc_restart(n))) then
+             call write_restart(Ice_bc_restart(n))
+             call add_domain_dimension_data(Ice_bc_restart(n))
+             call close_file(Ice_bc_restart(n))
+         endif
       enddo
-    endif
+    endif !< (Atm%pe)
 
   end subroutine coupler_restart
 
