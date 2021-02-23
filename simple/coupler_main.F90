@@ -71,14 +71,16 @@ use flux_exchange_mod,  only: flux_exchange_init,   &
 
 use fms_affinity_mod,   only: fms_affinity_init, fms_affinity_set
 
-use fms_mod,            only: open_namelist_file, file_exist, check_nml_error,  &
-                              error_mesg, fms_init, fms_end, close_file,        &
+use fms_mod,            only: check_nml_error,  &
+                              error_mesg, fms_init, fms_end,         &
                               write_version_number, uppercase, stdout
 
-use fms_io_mod,         only: fms_io_exit
+use fms_io_mod,         only: fms_io_exit !< This can't be removed until fms_io is not used at all
+
+use fms2_io_mod,        only: file_exists
 
 use mpp_mod,            only: mpp_init, mpp_pe, mpp_root_pe, mpp_npes, mpp_get_current_pelist, &
-                              stdlog, mpp_error, NOTE, FATAL, WARNING
+                              stdlog, mpp_error, NOTE, FATAL, WARNING, input_nml_file
 use mpp_mod,            only: mpp_clock_id, mpp_clock_begin, mpp_clock_end
 
 use mpp_mod,            only: mpp_chksum, mpp_set_current_pelist
@@ -292,19 +294,8 @@ contains
 !----- read namelist -------
 !----- for backwards compatibilty read from file coupler.nml -----
 
-    if (file_exist('input.nml')) then
-      unit = open_namelist_file ()
-    else
-      call error_mesg ('program coupler',  &
-                       'namelist file input.nml does not exist', FATAL)
-    endif
-   
-    ierr=1
-    do while (ierr /= 0)
-      read  (unit, nml=coupler_nml, iostat=io, end=10)
-      ierr = check_nml_error (io, 'coupler_nml')
-    enddo
-10  call close_file (unit)
+    read (input_nml_file, nml=coupler_nml, iostat=io)
+    ierr = check_nml_error(io, 'coupler_nml')
 
 !----- write namelist to logfile -----
 
@@ -317,7 +308,7 @@ contains
 
 !----- read restart file -----
 
-    if (file_exist('INPUT/coupler.res')) then
+    if (file_exists('INPUT/coupler.res')) then
        call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY )
        read (unit,*,err=999) calendar_type
        read (unit,*) date_init
@@ -493,7 +484,7 @@ contains
     call    ice_model_init (Ice,  Time_init, Time_atmos, Time_step_atmos, Time_step_ocean, &
                             glon_bnd, glat_bnd, atmos_domain=Atm%Domain)
 
-    if (file_exist('data_table')) then
+    if (file_exists('data_table')) then
       inquire(file='data_table', size=dt_size)
       if (dt_size > 0.) then
         call data_override_init(Atm_domain_in = Atm%domain)
