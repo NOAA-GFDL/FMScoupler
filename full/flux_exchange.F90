@@ -507,7 +507,7 @@ module flux_exchange_mod
   use mpp_domains_mod, only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
   use mpp_domains_mod, only: mpp_get_layout, mpp_define_layout
 
-  use mpp_io_mod,      only: mpp_close, mpp_open, MPP_MULTI, MPP_SINGLE, MPP_OVERWR
+  use mpp_io_mod,      only: mpp_open, MPP_SINGLE, MPP_OVERWR
 
 !model_boundary_data_type contains all model fields at the boundary.
 !model1_model2_boundary_type contains fields that model2 gets
@@ -535,7 +535,7 @@ module flux_exchange_mod
   use fms2_io_mod,                only: get_variable_size, get_variable_dimension_names, variable_exists
   use fms2_io_mod,                only: read_data, register_field, register_axis
   use fms_mod,                    only: clock_flag_default, check_nml_error, error_mesg
-  use fms_mod,                    only: open_namelist_file, write_version_number
+  use fms_mod,                    only:  write_version_number
   use data_override_mod,          only: data_override
   use coupler_types_mod,          only: coupler_1d_bc_type
   use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init, atmos_ocean_type_fluxes_init
@@ -751,17 +751,8 @@ contains
     logunit = stdlog()
     !----- read namelist -------
 
-#ifdef INTERNAL_FILE_NML
     read (input_nml_file, flux_exchange_nml, iostat=io)
     ierr = check_nml_error (io, 'flux_exchange_nml')
-#else
-    unit = open_namelist_file()
-    ierr=1; do while (ierr /= 0)
-    read  (unit, nml=flux_exchange_nml, iostat=io, end=10)
-    ierr = check_nml_error (io, 'flux_exchange_nml')
-    enddo
-10  call mpp_close(unit)
-#endif
 
     !----- write namelist to logfile -----
     call write_version_number (version, tag)
