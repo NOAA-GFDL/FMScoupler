@@ -507,8 +507,6 @@ module flux_exchange_mod
   use mpp_domains_mod, only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
   use mpp_domains_mod, only: mpp_get_layout, mpp_define_layout
 
-  use mpp_io_mod,      only: mpp_open, MPP_SINGLE, MPP_OVERWR
-
 !model_boundary_data_type contains all model fields at the boundary.
 !model1_model2_boundary_type contains fields that model2 gets
 !from model1, may also include fluxes. These are declared by
@@ -872,10 +870,9 @@ contains
     integer :: i
 
     stocks_file=stdout()
-    ! Divert output file for stocks if requested 
+    ! If the divert_stocks_report is set to true, write the stocks to a new file "stocks.out"
     if(mpp_pe()==mpp_root_pe() .and. divert_stocks_report) then
-       call mpp_open( stocks_file, 'stocks.out', action=MPP_OVERWR, threading=MPP_SINGLE, &
-            fileset=MPP_SINGLE, nohdrs=.TRUE. )       
+       open(newunit = stocks_file, file='stocks.out', status='replace', form='formatted')
     endif
 
     ! Initialize stock values

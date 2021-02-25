@@ -326,12 +326,13 @@ program coupler_main
   use time_manager_mod,        only: date_to_string, increment_date
   use time_manager_mod,        only: operator(>=), operator(<=), operator(==)
 
-  use fms_mod,                 only: open_namelist_file, check_nml_error
+  use fms_mod,                 only: check_nml_error
   use fms_mod,                 only: uppercase, error_mesg, write_version_number
   use fms_mod,                 only: fms_init, fms_end, stdout
 
   use fms_io_mod,              only: fms_io_exit !< Can't get rid of this until fms_io is no longer used at all
 
+  use fms2_io_mod,             only: ascii_read
   use fms2_io_mod,             only: FmsNetcdfDomainFile_t
   use fms2_io_mod,             only: write_restart, read_restart, write_data
   use fms2_io_mod,             only: get_global_io_domain_indices
@@ -415,9 +416,6 @@ program coupler_main
   use mpp_mod,                 only: stderr, stdlog, mpp_error, NOTE, FATAL, WARNING
   use mpp_mod,                 only: mpp_set_current_pelist, mpp_declare_pelist
   use mpp_mod,                 only: input_nml_file
-
-  use mpp_io_mod,              only: mpp_open, mpp_close, mpp_io_clock_on
-  use mpp_io_mod,              only: MPP_NATIVE, MPP_RDONLY, MPP_DELETE
 
   use mpp_domains_mod,         only: mpp_broadcast_domain
 
@@ -1182,7 +1180,7 @@ contains
     character(len=256), parameter   :: note_header =                                &
          '==>Note from ' // trim(mod_name) // '(' // trim(sub_name) // '):'
 
-    integer :: unit,  ierr, io,    m, i, outunit, logunit, errunit
+    integer :: ierr, io,    m, i, outunit, logunit, errunit
     integer :: date(6)
     type (time_type) :: Run_length
     character(len=9) :: month
@@ -1203,6 +1201,9 @@ contains
     character(len=10) :: walltime
     character(len=5)  :: wallzone
     integer           :: wallvalues(8)
+    character(len=:), dimension(:), allocatable :: restart_file !< Restart file saved as a string
+    integer :: time_stamp_unit !< Unif of the time_stamp file
+    integer :: ascii_unit  !< Unit of a dummy ascii file
 
     type(coupler_1d_bc_type), pointer :: &
       gas_fields_atm => NULL(), &  ! A pointer to the type describing the
@@ -1228,42 +1229,16 @@ contains
 
 !----- read namelist -------
 
-#ifdef INTERNAL_FILE_NML
     read (input_nml_file, coupler_nml, iostat=io)
     ierr = check_nml_error (io, 'coupler_nml')
-#else
-    unit = open_namelist_file()
-    ierr=1; do while (ierr /= 0)
-      read (unit, nml=coupler_nml, iostat=io, end=10)
-      ierr = check_nml_error (io, 'coupler_nml')
-    enddo
-10  call mpp_close(unit)
-#endif
-
-!---- when concurrent is set true and mpp_io_nml io_clock_on is set true, the model
-!---- will crash with error message "MPP_CLOCK_BEGIN: cannot change pelist context of a clock",
-!---- so need to make sure it will not happen
-    if (concurrent) then
-      if (mpp_io_clock_on()) then
-        call error_mesg ('program coupler', 'when coupler_nml variable concurrent is set to true, '// &
-             'mpp_io_nml variable io_clock_non can not be set to true.', FATAL )
-      endif
-    endif
 
 !----- read date and calendar type from restart file -----
     if (file_exists('INPUT/coupler.res')) then
-!Balaji: currently written in binary, needs form=MPP_NATIVE
-      call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY )
-      read( unit,*,err=999 )calendar_type
-      read( unit,* )date_init
-      read( unit,* )date
-      goto 998 !back to fortran-4
-!read old-style coupler.res
-999   call mpp_close(unit)
-      call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY, form=MPP_NATIVE )
-      read(unit)calendar_type
-      read(unit)date
-998   call mpp_close(unit)
+       call ascii_read('INPUT/coupler.res', restart_file)
+       read(restart_file(1), *) calendar_type
+       read(restart_file(2), *) date_init
+       read(restart_file(3), *) date
+       deallocate(restart_file)
     else
       force_date_from_namelist = .true.
     endif
@@ -1602,9 +1577,9 @@ contains
 
 !--- get the time that last intermediate restart file was written out.
     if (file_exists('INPUT/coupler.intermediate.res')) then
-       call mpp_open(unit,'INPUT/coupler.intermediate.res',action=MPP_RDONLY)
-       read(unit,*) date_restart
-       call mpp_close(unit)
+       call ascii_read('INPUT/coupler.intermediate.res', restart_file)
+       read(restart_file(1), *) date_restart
+       deallocate(restart_file)
     else
        date_restart = date
     endif
@@ -1624,17 +1599,17 @@ contains
 !-----------------------------------------------------------------------
 !----- write time stamps (for start time and end time) ------
 
-    call mpp_open( unit, 'time_stamp.out', nohdrs=.TRUE. )
+    if ( mpp_pe().EQ.mpp_root_pe() ) open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
 
     month = month_name(date(2))
-    if ( mpp_pe().EQ.mpp_root_pe() ) write (unit,20) date, month(1:3)
+    if ( mpp_pe().EQ.mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
     call get_date (Time_end, date(1), date(2), date(3),  &
                    date(4), date(5), date(6))
     month = month_name(date(2))
-    if ( mpp_pe().EQ.mpp_root_pe() ) write (unit,20) date, month(1:3)
+    if ( mpp_pe().EQ.mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
-    call mpp_close(unit)
+    if ( mpp_pe().EQ.mpp_root_pe() ) close(time_stamp_unit)
 
 20  format (i6,5i4,2x,a3)
 
@@ -1912,8 +1887,10 @@ contains
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
 
-    call mpp_open( unit, 'RESTART/file' )
-    call mpp_close(unit, MPP_DELETE)
+    if ( mpp_pe().EQ.mpp_root_pe() ) then
+       open(newunit = ascii_unit, file='RESTART/file', status='replace', form='formatted')
+       close(ascii_unit,status="delete")
+    endif
 
     ! Call to daig_grid_end to free up memory used during regional
     ! output setup
@@ -2033,7 +2010,8 @@ contains
     type(time_type),   intent(in)           :: Time_run, Time_res
     character(len=*), intent(in),  optional :: time_stamp
     character(len=128)                      :: file_run, file_res
-    integer :: yr, mon, day, hr, min, sec, date(6), unit, n
+    integer :: yr, mon, day, hr, min, sec, date(6), n
+    integer :: restart_unit !< Unit for the coupler restart file
 
     call mpp_set_current_pelist()
 
@@ -2049,26 +2027,26 @@ contains
     !----- compute current date ------
     call get_date (Time_run, date(1), date(2), date(3),  &
                    date(4), date(5), date(6))
-    call mpp_open( unit, file_run, nohdrs=.TRUE. )
     if ( mpp_pe().EQ.mpp_root_pe()) then
-       write( unit, '(i6,8x,a)' )calendar_type, &
+       open(newunit = restart_unit, file=file_run, status='replace', form='formatted')
+       write(restart_unit, '(i6,8x,a)' )calendar_type, &
             '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
 
-       write( unit, '(6i6,8x,a)' )date_init, &
+       write(restart_unit, '(6i6,8x,a)' )date_init, &
             'Model start time:   year, month, day, hour, minute, second'
-       write( unit, '(6i6,8x,a)' )date, &
+       write(restart_unit, '(6i6,8x,a)' )date, &
             'Current model time: year, month, day, hour, minute, second'
+       close(restart_unit)
     endif
-    call mpp_close(unit)
 
     if (Time_res > Time_start) then
-      call mpp_open( unit, file_res, nohdrs=.TRUE. )
       if ( mpp_pe().EQ.mpp_root_pe()) then
+        open(newunit = restart_unit, file=file_res, status='replace', form='formatted')
         call get_date(Time_res ,yr,mon,day,hr,min,sec)
-        write( unit, '(6i6,8x,a)' )yr,mon,day,hr,min,sec, &
+        write(restart_unit, '(6i6,8x,a)' )yr,mon,day,hr,min,sec, &
              'Current intermediate restart time: year, month, day, hour, minute, second'
+        close(restart_unit)
       endif
-      call mpp_close(unit)
     endif
 
     if (Ocean%is_ocean_pe) then
