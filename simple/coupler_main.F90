@@ -77,7 +77,7 @@ use fms_mod,            only: check_nml_error,  &
 
 use fms_io_mod,         only: fms_io_exit !< This can't be removed until fms_io is not used at all
 
-use fms2_io_mod,        only: file_exists
+use fms2_io_mod,        only: file_exists, ascii_read
 
 use mpp_mod,            only: mpp_init, mpp_pe, mpp_root_pe, mpp_npes, mpp_get_current_pelist, &
                               stdlog, mpp_error, NOTE, FATAL, WARNING, input_nml_file
@@ -86,9 +86,6 @@ use mpp_mod,            only: mpp_clock_id, mpp_clock_begin, mpp_clock_end
 use mpp_mod,            only: mpp_chksum, mpp_set_current_pelist
 
 use mpp_domains_mod,    only: mpp_get_global_domain, mpp_global_field, CORNER, mpp_set_domain_symmetry
-
-use mpp_io_mod,         only: mpp_open, mpp_close, &
-                              MPP_NATIVE, MPP_RDONLY, MPP_DELETE
 
 use time_manager_mod,   only: time_type, set_calendar_type, set_time,  &
                               set_date, days_in_month, month_name,     &
@@ -278,14 +275,18 @@ contains
 !-----------------------------------------------------------------------
 !   initialize all defined exchange grids and all boundary maps
 !-----------------------------------------------------------------------
-    integer :: total_days, total_seconds, unit, ierr, io
+    integer :: total_days, total_seconds, ierr, io
     integer :: n, gnlon, gnlat
     integer :: date(6), flags
     integer :: dt_size
     type (time_type) :: Run_length
     character(len=9) :: month
     logical :: use_namelist
-    
+
+    character(len=:), dimension(:), allocatable :: restart_file !< Restart file saved as a string
+    integer :: time_stamp_unit !< Unif of the time_stamp file
+    integer :: ascii_unit  !< Unit of a dummy ascii file
+
     logical, allocatable, dimension(:,:) :: mask
     real,    allocatable, dimension(:,:) :: glon_bnd, glat_bnd
 !-----------------------------------------------------------------------
@@ -309,20 +310,14 @@ contains
 !----- read restart file -----
 
     if (file_exists('INPUT/coupler.res')) then
-       call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY )
-       read (unit,*,err=999) calendar_type
-       read (unit,*) date_init
-       read (unit,*) date
-       goto 998 !back to fortran-4
-     ! read old-style coupler.res
-   999 call mpp_close (unit)
-       call mpp_open (unit, 'INPUT/coupler.res', action=MPP_RDONLY, form=MPP_NATIVE)
-       read (unit) calendar_type
-       read (unit) date
-   998 call mpp_close(unit)
+       call ascii_read('INPUT/coupler.res', restart_file)
+       read(restart_file(1), *) calendar_type
+       read(restart_file(2), *) date_init
+       read(restart_file(3), *) date
+       deallocate(restart_file)
     else
        force_date_from_namelist = .true.
-    endif       
+    endif
 
 !----- use namelist value (either no restart or override flag on) ---
 
@@ -418,18 +413,17 @@ contains
 
 !-----------------------------------------------------------------------
 !----- write time stamps (for start time and end time) ------
-   
-    call mpp_open( unit, 'time_stamp.out', nohdrs=.TRUE. )
+    if ( mpp_pe().EQ.mpp_root_pe() ) open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
 
     month = month_name(date(2))
-    if ( mpp_pe() == mpp_root_pe() ) write (unit,20) date, month(1:3)
+    if ( mpp_pe() == mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
     call get_date (Time_end, date(1), date(2), date(3),  &
                              date(4), date(5), date(6))
     month = month_name(date(2))
-    if ( mpp_pe() == mpp_root_pe() ) write (unit,20) date, month(1:3)
+    if ( mpp_pe() == mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
-    call mpp_close (unit)
+    if ( mpp_pe().EQ.mpp_root_pe() ) close (time_stamp_unit)
 
  20 format (6i4,2x,a3)
 
@@ -511,9 +505,10 @@ contains
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
-
-    call mpp_open( unit, 'RESTART/file' )
-    call mpp_close(unit, MPP_DELETE)
+    if ( mpp_pe().EQ.mpp_root_pe() ) then
+       open(newunit = ascii_unit, file='RESTART/file', status='replace', form='formatted')
+       close(ascii_unit,status="delete")
+    endif
 
 !-----------------------------------------------------------------------
 
@@ -523,7 +518,8 @@ contains
 
   subroutine coupler_end
 
-    integer :: unit, date(6)
+    integer :: date(6)
+    integer :: restart_unit !< Unit for the coupler restart file
 !-----------------------------------------------------------------------
 
 !----- compute current date ------
@@ -538,15 +534,16 @@ contains
 
 !----- write restart file ------
 
-    call mpp_open( unit, 'RESTART/coupler.res', nohdrs=.TRUE. )
     if (mpp_pe() == mpp_root_pe())then
-       write( unit, '(i6,8x,a)' )calendar_type, &
+       open(newunit = restart_unit, file='RESTART/coupler.res', status='replace', form='formatted')
+       write(restart_unit, '(i6,8x,a)' )calendar_type, &
             '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
 
-       write( unit, '(6i6,8x,a)' )date_init, &
+       write(restart_unit, '(6i6,8x,a)' )date_init, &
             'Model start time:   year, month, day, hour, minute, second'
-       write( unit, '(6i6,8x,a)' )date, &
+       write(restart_unit, '(6i6,8x,a)' )date, &
             'Current model time: year, month, day, hour, minute, second'
+       close(restart_unit)
     endif
 
 
@@ -558,7 +555,6 @@ contains
     call diag_manager_end (Time_atmos)
 
     call  fms_io_exit
-    call mpp_close(unit)
 
 ! call flux_exchange_end (Atm)
 
