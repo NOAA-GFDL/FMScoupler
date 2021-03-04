@@ -986,8 +986,12 @@ contains
        call read_data(atm_mosaic_file_obj, "gridfiles", buffer, corner=1)
 
        !< Remove the .tile from the filename to get basename
-       ppos = scan(trim(buffer),".tile")
-       if ( ppos > 0 ) tile_file = buffer(1:ppos+1)//".nc"
+       ppos = index(trim(buffer),".tile")
+       if ( ppos > 0 ) then
+          tile_file = buffer(1:ppos+1)//".nc"
+       else
+          tile_file = buffer
+       endif
 
        call close_file(atm_mosaic_file_obj)
 
