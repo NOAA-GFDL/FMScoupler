@@ -6,6 +6,19 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2021.01] - 2021-03-08
+
+### Added
+- SURFACE_FLUX: Adds a new functionality to enable using NCAR surface fluxes in experiments
+
+### Fixed
+- SIMPLE_COUPLER: Fixed issue with simpler coupler not calling data_override_init during initialization, will now call if the data_table file exists 
+
+## Tag Commit Hashes
+- 2021.01-beta1 (7e7212c6db62aa7916af0f6ada59c5a83355c1b8)
+- 2021.01-alpha2 (4c2de8d2210f77cff38b7ecd8d2c06e7333a0d9e)
+- 2021.01-alpha1 (36ed0f9cbe6d158f5205c418394f6539e0435237)
+
 ## [2020.04] - 2020-12-07
 
 ## Tag Commit Hashes
