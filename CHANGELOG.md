@@ -6,7 +6,7 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
-## [2021.01] - 2021-03-05
+## [2021.01] - 2021-03-08
 
 ### Added
 - SURFACE_FLUX: Adds a new functionality to enable using NCAR surface fluxes in experiments
