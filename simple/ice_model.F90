@@ -1010,6 +1010,7 @@ endif
               endif
            endif
         enddo
+        enddo
     else if (sst_method == "aqua_planet_65N") then
         ice_method = 'none'
         Ice%ice_mask = .false.
@@ -1022,6 +1023,7 @@ endif
                   Ice%t_surf(i,j) = 27.*(1.-sin(max(90./65.*(Ice%lat(i,j)-13.*pi/36.),-pi*0.5))**2) + TFREEZE
               endif
            endif
+        enddo
         enddo
     else if (sst_method == "aqua_planet_70N") then
         ice_method = 'none'
@@ -1036,6 +1038,7 @@ endif
               endif
            endif
         enddo
+        enddo
     else if (sst_method == "aqua_planet_75N") then
         ice_method = 'none'
         Ice%ice_mask = .false.
@@ -1049,6 +1052,7 @@ endif
               endif
            endif
         enddo
+        enddo
     else if (sst_method == "aqua_planet_80N") then
         ice_method = 'none'
         Ice%ice_mask = .false.
@@ -1061,6 +1065,7 @@ endif
                   Ice%t_surf(i,j) = 27.*(1.-sin(max(90./65.*(Ice%lat(i,j)-4.*pi/9.),-pi*0.5))**2) + TFREEZE
               endif
            endif
+        enddo
         enddo
     else if (sst_method == "aqua_planet_85N") then
         ice_method = 'none'
