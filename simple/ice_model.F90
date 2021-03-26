@@ -31,20 +31,16 @@ use time_manager_mod, only: time_type, get_time, operator(+)
 use diag_manager_mod, only: diag_axis_init, register_diag_field, send_data
 use    constants_mod, only: HLV, HLF, TFREEZE, pi
 
-use          fms_mod, only: file_exist, open_namelist_file, open_restart_file, &
-                            close_file, mpp_pe, mpp_root_pe, mpp_npes,         &
+use          fms_mod, only: mpp_pe, mpp_root_pe, mpp_npes,         &
                             write_version_number, stdlog, error_mesg, FATAL,   &
-                            check_nml_error, read_data, write_data, NOTE,      &
-                            set_domain, nullify_domain
-use       fms_io_mod, only: get_restart_io_mode
-
-use       mpp_io_mod, only: mpp_open, mpp_close, mpp_get_info, mpp_read,   &
-                            MPP_RDONLY, MPP_NETCDF, MPP_MULTI, MPP_SINGLE, &
-                            fieldtype, mpp_get_atts, mpp_get_fields
-
+                            check_nml_error, NOTE
+use      fms2_io_mod, only: open_file, close_file, read_data, write_data, &
+                            FmsNetcdfDomainFile_t, register_restart_field, register_axis, &
+                            unlimited, read_restart, write_restart, register_field, &
+                            get_global_io_domain_indices
 use  mpp_domains_mod, only: domain2d,  mpp_get_layout,  &
                             mpp_get_global_domain, mpp_get_compute_domain
-use mpp_mod, only: mpp_min, mpp_max
+use mpp_mod, only: mpp_min, mpp_max, input_nml_file
 
 implicit none
 private
@@ -423,25 +419,19 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
  integer :: isg, ieg, jsg, jeg
  integer :: unit, ierr, io, i, j
  integer :: ndim, nvar, natt, ntime, nlon, nlat, mlon, mlat, layout(2)
- type(fieldtype), allocatable :: Fields(:)
  logical :: need_ic
+ type(FmsNetcdfDomainFile_t) :: land_mask_fileobj !< Land mask domain decomposed fileobj
+ type(FmsNetcdfDomainFile_t) :: ice_restart_fileobj !< Ice restart domain decomposed fileobj
 
  if (module_is_initialized) then
      return
  endif
 
- if ( file_exist( 'input.nml' ) ) then
-    unit = open_namelist_file ( )
-    ierr = 1
-    do while ( ierr /= 0 )       
-       read ( unit,  nml = ice_model_nml, iostat = io, end = 10 )
-       ierr = check_nml_error ( io, 'ice_model_nml' )
-    enddo
- 10 continue
-    call close_file (unit)       
- endif
+ !< Read the namelist
+ read (input_nml_file, nml=ice_model_nml, iostat=io)
+ ierr = check_nml_error(io, 'ice_model_nml')
 
- call get_restart_io_mode(do_netcdf_restart)
+ do_netcdf_restart = .true. !< Always do netcdf!
 
  call write_version_number (version, tagname)
  if ( mpp_pe() == mpp_root_pe() ) then
@@ -486,15 +476,7 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
      ('ice_model_init', 'namelist variable sst_method has invalid value', FATAL)
 
 !----------------------------------------------------------
-!--- open the grid_spec file ---
 
-! call mpp_open ( unit, 'INPUT/grid_spec.nc', MPP_RDONLY, MPP_NETCDF, &
-!                 threading=MPP_MULTI, fileset = MPP_SINGLE )
-! call mpp_get_info (unit, ndim, nvar, natt, ntime)
-! allocate (Fields(nvar))
-! call mpp_get_fields (unit, Fields)
-
-! call get_grid_size ( Fields, nlon, nlat )
   nlon = size(glon_bnd,1)-1
   nlat = size(glon_bnd,2)-1
 
@@ -537,16 +519,17 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
   !enddo
 
   ! read the land mask from a file (land=1)
-   if (file_exist('INPUT/land_mask.nc')) then
-      call read_data ('INPUT/land_mask.nc', 'land_mask', Ice%glon, no_domain=.true.) !, Ice%Domain)
+  if (open_file(land_mask_fileobj, 'INPUT/land_mask.nc', 'read', Ice%domain)) then
+      call read_data (land_mask_fileobj, 'land_mask', Ice%glon)
       where (Ice%glon > 0.50)
          Ice%gmask = .false.
       elsewhere
          Ice%gmask = .true.
       endwhere
-   else
+      call close_file(land_mask_fileobj)
+  else
       Ice%gmask = .true.  ! aqua-planet
-   endif
+  endif
 
    ! mid-point of grid box
   !if (is_latlon(glon_bnd,latb_out)) then
@@ -561,11 +544,6 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
   !else
       call get_cell_center (Ice%glon_bnd, Ice%glat_bnd, Ice%glon, Ice%glat)
   !endif
-
-!  call read_grid_data ( unit, Fields, Ice%glon_bnd, Ice%glat_bnd, &
-!                        Ice%glon, Ice%glat, Ice%gmask )
-!  call mpp_close(unit)
-!  deallocate (Fields)
 
 !----------------------------------------------------------
 ! get compute domain indices 
@@ -604,54 +582,21 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
 
 need_ic = .false.
 
-if (file_exist('INPUT/ice_model.res.nc', domain=Ice%Domain )) then
+if (open_file(ice_restart_fileobj, 'INPUT/ice_model.res.nc', 'read', Ice%domain, is_restart=.true.)) then
    if (mpp_pe() == mpp_root_pe()) call error_mesg ('ice_model_mod', &
             'Reading NetCDF formatted restart file: INPUT/ice_model.res.nc', NOTE)
-   call read_data(fname, 'mlon', mlon, Ice%Domain)
-   call read_data(fname, 'mlat', mlat, Ice%Domain)
+
+   call read_data(ice_restart_fileobj, 'mlon', mlon)
+   call read_data(ice_restart_fileobj, 'mlat', mlat)
    if (mlon /= nlon .or. mlat /= nlat )  &
-        call error_mesg ('ice_model_init',           &       
+        call error_mesg ('ice_model_init',           &
                         'incorrect resolution on restart', FATAL)
-   call read_data ( fname, 't_surf',         Ice%t_surf,         Ice%Domain )
-   call read_data ( fname, 'thickness',      Ice%thickness,      Ice%Domain )
-   call read_data ( fname, 'albedo',         Ice%albedo,         Ice%Domain )
-   call read_data ( fname, 'albedo_vis_dir', Ice%albedo_vis_dir, Ice%Domain )
-   call read_data ( fname, 'albedo_nir_dir', Ice%albedo_nir_dir, Ice%Domain )
-   call read_data ( fname, 'albedo_vis_dif', Ice%albedo_vis_dif, Ice%Domain )
-   call read_data ( fname, 'albedo_nir_dif', Ice%albedo_nir_dif, Ice%Domain )
-   call read_data ( fname, 'rough_mom',      Ice%rough_mom,      Ice%Domain )
-   call read_data ( fname, 'rough_heat',     Ice%rough_heat,     Ice%Domain )
-   call read_data ( fname, 'rough_moist',    Ice%rough_moist,    Ice%Domain)
+
+   call ice_register_restart(ice_restart_fileobj, Ice)
+   call read_restart(ice_restart_fileobj)
+   call close_file(ice_restart_fileobj)
 else
-   if (file_exist('INPUT/ice_model.res')) then
-      if (mpp_pe() == mpp_root_pe()) call error_mesg ('ice_model_mod', &
-            'Reading native formatted restart file.', NOTE)
-      call set_domain (Ice%Domain)
-      unit = open_restart_file ('INPUT/ice_model.res', 'read')
-      read  (unit) mlon, mlat
-
-    ! restart resolution must be consistent with grid spec
-      if (mlon /= nlon .or. mlat /= nlat) then
-           call error_mesg ('ice_model_init',           &
-            'incorrect resolution on restart', FATAL)
-      endif
-
-      call read_data ( unit, Ice%t_surf        )
-      call read_data ( unit, Ice%thickness     )
-      call read_data ( unit, Ice%albedo        )
-      call read_data ( unit, Ice%albedo_vis_dir)
-      call read_data ( unit, Ice%albedo_nir_dir)
-      call read_data ( unit, Ice%albedo_vis_dif)
-      call read_data ( unit, Ice%albedo_nir_dif)
-      call read_data ( unit, Ice%rough_mom     )
-      call read_data ( unit, Ice%rough_heat    )
-      call read_data ( unit, Ice%rough_moist   )
-      call close_file (unit)
-      call nullify_domain ()
-
   !--- if no restart then no ice ---
-   else
-
       need_ic = .true.
       Ice%t_surf      = TFREEZE   ! + temp_ice_freeze
       Ice%thickness   = 0.0       ! no ice initially
@@ -668,7 +613,6 @@ else
     ! fixed roughness
       call fixed_ocean_roughness ( Ice%mask, Ice%rough_mom, &
                                    Ice%rough_heat, Ice%rough_moist )
-   endif
 endif
 
   ! initialize mask where ice exists
@@ -1082,65 +1026,37 @@ print *, 'pe,count(ice,all,ocean)=',mpp_pe(),count(Ice%ice_mask),count(Ice%mask)
 
  end subroutine ice_model_init
 
-!######################################################################
-!######## netcdf interface routines #########
-!######################################################################
+ subroutine ice_register_restart(fileobj, Ice)
 
- subroutine get_grid_size ( Fields, nlon, nlat )
- type(fieldtype), intent(in)  :: Fields(:)
- integer,         intent(out) :: nlon, nlat
- integer :: i, j, dimsiz(4)
- character(len=128) :: name
+ type(FmsNetcdfDomainFile_t), intent(inout) :: fileobj    !< Ice restart domain decomposed fileobj
+ type(ice_data_type), intent(inout)         :: Ice        !< Ice data type
+ character(len=8), dimension(3)             ::  dim_names !< Array of dimension names
 
-  nlon = 0; nlat = 0
-  do i = 1, size(Fields(:))
-     do j=1,128; name(j:j)=' '; enddo
-     call mpp_get_atts (Fields(i), name=name, siz=dimsiz)
-       select case (trim(name))
-          case ('geolon_t')
-             nlon= dimsiz(1); nlat = dimsiz(2)
-       end select
-  enddo
+ dim_names(1) = "xaxis_1"
+ dim_names(2) = "yaxis_1"
+ dim_names(3) = "Time"
 
- end subroutine get_grid_size
+ call register_axis(fileobj, dim_names(1), "x")
+ call register_axis(fileobj, dim_names(2), "y")
+ call register_axis(fileobj, dim_names(3), unlimited)
 
-!----------------------------------------------------------------------
+ !< Register the domain decomposed dimensions as variables so that the combiner can work
+ !! correctly
+ call register_field(fileobj, dim_names(1), "double", (/dim_names(1)/))
+ call register_field(fileobj, dim_names(2), "double", (/dim_names(2)/))
 
- subroutine read_grid_data ( unit, Fields, glonb, glatb, glon, glat, gmask )
- integer, intent(in) :: unit
- type(fieldtype), intent(in)  :: Fields(:)
- real,    intent(out) :: glonb(:), glatb(:)
- real,    intent(out) :: glon(:,:), glat(:,:)
- logical, intent(out) :: gmask(:,:)
- 
- integer :: i, m, n
- character(len=128) :: name
- real, dimension(size(glon,1)+1,size(glon,2)+1) :: data2d
+ call register_restart_field ( fileobj, 't_surf',         Ice%t_surf,         dim_names )
+ call register_restart_field ( fileobj, 'thickness',      Ice%thickness,      dim_names )
+ call register_restart_field ( fileobj, 'albedo',         Ice%albedo,         dim_names )
+ call register_restart_field ( fileobj, 'albedo_vis_dir', Ice%albedo_vis_dir, dim_names )
+ call register_restart_field ( fileobj, 'albedo_nir_dir', Ice%albedo_nir_dir, dim_names )
+ call register_restart_field ( fileobj, 'albedo_vis_dif', Ice%albedo_vis_dif, dim_names )
+ call register_restart_field ( fileobj, 'albedo_nir_dif', Ice%albedo_nir_dif, dim_names )
+ call register_restart_field ( fileobj, 'rough_mom',      Ice%rough_mom,      dim_names )
+ call register_restart_field ( fileobj, 'rough_heat',     Ice%rough_heat,     dim_names )
+ call register_restart_field ( fileobj, 'rough_moist',    Ice%rough_moist,    dim_names )
 
-      m = size(glon,1);  n= size(glon,2)
-
-      do i = 1, size(Fields(:))
-         call mpp_get_atts(Fields(i), name=name)
-         select case (trim(name))
-            case ('geolon_t')
-               call mpp_read(unit,Fields(i),glon)
-               glon = glon*pi/180.
-            case ('geolat_t')
-               call mpp_read(unit,Fields(i),glat)
-               glat = glat*pi/180.
-            case ('geolon_vert_t')
-               call mpp_read(unit,Fields(i),data2d)
-               glonb = data2d(:,1)*pi/180.
-            case('geolat_vert_t')
-               call mpp_read(unit,Fields(i),data2d)
-               glatb = data2d(1,:)*pi/180.
-            case('wet')
-               call mpp_read(unit,Fields(i),data2d(1:m,1:n))
-               gmask = data2d(1:m,1:n) .gt. 0.50
-         end select
-      enddo
-
- end subroutine read_grid_data
+ end subroutine ice_register_restart
 
 !######################################################################
 
@@ -1148,48 +1064,25 @@ print *, 'pe,count(ice,all,ocean)=',mpp_pe(),count(Ice%ice_mask),count(Ice%mask)
  type(ice_data_type), intent(inout) :: Ice
  integer :: unit
  character(len=64) :: fname='RESTART/ice_model.res.nc'
+ type(FmsNetcdfDomainFile_t) :: ice_restart_fileobj !< Ice restart domain decomposed fileobj
 
  if (.not.module_is_initialized) return
  if( do_netcdf_restart) then
 
     if(mpp_pe() == mpp_root_pe() ) then
        call error_mesg ('ice_model_mod', 'Writing NetCDF formatted restart file: RESTART/ice_model.res.nc', NOTE)
-    endif   
-    call write_data(fname, 'mlon', size(Ice%gmask,1), Ice%Domain)
-    call write_data(fname, 'mlat', size(Ice%gmask,2), Ice%Domain)
-    
-    call write_data ( fname, 't_surf',         Ice%t_surf,         Ice%Domain )
-    call write_data ( fname, 'thickness',      Ice%thickness,      Ice%Domain )
-    call write_data ( fname, 'albedo',         Ice%albedo,         Ice%Domain )
-    call write_data ( fname, 'albedo_vis_dir', Ice%albedo_vis_dir, Ice%Domain )
-    call write_data ( fname, 'albedo_nir_dir', Ice%albedo_nir_dir, Ice%Domain )
-    call write_data ( fname, 'albedo_vis_dif', Ice%albedo_vis_dif, Ice%Domain )
-    call write_data ( fname, 'albedo_nir_dif', Ice%albedo_nir_dif, Ice%Domain )
-    call write_data ( fname, 'rough_mom',      Ice%rough_mom,      Ice%Domain )
-    call write_data ( fname, 'rough_heat',     Ice%rough_heat,     Ice%Domain )
-    call write_data ( fname, 'rough_moist',    Ice%rough_moist,    Ice%Domain )
- else
-    if (mpp_pe() == mpp_root_pe()) then
-       call error_mesg ('ice_model_mod', 'Writing native formatted restart file.', NOTE)
-    endif
-    unit = open_restart_file ('RESTART/ice_model.res', 'write')
-    if ( mpp_pe() == mpp_root_pe() ) then
-       write (unit) size(Ice%gmask,1), size(Ice%gmask,2)
     endif
 
-    call set_domain (Ice%Domain)
-    call write_data ( unit, Ice%t_surf        )
-    call write_data ( unit, Ice%thickness     )
-    call write_data ( unit, Ice%albedo        )
-    call write_data ( unit, Ice%albedo_vis_dir)
-    call write_data ( unit, Ice%albedo_nir_dir)
-    call write_data ( unit, Ice%albedo_vis_dif)
-    call write_data ( unit, Ice%albedo_nir_dif)
-    call write_data ( unit, Ice%rough_mom     )
-    call write_data ( unit, Ice%rough_heat    )
-    call write_data ( unit, Ice%rough_moist   )
-    call close_file ( unit )
-    call nullify_domain ()
+    if (open_file(ice_restart_fileobj, fname, 'overwrite', Ice%domain, is_restart=.true.)) then
+        call ice_register_restart(ice_restart_fileobj, Ice)
+        call register_field(ice_restart_fileobj, "mlon", "double")
+        call register_field(ice_restart_fileobj, "mlat", "double")
+        call write_restart(ice_restart_fileobj)
+        call write_data(ice_restart_fileobj, 'mlon', size(Ice%gmask,1))
+        call write_data(ice_restart_fileobj, 'mlat', size(Ice%gmask,2))
+        call add_domain_dimension_data(ice_restart_fileobj)
+        call close_file(ice_restart_fileobj)
+    endif !< if(open_file)
  endif
 
 
@@ -1202,6 +1095,21 @@ print *, 'pe,count(ice,all,ocean)=',mpp_pe(),count(Ice%ice_mask),count(Ice%mask)
   module_is_initialized = .false.
 
  end subroutine ice_model_end
+
+ !< Add_dimension_data: Adds dummy data for the domain decomposed axis
+ subroutine add_domain_dimension_data(fileobj)
+  type(FmsNetcdfDomainFile_t) :: fileobj !< Fms2io domain decomposed fileobj
+  integer, dimension(:), allocatable :: buffer !< Buffer with axis data
+  integer :: is, ie !< Starting and Ending indices for data
+
+    call get_global_io_domain_indices(fileobj, "xaxis_1", is, ie, indices=buffer)
+    call write_data(fileobj, "xaxis_1", buffer)
+    deallocate(buffer)
+
+    call get_global_io_domain_indices(fileobj, "yaxis_1", is, ie, indices=buffer)
+    call write_data(fileobj, "yaxis_1", buffer)
+    deallocate(buffer)
+ end subroutine add_domain_dimension_data
 
 !######################################################################
 !               Routines added for computing then

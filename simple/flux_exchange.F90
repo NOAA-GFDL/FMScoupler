@@ -43,14 +43,13 @@ use atmos_cmip_diag_mod,   only: register_cmip_diag_field_2d
 #endif
 use diag_data_mod,      only: CMOR_MISSING_VALUE 
 use      constants_mod, only: RDGAS, RVGAS, CP_AIR, HLV, HLF, PI
-use            fms_mod, only: file_exist, open_namelist_file, &
-                              check_nml_error, close_file,    &
+use            fms_mod, only: check_nml_error,     &
                               error_mesg, FATAL, stdlog,      &
                               write_version_number,           &
                               mpp_pe, mpp_root_pe, WARNING
 use    mpp_domains_mod, only: mpp_get_compute_domain
 
-use mpp_mod, only: mpp_min, mpp_max, mpp_sync, NOTE
+use mpp_mod, only: mpp_min, mpp_max, mpp_sync, NOTE, input_nml_file
 
 use field_manager_mod,  only: MODEL_ATMOS
 use tracer_manager_mod, only: get_number_tracers, get_tracer_index, NO_TRACER
@@ -851,16 +850,10 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 
  subroutine read_namelist
 
- integer :: unit, ierr, io
+ integer :: ierr, io
 
-   if ( file_exist('input.nml')) then
-      unit = open_namelist_file ()
-      ierr=1; do while (ierr /= 0)
-         read  (unit, nml=flux_exchange_nml, iostat=io, end=10)
-         ierr = check_nml_error(io,'flux_exchange_nml')
-      enddo
- 10   call close_file (unit)
-   endif
+   read (input_nml_file, nml=flux_exchange_nml, iostat=io)
+   ierr = check_nml_error(io, 'flux_exchange_nml')
 
    do_read_nml = .false.
 
