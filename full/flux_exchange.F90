@@ -499,7 +499,7 @@ module flux_exchange_mod
        mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
        CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
        input_nml_file, mpp_get_current_pelist
-  use mpp_domains_mod, only: mpp_create_super_grid, mpp_define_io_domain
+  use mpp_domains_mod, only: mpp_create_super_grid_domain, mpp_define_io_domain
   use mpp_domains_mod, only: mpp_get_compute_domain, mpp_get_compute_domains, &
                              mpp_global_sum, mpp_redistribute, operator(.EQ.)
   use mpp_domains_mod, only: mpp_get_global_domain, mpp_get_data_domain
@@ -996,7 +996,7 @@ contains
        call close_file(atm_mosaic_file_obj)
 
        call mpp_copy_domain(Atm%domain, domain2)
-       call mpp_create_super_grid(domain2)
+       call mpp_create_super_grid_domain(domain2)
        call mpp_define_io_domain  (domain2, (/1,1/))
 
        call mpp_get_compute_domain(domain2, isc2, iec2, jsc2, jec2)
