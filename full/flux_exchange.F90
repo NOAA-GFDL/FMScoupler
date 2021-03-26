@@ -988,7 +988,7 @@ contains
        !< Remove the .tile from the filename to get basename
        ppos = index(trim(buffer),".tile")
        if ( ppos > 0 ) then
-          tile_file = buffer(1:ppos+1)//".nc"
+          tile_file = buffer(1:ppos-1)//".nc"
        else
           tile_file = buffer
        endif
