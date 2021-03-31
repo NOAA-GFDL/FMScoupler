@@ -106,7 +106,7 @@ module atm_land_ice_flux_exchange_mod
   use atmos_ocean_fluxes_mod,  only: atmos_ocean_fluxes_init
   use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
   use atmos_ocean_dep_fluxes_calc_mod, only: atmos_ocean_dep_fluxes_calc
-  
+
 #ifdef SCM
   ! option to override various surface boundary conditions for SCM
   use scm_forc_mod,            only: do_specified_flux, scm_surface_flux,             &
@@ -240,7 +240,8 @@ module atm_land_ice_flux_exchange_mod
        ex_b_star,    &
        ex_u_star,    &
        ex_wind,      &
-       ex_z_atm
+       ex_z_atm,     &
+       ex_con_atm
 
 #ifdef SCM
   real, allocatable, dimension(:) :: &
@@ -589,7 +590,7 @@ contains
 
     ! This call sets up a structure that is private to the ice model, and it
     ! does not belong here.  This line should be eliminated once an update
-    ! to the FMS coupler_types code is made available that overloads the 
+    ! to the FMS coupler_types code is made available that overloads the
     ! subroutine coupler_type_copy to use 2d and 3d coupler type sources. -RWH
     if (.not.coupler_type_initialized(Ice%ocean_fluxes_top)) &
       call coupler_type_spawn(ex_gas_fields_ice, Ice%ocean_fluxes_top, (/is,is,ie,ie/), &
@@ -795,6 +796,7 @@ contains
          ex_flux_tr     (n_xgrid_sfc, n_exch_tr), &
          ex_f_tr_delt_n (n_xgrid_sfc, n_exch_tr), &
          ex_e_tr_n      (n_xgrid_sfc, n_exch_tr), &
+         ex_con_atm(n_xgrid_sfc), &
 
          ! MOD these were moved from local ! so they can be passed to flux down
          ex_flux_u(n_xgrid_sfc),    &
@@ -1211,6 +1213,12 @@ contains
              endif  !}
           endif  !}
        enddo  !} n
+
+       !f1p: calculate atmospheric conductance to send to the land model
+       do i=is,ie
+          ex_con_atm(i) = ex_wind(i)*ex_cd_q(i)
+       end do
+
        ! fill derivatives for all tracers
        ! F = C0*u*rho*delta_q, C0*u*rho is the same for all tracers, copy from sphum
        do tr = 1,n_exch_tr
@@ -1705,7 +1713,7 @@ contains
        call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
        used = send_data ( id_rh_ref, diag_atm, Time )
     endif
- 
+
     if(id_rh_ref_cmip > 0 .or. id_hurs > 0 .or. id_rhs > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref2, xmap_sfc)
        if (id_rh_ref_cmip > 0) used = send_data ( id_rh_ref_cmip, diag_atm, Time )
@@ -2282,6 +2290,9 @@ contains
        call get_from_xgrid_land (Land_boundary%z_bot, 'LND', ex_z_atm, xmap_sfc)
        call data_override_land('LND', 'z_bot',  Land_boundary%z_bot, Time )
     endif
+    if (associated(Land_boundary%con_atm)) then
+       call get_from_xgrid_land (Land_boundary%con_atm, 'LND', ex_con_atm, xmap_sfc)
+    end if
 
     Land_boundary%tr_flux = 0.0
     Land_boundary%dfdtr = 0.0
@@ -3006,6 +3017,7 @@ contains
          ex_u_star   ,  &
          ex_wind     ,  &
          ex_z_atm    ,  &
+         ex_con_atm  ,  &
          ex_seawater ,  &
          ex_land        )
 
