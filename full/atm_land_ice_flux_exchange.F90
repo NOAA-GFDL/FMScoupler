@@ -30,7 +30,6 @@ module atm_land_ice_flux_exchange_mod
   use   mpp_domains_mod,  only: mpp_get_global_domain, mpp_get_data_domain
   use   mpp_domains_mod,  only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
   use   mpp_domains_mod,  only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
-  use   mpp_io_mod,       only: mpp_close, mpp_open, MPP_MULTI, MPP_SINGLE, MPP_OVERWR
   use   atmos_model_mod,  only: atmos_data_type, land_ice_atmos_boundary_type
   use   ocean_model_mod,  only: ocean_public_type, ice_ocean_boundary_type
   use   ocean_model_mod,  only: ocean_state_type
@@ -72,7 +71,6 @@ module atm_land_ice_flux_exchange_mod
   use      constants_mod, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
                                 PI, CP_OCEAN, WTMCO2, WTMC, EPSLN, GRAV
   use fms_mod,            only: clock_flag_default, check_nml_error, error_mesg
-  use fms_mod,            only: open_namelist_file, write_version_number
   use data_override_mod,  only: data_override
   use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10, ind_flux, ind_flux0
   use coupler_types_mod,  only: coupler_type_initialized, coupler_type_spawn
@@ -106,7 +104,7 @@ module atm_land_ice_flux_exchange_mod
   use atmos_ocean_fluxes_mod,  only: atmos_ocean_fluxes_init
   use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
   use atmos_ocean_dep_fluxes_calc_mod, only: atmos_ocean_dep_fluxes_calc
-  
+
 #ifdef SCM
   ! option to override various surface boundary conditions for SCM
   use scm_forc_mod,            only: do_specified_flux, scm_surface_flux,             &
@@ -586,15 +584,6 @@ contains
       call coupler_type_spawn(ex_gas_fields_ice, Ice%ocean_fields, (/is,is,ie,ie/), &
                               (/js,js,je,je/), (/1, kd/), suffix = '_ice')
     call coupler_type_set_diags(Ice%ocean_fields, 'ice_flux', Ice%axes, Time)
-
-    ! This call sets up a structure that is private to the ice model, and it
-    ! does not belong here.  This line should be eliminated once an update
-    ! to the FMS coupler_types code is made available that overloads the 
-    ! subroutine coupler_type_copy to use 2d and 3d coupler type sources. -RWH
-    if (.not.coupler_type_initialized(Ice%ocean_fluxes_top)) &
-      call coupler_type_spawn(ex_gas_fields_ice, Ice%ocean_fluxes_top, (/is,is,ie,ie/), &
-                              (/js,js,je,je/), (/1, kd/), suffix = '_ice_top')
-    call coupler_type_set_diags(Ice%ocean_fluxes_top, 'ice_flux', Ice%axes, Time)
 
     !allocate land_ice_atmos_boundary
     call mpp_get_compute_domain( Atm%domain, is, ie, js, je )
@@ -1705,7 +1694,7 @@ contains
        call get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
        used = send_data ( id_rh_ref, diag_atm, Time )
     endif
- 
+
     if(id_rh_ref_cmip > 0 .or. id_hurs > 0 .or. id_rhs > 0) then
        call get_from_xgrid (diag_atm, 'ATM', ex_ref2, xmap_sfc)
        if (id_rh_ref_cmip > 0) used = send_data ( id_rh_ref_cmip, diag_atm, Time )

@@ -127,7 +127,7 @@
 !!     <td>character(len=17)</td>
 !!     <td>''</td>
 !!     <td>The calendar type used by the current integration. Valid values are
-!!       consistent with the time_manager module: 'julian', 'noleap', or
+!!       consistent with the time_manager module: 'gregorian', 'julian', 'noleap', or
 !!       'thirty_day'. The value 'no_calendar' can not be used because the
 !!       time_manager's date function are used. All values must be
 !!       lowercase.</td>
@@ -296,7 +296,7 @@
 !!     A namelist value for current_date must be given if no restart file for
 !!     coupler_main (INPUT/coupler.res) is found.
 !! \throw FATAL, "invalid namelist value for calendar"
-!!     The value of calendar must be 'julian', 'noleap', or 'thirty_day'.
+!!     The value of calendar must be 'gregorian', 'julian', 'noleap', or 'thirty_day'.
 !!     See the namelist documentation.
 !! \throw FATAL, "no namelist value for calendar"
 !!     If no restart file is present, then a namelist value for calendar
@@ -310,25 +310,33 @@
 !!     This error should probably not occur because of checks done at initialization time.
 program coupler_main
 
+  !--- F90 module for OpenMP
+  use omp_lib
+
   use constants_mod,           only: constants_init
+
+  use fms_affinity_mod,        only: fms_affinity_init, fms_affinity_set
 
   use time_manager_mod,        only: time_type, set_calendar_type, set_time
   use time_manager_mod,        only: set_date, get_date, days_in_month, month_name
   use time_manager_mod,        only: operator(+), operator(-), operator (<)
   use time_manager_mod,        only: operator (>), operator ( /= ), operator ( / )
   use time_manager_mod,        only: operator (*), THIRTY_DAY_MONTHS, JULIAN
-  use time_manager_mod,        only: NOLEAP, NO_CALENDAR, INVALID_CALENDAR
+  use time_manager_mod,        only: GREGORIAN, NOLEAP, NO_CALENDAR, INVALID_CALENDAR
   use time_manager_mod,        only: date_to_string, increment_date
   use time_manager_mod,        only: operator(>=), operator(<=), operator(==)
 
-  use fms_mod,                 only: open_namelist_file, field_exist, file_exist, check_nml_error
+  use fms_mod,                 only: check_nml_error
   use fms_mod,                 only: uppercase, error_mesg, write_version_number
   use fms_mod,                 only: fms_init, fms_end, stdout
-  use fms_mod,                 only: read_data, write_data
 
-  use fms_io_mod,              only: fms_io_exit
-  use fms_io_mod,              only: restart_file_type, register_restart_field
-  use fms_io_mod,              only: save_restart, restore_state
+  use fms_io_mod,              only: fms_io_exit !< Can't get rid of this until fms_io is no longer used at all
+
+  use fms2_io_mod,             only: ascii_read
+  use fms2_io_mod,             only: FmsNetcdfDomainFile_t
+  use fms2_io_mod,             only: write_restart, read_restart, write_data
+  use fms2_io_mod,             only: get_global_io_domain_indices
+  use fms2_io_mod,             only: close_file, check_if_open, file_exists
 
   use diag_manager_mod,        only: diag_manager_init, diag_manager_end, diag_grid_end
   use diag_manager_mod,        only: DIAG_OCEAN, DIAG_OTHER, DIAG_ALL, get_base_date
@@ -409,9 +417,6 @@ program coupler_main
   use mpp_mod,                 only: mpp_set_current_pelist, mpp_declare_pelist
   use mpp_mod,                 only: input_nml_file
 
-  use mpp_io_mod,              only: mpp_open, mpp_close, mpp_io_clock_on
-  use mpp_io_mod,              only: MPP_NATIVE, MPP_RDONLY, MPP_DELETE
-
   use mpp_domains_mod,         only: mpp_broadcast_domain
 
   use memutils_mod,            only: print_memuse_stats
@@ -453,9 +458,9 @@ program coupler_main
   integer :: num_atmos_calls, na
   integer :: num_cpld_calls, nc
 
-!------ for intermediate restart
-  type(restart_file_type), dimension(:), pointer :: &
-    Ice_bc_restart => NULL(), Ocn_bc_restart => NULL()
+  type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ice_bc_restart => NULL()
+  type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ocn_bc_restart => NULL()
+
   integer                              :: num_ice_bc_restart=0, num_ocn_bc_restart=0
   type(time_type)                      :: Time_restart, Time_restart_current, Time_start
   character(len=32)                    :: timestamp
@@ -474,7 +479,7 @@ program coupler_main
   integer, dimension(6) :: current_date     = (/ 0, 0, 0, 0, 0, 0 /) !< The date that the current integration starts with.  (See
                                                                      !! force_date_from_namelist.)
   character(len=17) :: calendar = '                 ' !< The calendar type used by the current integration.  Valid values are
-                                                      !! consistent with the time_manager module: 'julian', 'noleap', or 'thirty_day'.
+                                                      !! consistent with the time_manager module: 'gregorian', 'julian', 'noleap', or 'thirty_day'.
                                                       !! The value 'no_calendar' cannot be used because the time_manager's date
                                                       !! functions are used.  All values must be lower case.
   logical :: force_date_from_namelist = .false.  !< Flag that determines whether the namelist variable current_date should override
@@ -529,8 +534,6 @@ program coupler_main
   logical :: do_debug=.FALSE.       !< If .TRUE. print additional debugging messages.
   integer :: check_stocks = 0 ! -1: never 0: at end of run only n>0: every n coupled steps
   logical :: use_hyper_thread = .false.
-  integer :: ncores_per_node = 0
-  logical :: debug_affinity = .false.
 
   namelist /coupler_nml/ current_date, calendar, force_date_from_namelist,         &
                          months, days, hours, minutes, seconds, dt_cpld, dt_atmos, &
@@ -539,9 +542,8 @@ program coupler_main
                          atmos_nthreads, ocean_nthreads, radiation_nthreads,       &
                          concurrent, do_concurrent_radiation, use_lag_fluxes,      &
                          check_stocks, restart_interval, do_debug, do_chksum,      &
-                         use_hyper_thread, ncores_per_node, debug_affinity,        &
-                         concurrent_ice, slow_ice_with_ocean, do_endpoint_chksum,  &
-                         combined_ice_and_ocean
+                         use_hyper_thread, concurrent_ice, slow_ice_with_ocean,    &
+                         do_endpoint_chksum, combined_ice_and_ocean
 
   integer :: initClock, mainClock, termClock
 
@@ -556,15 +558,12 @@ program coupler_main
 
   character(len=80) :: text
   character(len=48), parameter                    :: mod_name = 'coupler_main_mod'
-  character(len=32) :: hname = 'host'
 
   integer :: outunit
   integer :: ensemble_id = 1
   integer, allocatable :: ensemble_pelist(:, :)
   integer, allocatable :: slow_ice_ocean_pelist(:)
   integer :: conc_nthreads = 1
-  integer :: omp_get_thread_num, omp_get_num_threads
-  real :: omp_get_wtime
   real :: dsec, omp_sec(2)=0.0, imb_sec(2)=0.0
 
 !#######################################################################
@@ -608,6 +607,7 @@ program coupler_main
 
   call fms_init
   call constants_init
+  call fms_affinity_init
 
   call coupler_init
   if (do_chksum) call coupler_chksum('coupler_init+', 0)
@@ -839,9 +839,10 @@ program coupler_main
 !$OMP&      SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&      SHARED(Ocean_ice_boundary) &
 !$OMP&      SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&      SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl) 
+!$OMP&      SHARED(newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki, newClockj, newClockl)
 !$        call omp_set_num_threads(atmos_nthreads)
 !$        dsec=omp_get_wtime()
+
           if (do_concurrent_radiation) call mpp_clock_begin(newClocki)
 
           !      ---- atmosphere dynamics ----
@@ -946,6 +947,7 @@ program coupler_main
 !$OMP&      SHARED(newClockj)
 !$          call omp_set_num_threads(radiation_nthreads)
 !$          dsec=omp_get_wtime()
+
             call mpp_clock_begin(newClockj)
             call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
             call mpp_clock_end(newClockj)
@@ -1178,7 +1180,7 @@ contains
     character(len=256), parameter   :: note_header =                                &
          '==>Note from ' // trim(mod_name) // '(' // trim(sub_name) // '):'
 
-    integer :: unit,  ierr, io,    m, i, outunit, logunit, errunit
+    integer :: ierr, io,    m, i, outunit, logunit, errunit
     integer :: date(6)
     type (time_type) :: Run_length
     character(len=9) :: month
@@ -1195,12 +1197,13 @@ contains
     integer :: date_restart(6)
     character(len=64)  :: filename, fieldname
     integer :: id_restart, l
-    integer :: omp_get_thread_num, omp_get_num_threads
-    integer :: get_cpu_affinity, set_cpu_affinity, base_cpu, base_cpu_r, adder
     character(len=8)  :: walldate
     character(len=10) :: walltime
     character(len=5)  :: wallzone
     integer           :: wallvalues(8)
+    character(len=:), dimension(:), allocatable :: restart_file !< Restart file saved as a string
+    integer :: time_stamp_unit !< Unif of the time_stamp file
+    integer :: ascii_unit  !< Unit of a dummy ascii file
 
     type(coupler_1d_bc_type), pointer :: &
       gas_fields_atm => NULL(), &  ! A pointer to the type describing the
@@ -1226,48 +1229,16 @@ contains
 
 !----- read namelist -------
 
-#ifdef INTERNAL_FILE_NML
     read (input_nml_file, coupler_nml, iostat=io)
     ierr = check_nml_error (io, 'coupler_nml')
-#else
-    unit = open_namelist_file()
-    ierr=1; do while (ierr /= 0)
-      read (unit, nml=coupler_nml, iostat=io, end=10)
-      ierr = check_nml_error (io, 'coupler_nml')
-    enddo
-10  call mpp_close(unit)
-#endif
-
-!---- when concurrent is set true and mpp_io_nml io_clock_on is set true, the model
-!---- will crash with error message "MPP_CLOCK_BEGIN: cannot change pelist context of a clock",
-!---- so need to make sure it will not happen
-    if (concurrent) then
-      if (mpp_io_clock_on()) then
-        call error_mesg ('program coupler', 'when coupler_nml variable concurrent is set to true, '// &
-             'mpp_io_nml variable io_clock_non can not be set to true.', FATAL )
-      endif
-    endif
-
-!---- ncores_per_node must be set when use_hyper_thread = .true.
-    if (use_hyper_thread .and. ncores_per_node == 0) then
-      call error_mesg ('program copuler', 'coupler_nml ncores_per_node must be set when use_hyper_thread=true', FATAL)
-    endif
 
 !----- read date and calendar type from restart file -----
-
-    if (file_exist('INPUT/coupler.res')) then
-!Balaji: currently written in binary, needs form=MPP_NATIVE
-      call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY )
-      read( unit,*,err=999 )calendar_type
-      read( unit,* )date_init
-      read( unit,* )date
-      goto 998 !back to fortran-4
-!read old-style coupler.res
-999   call mpp_close(unit)
-      call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY, form=MPP_NATIVE )
-      read(unit)calendar_type
-      read(unit)date
-998   call mpp_close(unit)
+    if (file_exists('INPUT/coupler.res')) then
+       call ascii_read('INPUT/coupler.res', restart_file)
+       read(restart_file(1), *) calendar_type
+       read(restart_file(2), *) date_init
+       read(restart_file(3), *) date
+       deallocate(restart_file)
     else
       force_date_from_namelist = .true.
     endif
@@ -1286,6 +1257,8 @@ contains
 !----- override calendar type with namelist value -----
 
       select case( uppercase(trim(calendar)) )
+      case( 'GREGORIAN' )
+        calendar_type = GREGORIAN
       case( 'JULIAN' )
         calendar_type = JULIAN
       case( 'NOLEAP' )
@@ -1427,96 +1400,21 @@ contains
     Ice%slow_ice_pe = ANY(Ice%slow_pelist(:) .EQ. mpp_pe())
     Ice%pe = Ice%fast_ice_pe .OR. Ice%slow_ice_pe
     call mpp_declare_pelist(slow_ice_ocean_pelist)
-    !Why is the following needed?
+    !--- dynamic threading turned off when affinity placement is in use
 !$  call omp_set_dynamic(.FALSE.)
+    !--- nested OpenMP enabled for OpenMP concurrent components
 !$  call omp_set_nested(.TRUE.)
+
     if (Atm%pe) then
       call mpp_set_current_pelist( Atm%pelist )
 !$    if (.not.do_concurrent_radiation) radiation_nthreads=atmos_nthreads
 !$    if (do_concurrent_radiation) conc_nthreads=2
-!$    call omp_set_num_threads(conc_nthreads)
-!$    base_cpu = get_cpu_affinity()
-!$    if (base_cpu == -1) then
-!$       write(err_msg, *) 'get_cpu_affinity has returned an invalid &
-!$                         &value. Check your mpi-task spacing, ncores_per_node, and thread &
-!$                         &values. File a helpdesk ticket if issues persist.'
-!$       call error_mesg(trim(mod_name)//'::atmos affinity', trim(err_msg), FATAL)
-!$    endif
-!$OMP PARALLEL
-!$    if (omp_get_thread_num() == 0) then
-!$      call omp_set_num_threads(atmos_nthreads)
-!$OMP PARALLEL private(adder)      !!!!atmos_nthreads nested parallel
-!$      if (use_hyper_thread) then
-!$        if (mod(omp_get_thread_num(),2) == 0) then
-!$          adder = omp_get_thread_num()/2
-!$        else
-!$          adder = ncores_per_node + omp_get_thread_num()/2
-!$        endif
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Hyperthreading is enabled, make &
-!$                         &sure ncores_per_node is correct.'
-!$          call error_mesg(trim(mod_name)//'::atmos affinity', trim(err_msg), FATAL)
-!$        endif
-!$      else
-!$        adder = omp_get_thread_num()
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Make sure your srun command is correct &
-!$                         &for the model configuration. File a helpdesk &
-!$                         &ticket if issues persist.'
-!$          call error_mesg(trim(mod_name)//'::atmos affinity', trim(err_msg), FATAL)
-!$        endif
-!$      endif
-!$      if (debug_affinity) then
-!$        call hostnm(hname)
-!$        write(6,*) mpp_pe(), " atmos  ", trim(hname), get_cpu_affinity(), base_cpu, omp_get_thread_num()
-!$        call flush(6)
-!$      endif
-!$OMP END PARALLEL   !!!!end atmos_nthreads nested parallel
-!$    endif
-!$    if (omp_get_thread_num() == 1) then
-!$      call omp_set_num_threads(radiation_nthreads)
-!$      if (use_hyper_thread) then
-!$        base_cpu_r = atmos_nthreads/2 + mod(atmos_nthreads,2)
-!$      else
-!$        base_cpu_r = atmos_nthreads
-!$      endif
-!$OMP PARALLEL private(adder)       !!!!radiation_nthreads nested parallel
-!$      if (use_hyper_thread) then
-!$        if (mod(omp_get_thread_num()+mod(atmos_nthreads,2),2) == 0) then
-!$          adder = base_cpu_r + omp_get_thread_num()/2
-!$        else
-!$          adder = base_cpu_r + ncores_per_node + omp_get_thread_num()/2 - mod(atmos_nthreads,2)
-!$        endif
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Hyperthreading is enabled, make &
-!$                         &sure ncores_per_node is correct.'
-!$          call error_mesg(trim(mod_name)//'::conc_rad affinity', trim(err_msg), FATAL)
-!$        endif
-!$      else
-!$        adder = base_cpu_r + omp_get_thread_num()
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Make sure your srun command is correct &
-!$                         &for the model configuration. File a helpdesk &
-!$                         &ticket if issues persist.'
-!$          call error_mesg(trim(mod_name)//'::conc_rad affinity', trim(err_msg), FATAL)
-!$        endif
-!$      endif
-!$      if (debug_affinity) then
-!$        call hostnm(hname)
-!$        write(6,*) mpp_pe(), " rad    ", trim(hname), get_cpu_affinity(), base_cpu+base_cpu_r, omp_get_thread_num()
-!$        call flush(6)
-!$      endif
-!$OMP END PARALLEL   !!!!end radiation_nthreads nested parallel
-!$    endif
-!$OMP END PARALLEL
+      !--- setting affinity
+      if (do_concurrent_radiation) then
+!$      call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads + radiation_nthreads)
+      else
+!$      call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads)
+      endif
 !$    call omp_set_num_threads(atmos_nthreads)
     endif
 
@@ -1678,10 +1576,10 @@ contains
     Run_length = Time_end - Time
 
 !--- get the time that last intermediate restart file was written out.
-    if (file_exist('INPUT/coupler.intermediate.res')) then
-       call mpp_open(unit,'INPUT/coupler.intermediate.res',action=MPP_RDONLY)
-       read(unit,*) date_restart
-       call mpp_close(unit)
+    if (file_exists('INPUT/coupler.intermediate.res')) then
+       call ascii_read('INPUT/coupler.intermediate.res', restart_file)
+       read(restart_file(1), *) date_restart
+       deallocate(restart_file)
     else
        date_restart = date
     endif
@@ -1701,17 +1599,17 @@ contains
 !-----------------------------------------------------------------------
 !----- write time stamps (for start time and end time) ------
 
-    call mpp_open( unit, 'time_stamp.out', nohdrs=.TRUE. )
+    if ( mpp_pe().EQ.mpp_root_pe() ) open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
 
     month = month_name(date(2))
-    if ( mpp_pe().EQ.mpp_root_pe() ) write (unit,20) date, month(1:3)
+    if ( mpp_pe().EQ.mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
     call get_date (Time_end, date(1), date(2), date(3),  &
                    date(4), date(5), date(6))
     month = month_name(date(2))
-    if ( mpp_pe().EQ.mpp_root_pe() ) write (unit,20) date, month(1:3)
+    if ( mpp_pe().EQ.mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
-    call mpp_close(unit)
+    if ( mpp_pe().EQ.mpp_root_pe() ) close(time_stamp_unit)
 
 20  format (i6,5i4,2x,a3)
 
@@ -1877,45 +1775,7 @@ contains
 
       if (concurrent) then
         call mpp_set_current_pelist( Ocean%pelist )
-!$      call omp_set_num_threads(ocean_nthreads)
-!$      base_cpu = get_cpu_affinity()
-!$      if (base_cpu == -1) then
-!$         write(err_msg, *) 'get_cpu_affinity has returned an invalid &
-!$                           &value. Check your mpi-task spacing, ncores_per_node, and thread &
-!$                           &values. File a helpdesk ticket if issues persist.'
-!$         call error_mesg(trim(mod_name)//'::ocean affinity', trim(err_msg), FATAL)
-!$      endif
-!$OMP PARALLEL private(adder)    
-!$      if (use_hyper_thread) then
-!$        if (mod(omp_get_thread_num(),2) == 0) then
-!$          adder = omp_get_thread_num()/2
-!$        else
-!$          adder = ncores_per_node + omp_get_thread_num()/2
-!$        endif
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Hyperthreading is enabled, make &
-!$                         &sure ncores_per_node is correct.'
-!$          call error_mesg(trim(mod_name)//'::ocean affinity', trim(err_msg), FATAL)
-!$        endif
-!$      else
-!$        adder = omp_get_thread_num()
-!$        ierr = set_cpu_affinity (base_cpu + adder)
-!$        if (ierr == -1) then
-!$          write(err_msg, *) 'set_cpu_affinity has returned an invalid &
-!$                         &value. Make sure your srun command is correct &
-!$                         &for the model configuration. File a helpdesk &
-!$                         &ticket if issues persist.'
-!$          call error_mesg(trim(mod_name)//'::ocean affinity', trim(err_msg), FATAL)
-!$        endif
-!$      endif
-!$      if (debug_affinity) then
-!$        call hostnm(hname)
-!$        write(6,*) mpp_pe(), " ocean  ", trim(hname), get_cpu_affinity(), base_cpu, omp_get_thread_num()
-!$        call flush(6)
-!$      endif
-!$OMP END PARALLEL  
+!$      call fms_affinity_set('OCEAN', use_hyper_thread, ocean_nthreads)
       else
         ocean_nthreads = atmos_nthreads
 !$      call omp_set_num_threads(ocean_nthreads)
@@ -1986,43 +1846,51 @@ contains
       call mpp_set_current_pelist(Ice%slow_pelist)
 
       call coupler_type_register_restarts(Ice%ocean_fluxes, Ice_bc_restart, &
-               num_ice_bc_restart, Ice%slow_domain_NH, ocean_restart=.false.)
+             num_ice_bc_restart, Ice%slow_domain_NH, to_read=.true., ocean_restart=.false., directory="INPUT/")
 
-      ! Restore the fields from the restart files
-        do l = 1, num_ice_bc_restart
-        call restore_state(Ice_bc_restart(l), directory='INPUT', &
-                           nonfatal_missing_files=.true.)
-        enddo
+          ! Restore the fields from the restart files
+      do l = 1, num_ice_bc_restart
+         if(check_if_open(Ice_bc_restart(l))) call read_restart(Ice_bc_restart(l))
+      enddo
 
       ! Check whether the restarts were read successfully.
-      call coupler_type_restore_state(Ice%ocean_fluxes, directory='INPUT', &
-                                      test_by_field=.true.)
-        endif
+      call coupler_type_restore_state(Ice%ocean_fluxes, use_fms2_io=.true., &
+              test_by_field=.true.)
+
+      do l = 1, num_ice_bc_restart
+         if(check_if_open(Ice_bc_restart(l))) call close_file(Ice_bc_restart(l))
+      enddo
+    endif !< ( Ice%slow_ice_pe )
 
     if ( Ocean%is_ocean_pe ) then
       call mpp_set_current_pelist(Ocean%pelist)
 
       call coupler_type_register_restarts(Ocean%fields, Ocn_bc_restart, &
-               num_ocn_bc_restart, Ocean%domain, ocean_restart=.true.)
+               num_ocn_bc_restart, Ocean%domain, to_read=.true., ocean_restart=.true., directory="INPUT/")
 
       ! Restore the fields from the restart files
-        do l = 1, num_ocn_bc_restart
-        call restore_state(Ocn_bc_restart(l), directory='INPUT', &
-                           nonfatal_missing_files=.true.)
-        enddo
+      do l = 1, num_ocn_bc_restart
+         if(check_if_open(Ocn_bc_restart(l))) call read_restart(Ocn_bc_restart(l))
+      enddo
 
       ! Check whether the restarts were read successfully.
-      call coupler_type_restore_state(Ocean%fields, directory='INPUT', &
-                                      test_by_field=.true.)
-        endif
+      call coupler_type_restore_state(Ocean%fields, use_fms2_io=.true., &
+              test_by_field=.true.)
+
+      do l = 1, num_ocn_bc_restart
+         if(check_if_open(Ocn_bc_restart(l))) call close_file(Ocn_bc_restart(l))
+      enddo
+    endif !< ( Ocean%is_ocean_pe )
 
     call mpp_set_current_pelist()
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
 
-    call mpp_open( unit, 'RESTART/file' )
-    call mpp_close(unit, MPP_DELETE)
+    if ( mpp_pe().EQ.mpp_root_pe() ) then
+       open(newunit = ascii_unit, file='RESTART/file', status='replace', form='formatted')
+       close(ascii_unit,status="delete")
+    endif
 
     ! Call to daig_grid_end to free up memory used during regional
     ! output setup
@@ -2119,12 +1987,31 @@ contains
 
   end subroutine coupler_end
 
+  !>@brief Register the axis data as a variable in the netcdf file and add some dummy data.
+  !! This is needed so the combiner can work correctly when the io_layout is not 1,1
+  subroutine add_domain_dimension_data(fileobj)
+    type(FmsNetcdfDomainFile_t) :: fileobj !< Fms2io domain decomposed fileobj
+    integer, dimension(:), allocatable :: buffer !< Buffer with axis data
+    integer :: is, ie !< Starting and Ending indices for data
+
+    call get_global_io_domain_indices(fileobj, "xaxis_1", is, ie, indices=buffer)
+    call write_data(fileobj, "xaxis_1", buffer)
+    deallocate(buffer)
+
+    call get_global_io_domain_indices(fileobj, "yaxis_1", is, ie, indices=buffer)
+    call write_data(fileobj, "yaxis_1", buffer)
+    deallocate(buffer)
+
+   end subroutine add_domain_dimension_data
+
+
   !> \brief Writing restart file that contains running time and restart file writing time.
   subroutine coupler_restart(Time_run, Time_res, time_stamp)
     type(time_type),   intent(in)           :: Time_run, Time_res
     character(len=*), intent(in),  optional :: time_stamp
     character(len=128)                      :: file_run, file_res
-    integer :: yr, mon, day, hr, min, sec, date(6), unit, n
+    integer :: yr, mon, day, hr, min, sec, date(6), n
+    integer :: restart_unit !< Unit for the coupler restart file
 
     call mpp_set_current_pelist()
 
@@ -2140,40 +2027,57 @@ contains
     !----- compute current date ------
     call get_date (Time_run, date(1), date(2), date(3),  &
                    date(4), date(5), date(6))
-    call mpp_open( unit, file_run, nohdrs=.TRUE. )
     if ( mpp_pe().EQ.mpp_root_pe()) then
-       write( unit, '(i6,8x,a)' )calendar_type, &
+       open(newunit = restart_unit, file=file_run, status='replace', form='formatted')
+       write(restart_unit, '(i6,8x,a)' )calendar_type, &
             '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
 
-       write( unit, '(6i6,8x,a)' )date_init, &
+       write(restart_unit, '(6i6,8x,a)' )date_init, &
             'Model start time:   year, month, day, hour, minute, second'
-       write( unit, '(6i6,8x,a)' )date, &
+       write(restart_unit, '(6i6,8x,a)' )date, &
             'Current model time: year, month, day, hour, minute, second'
+       close(restart_unit)
     endif
-    call mpp_close(unit)
 
     if (Time_res > Time_start) then
-      call mpp_open( unit, file_res, nohdrs=.TRUE. )
       if ( mpp_pe().EQ.mpp_root_pe()) then
+        open(newunit = restart_unit, file=file_res, status='replace', form='formatted')
         call get_date(Time_res ,yr,mon,day,hr,min,sec)
-        write( unit, '(6i6,8x,a)' )yr,mon,day,hr,min,sec, &
+        write(restart_unit, '(6i6,8x,a)' )yr,mon,day,hr,min,sec, &
              'Current intermediate restart time: year, month, day, hour, minute, second'
+        close(restart_unit)
       endif
-      call mpp_close(unit)
     endif
 
     if (Ocean%is_ocean_pe) then
       call mpp_set_current_pelist(Ocean%pelist)
+      if (associated(Ocn_bc_restart)) deallocate(Ocn_bc_restart)
+
+      call coupler_type_register_restarts(Ocean%fields, Ocn_bc_restart, &
+               num_ocn_bc_restart, Ocean%domain, to_read=.false., ocean_restart=.true., directory="RESTART/")
       do n = 1, num_ocn_bc_restart
-        call save_restart(Ocn_bc_restart(n), time_stamp)
-      enddo
-    endif
+         if (check_if_open(Ocn_bc_restart(n))) then
+             call write_restart(Ocn_bc_restart(n))
+             call add_domain_dimension_data(Ocn_bc_restart(n))
+             call close_file(Ocn_bc_restart(n))
+          endif
+       enddo
+    endif !< (Ocean%is_ocean_pe)
+
     if (Atm%pe) then
       call mpp_set_current_pelist(Atm%pelist)
+
+      if (associated(Ice_bc_restart)) deallocate(Ice_bc_restart)
+      call coupler_type_register_restarts(Ice%ocean_fluxes, Ice_bc_restart, &
+               num_ice_bc_restart, Ice%slow_domain_NH, to_read=.false., ocean_restart=.false., directory="RESTART/")
       do n = 1, num_ice_bc_restart
-        call save_restart(Ice_bc_restart(n), time_stamp)
+         if (check_if_open(Ice_bc_restart(n))) then
+             call write_restart(Ice_bc_restart(n))
+             call add_domain_dimension_data(Ice_bc_restart(n))
+             call close_file(Ice_bc_restart(n))
+         endif
       enddo
-    endif
+    endif !< (Atm%pe)
 
   end subroutine coupler_restart
 

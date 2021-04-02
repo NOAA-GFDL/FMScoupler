@@ -1,4 +1,23 @@
-
+!***********************************************************************
+!*                   GNU Lesser General Public License
+!*
+!* This file is part of the GFDL Flexible Modeling System (FMS) Coupler.
+!*
+!* FMS Coupler is free software: you can redistribute it and/or modify
+!* it under the terms of the GNU Lesser General Public License as
+!* published by the Free Software Foundation, either version 3 of the
+!* License, or (at your option) any later version.
+!*
+!* FMS Coupler is distributed in the hope that it will be useful, but
+!* WITHOUT ANY WARRANTY; without even the implied warranty of
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+!* General Public License for more details.
+!*
+!* You should have received a copy of the GNU Lesser General Public
+!* License along with FMS Coupler.
+!* If not, see <http://www.gnu.org/licenses/>.
+!***********************************************************************
+!
 module flux_exchange_mod
 
 !-----------------------------------------------------------------------
@@ -19,17 +38,18 @@ use  diag_manager_mod, only: register_diag_field,  &
 use  time_manager_mod, only: time_type
 
 use sat_vapor_pres_mod, only: escomp, compute_qs, sat_vapor_pres_init
+#ifndef use_AM3_physics
 use atmos_cmip_diag_mod,   only: register_cmip_diag_field_2d
+#endif
 use diag_data_mod,      only: CMOR_MISSING_VALUE 
 use      constants_mod, only: RDGAS, RVGAS, CP_AIR, HLV, HLF, PI
-use            fms_mod, only: file_exist, open_namelist_file, &
-                              check_nml_error, close_file,    &
+use            fms_mod, only: check_nml_error,     &
                               error_mesg, FATAL, stdlog,      &
                               write_version_number,           &
                               mpp_pe, mpp_root_pe, WARNING
 use    mpp_domains_mod, only: mpp_get_compute_domain
 
-use mpp_mod, only: mpp_min, mpp_max, mpp_sync, NOTE
+use mpp_mod, only: mpp_min, mpp_max, mpp_sync, NOTE, input_nml_file
 
 use field_manager_mod,  only: MODEL_ATMOS
 use tracer_manager_mod, only: get_number_tracers, get_tracer_index, NO_TRACER
@@ -830,16 +850,10 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 
  subroutine read_namelist
 
- integer :: unit, ierr, io
+ integer :: ierr, io
 
-   if ( file_exist('input.nml')) then
-      unit = open_namelist_file ()
-      ierr=1; do while (ierr /= 0)
-         read  (unit, nml=flux_exchange_nml, iostat=io, end=10)
-         ierr = check_nml_error(io,'flux_exchange_nml')
-      enddo
- 10   call close_file (unit)
-   endif
+   read (input_nml_file, nml=flux_exchange_nml, iostat=io)
+   ierr = check_nml_error(io, 'flux_exchange_nml')
 
    do_read_nml = .false.
 
@@ -1064,6 +1078,7 @@ subroutine diag_field_init ( Time, atmos_axes )
     !-----------------------------------------------------------------------
     !  register cmip variable names
     !-----------------------------------------------------------------------
+#ifndef use_AM3_physics
     id_tas = register_cmip_diag_field_2d ( mod_name, 'tas', Time, &
                             'Near-Surface Air Temperature', 'K' , &
                              standard_name='air_temperature' )
@@ -1130,7 +1145,7 @@ subroutine diag_field_init ( Time, atmos_axes )
     id_hfss = register_cmip_diag_field_2d ( mod_name, 'hfss', Time, &
                       'Surface Upward Sensible Heat Flux', 'W m-2', &
                   standard_name='surface_upward_sensible_heat_flux' )
-
+#endif
 
 !-----------------------------------------------------------------------
 
