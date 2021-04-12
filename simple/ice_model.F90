@@ -21,26 +21,30 @@
 
 module ice_model_mod
 
+!! Components
 use   ice_albedo_mod, only:  ice_albedo_init, ice_albedo
 use ocean_albedo_mod, only:  compute_ocean_albedo_new
 use  ocean_rough_mod, only:  compute_ocean_roughness, fixed_ocean_roughness
-
-use  amip_interp_mod, only: amip_interp_type, amip_interp_new, &
+!! FMS
+use fms, only: amip_interp_type, amip_interp_new, &
                             get_amip_ice, get_amip_sst
-use time_manager_mod, only: time_type, get_time, operator(+)
-use diag_manager_mod, only: diag_axis_init, register_diag_field, send_data
-use    constants_mod, only: HLV, HLF, TFREEZE, pi
+use fms, only: time_type, get_time, operator(+)
+use fms, only: diag_axis_init, register_diag_field, send_data
+use fms, only: HLV, HLF, TFREEZE, pi
 
-use          fms_mod, only: mpp_pe, mpp_root_pe, mpp_npes,         &
-                            write_version_number, stdlog, error_mesg, FATAL,   &
+use fms, only: mpp_pe, mpp_root_pe, mpp_npes,         &
+                            stdlog, error_mesg, FATAL,   &
                             check_nml_error, NOTE
-use      fms2_io_mod, only: open_file, close_file, read_data, write_data, &
+use fms, only: open_file, close_file, read_data, write_data, &
                             FmsNetcdfDomainFile_t, register_restart_field, register_axis, &
                             unlimited, read_restart, write_restart, register_field, &
                             get_global_io_domain_indices
-use  mpp_domains_mod, only: domain2d,  mpp_get_layout,  &
+use fms, only: domain2d,  mpp_get_layout,  &
                             mpp_get_global_domain, mpp_get_compute_domain
-use mpp_mod, only: mpp_min, mpp_max, input_nml_file
+use fms, only: mpp_min, mpp_max, input_nml_file
+
+!! FMS old io 
+use fms_io_mod, only: write_version_number
 
 implicit none
 private

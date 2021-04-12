@@ -21,38 +21,41 @@
 module flux_exchange_mod
 
 !-----------------------------------------------------------------------
-
+!! Components
 use   atmos_model_mod, only: atmos_data_type, land_ice_atmos_boundary_type
 use    land_model_mod, only:  land_data_type, atmos_land_boundary_type
 use     ice_model_mod, only:   ice_data_type, atmos_ice_boundary_type
-
-use  surface_flux_mod, only: surface_flux, surface_flux_init
-use monin_obukhov_mod, only: mo_profile
-
-use diag_integral_mod, only: diag_integral_field_init, &
-                             sum_diag_integral_field
-use  diag_manager_mod, only: register_diag_field,  &
-                             register_static_field, send_data,  &
-                             diag_field_add_attribute,  &
-                             get_diag_field_id, DIAG_FIELD_NOT_FOUND
-use  time_manager_mod, only: time_type
-
-use sat_vapor_pres_mod, only: escomp, compute_qs, sat_vapor_pres_init
 #ifndef use_AM3_physics
 use atmos_cmip_diag_mod,   only: register_cmip_diag_field_2d
 #endif
-use diag_data_mod,      only: CMOR_MISSING_VALUE 
-use      constants_mod, only: RDGAS, RVGAS, CP_AIR, HLV, HLF, PI
-use            fms_mod, only: check_nml_error,     &
+use surface_flux_mod, only: surface_flux, surface_flux_init
+!! FMS
+use fms, only: mo_profile
+
+use fms, only: diag_integral_field_init, &
+                             sum_diag_integral_field
+use fms, only: register_diag_field,  &
+                             register_static_field, send_data,  &
+                             diag_field_add_attribute,  &
+                             get_diag_field_id, DIAG_FIELD_NOT_FOUND
+use fms, only: time_type
+
+use fms, only: escomp, compute_qs, sat_vapor_pres_init
+use fms, only: RDGAS, RVGAS, CP_AIR, HLV, HLF, PI
+use fms, only: check_nml_error,     &
                               error_mesg, FATAL, stdlog,      &
-                              write_version_number,           &
                               mpp_pe, mpp_root_pe, WARNING
-use    mpp_domains_mod, only: mpp_get_compute_domain
+use fms, only: mpp_get_compute_domain
 
-use mpp_mod, only: mpp_min, mpp_max, mpp_sync, NOTE, input_nml_file
+use fms, only: mpp_min, mpp_max, mpp_sync, NOTE, input_nml_file
 
-use field_manager_mod,  only: MODEL_ATMOS
-use tracer_manager_mod, only: get_number_tracers, get_tracer_index, NO_TRACER
+use fms,  only: MODEL_ATMOS
+use fms, only: get_number_tracers, get_tracer_index, NO_TRACER
+
+!! FMS old io 
+use fms_io_mod, only: write_version_number
+!> TODO does this need to be included in libFMS(only included diag_manager flags)
+use diag_data_mod,      only: CMOR_MISSING_VALUE
 
 implicit none
 private
