@@ -530,7 +530,7 @@ module flux_exchange_mod
   use fms, only: data_override
   use fms, only: coupler_1d_bc_type
   use fms, only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
-  use fms, only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM , STOCK_UNITS, STOCK_NAMES
+  use fms, only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM
   use fms, only: stocks_file, stocks_report, stocks_report_init
   !!> fms_io
   use fms_io_mod, only:  write_version_number
