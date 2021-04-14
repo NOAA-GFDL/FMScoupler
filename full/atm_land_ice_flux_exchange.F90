@@ -19,17 +19,7 @@
 !***********************************************************************
 
 module atm_land_ice_flux_exchange_mod
-
-  use mpp_mod,            only: mpp_npes, mpp_pe, mpp_root_pe, mpp_error, stderr, &
-                                stdout, stdlog, FATAL, WARNING, NOTE, mpp_set_current_pelist, &
-                                mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
-                                CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
-                                input_nml_file
-  use   mpp_domains_mod,  only: mpp_get_compute_domain, mpp_get_compute_domains, &
-                                mpp_global_sum, mpp_redistribute, operator(.EQ.)
-  use   mpp_domains_mod,  only: mpp_get_global_domain, mpp_get_data_domain
-  use   mpp_domains_mod,  only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
-  use   mpp_domains_mod,  only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
+!! Components
   use   atmos_model_mod,  only: atmos_data_type, land_ice_atmos_boundary_type
   use   ocean_model_mod,  only: ocean_public_type, ice_ocean_boundary_type
   use   ocean_model_mod,  only: ocean_state_type
@@ -44,38 +34,6 @@ module atm_land_ice_flux_exchange_mod
   use  diag_manager_mod,  only: register_tiled_diag_field=>register_diag_field
 #endif
   use  surface_flux_mod,  only: surface_flux, surface_flux_init
-  use monin_obukhov_mod,  only: mo_profile
-  use xgrid_mod,          only: xmap_type, setup_xmap, set_frac_area, put_to_xgrid, &
-                                get_from_xgrid, xgrid_count, some, conservation_check, xgrid_init, &
-                                stock_integrate_2d, stock_move, stock_print
-#ifndef _USE_LEGACY_LAND_
-  use xgrid_mod,          only: get_from_xgrid_land => get_from_xgrid_ug
-  use xgrid_mod,          only: put_to_xgrid_land => put_to_xgrid_ug
-  use xgrid_mod,          only: set_frac_area_land => set_frac_area_ug
-  use xgrid_mod,          only: stock_move_land => stock_move_ug
-  use data_override_mod,  only: data_override_land => data_override_ug
-#else
-  use xgrid_mod,          only: get_from_xgrid_land => get_from_xgrid
-  use xgrid_mod,          only: put_to_xgrid_land => put_to_xgrid
-  use xgrid_mod,          only: set_frac_area_land => set_frac_area
-  use xgrid_mod,          only: stock_move_land => stock_move
-  use data_override_mod,  only: data_override_land => data_override
-#endif
-  use diag_integral_mod,  only: diag_integral_field_init, sum_diag_integral_field
-  use  diag_manager_mod,  only: register_diag_field, register_static_field, send_data, &
-                                send_tile_averaged_data, diag_field_add_attribute,     &
-                                get_diag_field_id, DIAG_FIELD_NOT_FOUND
-  use diag_data_mod,      only: CMOR_MISSING_VALUE, null_axis_id
-  use  time_manager_mod,  only: time_type
-  use sat_vapor_pres_mod, only: compute_qs, sat_vapor_pres_init
-  use      constants_mod, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
-                                PI, CP_OCEAN, WTMCO2, WTMC, EPSLN, GRAV
-  use fms_mod,            only: clock_flag_default, check_nml_error, error_mesg
-  use data_override_mod,  only: data_override
-  use coupler_types_mod,  only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10, ind_flux, ind_flux0
-  use coupler_types_mod,  only: coupler_type_initialized, coupler_type_spawn
-  use coupler_types_mod,  only: coupler_type_send_data, coupler_type_set_diags
-  use coupler_types_mod,  only: coupler_type_data_override
   use ocean_model_mod,    only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
 #ifdef use_AM3_physics
   use atmos_tracer_driver_mod, only: atmos_tracer_flux_init
@@ -91,13 +49,6 @@ module atm_land_ice_flux_exchange_mod
   use land_model_mod,        only: send_global_land_diag
 #endif
 #endif
-  use field_manager_mod,       only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE, parse
-  use tracer_manager_mod,      only: get_tracer_index, query_method
-  use tracer_manager_mod,      only: get_tracer_names, get_number_tracers, NO_TRACER
-  use stock_constants_mod,     only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
-  use stock_constants_mod,     only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM , STOCK_UNITS, STOCK_NAMES
-  use stock_constants_mod,     only: stocks_file, stocks_report, stocks_report_init
-  use stock_constants_mod,     only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
   use land_model_mod,          only: Lnd_stock_pe
   use ocean_model_mod,         only: Ocean_stock_pe
   use atmos_model_mod,         only: Atm_stock_pe
@@ -113,6 +64,57 @@ module atm_land_ice_flux_exchange_mod
                                      do_specified_rough_leng, ROUGH_MOM, ROUGH_HEAT,  &
                                      do_specified_land
 #endif
+!! FMS
+  use fms, only: mpp_npes, mpp_pe, mpp_root_pe, mpp_error, stderr, &
+                 stdout, stdlog, FATAL, WARNING, NOTE, mpp_set_current_pelist, &
+                 mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
+                 CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
+                 input_nml_file
+  use fms, only: mpp_get_compute_domain, mpp_get_compute_domains, &
+                 mpp_global_sum, mpp_redistribute, operator(.EQ.)
+  use fms, only: mpp_get_global_domain, mpp_get_data_domain
+  use fms, only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
+  use fms, only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
+  use fms, only: mo_profile
+  use fms, only: xmap_type, setup_xmap, set_frac_area, put_to_xgrid, &
+                 get_from_xgrid, xgrid_count, some, conservation_check, xgrid_init, &
+                 stock_integrate_2d, stock_move, stock_print
+#ifndef _USE_LEGACY_LAND_
+  use fms, only: get_from_xgrid_land => get_from_xgrid_ug
+  use fms, only: put_to_xgrid_land => put_to_xgrid_ug
+  use fms, only: set_frac_area_land => set_frac_area_ug
+  use fms, only: stock_move_land => stock_move_ug
+  use fms, only: data_override_land => data_override_ug
+#else
+  use fms, only: get_from_xgrid_land => get_from_xgrid
+  use fms, only: put_to_xgrid_land => put_to_xgrid
+  use fms, only: set_frac_area_land => set_frac_area
+  use fms, only: stock_move_land => stock_move
+  use fms, only: data_override_land => data_override
+#endif
+  use fms, only: diag_integral_field_init, sum_diag_integral_field
+  use fms, only: register_diag_field, register_static_field, send_data, &
+                 send_tile_averaged_data, diag_field_add_attribute,     &
+                 get_diag_field_id, DIAG_FIELD_NOT_FOUND
+  use fms, only: time_type
+  use fms, only: compute_qs, sat_vapor_pres_init
+  use fms, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
+                 PI, CP_OCEAN, WTMCO2, WTMC, EPSLN, GRAV
+  use fms, only: clock_flag_default, check_nml_error, error_mesg
+  use fms, only: data_override
+  use fms, only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10, ind_flux, ind_flux0
+  use fms, only: coupler_type_initialized, coupler_type_spawn
+  use fms, only: coupler_type_send_data, coupler_type_set_diags
+  use fms, only: coupler_type_data_override
+  use fms, only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE, parse
+  use fms, only: get_tracer_index, query_method
+  use fms, only: get_tracer_names, get_number_tracers, NO_TRACER
+  use fms, only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
+  use fms, only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM , STOCK_UNITS, STOCK_NAMES
+  use fms, only: stocks_file, stocks_report, stocks_report_init
+  use fms, only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
+!! TODO
+  use diag_data_mod,      only: CMOR_MISSING_VALUE, null_axis_id
 
   implicit none
   include 'netcdf.inc'

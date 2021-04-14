@@ -113,12 +113,12 @@
 !! </table
 module surface_flux_mod
 
-use             fms_mod, only: close_file, mpp_pe, mpp_root_pe, write_version_number
-use             fms_mod, only: file_exist, check_nml_error, open_namelist_file, stdlog
-use   monin_obukhov_mod, only: mo_drag, mo_profile, monin_obukhov_init
-use  sat_vapor_pres_mod, only: escomp, descomp
-use       constants_mod, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
-use             mpp_mod, only: input_nml_file, FATAL, mpp_error
+use fms, only: close_file, mpp_pe, mpp_root_pe, write_version_number
+use fms, only: file_exist, check_nml_error, open_namelist_file, stdlog
+use fms, only: mo_drag, mo_profile, monin_obukhov_init
+use fms, only: escomp, descomp
+use fms, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
+use fms, only: input_nml_file, FATAL, mpp_error
 
 implicit none
 private

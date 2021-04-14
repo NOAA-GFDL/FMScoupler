@@ -494,18 +494,18 @@ module flux_exchange_mod
 !!                         Ocean%frazil        ! frazil at temperature points on the ocean MODEL GRID
 !! ~~~~~~~~~~
 
-  use mpp_mod,         only: mpp_npes, mpp_pe, mpp_root_pe, &
-       mpp_error, stderr, stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
-       mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
-       CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
-       input_nml_file, mpp_get_current_pelist
-  use mpp_domains_mod, only: mpp_create_super_grid_domain, mpp_define_io_domain
-  use mpp_domains_mod, only: mpp_get_compute_domain, mpp_get_compute_domains, &
+  use fms, only: mpp_npes, mpp_pe, mpp_root_pe, &
+                 mpp_error, stderr, stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
+                 mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
+                 CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
+                 input_nml_file, mpp_get_current_pelist
+  use fms, only: mpp_create_super_grid_domain, mpp_define_io_domain
+  use fms, only: mpp_get_compute_domain, mpp_get_compute_domains, &
                              mpp_global_sum, mpp_redistribute, operator(.EQ.)
-  use mpp_domains_mod, only: mpp_get_global_domain, mpp_get_data_domain
-  use mpp_domains_mod, only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
-  use mpp_domains_mod, only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
-  use mpp_domains_mod, only: mpp_get_layout, mpp_define_layout
+  use fms, only: mpp_get_global_domain, mpp_get_data_domain
+  use fms, only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
+  use fms, only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
+  use fms, only: mpp_get_layout, mpp_define_layout
 
 !model_boundary_data_type contains all model fields at the boundary.
 !model1_model2_boundary_type contains fields that model2 gets
@@ -516,34 +516,26 @@ module flux_exchange_mod
 !REGRID: physically distinct grids, via xgrid
 !REDIST: same grid, transfer in index space only
 !DIRECT: same grid, same decomp, direct copy
-  use atmos_model_mod,    only: atmos_data_type, land_ice_atmos_boundary_type
-  use ocean_model_mod,    only: ocean_public_type, ice_ocean_boundary_type
-  use ocean_model_mod,    only: ocean_state_type
-  use ice_model_mod,      only: ice_data_type, land_ice_boundary_type, &
-                                ocean_ice_boundary_type, atmos_ice_boundary_type, Ice_stock_pe
-  use land_model_mod,     only: land_data_type, atmos_land_boundary_type
-  use xgrid_mod,          only: get_ocean_model_area_elements
-  use  time_manager_mod,  only: time_type
-  use sat_vapor_pres_mod, only: sat_vapor_pres_init
-  use      constants_mod, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, PI, CP_OCEAN, &
+  use fms, only: get_ocean_model_area_elements
+  use fms, only: time_type
+  use fms, only: sat_vapor_pres_init
+  use fms, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, PI, CP_OCEAN, &
                                 WTMCO2, WTMC
 !Balaji
-!utilities stuff into use fms_mod
-  use fms2_io_mod,                only: open_file, close_file, FmsNetcdfDomainFile_t, FmsNetcdfFile_t
-  use fms2_io_mod,                only: get_variable_size, get_variable_dimension_names, variable_exists
-  use fms2_io_mod,                only: read_data, register_field, register_axis
-  use fms_mod,                    only: clock_flag_default, check_nml_error, error_mesg
-  use fms_mod,                    only:  write_version_number
-  use data_override_mod,          only: data_override
-  use coupler_types_mod,          only: coupler_1d_bc_type
-  use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init, atmos_ocean_type_fluxes_init
-  use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
-  use ocean_model_mod,            only: ocean_model_init_sfc, ocean_model_flux_init
-  use atmos_tracer_driver_mod,    only: atmos_tracer_flux_init
-  use stock_constants_mod,        only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
-  use stock_constants_mod,        only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM , STOCK_UNITS, STOCK_NAMES
-  use stock_constants_mod,        only: stocks_file, stocks_report, stocks_report_init
-  use stock_constants_mod,        only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
+!utilities stuff into usefmsmod
+  use fms, only: open_file, close_file, FmsNetcdfDomainFile_t, FmsNetcdfFile_t
+  use fms, only: get_variable_size, get_variable_dimension_names, variable_exists
+  use fms, only: read_data, register_field, register_axis
+  use fms, only: clock_flag_default, check_nml_error, error_mesg
+  use fms, only:  write_version_number
+  use fms, only: data_override
+  use fms, only: coupler_1d_bc_type
+  use fms, only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
+  use fms, only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM , STOCK_UNITS, STOCK_NAMES
+  use fms, only: stocks_file, stocks_report, stocks_report_init
+  use fms, only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
+
+!! Components
   use land_model_mod,             only: Lnd_stock_pe
   use ocean_model_mod,            only: Ocean_stock_pe
   use atmos_model_mod,            only: Atm_stock_pe
@@ -556,6 +548,16 @@ module flux_exchange_mod
   use ice_ocean_flux_exchange_mod,    only: flux_ocean_to_ice, flux_ocean_to_ice_finish
   use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean, flux_ice_to_ocean_finish
   use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
+  use atmos_model_mod,    only: atmos_data_type, land_ice_atmos_boundary_type
+  use ocean_model_mod,    only: ocean_public_type, ice_ocean_boundary_type
+  use ocean_model_mod,    only: ocean_state_type
+  use ice_model_mod,      only: ice_data_type, land_ice_boundary_type, &
+                                ocean_ice_boundary_type, atmos_ice_boundary_type, Ice_stock_pe
+  use land_model_mod,     only: land_data_type, atmos_land_boundary_type
+  use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init, atmos_ocean_type_fluxes_init
+  use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
+  use ocean_model_mod,            only: ocean_model_init_sfc, ocean_model_flux_init
+  use atmos_tracer_driver_mod,    only: atmos_tracer_flux_init
 
   implicit none ; private
 

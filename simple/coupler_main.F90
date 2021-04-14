@@ -56,8 +56,8 @@ use ice_model_mod,      only: ice_model_init, ice_model_end,  &
 use flux_exchange_mod,  only: flux_exchange_init,   &
                               sfc_boundary_layer,   &
                               flux_down_from_atmos, &
-                              flux_up_to_atmos,     &
-                              flux_exchange_end       ! may not be used?
+                              flux_up_to_atmos!,     &
+                              !flux_exchange_end       ! may not be used?
 !--- FMS modules
 use fms, only: constants_init
 use fms, only: data_override_init
@@ -89,7 +89,7 @@ use fms, only: tracer_manager_init, get_tracer_index, &
                               NO_TRACER
 
 !--- FMS old io
-use fms_io_mod,         only: fms_io_exit, write_version_number !< This can't be removed until fms_io is not used at all
+use fms_io_mod, only: write_version_number, fms_io_exit!< This can't be removed until fms_io is not used at all
 implicit none
 
 !-----------------------------------------------------------------------
