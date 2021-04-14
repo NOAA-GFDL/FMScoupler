@@ -23,13 +23,15 @@ module land_ice_flux_exchange_mod
 !! FMS
   use fms, only: mpp_pe, mpp_clock_id, mpp_clock_begin, mpp_clock_end, CLOCK_ROUTINE
   use fms, only: mpp_get_compute_domain
+  !! TODO
   use fms_mod, only: clock_flag_default
   use fms, only: RADIUS
   use fms, only: xmap_type, setup_xmap, xgrid_count, stock_move, &
                  put_to_xgrid, get_from_xgrid
   use fms, only: time_type
   use fms, only: data_override
-  use fms, only: Lnd_stock, Ice_stock, ISTOCK_WATER, ISTOCK_SIDE
+  !! TODO
+  use stock_constants_mod, only: Lnd_stock, Ice_stock, ISTOCK_WATER, ISTOCK_SIDE
 !! Components
   use land_model_mod,      only: land_data_type
   use ice_model_mod,       only: ice_data_type, land_ice_boundary_type

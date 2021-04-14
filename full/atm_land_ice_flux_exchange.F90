@@ -112,8 +112,8 @@ module atm_land_ice_flux_exchange_mod
   use fms, only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
   use fms, only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM , STOCK_UNITS, STOCK_NAMES
   use fms, only: stocks_file, stocks_report, stocks_report_init
-  use fms, only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
 !! TODO change after fms changes
+  use stock_constants_mod, only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
   use diag_data_mod,      only: CMOR_MISSING_VALUE, null_axis_id
   use fms_mod,            only: clock_flag_default 
 

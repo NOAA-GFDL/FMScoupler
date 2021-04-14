@@ -29,10 +29,10 @@ module ice_ocean_flux_exchange_mod
   use fms, only: AGRID
   !> TODO rm after fms changes
   use fms_mod, only: clock_flag_default
+  use stock_constants_mod, only: Ice_stock, Ocn_stock, ISTOCK_HEAT, ISTOCK_WATER
   use fms, only: data_override
   use fms, only: time_type
   use fms, only: send_data
-  use fms, only: Ice_stock, Ocn_stock, ISTOCK_HEAT, ISTOCK_WATER
   use fms, only: ISTOCK_BOTTOM, ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_SALT
   use fms, only: coupler_1d_bc_type, coupler_type_spawn
   use fms, only: coupler_type_initialized, coupler_type_set_diags
