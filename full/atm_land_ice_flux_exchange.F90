@@ -100,7 +100,7 @@ module atm_land_ice_flux_exchange_mod
   use fms, only: compute_qs, sat_vapor_pres_init
   use fms, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
                  PI, CP_OCEAN, WTMCO2, WTMC, EPSLN, GRAV
-  use fms, only: clock_flag_default, check_nml_error, error_mesg
+  use fms, only: check_nml_error, error_mesg
   use fms, only: data_override
   use fms, only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10, ind_flux, ind_flux0
   use fms, only: coupler_type_initialized, coupler_type_spawn
@@ -113,8 +113,9 @@ module atm_land_ice_flux_exchange_mod
   use fms, only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM , STOCK_UNITS, STOCK_NAMES
   use fms, only: stocks_file, stocks_report, stocks_report_init
   use fms, only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
-!! TODO
+!! TODO change after fms changes
   use diag_data_mod,      only: CMOR_MISSING_VALUE, null_axis_id
+  use fms_mod,            only: clock_flag_default 
 
   implicit none
   include 'netcdf.inc'

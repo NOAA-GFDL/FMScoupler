@@ -327,7 +327,7 @@ program coupler_main
   use fms, only: operator(>=), operator(<=), operator(==)
 
   use fms, only: check_nml_error
-  use fms, only: uppercase, error_mesg, write_version_number
+  use fms, only: uppercase, error_mesg
   use fms, only: fms_init, fms_end, stdout
 
   use fms, only: ascii_read
@@ -361,7 +361,7 @@ program coupler_main
   use fms, only: print_memuse_stats
 
   !< Can't get rid of this until fms_io is no longer used at all
-  use fms_io_mod,              only: fms_io_exit
+  use fms_io_mod,              only: fms_io_exit, write_version_number
 
 ! model interfaces used to couple the component models:
 !               atmosphere, land, ice, and ocean

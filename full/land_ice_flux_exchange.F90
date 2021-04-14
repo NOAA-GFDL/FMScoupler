@@ -23,7 +23,7 @@ module land_ice_flux_exchange_mod
 !! FMS
   use fms, only: mpp_pe, mpp_clock_id, mpp_clock_begin, mpp_clock_end, CLOCK_ROUTINE
   use fms, only: mpp_get_compute_domain
-  use fms, only: clock_flag_default
+  use fms_mod, only: clock_flag_default
   use fms, only: RADIUS
   use fms, only: xmap_type, setup_xmap, xgrid_count, stock_move, &
                  put_to_xgrid, get_from_xgrid

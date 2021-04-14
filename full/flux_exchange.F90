@@ -526,14 +526,17 @@ module flux_exchange_mod
   use fms, only: open_file, close_file, FmsNetcdfDomainFile_t, FmsNetcdfFile_t
   use fms, only: get_variable_size, get_variable_dimension_names, variable_exists
   use fms, only: read_data, register_field, register_axis
-  use fms, only: clock_flag_default, check_nml_error, error_mesg
-  use fms, only:  write_version_number
+  use fms, only:  check_nml_error, error_mesg
   use fms, only: data_override
   use fms, only: coupler_1d_bc_type
   use fms, only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
   use fms, only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM , STOCK_UNITS, STOCK_NAMES
   use fms, only: stocks_file, stocks_report, stocks_report_init
   use fms, only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
+  !!> fms_io
+  use fms_io_mod, only:  write_version_number
+  !> TODO remove after fms changes
+  use fms_mod, only: clock_flag_default
 
 !! Components
   use land_model_mod,             only: Lnd_stock_pe
