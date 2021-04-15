@@ -27,9 +27,8 @@ module ice_ocean_flux_exchange_mod
   use fms, only: HLF, HLV, CP_OCEAN
   use fms, only: mpp_get_compute_domain, operator(.EQ.), mpp_redistribute
   use fms, only: AGRID
-  !> TODO rm after fms changes
-  use fms_mod, only: clock_flag_default
-  use stock_constants_mod, only: Ice_stock, Ocn_stock, ISTOCK_HEAT, ISTOCK_WATER
+  use fms, only: clock_flag_default
+  use fms, only: Ice_stock, Ocn_stock, ISTOCK_HEAT, ISTOCK_WATER
   use fms, only: data_override
   use fms, only: time_type
   use fms, only: send_data

@@ -49,13 +49,12 @@ use fms, only: mpp_get_compute_domain
 
 use fms, only: mpp_min, mpp_max, mpp_sync, NOTE, input_nml_file
 
-use fms,  only: MODEL_ATMOS
+use fms, only: MODEL_ATMOS
 use fms, only: get_number_tracers, get_tracer_index, NO_TRACER
+use fms, only: CMOR_MISSING_VALUE
 
 !! FMS old io 
 use fms_io_mod, only: write_version_number
-!> TODO does this need to be included in libFMS(only included diag_manager flags)
-use diag_data_mod,      only: CMOR_MISSING_VALUE
 
 implicit none
 private

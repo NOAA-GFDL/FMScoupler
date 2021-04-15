@@ -532,11 +532,10 @@ module flux_exchange_mod
   use fms, only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
   use fms, only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM
   use fms, only: stocks_file, stocks_report, stocks_report_init
+  use fms, only: clock_flag_default
+  use fms, only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
   !!> fms_io
   use fms_io_mod, only:  write_version_number
-  !> TODO remove after fms changes
-  use fms_mod, only: clock_flag_default
-  use stock_constants_mod, only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
 
 !! Components
   use land_model_mod,             only: Lnd_stock_pe
