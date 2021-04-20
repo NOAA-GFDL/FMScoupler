@@ -64,56 +64,17 @@ module atm_land_ice_flux_exchange_mod
                                      do_specified_rough_leng, ROUGH_MOM, ROUGH_HEAT,  &
                                      do_specified_land
 #endif
+
 !! FMS
-  use fms, only: mpp_npes, mpp_pe, mpp_root_pe, mpp_error, stderr, &
-                 stdout, stdlog, FATAL, WARNING, NOTE, mpp_set_current_pelist, &
-                 mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
-                 CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
-                 input_nml_file
-  use fms, only: mpp_get_compute_domain, mpp_get_compute_domains, &
-                 mpp_global_sum, mpp_redistribute, operator(.EQ.)
-  use fms, only: mpp_get_global_domain, mpp_get_data_domain
-  use fms, only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
-  use fms, only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
-  use fms, only: mo_profile
-  use fms, only: xmap_type, setup_xmap, set_frac_area, put_to_xgrid, &
-                 get_from_xgrid, xgrid_count, some, conservation_check, xgrid_init, &
-                 stock_integrate_2d, stock_move, stock_print
 #ifndef _USE_LEGACY_LAND_
-  use fms, only: get_from_xgrid_land => get_from_xgrid_ug
-  use fms, only: put_to_xgrid_land => put_to_xgrid_ug
-  use fms, only: set_frac_area_land => set_frac_area_ug
-  use fms, only: stock_move_land => stock_move_ug
-  use fms, only: data_override_land => data_override_ug
+  use FMS, get_from_xgrid_land => get_from_xgrid_ug, put_to_xgrid_land => put_to_xgrid_ug, &
+           set_frac_area_land => set_frac_area_ug, stock_move_land => stock_move_ug, &
+           data_override_land => data_override_ug
 #else
-  use fms, only: get_from_xgrid_land => get_from_xgrid
-  use fms, only: put_to_xgrid_land => put_to_xgrid
-  use fms, only: set_frac_area_land => set_frac_area
-  use fms, only: stock_move_land => stock_move
-  use fms, only: data_override_land => data_override
+  use FMS, get_from_xgrid_land => get_from_xgrid, put_to_xgrid_land => put_to_xgrid, &
+           set_frac_area_land => set_frac_area, stock_move_land => stock_move, &
+           data_override_land => data_override
 #endif
-  use fms, only: diag_integral_field_init, sum_diag_integral_field
-  use fms, only: register_diag_field, register_static_field, send_data, &
-                 send_tile_averaged_data, diag_field_add_attribute,     &
-                 get_diag_field_id, DIAG_FIELD_NOT_FOUND
-  use fms, only: time_type
-  use fms, only: compute_qs, sat_vapor_pres_init
-  use fms, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
-                 PI, CP_OCEAN, WTMCO2, WTMC, EPSLN, GRAV
-  use fms, only: check_nml_error, error_mesg
-  use fms, only: data_override
-  use fms, only: coupler_1d_bc_type, coupler_type_copy, ind_psurf, ind_u10, ind_flux, ind_flux0
-  use fms, only: coupler_type_initialized, coupler_type_spawn
-  use fms, only: coupler_type_send_data, coupler_type_set_diags
-  use fms, only: coupler_type_data_override
-  use fms, only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE, parse
-  use fms, only: get_tracer_index, query_method
-  use fms, only: get_tracer_names, get_number_tracers, NO_TRACER
-  use fms, only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
-  use fms, only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM
-  use fms, only: stocks_file, stocks_report, stocks_report_init
-  use fms, only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
-  use fms, only: CMOR_MISSING_VALUE, null_axis_id, clock_flag_default
 
   implicit none
   include 'netcdf.inc'

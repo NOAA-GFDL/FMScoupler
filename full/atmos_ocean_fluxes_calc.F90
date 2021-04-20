@@ -19,11 +19,9 @@
 !***********************************************************************
 !
 module atmos_ocean_fluxes_calc_mod
-  use fms, only : coupler_1d_bc_type, ind_flux, ind_kw, ind_u10, &
-                  ind_alpha, ind_pCair, ind_psurf, ind_sc_no, &
-                  ind_csurf, ind_flux0, ind_deltap, ind_deposition
-  use fms, only : mpp_error, FATAL
-  use fms, only : wtmair, rdgas, vonkarm
+
+  use FMS
+
   implicit none
   private
 

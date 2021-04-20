@@ -113,12 +113,7 @@
 !! </table
 module surface_flux_mod
 
-use fms, only: close_file, mpp_pe, mpp_root_pe
-use fms, only: check_nml_error, stdlog
-use fms, only: mo_drag, mo_profile, monin_obukhov_init
-use fms, only: escomp, descomp
-use fms, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
-use fms, only: input_nml_file, FATAL, mpp_error
+use FMS
 
 use fms_io_mod, only: write_version_number, file_exist, open_namelist_file
 

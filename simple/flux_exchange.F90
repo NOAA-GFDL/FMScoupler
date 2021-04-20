@@ -29,31 +29,11 @@ use     ice_model_mod, only:   ice_data_type, atmos_ice_boundary_type
 use atmos_cmip_diag_mod,   only: register_cmip_diag_field_2d
 #endif
 use surface_flux_mod, only: surface_flux, surface_flux_init
+
 !! FMS
-use fms, only: mo_profile
+use FMS
 
-use fms, only: diag_integral_field_init, &
-                             sum_diag_integral_field
-use fms, only: register_diag_field,  &
-                             register_static_field, send_data,  &
-                             diag_field_add_attribute,  &
-                             get_diag_field_id, DIAG_FIELD_NOT_FOUND
-use fms, only: time_type
-
-use fms, only: escomp, compute_qs, sat_vapor_pres_init
-use fms, only: RDGAS, RVGAS, CP_AIR, HLV, HLF, PI
-use fms, only: check_nml_error,     &
-                              error_mesg, FATAL, stdlog,      &
-                              mpp_pe, mpp_root_pe, WARNING
-use fms, only: mpp_get_compute_domain
-
-use fms, only: mpp_min, mpp_max, mpp_sync, NOTE, input_nml_file
-
-use fms, only: MODEL_ATMOS
-use fms, only: get_number_tracers, get_tracer_index, NO_TRACER
-use fms, only: CMOR_MISSING_VALUE
-
-!! FMS old io 
+!! FMS old io
 use fms_io_mod, only: write_version_number
 
 implicit none
@@ -88,7 +68,7 @@ integer :: id_drag_moist,  id_drag_heat,  id_drag_mom,              &
 
 ! t_ref(tas), u_ref, v_ref, t_surf, id_wind(check)
 ! v_flux (wind stress? check)
-! q_ref (huss), t_flux (hfss) 
+! q_ref (huss), t_flux (hfss)
 
 ! Atm%slp can be saved as psl
 
@@ -131,13 +111,13 @@ integer :: is, ie, js, je
 !---- allocatable module storage ------
 
   real, allocatable, dimension(:,:) :: t_surf, t_ca, q_surf, p_surf
-                                       
+
   real, allocatable, dimension(:,:) :: e_t_n, f_t_delt_n, &
-                                       e_q_n, f_q_delt_n   
+                                       e_q_n, f_q_delt_n
 
   real, allocatable, dimension(:,:) :: dhdt_surf, dedt_surf, dedq_surf, &
                                        drdt_surf, dhdt_atm,  dedq_atm,  &
-                                       flux_t, flux_q, flux_lw    
+                                       flux_t, flux_q, flux_lw
 
   real, allocatable, dimension(:,:) :: flux_u, flux_v, drag_q, &
                                        dtaudu_atm, dtaudv_atm
@@ -159,21 +139,21 @@ contains
 
  subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Boundary )
 
- real,                   intent(in)  :: dt  !< Time step 
+ real,                   intent(in)  :: dt  !< Time step
  type       (time_type), intent(in)  :: Time !< Current time
  type (atmos_data_type), intent(in)  :: Atm  !< A derived data type to specify atmospheric boundary data
  type(land_data_type),  intent(inout)  :: Land !< A derived data type to specify land boundary data
  type(ice_data_type),   intent(inout)  :: Ice !< A derived data type to specify ice boundary data
  type(land_ice_atmos_boundary_type), intent(inout) :: Boundary !< A derived data type to specify properties and
  !! fluxes passed from exchange grid to the atmosphere,
-       
+
 real, dimension(is:ie,js:je) :: u_surf, v_surf, rough_heat, rough_moist, &
                                 rough_mom, rough_scale, q_star, cd_q,    &
                                 albedo, albedo_vis_dir, albedo_nir_dir,  &
                                 albedo_vis_dif, albedo_nir_dif,          &
                                 del_m, del_h, del_q, land_frac,          &
                                 ref, ref2, t_ref, qs_ref, qs_ref_cmip
-       
+
 logical, dimension(is:ie,js:je) :: mask, seawater, avail
 real :: zrefm, zrefh
 
@@ -215,7 +195,7 @@ real :: zrefm, zrefh
               u_star     (is:ie, js:je), &
               wind       (is:ie, js:je)  )
 
-   
+
    u_surf     = 0.0
    v_surf     = 0.0
 
@@ -223,9 +203,9 @@ real :: zrefm, zrefh
    cd_t = 0.0
    cd_m = 0.0
    cd_q = 0.0
-   
+
    avail   = .true.
-   
+
 !---- atmosphere quantities ----
 
    p_surf = Atm%p_surf
@@ -337,7 +317,7 @@ real :: zrefm, zrefh
    if ( id_albedo_nir_dir > 0 ) used = send_data ( id_albedo_nir_dir, albedo_nir_dir, Time )
    if ( id_albedo_vis_dif > 0 ) used = send_data ( id_albedo_vis_dif, albedo_vis_dif, Time )
    if ( id_albedo_nir_dif > 0 ) used = send_data ( id_albedo_nir_dif, albedo_nir_dif, Time )
- 
+
 !---- ice fraction ----
    if ( id_ice_mask > 0 ) then
        where (Ice%ice_mask)
@@ -358,7 +338,7 @@ real :: zrefm, zrefh
         zrefh = z_ref_heat
        !---- optimize calculation ----
         if ( id_t_ref <= 0 ) zrefh = zrefm
-     
+
          call mo_profile ( zrefm, zrefh, Atm%z_bot,           &
                           rough_mom, rough_heat, rough_moist, &
                           u_star, b_star, q_star,             &
@@ -416,7 +396,7 @@ real :: zrefm, zrefh
       if ( id_del_h > 0 )  used = send_data ( id_del_h, del_h, Time )
       if ( id_del_m > 0 )  used = send_data ( id_del_m, del_m, Time )
       if ( id_del_q > 0 )  used = send_data ( id_del_q, del_q, Time )
- 
+
    endif
 
   ! topographic roughness scale
@@ -466,31 +446,31 @@ real, dimension(is:ie,js:je) :: gamma, dtmass, delta_t, delta_q, &
    flux_lw = Atm%flux_lw - flux_lw
 
 !----- adjust fluxes for implicit dependence on atmosphere ----
-   
+
    dtmass  = Atm%Surf_Diff%dtmass
    delta_t = Atm%Surf_Diff%delta_t
    delta_q = Atm%Surf_Diff%delta_tr(:,:,isphum)
    dflux_t = Atm%Surf_Diff%dflux_t
    dflux_q = Atm%Surf_Diff%dflux_tr(:,:,isphum)
-   
+
  ! temperature
 
    gamma      =  1./ (1.0 - dtmass*(dflux_t + dhdt_atm*CP_INV))
    e_t_n      =  dtmass*dhdt_surf*CP_INV*gamma
-   f_t_delt_n = (delta_t + dtmass * flux_t*CP_INV) * gamma    
+   f_t_delt_n = (delta_t + dtmass * flux_t*CP_INV) * gamma
 
-   flux_t     =  flux_t        + dhdt_atm * f_t_delt_n 
-   dhdt_surf  =  dhdt_surf     + dhdt_atm * e_t_n   
+   flux_t     =  flux_t        + dhdt_atm * f_t_delt_n
+   dhdt_surf  =  dhdt_surf     + dhdt_atm * e_t_n
 
 ! moisture
 
    gamma      =  1./ (1.0 - dtmass*(dflux_q + dedq_atm))
    e_q_n      =  dtmass*(dedt_surf+dedq_surf)*gamma
-   f_q_delt_n = (delta_q  + dtmass * flux_q) * gamma    
+   f_q_delt_n = (delta_q  + dtmass * flux_q) * gamma
 
-   flux_q     =  flux_q        + dedq_atm * f_q_delt_n 
-   dedt_surf  =  dedt_surf     + dedq_atm * e_q_n   
-   dedq_surf  =  dedq_surf     + dedq_atm * e_q_n   
+   flux_q     =  flux_q        + dedq_atm * f_q_delt_n
+   dedt_surf  =  dedt_surf     + dedq_atm * e_q_n
+   dedq_surf  =  dedq_surf     + dedq_atm * e_q_n
 
 !-----------------------------------------------------------------------
 !---- output fields on the land grid -------
@@ -573,7 +553,7 @@ if ( id_tauv > 0 )   used = send_data ( id_tauv,  -Atmos_boundary%v_flux, Time )
 end subroutine flux_down_from_atmos
 
 !#######################################################################
-   
+
 subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 
  type(time_type),      intent(in)  :: Time
@@ -609,9 +589,9 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
   dt_t_surf = t_surf_new - t_surf ! changes in radiative T
   dt_q_surf = q_surf_new - q_surf ! changes in near-surface q
 
- ! adjust fluxes and atmospheric increments for 
+ ! adjust fluxes and atmospheric increments for
  ! implicit dependence on surface temperature
-     
+
   flux_t        = flux_t      + dt_t_ca  *dhdt_surf
   flux_lw       = flux_lw     - dt_t_surf*drdt_surf
   Boundary%dt_t = f_t_delt_n  + dt_t_ca  *e_t_n
@@ -652,7 +632,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
    deallocate (f_t_delt_n, f_q_delt_n, e_t_n, e_q_n)
    deallocate (dhdt_surf, dedt_surf, dedq_surf, &
                drdt_surf, dhdt_atm,  dedq_atm,  &
-               flux_t, flux_q, flux_lw, drag_q)  
+               flux_t, flux_q, flux_lw, drag_q)
    deallocate (t_surf, p_surf, t_ca, q_surf )
    deallocate (cd_t, cd_m, b_star, u_star, wind)
 
@@ -699,7 +679,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
    call diag_integral_field_init ('evap', 'f6.3')
    call diag_field_init ( Time, Atm%axes(1:2) )
 
-!----- find out number of atmospheric prognostic tracers and index of specific 
+!----- find out number of atmospheric prognostic tracers and index of specific
 !      humidity in the tracer table
    call get_number_tracers (MODEL_ATMOS, num_tracers=n_atm_tr_tot, &
                             num_prog=n_atm_tr)
@@ -838,7 +818,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 #endif
    land_ice_atmos_boundary%rough_mom=0.01
    land_ice_atmos_boundary%frac_open_sea=0.0
-   
+
    call surface_flux_init()
 !-----------------------------------------------------------------------
 
@@ -908,14 +888,14 @@ subroutine diag_field_init ( Time, atmos_axes )
        register_static_field ( mod_name, 'land_mask', atmos_axes,  &
        'fractional amount of land', 'none', &
        range=frange )
-  
+
  !--------- initialize diagnostic fields --------------------
 
   id_ice_mask = &
        register_diag_field ( mod_name, 'ice_mask', atmos_axes, Time, &
        'fractional amount of sea ice', 'none',  &
        range=frange )
- 
+
    id_wind = &
    register_diag_field ( mod_name, 'wind', atmos_axes, Time, &
                         'wind speed for flux calculations', 'm/s', &
@@ -948,7 +928,7 @@ subroutine diag_field_init ( Time, atmos_axes )
    id_u_star     = &
    register_diag_field ( mod_name, 'u_star',     atmos_axes, Time, &
                         'friction velocity',   'm/s'   )
-      
+
    id_b_star     = &
    register_diag_field ( mod_name, 'b_star',     atmos_axes, Time, &
                         'buoyancy scale',      'm/s2'   )

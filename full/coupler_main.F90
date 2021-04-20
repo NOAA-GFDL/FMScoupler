@@ -313,52 +313,7 @@ program coupler_main
   !--- F90 module for OpenMP
   use omp_lib
 
-  use fms, only: constants_init
-
-  use fms, only: fms_affinity_init, fms_affinity_set
-
-  use fms, only: time_type, set_calendar_type, set_time
-  use fms, only: set_date, get_date, days_in_month, month_name
-  use fms, only: operator(+), operator(-), operator (<)
-  use fms, only: operator (>), operator ( /= ), operator ( / )
-  use fms, only: operator (*), THIRTY_DAY_MONTHS, JULIAN
-  use fms, only: GREGORIAN, NOLEAP, NO_CALENDAR, INVALID_CALENDAR
-  use fms, only: date_to_string, increment_date
-  use fms, only: operator(>=), operator(<=), operator(==)
-
-  use fms, only: check_nml_error
-  use fms, only: uppercase, error_mesg
-  use fms, only: fms_init, fms_end, stdout
-
-  use fms, only: ascii_read
-  use fms, only: FmsNetcdfDomainFile_t
-  use fms, only: write_restart, read_restart, write_data
-  use fms, only: get_global_io_domain_indices
-  use fms, only: close_file, check_if_open, file_exists
-
-  use fms, only: diag_manager_init, diag_manager_end, diag_grid_end
-  use fms, only: DIAG_OCEAN, DIAG_OTHER, DIAG_ALL, get_base_date
-  use fms, only: diag_manager_set_time_end
-
-  use fms, only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE
-
-  use fms, only: tracer_manager_init, get_tracer_index
-  use fms, only: get_number_tracers, get_tracer_names, NO_TRACER
-
-  use fms, only: coupler_types_init, coupler_1d_bc_type
-  use fms, only: coupler_type_write_chksums
-  use fms, only: coupler_type_register_restarts, coupler_type_restore_state
-
-  use fms, only: data_override_init
-  use fms, only: mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_chksum
-  use fms, only: mpp_init, mpp_pe, mpp_npes, mpp_root_pe, mpp_sync
-  use fms, only: stderr, stdlog, mpp_error, NOTE, FATAL, WARNING
-  use fms, only: mpp_set_current_pelist, mpp_declare_pelist
-  use fms, only: input_nml_file
-
-  use fms, only: mpp_broadcast_domain
-
-  use fms, only: print_memuse_stats
+  use FMS
 
   !< Can't get rid of this until fms_io is no longer used at all
   use fms_io_mod,              only: fms_io_exit, write_version_number
@@ -1005,7 +960,7 @@ program coupler_main
 
     if(Atm%pe) then
      call mpp_clock_begin(newClock5) !Ice is still using ATM pelist and need to be included in ATM clock
-                                        !ATM clock is used for load-balancing the coupled models 
+                                        !ATM clock is used for load-balancing the coupled models
     endif
     if (do_ice .and. Ice%pe) then
 

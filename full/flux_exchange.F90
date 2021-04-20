@@ -494,19 +494,6 @@ module flux_exchange_mod
 !!                         Ocean%frazil        ! frazil at temperature points on the ocean MODEL GRID
 !! ~~~~~~~~~~
 
-  use fms, only: mpp_npes, mpp_pe, mpp_root_pe, &
-                 mpp_error, stderr, stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
-                 mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
-                 CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
-                 input_nml_file, mpp_get_current_pelist
-  use fms, only: mpp_create_super_grid_domain, mpp_define_io_domain
-  use fms, only: mpp_get_compute_domain, mpp_get_compute_domains, &
-                             mpp_global_sum, mpp_redistribute, operator(.EQ.)
-  use fms, only: mpp_get_global_domain, mpp_get_data_domain
-  use fms, only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
-  use fms, only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
-  use fms, only: mpp_get_layout, mpp_define_layout
-
 !model_boundary_data_type contains all model fields at the boundary.
 !model1_model2_boundary_type contains fields that model2 gets
 !from model1, may also include fluxes. These are declared by
@@ -516,25 +503,10 @@ module flux_exchange_mod
 !REGRID: physically distinct grids, via xgrid
 !REDIST: same grid, transfer in index space only
 !DIRECT: same grid, same decomp, direct copy
-  use fms, only: get_ocean_model_area_elements
-  use fms, only: time_type
-  use fms, only: sat_vapor_pres_init
-  use fms, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, PI, CP_OCEAN, &
-                                WTMCO2, WTMC
-!Balaji
-!utilities stuff into usefmsmod
-  use fms, only: open_file, close_file, FmsNetcdfDomainFile_t, FmsNetcdfFile_t
-  use fms, only: get_variable_size, get_variable_dimension_names, variable_exists
-  use fms, only: read_data, register_field, register_axis
-  use fms, only:  check_nml_error, error_mesg
-  use fms, only: data_override
-  use fms, only: coupler_1d_bc_type
-  use fms, only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
-  use fms, only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM
-  use fms, only: stocks_file, stocks_report, stocks_report_init
-  use fms, only: clock_flag_default
-  use fms, only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
-  !!> fms_io
+
+  use FMS
+
+  !! fms_io not in global module(unsupported)
   use fms_io_mod, only:  write_version_number
 
 !! Components
@@ -608,7 +580,7 @@ module flux_exchange_mod
 
   logical :: partition_fprec_from_lprec = .FALSE.  !< option for ATM override experiments where liquid+frozen precip are combined
   !! This option will convert liquid precip to snow when t_ref is less than
-  !! tfreeze parameter                
+  !! tfreeze parameter
   real, parameter    :: tfreeze = 273.15
   logical :: scale_precip_2d = .false.
 
@@ -650,7 +622,7 @@ contains
   !! ex_gas_fluxes and ex_gas_fields arrays, although the data is not allocated yet.
   !! This is intended to be called (optionally) prior to flux_exchange_init.
   subroutine gas_exchange_init (gas_fields_atm, gas_fields_ice, gas_fluxes)
-    type(coupler_1d_bc_type), optional, pointer :: gas_fields_atm 
+    type(coupler_1d_bc_type), optional, pointer :: gas_fields_atm
       !< Pointer to a structure containing atmospheric surface variables that
       !! are used in the calculation of the atmosphere-ocean gas fluxes, as well
       !! as parameters regulating these fluxes.
@@ -703,7 +675,7 @@ contains
     type(ice_data_type),               intent(inout)  :: Ice !< A derived data type to specify ice boundary data
     type(ocean_public_type),           intent(inout)  :: Ocean !< A derived data type to specify ocean boundary data
     type(ocean_state_type),            pointer        :: Ocean_state
-    ! All intent(OUT) derived types with pointer components must be 
+    ! All intent(OUT) derived types with pointer components must be
     ! COMPLETELY allocated here and in subroutines called from here;
     ! NO pointer components should have been allocated before entry if the
     ! derived type has intent(OUT) otherwise they may be lost.
@@ -735,7 +707,7 @@ contains
     !       ocean_tracer_flux_init is called first since it has the meaningful value to set
     !       for the input/output file names for the tracer flux values used in restarts. These
     !       values could be set in the field table, and this ordering allows this.
-    !       atmos_tracer_flux_init is called last since it will use the values set in 
+    !       atmos_tracer_flux_init is called last since it will use the values set in
     !       ocean_tracer_flux_init with the exception of atm_tr_index, which can only
     !       be meaningfully set from the atmospheric model (not from the field table)
     !
@@ -820,12 +792,12 @@ contains
 
        if(present(Atm)) then
           ref_value = 0.0
-          call Atm_stock_pe(Atm, index=i, value=ref_value)        
+          call Atm_stock_pe(Atm, index=i, value=ref_value)
           if(i==ISTOCK_WATER .and. Atm%pe ) then
              ! decrease the Atm stock by the precip adjustment to reflect the fact that
              ! after an update_atmos_up call, the precip will be that of the future time step.
-             ! Thus, the stock call will represent the (explicit ) precip at 
-             ! the beginning of the preceding time step, and the (implicit) evap at the 
+             ! Thus, the stock call will represent the (explicit ) precip at
+             ! the beginning of the preceding time step, and the (implicit) evap at the
              ! end of the preceding time step
              call atm_stock_integrate(Atm, ATM_PRECIP_NEW)
              ref_value = ref_value + ATM_PRECIP_NEW

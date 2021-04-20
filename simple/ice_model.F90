@@ -25,25 +25,11 @@ module ice_model_mod
 use   ice_albedo_mod, only:  ice_albedo_init, ice_albedo
 use ocean_albedo_mod, only:  compute_ocean_albedo_new
 use  ocean_rough_mod, only:  compute_ocean_roughness, fixed_ocean_roughness
+
 !! FMS
-use fms, only: amip_interp_type, amip_interp_new, &
-                            get_amip_ice, get_amip_sst
-use fms, only: time_type, get_time, operator(+)
-use fms, only: diag_axis_init, register_diag_field, send_data
-use fms, only: HLV, HLF, TFREEZE, pi
+use FMS
 
-use fms, only: mpp_pe, mpp_root_pe, mpp_npes,         &
-                            stdlog, error_mesg, FATAL,   &
-                            check_nml_error, NOTE
-use fms, only: open_file, close_file, read_data, write_data, &
-                            FmsNetcdfDomainFile_t, register_restart_field, register_axis, &
-                            unlimited, read_restart, write_restart, register_field, &
-                            get_global_io_domain_indices
-use fms, only: domain2d,  mpp_get_layout,  &
-                            mpp_get_global_domain, mpp_get_compute_domain
-use fms, only: mpp_min, mpp_max, input_nml_file
-
-!! FMS old io 
+!! FMS old io
 use fms_io_mod, only: write_version_number
 
 implicit none
@@ -192,18 +178,18 @@ contains
 
 !-----------------------------------------------------------------------
 !
-!   updates ice model on the atmospheric (fast) time step 
+!   updates ice model on the atmospheric (fast) time step
 !   averages input quantities to be seen by the ocean
 !
 !    flux_u  = zonal wind stress
 !    flux_v  = meridional wind stress
-!    flux_sw = net shortwave radiation (down-up) 
+!    flux_sw = net shortwave radiation (down-up)
 !    flux_sw_vis = net visible shortwave radiation (down-up)
 !    flux_sw_dir = net direct shortwave radiation (down-up)
 !    flux_sw_dif = net diffuse shortwave radiation (down-up)
 !    flux_sw_vis_dir = net visible direct shortwave radiation (down-up)
 !    flux_sw_vis_dif = net visible diffuse shortwave radiation (down-up)
-!    flux_lw = net longwave radiation (down-up) 
+!    flux_lw = net longwave radiation (down-up)
 !    flux_t  = sensible heat flux
 !    flux_q  = specific humidity flux
 !    lprec   = liquid precipitiation rate (kg/m2/s)
@@ -260,8 +246,8 @@ endif
                      Atmos_boundary%t_flux - Atmos_boundary%q_flux*HLV - &
                      Atmos_boundary%fprec*HLF ) * real(dt)/heat_capacity_ocean
           deriv = -( Atmos_boundary%dhdt + Atmos_boundary%dedt*HLV + &
-                     Atmos_boundary%drdt) * real(dt)/heat_capacity_ocean 
-          t_dt_surf = flux_i/(1.0 -deriv) 
+                     Atmos_boundary%drdt) * real(dt)/heat_capacity_ocean
+          t_dt_surf = flux_i/(1.0 -deriv)
           ts_new = Ice%t_surf + t_dt_surf
        endwhere
 
@@ -499,7 +485,7 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
   Ice%Domain => Atmos_domain
 
 !----------------------------------------------------------
-! get global domain indices 
+! get global domain indices
 ! this assumes that domain2d type has been assigned
 
   call mpp_get_global_domain ( Ice%Domain, isg, ieg, jsg, jeg )
@@ -550,7 +536,7 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
   !endif
 
 !----------------------------------------------------------
-! get compute domain indices 
+! get compute domain indices
 
   call mpp_get_compute_domain ( Ice%Domain, is, ie, js, je )
 
@@ -623,7 +609,7 @@ endif
     Ice%ice_mask = Ice%mask .and. Ice%thickness .ge. thickness_min
 
     call ice_albedo_init (TFREEZE)
-    
+
   ! analytic distribution with no ice
   ! melt all ice
     if (sst_method == "aqua_planet_1") then
@@ -701,8 +687,8 @@ endif
                dellon = Ice%lon(i,j)-lon0
                if (dellon >  pi) dellon = dellon - 2.*pi
                if (dellon < -pi) dellon = dellon + 2.*pi
-               !Ice%t_surf(i,j) = 27. + TFREEZE + amp * cos(0.5*pi*min(max(dellon/lond,-1.),1.))**2 
-               Ice%t_surf(i,j) = 297. + amp * cos(0.5*pi*min(max(dellon/lond,-1.),1.))**2 
+               !Ice%t_surf(i,j) = 27. + TFREEZE + amp * cos(0.5*pi*min(max(dellon/lond,-1.),1.))**2
+               Ice%t_surf(i,j) = 297. + amp * cos(0.5*pi*min(max(dellon/lond,-1.),1.))**2
             endif
         enddo
         enddo
@@ -721,7 +707,7 @@ endif
                dellon = Ice%lon(i,j)-lon0
                if (dellon >  pi) dellon = dellon - 2.*pi
                if (dellon < -pi) dellon = dellon + 2.*pi
-               Ice%t_surf(i,j) = 297. + amp*EXP(-0.5*((dellon)**2.)/(siggy)**2) 
+               Ice%t_surf(i,j) = 297. + amp*EXP(-0.5*((dellon)**2.)/(siggy)**2)
             endif
         enddo
         enddo
@@ -740,7 +726,7 @@ endif
                dellon = Ice%lon(i,j)-lon0
                if (dellon >  pi) dellon = dellon - 2.*pi
                if (dellon < -pi) dellon = dellon + 2.*pi
-               Ice%t_surf(i,j) = 297. + amp*EXP(-0.5*((dellon)**2.)/(siggy)**2) 
+               Ice%t_surf(i,j) = 297. + amp*EXP(-0.5*((dellon)**2.)/(siggy)**2)
             endif
         enddo
         enddo
@@ -759,7 +745,7 @@ endif
                dellon = Ice%lon(i,j)-lon0
                if (dellon >  pi) dellon = dellon - 2.*pi
                if (dellon < -pi) dellon = dellon + 2.*pi
-               Ice%t_surf(i,j) = 297. + amp*EXP(-0.5*((dellon)**2.)/(siggy)**2) 
+               Ice%t_surf(i,j) = 297. + amp*EXP(-0.5*((dellon)**2.)/(siggy)**2)
             endif
         enddo
         enddo
@@ -778,7 +764,7 @@ endif
                dellon = Ice%lon(i,j)-lon0
                if (dellon >  pi) dellon = dellon - 2.*pi
                if (dellon < -pi) dellon = dellon + 2.*pi
-               Ice%t_surf(i,j) = 297. + amp*EXP(-0.5*((dellon)**2.)/(siggy)**2) 
+               Ice%t_surf(i,j) = 297. + amp*EXP(-0.5*((dellon)**2.)/(siggy)**2)
             endif
         enddo
         enddo
@@ -798,7 +784,7 @@ endif
                dellon = Ice%lon(i,j)-lon0
                if (dellon >  pi) dellon = dellon - 2.*pi
                if (dellon < -pi) dellon = dellon + 2.*pi
-               Ice%t_surf(i,j) = 297. - amp * cos(0.5*pi*min(max(dellon/lond,-1.),1.)) 
+               Ice%t_surf(i,j) = 297. - amp * cos(0.5*pi*min(max(dellon/lond,-1.),1.))
             endif
         enddo
         enddo
@@ -1128,7 +1114,7 @@ real, intent(in) :: lon(:,:), lat(:,:)
 !
 
 logical :: is_latlon
-integer :: i, j 
+integer :: i, j
 
   is_latlon = .true.
 
@@ -1246,6 +1232,6 @@ end function is_latlon
   end subroutine xyz2latlon
 
 !######################################################################
- 
+
 end module ice_model_mod
 

@@ -21,22 +21,7 @@
 module ice_ocean_flux_exchange_mod
 
 !! FMS
-  use fms, only: mpp_error, FATAL, mpp_set_current_pelist, stdout
-  use fms, only: mpp_clock_id, mpp_clock_begin, mpp_clock_end
-  use fms, only: CLOCK_COMPONENT, CLOCK_ROUTINE, mpp_sum, mpp_max
-  use fms, only: HLF, HLV, CP_OCEAN
-  use fms, only: mpp_get_compute_domain, operator(.EQ.), mpp_redistribute
-  use fms, only: AGRID
-  use fms, only: clock_flag_default
-  use fms, only: Ice_stock, Ocn_stock, ISTOCK_HEAT, ISTOCK_WATER
-  use fms, only: data_override
-  use fms, only: time_type
-  use fms, only: send_data
-  use fms, only: ISTOCK_BOTTOM, ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_SALT
-  use fms, only: coupler_1d_bc_type, coupler_type_spawn
-  use fms, only: coupler_type_initialized, coupler_type_set_diags
-  use fms, only: coupler_type_send_data, coupler_type_data_override
-  use fms, only: coupler_type_copy_data, coupler_type_redistribute_data
+  use FMS
 !! Components
   use ice_model_mod,       only: ice_data_type, ocean_ice_boundary_type
   use ocean_model_mod,     only: ocean_public_type, ice_ocean_boundary_type
