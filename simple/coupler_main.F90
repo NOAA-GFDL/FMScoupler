@@ -59,7 +59,7 @@ use flux_exchange_mod,  only: flux_exchange_init,   &
                               flux_up_to_atmos!,     &
                               !flux_exchange_end       ! may not be used?
 !--- FMS modules
-use FMS
+use FMS, version_fms=>version
 
 !--- FMS old io
 use fms_io_mod, only: write_version_number, fms_io_exit!< This can't be removed until fms_io is not used at all

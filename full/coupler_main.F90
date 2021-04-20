@@ -313,7 +313,7 @@ program coupler_main
   !--- F90 module for OpenMP
   use omp_lib
 
-  use FMS
+  use FMS, version_fms=>version, status_fms=>status
 
   !< Can't get rid of this until fms_io is no longer used at all
   use fms_io_mod,              only: fms_io_exit, write_version_number

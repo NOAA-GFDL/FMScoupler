@@ -113,7 +113,7 @@
 !! </table
 module surface_flux_mod
 
-use FMS
+use FMS, version_fms=>version, kappa_fms=>kappa, epsln_fms=>epsln
 
 use fms_io_mod, only: write_version_number, file_exist, open_namelist_file
 

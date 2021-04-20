@@ -20,7 +20,7 @@
 !
 module atmos_ocean_fluxes_calc_mod
 
-  use FMS
+  use FMS, epsln_fms=>epsln
 
   implicit none
   private

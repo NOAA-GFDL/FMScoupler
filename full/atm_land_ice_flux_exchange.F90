@@ -19,7 +19,9 @@
 !***********************************************************************
 
 module atm_land_ice_flux_exchange_mod
+
 !! Components
+  use ocean_model_mod,    only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
   use   atmos_model_mod,  only: atmos_data_type, land_ice_atmos_boundary_type
   use   ocean_model_mod,  only: ocean_public_type, ice_ocean_boundary_type
   use   ocean_model_mod,  only: ocean_state_type
@@ -27,14 +29,33 @@ module atm_land_ice_flux_exchange_mod
   use   ice_model_mod,    only: atmos_ice_boundary_type, Ice_stock_pe
   use   ice_model_mod,    only: update_ice_atm_deposition_flux
   use    land_model_mod,  only: land_data_type, atmos_land_boundary_type
+  use  surface_flux_mod,  only: surface_flux, surface_flux_init
+  use land_model_mod,          only: Lnd_stock_pe
+  use ocean_model_mod,         only: Ocean_stock_pe
+  use atmos_model_mod,         only: Atm_stock_pe
+  use atmos_ocean_fluxes_mod,  only: atmos_ocean_fluxes_init
+  use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
+  use atmos_ocean_dep_fluxes_calc_mod, only: atmos_ocean_dep_fluxes_calc
+
+!! Conditional Imports
 #ifndef _USE_LEGACY_LAND_
   use    land_model_mod,  only: set_default_diag_filter, register_tiled_diag_field
   use    land_model_mod,  only: send_tile_data, dump_tile_diag_fields
+  use FMS, get_from_xgrid_land => get_from_xgrid_ug, put_to_xgrid_land => put_to_xgrid_ug, &
+           set_frac_area_land => set_frac_area_ug, stock_move_land => stock_move_ug, &
+           data_override_land => data_override_ug, &
+           version_fms => version, tfreeze_fms => tfreeze
 #else
-  use  diag_manager_mod,  only: register_tiled_diag_field=>register_diag_field
+
+  use FMS, register_tiled_diag_field=>register_diag_field, &
+           get_from_xgrid_land => get_from_xgrid, &
+           put_to_xgrid_land => put_to_xgrid, &
+           set_frac_area_land => set_frac_area, &
+           stock_move_land => stock_move, &
+           data_override_land => data_override, &
+           version_fms => version, tfreeze_fms => tfreeze
 #endif
-  use  surface_flux_mod,  only: surface_flux, surface_flux_init
-  use ocean_model_mod,    only: ocean_model_init_sfc, ocean_model_flux_init, ocean_model_data_get
+
 #ifdef use_AM3_physics
   use atmos_tracer_driver_mod, only: atmos_tracer_flux_init
 #else
@@ -49,12 +70,7 @@ module atm_land_ice_flux_exchange_mod
   use land_model_mod,        only: send_global_land_diag
 #endif
 #endif
-  use land_model_mod,          only: Lnd_stock_pe
-  use ocean_model_mod,         only: Ocean_stock_pe
-  use atmos_model_mod,         only: Atm_stock_pe
-  use atmos_ocean_fluxes_mod,  only: atmos_ocean_fluxes_init
-  use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
-  use atmos_ocean_dep_fluxes_calc_mod, only: atmos_ocean_dep_fluxes_calc
+
 
 #ifdef SCM
   ! option to override various surface boundary conditions for SCM
@@ -65,16 +81,16 @@ module atm_land_ice_flux_exchange_mod
                                      do_specified_land
 #endif
 
-!! FMS
-#ifndef _USE_LEGACY_LAND_
-  use FMS, get_from_xgrid_land => get_from_xgrid_ug, put_to_xgrid_land => put_to_xgrid_ug, &
-           set_frac_area_land => set_frac_area_ug, stock_move_land => stock_move_ug, &
-           data_override_land => data_override_ug
-#else
-  use FMS, get_from_xgrid_land => get_from_xgrid, put_to_xgrid_land => put_to_xgrid, &
-           set_frac_area_land => set_frac_area, stock_move_land => stock_move, &
-           data_override_land => data_override
+!> Some FMS routines are aliased, and then the original routine name is used
+!! importing the original routine removes the alias, so they are imported
+!! separately here
+#ifndef _USE_LEGACY_LAND
+use data_override_mod, only: data_override_ug
+use xgrid_mod, only: set_frac_area_ug, put_to_xgrid_ug, get_from_xgrid_ug, stock_move_ug
 #endif
+use data_override_mod, only: data_override
+use diag_manager_mod, only: register_diag_field
+use xgrid_mod, only: set_frac_area, put_to_xgrid, get_from_xgrid, stock_move
 
   implicit none
   include 'netcdf.inc'
