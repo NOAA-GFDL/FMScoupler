@@ -31,10 +31,7 @@ use atmos_cmip_diag_mod,   only: register_cmip_diag_field_2d
 use surface_flux_mod, only: surface_flux, surface_flux_init
 
 !! FMS
-use FMS, version_fms=>version
-
-!! FMS old io
-use fms_io_mod, only: write_version_number
+use FMS
 
 implicit none
 private

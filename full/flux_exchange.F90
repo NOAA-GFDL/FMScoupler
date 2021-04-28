@@ -504,10 +504,7 @@ module flux_exchange_mod
 !REDIST: same grid, transfer in index space only
 !DIRECT: same grid, same decomp, direct copy
 
-  use FMS, tfreeze_fms => tfreeze, version_fms => version
-
-  !! fms_io not in global module(unsupported)
-  use fms_io_mod, only:  write_version_number
+  use FMS, tfreeze_fms => tfreeze
 
 !! Components
   use land_model_mod,             only: Lnd_stock_pe

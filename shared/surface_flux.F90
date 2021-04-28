@@ -113,9 +113,7 @@
 !! </table
 module surface_flux_mod
 
-use FMS, version_fms=>version, kappa_fms=>kappa, epsln_fms=>epsln
-
-use fms_io_mod, only: write_version_number, file_exist, open_namelist_file
+use FMS, kappa_fms=>kappa, epsln_fms=>epsln
 
 implicit none
 private
@@ -680,20 +678,8 @@ subroutine surface_flux_init
   integer :: unit, ierr, io
 
   ! read namelist
-#ifdef INTERNAL_FILE_NML
-      read (input_nml_file, surface_flux_nml, iostat=io)
-      ierr = check_nml_error(io,'surface_flux_nml')
-#else
-  if ( file_exist('input.nml')) then
-     unit = open_namelist_file ()
-     ierr=1;
-     do while (ierr /= 0)
-        read  (unit, nml=surface_flux_nml, iostat=io, end=10)
-        ierr = check_nml_error(io,'surface_flux_nml')
-     enddo
-10   call close_file (unit)
-  endif
-#endif
+  read (input_nml_file, surface_flux_nml, iostat=io)
+  ierr = check_nml_error(io,'surface_flux_nml')
 
   ! write version number
   call write_version_number(version, tagname)

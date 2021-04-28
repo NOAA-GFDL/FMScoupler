@@ -69,7 +69,7 @@ module atm_land_ice_flux_exchange_mod
 #endif
 
 !! FMS
-use FMS, version_fms => version, tfreeze_fms => tfreeze
+use FMS, tfreeze_fms => tfreeze
 
   implicit none
   include 'netcdf.inc'

@@ -27,10 +27,7 @@ use ocean_albedo_mod, only:  compute_ocean_albedo_new
 use  ocean_rough_mod, only:  compute_ocean_roughness, fixed_ocean_roughness
 
 !! FMS
-use FMS, version_fms=>version, sst_anom_fms=>sst_anom
-
-!! FMS old io
-use fms_io_mod, only: write_version_number
+use FMS, sst_anom_fms=>sst_anom
 
 implicit none
 private
