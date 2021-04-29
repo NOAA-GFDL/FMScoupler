@@ -32,7 +32,7 @@ use surface_flux_mod, only: surface_flux, surface_flux_init
 
 !! FMS
 use FMS
-use FMSconstants
+use FMSconstants, only: RDGAS, RVGAS, CP_AIR, HLV, HLF, PI
 
 implicit none
 private

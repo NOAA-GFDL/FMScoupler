@@ -22,7 +22,7 @@ module land_ice_flux_exchange_mod
 
 !! FMS
   use FMS
-  use FMSconstants
+  use FMSconstants, only: RADIUS
 !! Components
   use land_model_mod,      only: land_data_type
   use ice_model_mod,       only: ice_data_type, land_ice_boundary_type

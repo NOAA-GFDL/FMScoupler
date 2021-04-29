@@ -505,7 +505,8 @@ module flux_exchange_mod
 !DIRECT: same grid, same decomp, direct copy
 
   use FMS
-  use FMSconstants, tfreeze_fms => tfreeze
+  use FMSconstants, only: tfreeze_fms => tfreeze, rdgas, rvgas, cp_air, stefan, WTMAIR, &
+                          HLV, HLF, Radius, PI, CP_OCEAN, WTMCO2, WTMC
 
 !! Components
   use land_model_mod,             only: Lnd_stock_pe

@@ -114,7 +114,8 @@
 module surface_flux_mod
 
 use FMS
-use FMSconstants, kappa_fms=>kappa, epsln_fms=>epsln
+use FMSconstants, only: kappa_fms=>kappa, epsln_fms=>epsln, &
+                        cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
 
 implicit none
 private

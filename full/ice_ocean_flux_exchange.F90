@@ -22,7 +22,7 @@ module ice_ocean_flux_exchange_mod
 
 !! FMS
   use FMS
-  use FMSconstants
+  use FMSconstants, only: HLF, HLV, CP_OCEAN
 !! Components
   use ice_model_mod,       only: ice_data_type, ocean_ice_boundary_type
   use ocean_model_mod,     only: ocean_public_type, ice_ocean_boundary_type

@@ -21,7 +21,7 @@
 module atmos_ocean_fluxes_calc_mod
 
   use FMS
-  use FMSconstants
+  use FMSconstants, only: wtmair, rdgas, vonkarm
 
   implicit none
   private
