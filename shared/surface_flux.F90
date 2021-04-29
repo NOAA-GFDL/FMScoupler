@@ -113,7 +113,8 @@
 !! </table
 module surface_flux_mod
 
-use FMS, kappa_fms=>kappa, epsln_fms=>epsln
+use FMS
+use FMSconstants, kappa_fms=>kappa, epsln_fms=>epsln
 
 implicit none
 private

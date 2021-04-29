@@ -28,6 +28,7 @@ use  ocean_rough_mod, only:  compute_ocean_roughness, fixed_ocean_roughness
 
 !! FMS
 use FMS, sst_anom_fms=>sst_anom
+use FMSconstants
 
 implicit none
 private

@@ -314,6 +314,7 @@ program coupler_main
   use omp_lib
 
   use FMS, status_fms=>status
+  use FMSconstants
 
   !< Can't get rid of this until fms_io is no longer used at all
   use fms_io_mod,              only: fms_io_exit

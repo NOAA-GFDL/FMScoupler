@@ -32,6 +32,7 @@ use surface_flux_mod, only: surface_flux, surface_flux_init
 
 !! FMS
 use FMS
+use FMSconstants
 
 implicit none
 private

@@ -504,7 +504,8 @@ module flux_exchange_mod
 !REDIST: same grid, transfer in index space only
 !DIRECT: same grid, same decomp, direct copy
 
-  use FMS, tfreeze_fms => tfreeze
+  use FMS
+  use FMSconstants, tfreeze_fms => tfreeze
 
 !! Components
   use land_model_mod,             only: Lnd_stock_pe
