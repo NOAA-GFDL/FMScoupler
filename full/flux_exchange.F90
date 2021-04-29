@@ -505,7 +505,7 @@ module flux_exchange_mod
 !DIRECT: same grid, same decomp, direct copy
 
   use FMS
-  use FMSconstants, only: tfreeze_fms => tfreeze, rdgas, rvgas, cp_air, stefan, WTMAIR, &
+  use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, &
                           HLV, HLF, Radius, PI, CP_OCEAN, WTMCO2, WTMC
 
 !! Components
