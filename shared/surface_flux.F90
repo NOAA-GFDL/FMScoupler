@@ -113,12 +113,8 @@
 !! </table
 module surface_flux_mod
 
-use             fms_mod, only: close_file, mpp_pe, mpp_root_pe, write_version_number
-use             fms_mod, only: file_exist, check_nml_error, open_namelist_file, stdlog
-use   monin_obukhov_mod, only: mo_drag, mo_profile, monin_obukhov_init
-use  sat_vapor_pres_mod, only: escomp, descomp
-use       constants_mod, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
-use             mpp_mod, only: input_nml_file, FATAL, mpp_error
+use FMS
+use FMSconstants, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
 
 implicit none
 private
@@ -683,20 +679,8 @@ subroutine surface_flux_init
   integer :: unit, ierr, io
 
   ! read namelist
-#ifdef INTERNAL_FILE_NML
-      read (input_nml_file, surface_flux_nml, iostat=io)
-      ierr = check_nml_error(io,'surface_flux_nml')
-#else
-  if ( file_exist('input.nml')) then
-     unit = open_namelist_file ()
-     ierr=1;
-     do while (ierr /= 0)
-        read  (unit, nml=surface_flux_nml, iostat=io, end=10)
-        ierr = check_nml_error(io,'surface_flux_nml')
-     enddo
-10   call close_file (unit)
-  endif
-#endif
+  read (input_nml_file, surface_flux_nml, iostat=io)
+  ierr = check_nml_error(io,'surface_flux_nml')
 
   ! write version number
   call write_version_number(version, tagname)

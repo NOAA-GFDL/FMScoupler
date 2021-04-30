@@ -53,50 +53,17 @@ use ice_model_mod,      only: ice_model_init, ice_model_end,  &
                               atmos_ice_boundary_type
                              !land_ice_boundary_type
 
-!--- FMS modules
-use constants_mod,      only: constants_init
-
-use data_override_mod,  only: data_override_init
-
-use diag_manager_mod,   only: diag_manager_init, diag_manager_end, &
-                              get_base_date, diag_manager_set_time_end
-
-use field_manager_mod,  only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE
-
 use flux_exchange_mod,  only: flux_exchange_init,   &
                               sfc_boundary_layer,   &
                               flux_down_from_atmos, &
-                              flux_up_to_atmos,     &
-                              flux_exchange_end       ! may not be used?
+                              flux_up_to_atmos!,     &
+                              !flux_exchange_end       ! may not be used?
+!--- FMS modules
+use FMS
+use FMSconstants, only: constants_init
 
-use fms_affinity_mod,   only: fms_affinity_init, fms_affinity_set
-
-use fms_mod,            only: check_nml_error,  &
-                              error_mesg, fms_init, fms_end,         &
-                              write_version_number, uppercase, stdout
-
-use fms_io_mod,         only: fms_io_exit !< This can't be removed until fms_io is not used at all
-
-use fms2_io_mod,        only: file_exists, ascii_read
-
-use mpp_mod,            only: mpp_init, mpp_pe, mpp_root_pe, mpp_npes, mpp_get_current_pelist, &
-                              stdlog, mpp_error, NOTE, FATAL, WARNING, input_nml_file
-use mpp_mod,            only: mpp_clock_id, mpp_clock_begin, mpp_clock_end
-
-use mpp_mod,            only: mpp_chksum, mpp_set_current_pelist
-
-use mpp_domains_mod,    only: mpp_get_global_domain, mpp_global_field, CORNER, mpp_set_domain_symmetry
-
-use time_manager_mod,   only: time_type, set_calendar_type, set_time,  &
-                              set_date, days_in_month, month_name,     &
-                              operator(+), operator (<), operator (>), &
-                              operator (/=), operator (/), get_date,   &
-                              operator (*), THIRTY_DAY_MONTHS, JULIAN, &
-                              GREGORIAN, NOLEAP, NO_CALENDAR
-
-use tracer_manager_mod, only: tracer_manager_init, get_tracer_index, &
-                              get_number_tracers, get_tracer_names,  &
-                              NO_TRACER
+!--- FMS old io
+use fms_io_mod, only: fms_io_exit!< This can't be removed until fms_io is not used at all
 
 implicit none
 
@@ -168,7 +135,7 @@ implicit none
    mainClock = mpp_clock_id( 'Main loop' )
    termClock = mpp_clock_id( 'Termination' )
    call mpp_clock_begin (initClock)
-  
+
    call fms_init
    call constants_init
    call fms_affinity_init
@@ -217,7 +184,7 @@ implicit none
        if (do_land ) then
          call update_land_model_fast ( Atmos_land_boundary, Land )
          if (do_chksum) call coupler_chksum('update_land+', na)
-       endif 
+       endif
 
        !--- fast phase ice
        call update_ice_model_fast  ( Atmos_ice_boundary,  Ice  )
@@ -356,7 +323,7 @@ contains
       write (stdlog(),16) date(1),trim(month_name(date(2))),date(3:6)
     endif
 
- 16 format ('  current date used = ',i4,1x,a,2i3,2(':',i2.2),' gmt') 
+ 16 format ('  current date used = ',i4,1x,a,2i3,2(':',i2.2),' gmt')
 
     !--- setting affinity
 !$  call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads)

@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/NOAA-GFDL/coupler.svg?branch=master)](https://travis-ci.org/NOAA-GFDL/coupler)
+![Build Status](https://github.com/NOAA-GFDL/FMScoupler/actions/workflows/build.yml/badge.svg?branch=main)
 
 # Flexible Modeling System (FMS) Coupler
 

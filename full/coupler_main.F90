@@ -313,47 +313,12 @@ program coupler_main
   !--- F90 module for OpenMP
   use omp_lib
 
-  use constants_mod,           only: constants_init
+  use FMS, status_fms=>status
+  use FMSconstants, only: constants_init
 
-  use fms_affinity_mod,        only: fms_affinity_init, fms_affinity_set
+  !< Can't get rid of this until fms_io is no longer used at all
+  use fms_io_mod,              only: fms_io_exit
 
-  use time_manager_mod,        only: time_type, set_calendar_type, set_time
-  use time_manager_mod,        only: set_date, get_date, days_in_month, month_name
-  use time_manager_mod,        only: operator(+), operator(-), operator (<)
-  use time_manager_mod,        only: operator (>), operator ( /= ), operator ( / )
-  use time_manager_mod,        only: operator (*), THIRTY_DAY_MONTHS, JULIAN
-  use time_manager_mod,        only: GREGORIAN, NOLEAP, NO_CALENDAR, INVALID_CALENDAR
-  use time_manager_mod,        only: date_to_string, increment_date
-  use time_manager_mod,        only: operator(>=), operator(<=), operator(==)
-
-  use fms_mod,                 only: check_nml_error
-  use fms_mod,                 only: uppercase, error_mesg, write_version_number
-  use fms_mod,                 only: fms_init, fms_end, stdout
-
-  use fms_io_mod,              only: fms_io_exit !< Can't get rid of this until fms_io is no longer used at all
-
-  use fms2_io_mod,             only: ascii_read
-  use fms2_io_mod,             only: FmsNetcdfDomainFile_t
-  use fms2_io_mod,             only: write_restart, read_restart, write_data
-  use fms2_io_mod,             only: get_global_io_domain_indices
-  use fms2_io_mod,             only: close_file, check_if_open, file_exists
-
-  use diag_manager_mod,        only: diag_manager_init, diag_manager_end, diag_grid_end
-  use diag_manager_mod,        only: DIAG_OCEAN, DIAG_OTHER, DIAG_ALL, get_base_date
-  use diag_manager_mod,        only: diag_manager_set_time_end
-
-  use field_manager_mod,       only: MODEL_ATMOS, MODEL_LAND, MODEL_ICE
-
-  use tracer_manager_mod,      only: tracer_manager_init, get_tracer_index
-  use tracer_manager_mod,      only: get_number_tracers, get_tracer_names, NO_TRACER
-
-  use coupler_types_mod,       only: coupler_types_init, coupler_1d_bc_type
-  use coupler_types_mod,       only: coupler_type_write_chksums
-  use coupler_types_mod,       only: coupler_type_register_restarts, coupler_type_restore_state
-
-  use data_override_mod,       only: data_override_init
-
-!
 ! model interfaces used to couple the component models:
 !               atmosphere, land, ice, and ocean
 !
@@ -411,15 +376,6 @@ program coupler_main
 
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
-  use mpp_mod,                 only: mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_chksum
-  use mpp_mod,                 only: mpp_init, mpp_pe, mpp_npes, mpp_root_pe, mpp_sync
-  use mpp_mod,                 only: stderr, stdlog, mpp_error, NOTE, FATAL, WARNING
-  use mpp_mod,                 only: mpp_set_current_pelist, mpp_declare_pelist
-  use mpp_mod,                 only: input_nml_file
-
-  use mpp_domains_mod,         only: mpp_broadcast_domain
-
-  use memutils_mod,            only: print_memuse_stats
   use iso_fortran_env
 
   implicit none
@@ -1005,7 +961,7 @@ program coupler_main
 
     if(Atm%pe) then
      call mpp_clock_begin(newClock5) !Ice is still using ATM pelist and need to be included in ATM clock
-                                        !ATM clock is used for load-balancing the coupled models 
+                                        !ATM clock is used for load-balancing the coupled models
     endif
     if (do_ice .and. Ice%pe) then
 

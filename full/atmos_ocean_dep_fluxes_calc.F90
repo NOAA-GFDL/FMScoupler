@@ -19,8 +19,8 @@
 !***********************************************************************
 !
 module atmos_ocean_dep_fluxes_calc_mod
-  use coupler_types_mod, only : coupler_1d_bc_type, ind_flux, ind_deposition
-  use mpp_mod,           only : mpp_error, FATAL
+
+  use FMS
 
   implicit none
 
