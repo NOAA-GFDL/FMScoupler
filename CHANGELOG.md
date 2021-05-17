@@ -6,6 +6,51 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2021.02] - 2021-05-17
+### Added
+- FMS2_IO was implemented to the full coupler:
+	- The coupler restart files are now read with fms2_io's ascii_read
+	- Ascii writes are now done with fortran's open, close, and write. They are wrapped in an if, so that only the root pe does the io, newunit ensures that the unit number is unique for each file. 
+	- The variables named `unit` have been renamed to avoid fortran conflicts. 
+	- The coupler type restarts are now written with fms2_io.
+	- The grid file is now read with fms2_io in: full/flux_exchange.F90:check_atm_grid
+- FMS2_IO was implemented to the simple coupler:
+	- Changed ice_model.F90 so that it reads the land_mask files and it reads/writes the ice restart with fms2io.
+	- Removed the native formatted restart file code
+	- Fms2_io ascii_read is used to read to the coupler_restart
+	- Fotran's `open`, `close', and `write` are used to write the coupler_restart
+	- Removed the read_grid_data and get_grid_size subroutines from simple/ice_model.F90. These are never used. 
+- Test cases added for varying the latitude of SST maximum in the simpler coupler ice model.
+### Changed
+- Changes all imports from FMS to use the global `FMS` module and the `FMSconstants` module
+- Changes to the ice_model restart files:
+  - With fms_io, the variables `mlon` and `mlat` are written as:
+    	double mlon(Time, zaxis_1, yaxis_1, xaxis_1) ;
+  	double mlat(Time, zaxis_1, yaxis_1, xaxis_1) ;
+    where:
+	xaxis_1 = 1 ;
+	yaxis_1 = 1 ;
+	zaxis_1 = 1 ;
+	Time = UNLIMITED ; // (1 currently)
+  - fms_io wrote this as 4d variables as default. In FMS2_io these variables are scalars as they should be. With fms_io, the other non scalar variables where written as:
+    	double t_surf(Time, zaxis_1, yaxis_2, xaxis_2) ;
+    where:
+    	zaxis_1 = 1 ;
+  - In FMS2_io these variables are not a function of the zaxis_1. They are 2d + time as they should be. 
+    	double t_surf(Time, yaxis_1, xaxis_1) ;`
+    With fms_io, the variables attributes:
+    	long_name = {The same name as the longname}
+	units = "none"`
+    were written by default.
+  - FMS2_io does not do this. Users can specify real long_names and units by calling register_variable_attribute.
+### Removed
+- FMS_io was almost completely removed from FMScoupler and replaced with fms2_io. 
+### Tag Commit Hashes
+- 2021.02-alpha1 (c1c8044a6c3efb8ddbbd01a3769bbf2610b34937)
+- 2021.02-alpha2 (c1c8044a6c3efb8ddbbd01a3769bbf2610b34937)
+- 2021.02-beta1 (62415ea3a62145080efcfe078eb889d6adf681a1)
+- 2021.02-beta2 (62415ea3a62145080efcfe078eb889d6adf681a1)
+
 ## [2021.01] - 2021-03-08
 
 ### Added
