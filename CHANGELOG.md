@@ -24,23 +24,23 @@ sequential patch number (starting from `01`).
 ### Changed
 - Changes all imports from FMS to use the global `FMS` module and the `FMSconstants` module
 - Changes to the ice_model restart files:
-  - With fms_io, the variables `mlon` and `mlat` are written as:
-    	double mlon(Time, zaxis_1, yaxis_1, xaxis_1) ;
-  	double mlat(Time, zaxis_1, yaxis_1, xaxis_1) ;
-    where:
-	xaxis_1 = 1 ;
-	yaxis_1 = 1 ;
-	zaxis_1 = 1 ;
-	Time = UNLIMITED ; // (1 currently)
-  - fms_io wrote this as 4d variables as default. In FMS2_io these variables are scalars as they should be. With fms_io, the other non scalar variables where written as:
-    	double t_surf(Time, zaxis_1, yaxis_2, xaxis_2) ;
-    where:
-    	zaxis_1 = 1 ;
-  - In FMS2_io these variables are not a function of the zaxis_1. They are 2d + time as they should be. 
-    	double t_surf(Time, yaxis_1, xaxis_1) ;
-    With fms_io, the variables attributes:
-    	long_name = {The same name as the longname}
-	units = "none"
+  - With fms_io, the variables `mlon` and `mlat` are written as: <br>
+    		`double mlon(Time, zaxis_1, yaxis_1, xaxis_1) ;`<br>
+  		`double mlat(Time, zaxis_1, yaxis_1, xaxis_1) ;`<br>
+    where:<br>
+	`xaxis_1 = 1 ;`<br>
+	`yaxis_1 = 1 ;`<br>
+	`zaxis_1 = 1 ;`<br>
+	`Time = UNLIMITED ; // (1 currently)`
+  - fms_io wrote this as 4d variables as default. In FMS2_io these variables are scalars as they should be. With fms_io, the other non scalar variables where written as:<br>
+    	`double t_surf(Time, zaxis_1, yaxis_2, xaxis_2) ;`<br>
+    where:<br>
+    	`zaxis_1 = 1 ;`
+  - In FMS2_io these variables are not a function of the zaxis_1. They are 2d + time as they should be.<br>
+    	`double t_surf(Time, yaxis_1, xaxis_1) ;`<br>
+    With fms_io, the variables attributes:<br>
+    	`long_name = {The same name as the longname}`<br>
+	`units = "none"`<br>
     were written by default.
   - FMS2_io does not do this. Users can specify real long_names and units by calling register_variable_attribute.
 ### Removed
