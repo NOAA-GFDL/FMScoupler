@@ -18,7 +18,7 @@ sequential patch number (starting from `01`).
 	- Changed ice_model.F90 so that it reads the land_mask files and it reads/writes the ice restart with fms2io.
 	- Removed the native formatted restart file code
 	- Fms2_io ascii_read is used to read to the coupler_restart
-	- Fotran's `open`, `close', and `write` are used to write the coupler_restart
+	- Fotran's `open`, `close`, and `write` are used to write the coupler_restart
 	- Removed the read_grid_data and get_grid_size subroutines from simple/ice_model.F90. These are never used. 
 - Test cases added for varying the latitude of SST maximum in the simpler coupler ice model.
 ### Changed
@@ -37,10 +37,10 @@ sequential patch number (starting from `01`).
     where:
     	zaxis_1 = 1 ;
   - In FMS2_io these variables are not a function of the zaxis_1. They are 2d + time as they should be. 
-    	double t_surf(Time, yaxis_1, xaxis_1) ;`
+    	double t_surf(Time, yaxis_1, xaxis_1) ;
     With fms_io, the variables attributes:
     	long_name = {The same name as the longname}
-	units = "none"`
+	units = "none"
     were written by default.
   - FMS2_io does not do this. Users can specify real long_names and units by calling register_variable_attribute.
 ### Removed
