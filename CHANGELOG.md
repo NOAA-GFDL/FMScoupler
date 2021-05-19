@@ -6,7 +6,7 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
-## [2021.02] - 2021-05-17
+## [2021.02] - 2021-05-19
 ### Added
 - FMS2_IO was implemented to the full coupler:
 	- The coupler restart files are now read with fms2_io's ascii_read
@@ -20,7 +20,7 @@ sequential patch number (starting from `01`).
 	- Fms2_io ascii_read is used to read to the coupler_restart
 	- Fotran's `open`, `close`, and `write` are used to write the coupler_restart
 	- Removed the read_grid_data and get_grid_size subroutines from simple/ice_model.F90. These are never used. 
-- Test cases added for varying the latitude of SST maximum in the simpler coupler ice model.
+- Test cases added for varying the latitude of SST maximum in the simple coupler ice model.
 ### Changed
 - Changes all imports from FMS to use the global `FMS` module and the `FMSconstants` module
 - Changes to the ice_model restart files:
