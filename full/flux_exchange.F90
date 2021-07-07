@@ -913,7 +913,7 @@ contains
     joff = lbound(Atm%lon_bnd,2) - jsc
 
     if(variable_exists(grid_file_obj, "AREA_ATM" ) ) then  ! old grid
-       call get_variable_size(grid_file_obj, "AREA_ATM", siz)
+       call get_variable_size(grid_file_obj, "AREA_ATM", siz(1:2))
        nlon = siz(1)
        nlat = siz(2)
 
