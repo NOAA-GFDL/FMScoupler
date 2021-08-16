@@ -6,7 +6,7 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
-## [2021.02] - 2021-07-09
+## [2021.03] - 2021-08-16
 ### Fixed
 - In the full coupler, corrects a `get_variable_size` call to prevent crashes when running with the SCM
 
