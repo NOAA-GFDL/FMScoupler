@@ -1,5 +1,5 @@
 !***********************************************************************
-!*                   GNU Lesser General Public License
+!*                   Gnu Lesser General Public License
 !*
 !* This file is part of the GFDL Flexible Modeling System (FMS) Coupler.
 !*
@@ -161,7 +161,7 @@ module atm_land_ice_flux_exchange_mod
 ! 2017/08/15 jgj added
   integer :: id_co2_bot, id_co2_flux_pcair_atm, id_o2_flux_pcair_atm
 
-  integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:)
+  integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:), id_tr_ref(:), id_tr_ref_land(:)
   integer, allocatable :: id_tr_mol_flux0(:) !f1p
   integer, allocatable :: id_tr_flux_land(:), id_tr_mol_flux_land(:)
 
@@ -742,7 +742,7 @@ contains
          ex_del_q,      &
          ex_frac_open_sea
 
-    real, dimension(n_xgrid_sfc,n_exch_tr) :: ex_tr_atm
+    real, dimension(n_xgrid_sfc,n_exch_tr) :: ex_tr_atm, ex_tr_ref
     ! jgj: added for co2_atm diagnostic
     real, dimension(n_xgrid_sfc)           :: ex_co2_atm_dvmr
     real, dimension(size(Land_Ice_Atmos_Boundary%t,1),size(Land_Ice_Atmos_Boundary%t,2)) :: diag_atm
@@ -1634,6 +1634,7 @@ contains
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,zrefm,zrefh,ex_z_atm, &
     !$OMP                                  ex_rough_mom,ex_rough_heat,ex_rough_moist,ex_u_star,   &
     !$OMP                                  ex_b_star,ex_q_star,ex_del_m,ex_del_h,ex_del_q,        &
+    !$OMP                                  ex_tr_ref,n_exch_tracer,                               &    
     !$OMP                                  ex_avail,ex_ref,ex_tr_surf,ex_tr_atm,isphum)           &
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
@@ -1650,8 +1651,14 @@ contains
        !cjg          id_q_ref > 0 .or. id_q_ref_land >0 ) then
        do i = is,ie
           ex_ref(i) = 1.0e-06
-          if (ex_avail(i)) &
+          ex_tr_ref(i,:) = 1.e-20
+          if (ex_avail(i)) then
                ex_ref(i)   = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i)
+               do tr=1,n_exch_tr
+                  if (id_tr_ref(tr).gt.0 .or. id_tr_ref_land(tr).gt.0) &
+                       ex_tr_ref(i,tr) = ex_tr_surf(i,tr) + (ex_tr_atm(i,tr)-ex_tr_surf(i,tr)) * ex_del_q(i)
+               end do
+            end if
        enddo
     enddo
     call get_from_xgrid (Land_Ice_Atmos_Boundary%q_ref, 'ATM', ex_ref,   xmap_sfc)  ! cjg
@@ -1672,6 +1679,30 @@ contains
             Land%tile_size, Time, mask=Land%mask)
 #endif
     endif
+    
+    do tr=1,n_exch_tr
+       if (id_tr_ref(tr)>0) then
+          call get_from_xgrid (diag_atm, 'ATM', ex_tr_ref(:,tr),   xmap_sfc)  ! cjg
+          if(id_tr_ref(tr) > 0) then
+             used = send_data(id_tr_ref(tr),diag_atm,Time)
+          endif
+       end if
+       
+       if(id_tr_ref_land(tr) > 0) then
+          call get_from_xgrid_land (diag_land, 'LND', ex_tr_ref(:,tr), xmap_sfc)
+          !duplicate send_tile_data. We may remove id_q_ref_land in the future.
+#ifndef _USE_LEGACY_LAND_
+          call send_tile_data (id_tr_ref_land(tr), diag_land)
+#else
+          used = send_tile_averaged_data(id_tr_ref_land(tr), diag_land, &
+               Land%tile_size, Time, mask=Land%mask)
+#endif
+       endif
+    end do
+
+
+
+    
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
     !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
     !$OMP                                  ex_ref,ex_qs_ref_cmip,ex_ref2 ) &
@@ -3431,6 +3462,9 @@ contains
     allocate(id_tr_mol_flux(n_exch_tr))
     allocate(id_tr_mol_flux0(n_exch_tr))
 
+    allocate(id_tr_ref(n_exch_tr))
+    allocate(id_tr_ref_land(n_exch_tr))    
+    
     do tr = 1, n_exch_tr
        call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, name, longname, units )
        id_tr_atm(tr) = register_diag_field (mod_name, trim(name)//'_atm', atmos_axes, Time, &
@@ -3439,6 +3473,15 @@ contains
             trim(longname)//' at the surface', trim(units))
        id_tr_flux(tr) = register_diag_field(mod_name, trim(name)//'_flux', atmos_axes, Time, &
             'flux of '//trim(longname), trim(units)//' kg air/(m2 s)')
+       if ( tr .ne. isphum ) then
+          id_tr_ref(tr) = register_diag_field (mod_name, trim(name)//'_ref',  atmos_axes, Time, &
+               trim(longname)//' at '//trim(label_zh), trim(units),missing_value=-1.0)
+          id_tr_ref_land(tr) = register_diag_field (mod_name, trim(name)//'_ref_land', land_axes, Time, &
+               trim(longname)//' at '//trim(label_zh)//' over land', trim(units),missing_value=-1.0)
+       else
+          id_tr_ref(tr) = -1
+          id_tr_ref_land(tr) = -1          
+       end if
        !! add dryvmr co2_surf and co2_atm
        if ( lowercase(trim(name))=='co2') then
           ! - slm Mar 25, 2010: moved registration of mol_flux inside 'if' to disable
