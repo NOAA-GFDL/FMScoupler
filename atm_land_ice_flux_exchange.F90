@@ -1634,7 +1634,7 @@ contains
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,zrefm,zrefh,ex_z_atm, &
     !$OMP                                  ex_rough_mom,ex_rough_heat,ex_rough_moist,ex_u_star,   &
     !$OMP                                  ex_b_star,ex_q_star,ex_del_m,ex_del_h,ex_del_q,        &
-    !$OMP                                  ex_tr_ref,n_exch_tracer,                               &    
+    !$OMP                                  ex_tr_ref,n_exch_tr,id_tr_ref,id_tr_ref_land,          &
     !$OMP                                  ex_avail,ex_ref,ex_tr_surf,ex_tr_atm,isphum)           &
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
@@ -1679,7 +1679,7 @@ contains
             Land%tile_size, Time, mask=Land%mask)
 #endif
     endif
-    
+
     do tr=1,n_exch_tr
        if (id_tr_ref(tr)>0) then
           call get_from_xgrid (diag_atm, 'ATM', ex_tr_ref(:,tr),   xmap_sfc)  ! cjg
@@ -1687,7 +1687,7 @@ contains
              used = send_data(id_tr_ref(tr),diag_atm,Time)
           endif
        end if
-       
+
        if(id_tr_ref_land(tr) > 0) then
           call get_from_xgrid_land (diag_land, 'LND', ex_tr_ref(:,tr), xmap_sfc)
           !duplicate send_tile_data. We may remove id_q_ref_land in the future.
@@ -1702,7 +1702,7 @@ contains
 
 
 
-    
+
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
     !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
     !$OMP                                  ex_ref,ex_qs_ref_cmip,ex_ref2 ) &
@@ -3463,8 +3463,8 @@ contains
     allocate(id_tr_mol_flux0(n_exch_tr))
 
     allocate(id_tr_ref(n_exch_tr))
-    allocate(id_tr_ref_land(n_exch_tr))    
-    
+    allocate(id_tr_ref_land(n_exch_tr))
+
     do tr = 1, n_exch_tr
        call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, name, longname, units )
        id_tr_atm(tr) = register_diag_field (mod_name, trim(name)//'_atm', atmos_axes, Time, &
@@ -3480,7 +3480,7 @@ contains
                trim(longname)//' at '//trim(label_zh)//' over land', trim(units),missing_value=-1.0)
        else
           id_tr_ref(tr) = -1
-          id_tr_ref_land(tr) = -1          
+          id_tr_ref_land(tr) = -1
        end if
        !! add dryvmr co2_surf and co2_atm
        if ( lowercase(trim(name))=='co2') then
