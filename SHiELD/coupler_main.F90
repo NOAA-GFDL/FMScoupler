@@ -27,49 +27,12 @@ program coupler_main
 !
 !-----------------------------------------------------------------------
 
-use time_manager_mod,  only: time_type, set_calendar_type, set_time,    &
-                             set_date, days_in_month, month_name,       &
-                             operator(+), operator (<), operator (>),   &
-                             operator (/=), operator (/), operator (==),&
-                             operator (*), THIRTY_DAY_MONTHS, JULIAN,   &
-                             NOLEAP, NO_CALENDAR, date_to_string,       &
-                             get_date
-
+use FMS
 use  atmos_model_mod,  only: atmos_model_init, atmos_model_end,  &
                              update_atmos_model_dynamics,        &
                              update_atmos_radiation_physics,     &
                              update_atmos_model_state,           &
                              atmos_data_type, atmos_model_restart
-
-use constants_mod,     only: constants_init
-#ifdef INTERNAL_FILE_NML
-use mpp_mod,            only: input_nml_file
-#else
-use fms_mod,            only: open_namelist_file
-#endif
-
-use fms_affinity_mod,   only: fms_affinity_init, fms_affinity_set
-
-use       fms_mod,     only: file_exist, check_nml_error,               &
-                             error_mesg, fms_init, fms_end, close_file, &
-                             write_version_number, uppercase
-
-use mpp_mod,           only: mpp_init, mpp_pe, mpp_root_pe, mpp_npes, mpp_get_current_pelist, &
-                             mpp_set_current_pelist, stdlog, mpp_error, NOTE, FATAL, WARNING
-use mpp_mod,           only: mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sync
-
-use mpp_io_mod,        only: mpp_open, mpp_close, &
-                             MPP_NATIVE, MPP_RDONLY, MPP_DELETE
-
-use mpp_domains_mod,   only: mpp_get_global_domain, mpp_global_field, CORNER
-use memutils_mod,      only: print_memuse_stats
-use sat_vapor_pres_mod,only: sat_vapor_pres_init
-
-use  diag_manager_mod, only: diag_manager_init, diag_manager_end, &
-                             get_base_date, diag_manager_set_time_end
-
-use data_override_mod, only: data_override_init
-
 
 implicit none
 
@@ -243,36 +206,20 @@ contains
 !----- read namelist -------
 !----- for backwards compatibilty read from file coupler.nml -----
 
-#ifdef INTERNAL_FILE_NML
-      read(input_nml_file, nml=coupler_nml, iostat=io)
-      ierr = check_nml_error(io, 'coupler_nml')
-#else
-   if (file_exist('input.nml')) then
-      unit = open_namelist_file ()
-   else
-      call error_mesg ('program coupler',  &
-                       'namelist file input.nml does not exist', FATAL)
-   endif
-
-   ierr=1
-   do while (ierr /= 0)
-       read  (unit, nml=coupler_nml, iostat=io, end=10)
-       ierr = check_nml_error (io, 'coupler_nml')
-   enddo
-10 call close_file (unit)
-#endif
+   read(input_nml_file, nml=coupler_nml, iostat=io)
+   ierr = check_nml_error(io, 'coupler_nml')
 
 !----- write namelist to logfile -----
    call write_version_number (version, tag)
    if (mpp_pe() == mpp_root_pe()) write(stdlog(),nml=coupler_nml)
 
 !----- allocate and set the pelist (to the global pelist) -----
-    allocate( Atm%pelist  (mpp_npes()) )
-    call mpp_get_current_pelist(Atm%pelist)
+   allocate( Atm%pelist  (mpp_npes()) )
+   call mpp_get_current_pelist(Atm%pelist)
 
 !----- read restart file -----
 
-   if (file_exist('INPUT/coupler.res')) then
+    if (file_exist('INPUT/coupler.res')) then
        call mpp_open( unit, 'INPUT/coupler.res', action=MPP_RDONLY )
        read (unit,*,err=999) calendar_type
        read (unit,*) date_init
@@ -284,38 +231,37 @@ contains
        read (unit) calendar_type
        read (unit) date
    998 call mpp_close(unit)
-   else
+    else
        force_date_from_namelist = .true.
-   endif
+    endif
 
 !----- use namelist value (either no restart or override flag on) ---
 
- if ( force_date_from_namelist ) then
-
-    if ( sum(current_date) <= 0 ) then
+    if ( force_date_from_namelist ) then
+      if ( sum(current_date) <= 0 ) then
          call error_mesg ('program coupler',  &
               'no namelist value for current_date', FATAL)
-    else
+      else
          date      = current_date
-    endif
+      endif
 
 !----- override calendar type with namelist value -----
 
-        select case( uppercase(trim(calendar)) )
-        case( 'JULIAN' )
-            calendar_type = JULIAN
-        case( 'NOLEAP' )
-            calendar_type = NOLEAP
-        case( 'THIRTY_DAY' )
-            calendar_type = THIRTY_DAY_MONTHS
-        case( 'NO_CALENDAR' )
-            calendar_type = NO_CALENDAR
-        case default
-            call mpp_error ( FATAL, 'COUPLER_MAIN: coupler_nml entry calendar must '// &
-                                    'be one of JULIAN|NOLEAP|THIRTY_DAY|NO_CALENDAR.' )
-        end select
+      select case( uppercase(trim(calendar)) )
+      case( 'JULIAN' )
+          calendar_type = JULIAN
+      case( 'NOLEAP' )
+          calendar_type = NOLEAP
+      case( 'THIRTY_DAY' )
+          calendar_type = THIRTY_DAY_MONTHS
+      case( 'NO_CALENDAR' )
+          calendar_type = NO_CALENDAR
+      case default
+          call mpp_error ( FATAL, 'COUPLER_MAIN: coupler_nml entry calendar must '// &
+                                  'be one of JULIAN|NOLEAP|THIRTY_DAY|NO_CALENDAR.' )
+      end select
 
- endif
+    endif
 
     !--- setting affinity
 !$  call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads)
