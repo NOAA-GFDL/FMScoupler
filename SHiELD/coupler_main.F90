@@ -420,6 +420,7 @@ contains
 !----- write restart file ------
 
     ! write restart file_name
+    file_res = 'RESTART/coupler.res'
     if (present(time_stamp)) then
       file_res = 'RESTART/'//trim(time_stamp)//'.coupler.res'
     endif
