@@ -397,7 +397,7 @@ contains
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
-    if ( mpp_pe().EQ.mpp_root_pe() ) then
+    if ( mpp_pe() == 0) then
        open(newunit = ascii_unit, file='RESTART/file', status='replace', form='formatted')
        close(ascii_unit,status="delete")
     endif
