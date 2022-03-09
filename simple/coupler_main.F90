@@ -445,7 +445,7 @@ contains
 
     if (file_exists('data_table')) then
       inquire(file='data_table', size=dt_size)
-      if (dt_size > 0.) then
+      if (dt_size > 0) then
         call data_override_init(Atm_domain_in = Atm%domain)
         call data_override_init(Ice_domain_in = Ice%domain)
         call data_override_init(Land_domain_in = Land%domain)
