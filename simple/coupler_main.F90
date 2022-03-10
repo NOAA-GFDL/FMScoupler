@@ -243,7 +243,6 @@ contains
     integer :: total_days, total_seconds, ierr, io
     integer :: n, gnlon, gnlat
     integer :: date(6), flags
-    integer :: dt_size
     type (time_type) :: Run_length
     character(len=9) :: month
     logical :: use_namelist
@@ -443,18 +442,10 @@ contains
     call    ice_model_init (Ice,  Time_init, Time_atmos, Time_step_atmos, Time_step_ocean, &
                             glon_bnd, glat_bnd, atmos_domain=Atm%Domain)
 
-    if (file_exists('data_table')) then
-      inquire(file='data_table', size=dt_size)
-      if (dt_size > 0.) then
-        call data_override_init(Atm_domain_in = Atm%domain)
-        call data_override_init(Ice_domain_in = Ice%domain)
-        call data_override_init(Land_domain_in = Land%domain)
-      else
-        call error_mesg ('program coupler', 'empty data table, skipping data override init', WARNING)
-      endif
-    else
-      call error_mesg ('program coupler', 'no data table, skipping data override init', WARNING)
-    endif
+!------ initialize data_override -----
+    call data_override_init(Atm_domain_in = Atm%domain)
+    call data_override_init(Ice_domain_in = Ice%domain)
+    call data_override_init(Land_domain_in = Land%domain)
 
 !------------------------------------------------------------------------
 !---- setup allocatable storage for fluxes exchanged between models ----
@@ -464,9 +455,6 @@ contains
                       !!!!!  atmos_land_boundary,        &
                              atmos_ice_boundary,         &
                              land_ice_atmos_boundary     )
-
-
-
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
