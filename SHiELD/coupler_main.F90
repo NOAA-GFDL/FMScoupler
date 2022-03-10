@@ -28,12 +28,12 @@ program coupler_main
 !-----------------------------------------------------------------------
 
 use FMS
-use FMSconstants, only: constants_init
-use  atmos_model_mod,  only: atmos_model_init, atmos_model_end,  &
-                             update_atmos_model_dynamics,        &
-                             update_atmos_radiation_physics,     &
-                             update_atmos_model_state,           &
-                             atmos_data_type, atmos_model_restart
+use FMSconstants,    only: fmsconstants_init
+use atmos_model_mod, only: atmos_model_init, atmos_model_end,  &
+                           update_atmos_model_dynamics,        &
+                           update_atmos_radiation_physics,     &
+                           update_atmos_model_state,           &
+                           atmos_data_type, atmos_model_restart
 !--- FMS old io
 use fms_io_mod, only: fms_io_exit!< This can't be removed until fms_io is not used at all
 
@@ -122,7 +122,7 @@ implicit none
 
  call fms_init()
  call sat_vapor_pres_init()
- call constants_init()
+ call fmsconstants_init()
 
  initClock = mpp_clock_id( 'Initialization' )
  call mpp_clock_begin (initClock) !nesting problem
@@ -201,18 +201,15 @@ contains
 !   initialize all defined exchange grids and all boundary maps
 !-----------------------------------------------------------------------
     integer :: total_days, total_seconds, unit, ierr, io
-    integer :: n, gnlon, gnlat
+    integer :: n
     integer :: date(6), flags
     type (time_type) :: Run_length
     character(len=9) :: month
-    logical :: use_namelist
 
     character(len=:), dimension(:), allocatable :: restart_file !< Restart file saved as a string
     integer :: time_stamp_unit !< Unif of the time_stamp file
     integer :: ascii_unit  !< Unit of a dummy ascii file
 
-    logical, allocatable, dimension(:,:) :: mask
-    real,    allocatable, dimension(:,:) :: glon_bnd, glat_bnd
 !-----------------------------------------------------------------------
 !----- initialization timing identifiers ----
 
@@ -388,12 +385,8 @@ contains
 
     call print_memuse_stats('after atmos model init')
 
-    call mpp_get_global_domain(Atm%Domain, xsize=gnlon, ysize=gnlat)
-    allocate ( glon_bnd(gnlon+1,gnlat+1), glat_bnd(gnlon+1,gnlat+1) )
-    call mpp_global_field(Atm%Domain, Atm%lon_bnd, glon_bnd, position=CORNER)
-    call mpp_global_field(Atm%Domain, Atm%lat_bnd, glat_bnd, position=CORNER)
-
-    if (.NOT.Atm%bounded_domain) call data_override_init (Atm_domain_in  = Atm%domain)
+!------ initialize data_override -----
+    call data_override_init (Atm_domain_in  = Atm%domain)
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
