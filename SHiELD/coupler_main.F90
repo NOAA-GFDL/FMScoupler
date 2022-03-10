@@ -386,7 +386,7 @@ contains
     call print_memuse_stats('after atmos model init')
 
 !------ initialize data_override -----
-    call data_override_init (Atm_domain_in  = Atm%domain)
+    if (.NOT.Atm%bounded_domain) call data_override_init (Atm_domain_in  = Atm%domain)
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --

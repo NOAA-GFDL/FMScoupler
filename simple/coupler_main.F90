@@ -443,7 +443,7 @@ contains
                             glon_bnd, glat_bnd, atmos_domain=Atm%Domain)
 
 !------ initialize data_override -----
-    call data_override_init(Atm_domain_in = Atm%domain)
+    if (.NOT.Atm%bounded_domain) call data_override_init(Atm_domain_in = Atm%domain)
     call data_override_init(Ice_domain_in = Ice%domain)
     call data_override_init(Land_domain_in = Land%domain)
 
