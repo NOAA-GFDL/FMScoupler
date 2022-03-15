@@ -18,12 +18,12 @@
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
 !
+!> \program Couples component models for the atmosphere,
+!!  ocean (amip), land, and sea-ice using the exchange module
 program coupler_main
 
 !-----------------------------------------------------------------------
 !
-!   program that couples component models for the atmosphere,
-!   ocean (amip), land, and sea-ice using the exchange module
 !
 !-----------------------------------------------------------------------
 
