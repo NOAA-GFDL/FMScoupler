@@ -20,8 +20,13 @@
 !
 !> \mainpage
 !!
-!! \brief  coupler_main couples component models for atmosphere, ocean,
+!! \brief  @ref coupler_main.F90 couples component models for atmosphere, ocean,
 !! land and sea ice on independent grids.  It also controls the time integration.
+!! This repository holds 3 separate directories with driver programs for different usages,
+!! consisting of the original 'full' coupler_main, a slimmed down 'simple' version,
+!! and another driver specific to the SHiELD model. The 'shared' folder holds modules
+!! used by multiple dirvers.
+!!
 !!
 !! \author Bruce Wyman <Bruce.Wyman@noaa.gov>
 !! \author V. Balaji <V.Balaji@noaa.gov>
