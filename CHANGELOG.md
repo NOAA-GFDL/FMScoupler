@@ -6,6 +6,17 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2022.01] - 2022-03-25
+### Added
+- Added SHiELD main driver program to the repository
+- Added some additional information on the coupler to the readme
+
+### Tag Commit Hashes
+- 2022.01-alpha1 4707b255c842dd08b3cd65a45b7924e7a9d88720
+- 2022.01-beta1  4707b255c842dd08b3cd65a45b7924e7a9d88720
+- 2022.01-alpha2 7790c5d8e243eb97f3fa87f15546dadc6d963ed1
+- 2022.01-beta2  c9f405a2383451550b9a8aaa8279a2a973d65c90
+
 ## [2021.03] - 2021-08-16
 ### Fixed
 - In the full coupler, corrects a `get_variable_size` call to prevent crashes when running with the SCM
