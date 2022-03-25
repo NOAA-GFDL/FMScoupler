@@ -20,16 +20,26 @@
 !
 !> \mainpage
 !!
-!! \brief  @ref coupler_main.F90 couples component models for atmosphere, ocean,
-!! land and sea ice on independent grids.  It also controls the time integration.
-!! This repository holds 3 separate directories with driver programs for different usages,
-!! consisting of the original 'full' coupler_main, a slimmed down 'simple' version,
-!! and another driver specific to the SHiELD model. The 'shared' folder holds modules
-!! used by multiple dirvers.
+!! \brief FMS Coupler provides the capability to couple component models (atmosphere, land, sea ice, and ocean)
+!! on different logically rectangular grids.
 !!
+!! This repository holds 3 separate directories with driver programs for different usages
+!! along with modules with routines for common operations.
+!!
+!! There are currently 3 `coupler_main` driver programs:
+!!   - the original 'full' coupler_main
+!!   - a slimmed down 'simple' version
+!!   - the SHiELD specific driver
+!!
+!! Additionally, files in the 'shared' directory holds modules used by multiple drivers.
+!! The information below is provided for the full coupler, but there is considerable overlap between the other
+!! versions. Additional documentation on all versions is available through the @ref modules.html and @ref files.html tabs.
 !!
 !! \author Bruce Wyman <Bruce.Wyman@noaa.gov>
 !! \author V. Balaji <V.Balaji@noaa.gov>
+!!
+!! @ref coupler_main.F90 couples component models for atmosphere, ocean,
+!! land and sea ice on independent grids.  It also controls the time integration.
 !!
 !! This version couples model components representing atmosphere, ocean, land
 !! and sea ice on independent grids. Each model component is represented by a
