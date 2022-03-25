@@ -18,14 +18,13 @@
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
 
+!> \file
+!> \brief Main driver program for the SHiELD model
+!!
+!! Couples component models for the atmosphere,
+!! ocean (amip), land, and sea-ice using the exchange module
 program coupler_main
 
-!-----------------------------------------------------------------------
-!
-!   program that couples component models for the atmosphere,
-!   ocean (amip), land, and sea-ice using the exchange module
-!
-!-----------------------------------------------------------------------
 
 use FMS
 use FMSconstants, only: constants_init

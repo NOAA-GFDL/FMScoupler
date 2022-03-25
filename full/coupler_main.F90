@@ -17,7 +17,12 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!
+!> \file
+!! \brief Main driver program for full coupler. Provides the capability to couple component
+!! models (atmosphere, land, sea ice, and ocean)
+
+!> \defgroup full full
+
 !> \mainpage
 !!
 !! \brief FMS Coupler provides the capability to couple component models (atmosphere, land, sea ice, and ocean)
@@ -26,19 +31,19 @@
 !! This repository holds 3 separate directories with driver programs for different usages
 !! along with modules with routines for common operations.
 !!
-!! There are currently 3 `coupler_main` driver programs:
+!! There are currently 3 `coupler_main` driver programs, each with their own directory:
 !!   - the original 'full' coupler_main
 !!   - a slimmed down 'simple' version
 !!   - the SHiELD specific driver
 !!
 !! Additionally, files in the 'shared' directory holds modules used by multiple drivers.
 !! The information below is provided for the full coupler, but there is considerable overlap between the other
-!! versions. Additional documentation on all versions is available through the @ref modules.html and @ref files.html tabs.
+!! versions. Additional documentation on all versions is available through the [modules](namespaces.html) and [files](files.html) tabs.
 !!
 !! \author Bruce Wyman <Bruce.Wyman@noaa.gov>
 !! \author V. Balaji <V.Balaji@noaa.gov>
 !!
-!! @ref coupler_main.F90 couples component models for atmosphere, ocean,
+!! \ref coupler_main.F90 couples component models for atmosphere, ocean,
 !! land and sea ice on independent grids.  It also controls the time integration.
 !!
 !! This version couples model components representing atmosphere, ocean, land
@@ -66,7 +71,7 @@
 !! The three components of coupler: coupler_main, flux_exchange_mod, and surface_flux_mod
 !! are configured through three namelists
 !! * \ref coupler_config "coupler_nml"
-!! * \ref flux_exchange_config "flux_exchange_nml"
+!! * \ref flux_exchange_conf "flux_exchange_nml"
 !! * \ref surface_flux_config "surface_flux_nml"
 !!
 !!

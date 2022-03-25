@@ -17,7 +17,7 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!
+!> \ingroup full
 module atmos_ocean_dep_fluxes_calc_mod
 
   use FMS
@@ -110,4 +110,5 @@ contains
       endif
     enddo
   end subroutine  atmos_ocean_dep_fluxes_calc
+!> \}
 end module atmos_ocean_dep_fluxes_calc_mod

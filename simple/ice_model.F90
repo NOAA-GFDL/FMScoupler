@@ -18,7 +18,7 @@
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
 !
-
+!> \ingroup simple
 module ice_model_mod
 
 !! Components
