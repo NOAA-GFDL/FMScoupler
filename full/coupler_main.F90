@@ -1368,10 +1368,11 @@ contains
       !--- setting affinity
       if (do_concurrent_radiation) then
 !$      call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads + radiation_nthreads)
+!$      call omp_set_num_threads(atmos_nthreads+radiation_nthreads)
       else
 !$      call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads)
+!$      call omp_set_num_threads(atmos_nthreads)
       endif
-!$    call omp_set_num_threads(atmos_nthreads)
     endif
 
    !--- initialization clock
@@ -1732,8 +1733,10 @@ contains
       if (concurrent) then
         call mpp_set_current_pelist( Ocean%pelist )
 !$      call fms_affinity_set('OCEAN', use_hyper_thread, ocean_nthreads)
+!$      call omp_set_num_threads(ocean_nthreads)
       else
         ocean_nthreads = atmos_nthreads
+        !--- omp_num_threads has already been set by the Atmos-pes, but set again to ensure
 !$      call omp_set_num_threads(ocean_nthreads)
       endif
 
