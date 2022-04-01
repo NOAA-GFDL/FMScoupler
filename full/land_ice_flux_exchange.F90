@@ -17,7 +17,7 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-
+!> \ingroup full
 module land_ice_flux_exchange_mod
 
 !! FMS

@@ -17,11 +17,12 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
+!> \defgroup full Full Coupler
+
 !> \file
+!> \ingroup full
 !! \brief Main driver program for full coupler. Provides the capability to couple component
 !! models (atmosphere, land, sea ice, and ocean)
-
-!> \defgroup full full
 
 !> \mainpage
 !!
@@ -68,10 +69,10 @@
 !!
 !! \section coupler_namelists  Namelists
 !!
-!! The three components of coupler: coupler_main, flux_exchange_mod, and surface_flux_mod
+!! The three components of coupler: @ref coupler_main , flux_exchange_mod, and surface_flux_mod
 !! are configured through three namelists
 !! * \ref coupler_config "coupler_nml"
-!! * \ref flux_exchange_conf "flux_exchange_nml"
+!! * [*flux_exchange_conf*](namespacesurface__flux__mod.html#surface_flux_config)
 !! * \ref surface_flux_config "surface_flux_nml"
 !!
 !!

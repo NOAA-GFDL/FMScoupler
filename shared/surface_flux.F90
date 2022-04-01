@@ -17,8 +17,12 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
+!> \defgroup shared Shared Modules
 
-!> \brief Driver program for the calculation of fluxes on the exchange grids
+!> \file Module for calculation of fluxes on the exchange grids
+!> \ingroup shared
+
+!> \brief Module for the calculation of fluxes on the exchange grids
 !!
 !! \section surface_flux_config Surface Flux Configuration
 !!

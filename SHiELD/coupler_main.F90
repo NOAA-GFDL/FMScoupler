@@ -17,12 +17,14 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
+!> \defgroup shield SHiELD Coupler
 
 !> \file
 !> \brief Main driver program for the SHiELD model
 !!
 !! Couples component models for the atmosphere,
 !! ocean (amip), land, and sea-ice using the exchange module
+!> \ingroup shield
 program coupler_main
 
 

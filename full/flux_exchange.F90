@@ -17,7 +17,7 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-
+!> \ingroup full
 module flux_exchange_mod
 
 !> \author Bruce Wyman <Bruce.Wyman@noaa.gov>
