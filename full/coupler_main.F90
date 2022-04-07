@@ -72,7 +72,7 @@
 !! The three components of coupler: @ref coupler_main , flux_exchange_mod, and surface_flux_mod
 !! are configured through three namelists
 !! * \ref coupler_config "coupler_nml"
-!! * [*flux_exchange_conf*](namespacesurface__flux__mod.html#surface_flux_config)
+!! * [**flux_exchange_conf**](namespacesurface__flux__mod.html#surface_flux_config)
 !! * \ref surface_flux_config "surface_flux_nml"
 !!
 !!

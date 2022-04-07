@@ -196,10 +196,9 @@ contains
 
 !#######################################################################
 
+   !> Read namelists and restart file, initializes all defined exchange grids and all boundary maps
    subroutine coupler_init
 
-!-----------------------------------------------------------------------
-!   initialize all defined exchange grids and all boundary maps
 !-----------------------------------------------------------------------
     integer :: total_days, total_seconds, unit, ierr, io
     integer :: n, gnlon, gnlat
@@ -407,8 +406,9 @@ contains
    end subroutine coupler_init
 
 !#######################################################################
+   !> Writes a restart file for the current date
    subroutine coupler_restart(time_stamp)
-    character(len=32), intent(in), optional :: time_stamp
+    character(len=32), intent(in), optional :: time_stamp !< Optional timestamp for file name
 
     integer :: restart_unit, date(6)
     character(len=128)                      :: file_res
@@ -441,7 +441,7 @@ contains
    end subroutine coupler_restart
 
 !#######################################################################
-
+   !> Finalizes run, outputs restart files and diagnostic fields
    subroutine coupler_end
 
    integer :: unit, date(6)

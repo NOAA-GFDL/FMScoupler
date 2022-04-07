@@ -19,9 +19,10 @@
 !***********************************************************************
 !> \defgroup simple Simple Coupler
 
-!> \file Couples component models for the atmosphere,
-!!  ocean (amip), land, and sea-ice using the exchange module
+!> \file coupler_main
 !> \ingroup simple
+!> \brief Couples component models for the atmosphere,
+!!  ocean (amip), land, and sea-ice using the exchange module
 program coupler_main
 
 !-----------------------------------------------------------------------
@@ -245,11 +246,9 @@ contains
 
 !#######################################################################
 
+  !> reads namelist and restart files, initializes all defined exchange grids and all boundary maps
   subroutine coupler_init
 
-!-----------------------------------------------------------------------
-!   initialize all defined exchange grids and all boundary maps
-!-----------------------------------------------------------------------
     integer :: total_days, total_seconds, ierr, io
     integer :: n, gnlon, gnlat
     integer :: date(6), flags
@@ -490,7 +489,7 @@ contains
   end subroutine coupler_init
 
 !#######################################################################
-
+  !> Finalizes a run and writes restart files
   subroutine coupler_end
 
     integer :: date(6)

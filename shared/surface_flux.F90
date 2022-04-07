@@ -20,9 +20,9 @@
 !> \defgroup shared Shared Modules
 
 !> \file Module for calculation of fluxes on the exchange grids
-!> \ingroup shared
 
 !> \brief Module for the calculation of fluxes on the exchange grids
+!> \ingroup shared
 !!
 !! \section surface_flux_config Surface Flux Configuration
 !!

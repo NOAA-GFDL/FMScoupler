@@ -8,10 +8,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Get version from changelog
-        run: |
-          ver="`grep '^## \[' CHANGELOG.md | awk -F"[][]" '{print $2}' | head -n 1`"
-          sed -i 's/VERSION = ""/VERSION = "$ver"/' Doxyfile
       - name: Install and run doxygen 
         run: |
           sudo apt -y install doxygen
