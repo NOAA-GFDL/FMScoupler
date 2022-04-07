@@ -60,7 +60,7 @@ use flux_exchange_mod,  only: flux_exchange_init,   &
                               !flux_exchange_end       ! may not be used?
 !--- FMS modules
 use FMS
-use FMSconstants, only: constants_init
+use FMSconstants, only: fmsconstants_init
 
 !--- FMS old io
 use fms_io_mod, only: fms_io_exit!< This can't be removed until fms_io is not used at all
@@ -137,7 +137,7 @@ implicit none
    call mpp_clock_begin (initClock)
 
    call fms_init
-   call constants_init
+   call fmsconstants_init
    call fms_affinity_init
 
    call coupler_init
