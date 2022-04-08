@@ -1359,7 +1359,7 @@ contains
     !--- dynamic threading turned off when affinity placement is in use
 !$  call omp_set_dynamic(.FALSE.)
     !--- nested OpenMP enabled for OpenMP concurrent components
-!$  call omp_set_max_active_levels(huge(0)) 
+!$  call omp_set_max_active_levels(3)
 
     if (Atm%pe) then
       call mpp_set_current_pelist( Atm%pelist )
