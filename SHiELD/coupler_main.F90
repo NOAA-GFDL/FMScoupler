@@ -19,7 +19,6 @@
 !***********************************************************************
 !> \defgroup shield SHiELD Coupler
 
-!> \file
 !> \brief Main driver program for the SHiELD model
 !!
 !! Couples component models for the atmosphere,

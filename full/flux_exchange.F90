@@ -17,6 +17,7 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
+!> \module flux_exchange_mod_full flux_exchange_mod
 !> \ingroup full
 module flux_exchange_mod
 

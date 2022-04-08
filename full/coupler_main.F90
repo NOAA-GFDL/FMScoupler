@@ -39,7 +39,7 @@
 !!
 !! Additionally, files in the 'shared' directory holds modules used by multiple drivers.
 !! The information below is provided for the full coupler, but there is considerable overlap between the other
-!! versions. Additional documentation on all versions is available through the [modules](namespaces.html) and [files](files.html) tabs.
+!! versions. Additional documentation on all versions is available through the [**modules**](modules.html) and [**files**](files.html) tabs.
 !!
 !! \author Bruce Wyman <Bruce.Wyman@noaa.gov>
 !! \author V. Balaji <V.Balaji@noaa.gov>
