@@ -23,8 +23,8 @@
 
 !> \brief Module for the calculation of fluxes on the exchange grids
 !> \ingroup shared
-!!
-!! \section surface_flux_config Surface Flux Configuration
+
+!! \page surface_flux_config Surface Flux Configuration
 !!
 !! surface_flux_mod is configured via the surface_flux_nml namelist in the `input.nml` file.
 !! The following table are the available namelist variables.

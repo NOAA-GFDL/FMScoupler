@@ -19,7 +19,7 @@
 !***********************************************************************
 !> \defgroup simple Simple Coupler
 
-!> \file coupler_main
+!> \file
 !> \ingroup simple
 !> \brief Couples component models for the atmosphere,
 !!  ocean (amip), land, and sea-ice using the exchange module
