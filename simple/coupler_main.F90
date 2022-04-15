@@ -19,7 +19,8 @@
 !***********************************************************************
 !> \file
 !> \brief Couples component models for the atmosphere,
-!!  ocean (amip), land, and sea-ice using the exchange module
+!!  ocean (amip), land, and sea-ice using the exchange module. Simplified version
+!! of [**full/coupler_main.F90**](full_2coupler__main_8_f90.html)
 program coupler_main
 
 !-----------------------------------------------------------------------

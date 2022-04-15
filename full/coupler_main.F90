@@ -34,7 +34,7 @@
 !! There are currently 3 `coupler_main` driver programs, each with their own directory:
 !!   - the original 'full' coupler_main
 !!   - a slimmed down 'simple' version
-!!   - the SHiELD specific driver
+!!   - a [**SHiELD**](https://www.gfdl.noaa.gov/shield/) version for use with the model
 !!
 !! Additionally, files in the 'shared' directory holds modules used by multiple drivers.
 !! The information below is provided for the full coupler, but there is considerable overlap between the other
@@ -71,7 +71,7 @@
 !! The three components of coupler: @ref coupler_main , flux_exchange_mod, and surface_flux_mod
 !! are configured through three namelists
 !! * \ref coupler_config "coupler_nml"
-!! * [**flux_exchange_conf**](namespacesurface__flux__mod.html#surface_flux_config)
+!! * \ref flux_exchange_conf "flux_exchange_nml" 
 !! * \ref surface_flux_config "surface_flux_nml"
 !!
 !!

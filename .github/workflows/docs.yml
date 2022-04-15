@@ -1,6 +1,6 @@
 name: FMScoupler update doxygen site 
 
-on: push 
+on: release, workflow_dispatch 
 
 jobs:
   build_and_push_docs:
@@ -8,7 +8,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Install and run doxygen 
+      - name: Install and run doxygen
         run: |
           sudo apt -y install doxygen
           doxygen

@@ -111,5 +111,4 @@ contains
       endif
     enddo
   end subroutine  atmos_ocean_dep_fluxes_calc
-!> \}
 end module atmos_ocean_dep_fluxes_calc_mod
