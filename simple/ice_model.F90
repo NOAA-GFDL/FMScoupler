@@ -17,8 +17,8 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!
-!> \ingroup simple
+!> \file
+!> \brief Handles ice component updates and time steps
 module ice_model_mod
 
 !! Components

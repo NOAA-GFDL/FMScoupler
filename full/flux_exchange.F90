@@ -17,10 +17,6 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!> \namespace full/flux_exchange_mod
-!> \ingroup full
-module flux_exchange_mod
-
 !> \author Bruce Wyman <Bruce.Wyman@noaa.gov>
 !! \author V. Balaji <V.Balaji@noaa.gov>
 !! \author Sergey Malyshev <Sergey.Malyshev@noaa.gov>
@@ -198,101 +194,9 @@ module flux_exchange_mod
 !! evap        | kg/m2/s         | evaporation rate
 !! lwflx       | w/m2            | net (down-up) longwave flux
 !!
-!! \section flux_exchange_conf Flux Exchange Configuration
-!!
-!! flux_exchange_mod is configured via the flux_exchange_nml namelist in the `input.nml` file.
-!! The following table are the available namelist variables.
-!!
-!! <table>
-!!   <tr>
-!!     <th>Variable Name</th>
-!!     <th>Type</th>
-!!     <th>Default Value</th>
-!!     <th>Description</th>
-!!   </tr>
-!!   <tr>
-!!     <td>z_ref_heat</td>
-!!     <td>real</td>
-!!     <td>2.0</td>
-!!     <td>Reference height (meters) for temperature and relative humidity
-!!       diagnostics (t_ref, rh_ref, del_h, del_q).</td>
-!!   </tr>
-!!   <tr>
-!!     <td>z_ref_mom</td>
-!!     <td>real</td>
-!!     <td>10.0</td>
-!!     <td>Reference height (meters) for mementum diagnostics (u_ref, v_ref,
-!!       del_m).</td>
-!!   </tr>
-!!   <tr>
-!!     <td>ex_u_start_smooth_bug</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td>By default, the global exchange grid `u_star` will not be interpolated
-!!       from atmospheric grid, this is different from Jakarta behavior and will
-!!       change answers.  So to preserve Jakarta behavior and reproduce answers
-!!       explicitly set this namelist variable to .true. in input.nml.</td>
-!!   </tr>
-!!   <tr>
-!!     <td>sw1way_bug</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td></td>
-!!   </tr>
-!!   <tr>
-!!     <td>do_area_weighted_flux</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td></td>
-!!   </tr>
-!!   <tr>
-!!     <td>debug_stocks</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td></td>
-!!   </tr>
-!!   <tr>
-!!     <td>divert_stocks_report</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td></td>
-!!   </tr>
-!!   <tr>
-!!     <td>do_runoff</td>
-!!     <td>logical</td>
-!!     <td>.TRUE.</td>
-!!     <td>Turns on/off the land runoff interpolation to the ocean.</td>
-!!   </tr>
-!!   <tr>
-!!     <td>do_forecast</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td></td>
-!!   </tr>
-!!   <tr>
-!!     <td>nblocks</td>
-!!     <td>integer</td>
-!!     <td>1</td>
-!!     <td>Specify number of blocks that n_xgrid_sfc is divided into. The main
-!!       purpose is for Openmp implementation. Normally you may set nblocks to be
-!!       coupler_nml atmos_nthreads.</td>
-!!   </tr>
-!!   <tr>
-!!     <td>partition_fprec_from_lprec</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td>Option for ATM override experiments where liquid+frozen precip are combined.
-!!         This option will convert liquid precip to snow when t_ref is less than tfreeze parameter</td>
-!!   </tr>
-!!   <tr>
-!!     <td>scale_precip_2d</td>
-!!     <td>logical</td>
-!!     <td>.false.</td>
-!!     <td>Option to scale the Atm%lprec.
-!!         If this varible is set to .true. Atm%lprec will be rescaled by a field read from the data_table</td>
-!!   </tr>
-!!
 !! \section main_example Main Program Example
+!!
+!! Below is some pseudo-code to illustrate the logic of the main loop.
 !!
 !! ~~~~~~~~~~{.f90}
 !! DO slow time steps (ocean)
@@ -494,6 +398,103 @@ module flux_exchange_mod
 !!                                             ! ocean MODEL GRID (m/s)
 !!                         Ocean%frazil        ! frazil at temperature points on the ocean MODEL GRID
 !! ~~~~~~~~~~
+
+!> \page flux_exchange_conf Flux Exchange Configuration
+!!
+!! flux_exchange_mod is configured via the flux_exchange_nml namelist in the `input.nml` file.
+!! The following table are the available namelist variables.
+!!
+!! <table>
+!!   <tr>
+!!     <th>Variable Name</th>
+!!     <th>Type</th>
+!!     <th>Default Value</th>
+!!     <th>Description</th>
+!!   </tr>
+!!   <tr>
+!!     <td>z_ref_heat</td>
+!!     <td>real</td>
+!!     <td>2.0</td>
+!!     <td>Reference height (meters) for temperature and relative humidity
+!!       diagnostics (t_ref, rh_ref, del_h, del_q).</td>
+!!   </tr>
+!!   <tr>
+!!     <td>z_ref_mom</td>
+!!     <td>real</td>
+!!     <td>10.0</td>
+!!     <td>Reference height (meters) for mementum diagnostics (u_ref, v_ref,
+!!       del_m).</td>
+!!   </tr>
+!!   <tr>
+!!     <td>ex_u_start_smooth_bug</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>By default, the global exchange grid `u_star` will not be interpolated
+!!       from atmospheric grid, this is different from Jakarta behavior and will
+!!       change answers.  So to preserve Jakarta behavior and reproduce answers
+!!       explicitly set this namelist variable to .true. in input.nml.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>sw1way_bug</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td></td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_area_weighted_flux</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td></td>
+!!   </tr>
+!!   <tr>
+!!     <td>debug_stocks</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td></td>
+!!   </tr>
+!!   <tr>
+!!     <td>divert_stocks_report</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td></td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_runoff</td>
+!!     <td>logical</td>
+!!     <td>.TRUE.</td>
+!!     <td>Turns on/off the land runoff interpolation to the ocean.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_forecast</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td></td>
+!!   </tr>
+!!   <tr>
+!!     <td>nblocks</td>
+!!     <td>integer</td>
+!!     <td>1</td>
+!!     <td>Specify number of blocks that n_xgrid_sfc is divided into. The main
+!!       purpose is for Openmp implementation. Normally you may set nblocks to be
+!!       coupler_nml atmos_nthreads.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>partition_fprec_from_lprec</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>Option for ATM override experiments where liquid+frozen precip are combined.
+!!         This option will convert liquid precip to snow when t_ref is less than tfreeze parameter</td>
+!!   </tr>
+!!   <tr>
+!!     <td>scale_precip_2d</td>
+!!     <td>logical</td>
+!!     <td>.false.</td>
+!!     <td>Option to scale the Atm%lprec.
+!!         If this varible is set to .true. Atm%lprec will be rescaled by a field read from the data_table</td>
+!!   </tr>
+!!
+module flux_exchange_mod
+
 
 !model_boundary_data_type contains all model fields at the boundary.
 !model1_model2_boundary_type contains fields that model2 gets

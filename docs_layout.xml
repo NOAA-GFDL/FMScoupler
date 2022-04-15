@@ -4,7 +4,7 @@
   <navindex>
     <tab type="mainpage" visible="yes" title=""/>
     <tab type="pages" visible="yes" title="Namelist Configuration" intro="Information on namelist options to configure runs"/>
-    <tab type="modules" visible="yes" title="Couplers and Modules" intro="Here is a list of all coupler driver programs and any accompanying modules:"/>
+    <tab type="modules" visible="no" title="" intro=""/>
     <tab type="namespaces" visible="no" title="">
       <tab type="namespacelist" visible="no" title="" intro=""/>
       <tab type="namespacemembers" visible="no" title="" intro=""/>

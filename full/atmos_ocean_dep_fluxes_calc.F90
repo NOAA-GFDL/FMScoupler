@@ -17,7 +17,8 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!> \ingroup full
+!> \file
+!> \brief Calculates ocean and atmosphere deposition gas fluxes
 module atmos_ocean_dep_fluxes_calc_mod
 
   use FMS

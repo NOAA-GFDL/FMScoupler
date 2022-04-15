@@ -17,10 +17,7 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!> \defgroup simple Simple Coupler
-
 !> \file
-!> \ingroup simple
 !> \brief Couples component models for the atmosphere,
 !!  ocean (amip), land, and sea-ice using the exchange module
 program coupler_main

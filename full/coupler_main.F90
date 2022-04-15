@@ -17,10 +17,7 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!> \defgroup full Full Coupler
-
 !> \file
-!> \ingroup full
 !! \brief Main driver program for full coupler. Provides the capability to couple component
 !! models (atmosphere, land, sea ice, and ocean)
 
@@ -85,6 +82,7 @@
 !! -# The run length must be an intergal multiple of the coupling timestep dt_cpld.
 !!
 !! \section Main Program Example
+!! Below is some pseudo-code to illustrate the runtime loop of the coupler_main drivers.
 !!
 !! ~~~~~~~~~~{.f90}
 !! DO slow time steps (ocean)

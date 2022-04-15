@@ -17,7 +17,8 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!> \ingroup full
+!> \file
+!> \brief Performs flux calculations and exchange grid operations for atmosphere, land and ice
 module atm_land_ice_flux_exchange_mod
 
 !! Components
