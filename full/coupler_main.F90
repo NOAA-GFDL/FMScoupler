@@ -19,7 +19,9 @@
 !***********************************************************************
 !> \file
 !! \brief Main driver program for full coupler. Provides the capability to couple component
-!! models (atmosphere, land, sea ice, and ocean)
+!! models (atmosphere, land, sea ice, and ocean).
+!!
+!! Please see the [**main page**](index.html) for additional information.
 
 !> \mainpage
 !!
@@ -36,12 +38,12 @@
 !!
 !! Additionally, files in the 'shared' directory holds modules used by multiple drivers.
 !! The information below is provided for the full coupler, but there is considerable overlap between the other
-!! versions. Additional documentation on all versions is available through the [**modules**](modules.html) and [**files**](files.html) tabs.
+!! versions. Documentation on all programs and modules is available through the [**files**](files.html) tab.
 !!
 !! \author Bruce Wyman <Bruce.Wyman@noaa.gov>
 !! \author V. Balaji <V.Balaji@noaa.gov>
 !!
-!! \ref coupler_main.F90 couples component models for atmosphere, ocean,
+!! [**coupler_main.F90**](full_2coupler__main_8_f90.html) couples component models for atmosphere, ocean,
 !! land and sea ice on independent grids.  It also controls the time integration.
 !!
 !! This version couples model components representing atmosphere, ocean, land
