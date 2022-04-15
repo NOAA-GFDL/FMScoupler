@@ -335,7 +335,7 @@ program coupler_main
   use omp_lib
 
   use FMS, status_fms=>status
-  use FMSconstants, only: constants_init
+  use FMSconstants, only: fmsconstants_init
 
   !< Can't get rid of this until fms_io is no longer used at all
   use fms_io_mod,              only: fms_io_exit
@@ -583,7 +583,7 @@ program coupler_main
   call mpp_clock_begin(initClock)
 
   call fms_init
-  call constants_init
+  call fmsconstants_init
   call fms_affinity_init
 
   call coupler_init
@@ -1380,7 +1380,7 @@ contains
     !--- dynamic threading turned off when affinity placement is in use
 !$  call omp_set_dynamic(.FALSE.)
     !--- nested OpenMP enabled for OpenMP concurrent components
-!$  call omp_set_nested(.TRUE.)
+!$  call omp_set_max_active_levels(3)
 
     if (Atm%pe) then
       call mpp_set_current_pelist( Atm%pelist )
@@ -1389,10 +1389,11 @@ contains
       !--- setting affinity
       if (do_concurrent_radiation) then
 !$      call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads + radiation_nthreads)
+!$      call omp_set_num_threads(atmos_nthreads+radiation_nthreads)
       else
 !$      call fms_affinity_set('ATMOS', use_hyper_thread, atmos_nthreads)
+!$      call omp_set_num_threads(atmos_nthreads)
       endif
-!$    call omp_set_num_threads(atmos_nthreads)
     endif
 
    !--- initialization clock
@@ -1753,8 +1754,10 @@ contains
       if (concurrent) then
         call mpp_set_current_pelist( Ocean%pelist )
 !$      call fms_affinity_set('OCEAN', use_hyper_thread, ocean_nthreads)
+!$      call omp_set_num_threads(ocean_nthreads)
       else
         ocean_nthreads = atmos_nthreads
+        !--- omp_num_threads has already been set by the Atmos-pes, but set again to ensure
 !$      call omp_set_num_threads(ocean_nthreads)
       endif
 
