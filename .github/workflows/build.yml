@@ -1,13 +1,13 @@
 name: FMScoupler build test
 
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     container:
       image: underwoo/ubuntu_libfms_gnu
-      env: 
+      env:
         CC: mpicc
         FC: mpif90
         CPPFLAGS: '-I/usr/include -Duse_LARGEFILE -DMAXFIELDMETHODS_=500'
@@ -16,5 +16,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Run build test 
+      - name: Run build test
         run: t/null_model_build.sh
+        id: test
+      - name: Create issue if FMS update fails compilation
+        if: failure() && ${{ github.event == 'workflow_dispatch' }}
+        uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF: ${{ steps.test.outputs.sha }}
+        with:
+          update_existing: true
+          search_existing: open

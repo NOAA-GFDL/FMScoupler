@@ -25,10 +25,12 @@ mk_template=${bld_dir}/mkmf/templates/linux-ubuntu-xenial-gnu.mk
 
 # FMS
 git clone https://github.com/NOAA-GFDL/FMS.git $src_dir/FMS
+cd $src_dir/FMS
+echo "::set-output name=sha::`git log -1 --pretty=format:%H`"
+cd $bld_dir
 
 # ocean_null
 git clone https://github.com/NOAA-GFDL/ocean_null.git $src_dir/ocean_null
-cd $bld_dir
 
 # atmos_null
 git clone https://github.com/NOAA-GFDL/atmos_null.git $src_dir/atmos_null
