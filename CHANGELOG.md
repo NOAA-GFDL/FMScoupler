@@ -14,7 +14,7 @@ sequential patch number (starting from `01`).
 - Changes routine names used for constants in order to compile with recent constants changes to FMS
 ### Fixed
 - FULL: Replaced a deprecated OpenMP routine causing warnings  
-- SIMPLE: Fixed a bug in the causing failures in debug mode with GNU
+- SIMPLE: Fixed a missing variable allocation that was causing failures with certain compilers
 
 ### Tag Commit Hashes
 2022.02-alpha1 de3e3cbca349021a545a500f5ba1af6af22acfae
