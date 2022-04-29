@@ -6,6 +6,21 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2022.02] - 2022-04-29
+### Removed
+- Removes grid code and variables from SHiELD/coupler_main and fixes data_override_init
+- Removes outdated logic in simple coupler for data_override_init parsing
+### Changed
+- Changes routine names used for constants in order to compile with recent constants changes to FMS
+### Fixed
+- FULL: Replaced a deprecated OpenMP routine causing warnings  
+- SIMPLE: Fixed a missing variable allocation that was causing failures with certain compilers
+
+### Tag Commit Hashes
+2022.02-alpha1 de3e3cbca349021a545a500f5ba1af6af22acfae
+2022.02-alpha2 c23b6f3ff1f902adf1fa43f8a5c9d2307bd01106
+2022.02-beta1  2bb8f35e2f579e738b58c610c35ca9afd7e36358 
+
 ## [2022.01] - 2022-03-25
 ### Added
 - Added SHiELD main driver program to the repository
