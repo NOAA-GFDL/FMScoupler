@@ -2,7 +2,7 @@
 #
 # Script to build a GFDL null model, using all null components, and run
 # a simple test on CI systems, like Travis CI or gitlab CI.
-
+exit 1 # test issue creation on failure
 # Determine the where this script lives, and set some variables that contain
 # other useful directories.
 script_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
