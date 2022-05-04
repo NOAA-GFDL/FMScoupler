@@ -2,6 +2,7 @@
 #
 # Script to build a GFDL null model, using all null components, and run
 # a simple test on CI systems, like Travis CI or gitlab CI.
+
 # Determine the where this script lives, and set some variables that contain
 # other useful directories.
 script_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -27,8 +28,6 @@ git clone https://github.com/NOAA-GFDL/FMS.git $src_dir/FMS
 cd $src_dir/FMS
 echo "::set-output name=sha::`git log -1 --pretty=format:%H`"
 cd $bld_dir
-
-exit 1 # test issue creation on failure
 
 # ocean_null
 git clone https://github.com/NOAA-GFDL/ocean_null.git $src_dir/ocean_null
