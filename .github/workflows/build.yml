@@ -20,7 +20,7 @@ jobs:
         run: t/null_model_build.sh
         id: test
       - name: Create issue if FMS update fails compilation
-        if: ${{ steps.test.outcome == 'failure' }} && ${{ github.event == 'workflow_dispatch' }}
+        if: ${{ steps.test.outcome == 'failure' && github.event == 'workflow_dispatch' }}
         uses: JasonEtco/create-an-issue@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
