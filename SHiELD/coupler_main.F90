@@ -20,8 +20,7 @@
 !> \file
 !> \brief Main driver program for the SHiELD model
 !!
-!! Couples component models for the atmosphere,
-!! ocean (amip), land, and sea-ice using the exchange module
+!! Sequences the dynamics, radiation/physics, and updates the prognostic state.
 program coupler_main
 
 
