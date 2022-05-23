@@ -422,6 +422,8 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
  logical :: need_ic
  type(FmsNetcdfDomainFile_t) :: land_mask_fileobj !< Land mask domain decomposed fileobj
  type(FmsNetcdfDomainFile_t) :: ice_restart_fileobj !< Ice restart domain decomposed fileobj
+ logical :: do_io = .true. !< Determines if input files (ice_mask.nc, ice restart) should be read in
+                            !! Based on if io domain is allocated
 
  if (module_is_initialized) then
      return
@@ -524,8 +526,12 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
   !enddo
   !enddo
 
+  ! check if io domain set up, if so check if file can be opened
+  do_io = associated( mpp_get_io_domain(Ice%domain) )
+  if( do_io ) do_io = open_file(land_mask_fileobj, 'INPUT/land_mask.nc', 'read', Ice%domain)
+
   ! read the land mask from a file (land=1)
-  if (open_file(land_mask_fileobj, 'INPUT/land_mask.nc', 'read', Ice%domain)) then
+  if (do_io) then
       call read_data (land_mask_fileobj, 'land_mask', Ice%glon)
       where (Ice%glon > 0.50)
          Ice%gmask = .false.
@@ -588,7 +594,9 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
 
 need_ic = .false.
 
-if (open_file(ice_restart_fileobj, 'INPUT/ice_model.res.nc', 'read', Ice%domain, is_restart=.true.)) then
+if( do_io ) do_io = open_file(ice_restart_fileobj, 'INPUT/ice_model.res.nc', 'read', Ice%domain, is_restart=.true.)
+
+if ( do_io ) then
    if (mpp_pe() == mpp_root_pe()) call error_mesg ('ice_model_mod', &
             'Reading NetCDF formatted restart file: INPUT/ice_model.res.nc', NOTE)
 
@@ -1155,6 +1163,7 @@ print *, 'pe,count(ice,all,ocean)=',mpp_pe(),count(Ice%ice_mask),count(Ice%mask)
  integer :: unit
  character(len=64) :: fname='RESTART/ice_model.res.nc'
  type(FmsNetcdfDomainFile_t) :: ice_restart_fileobj !< Ice restart domain decomposed fileobj
+ logical :: do_io = .true. !< set if io files should be read
 
  if (.not.module_is_initialized) return
  if( do_netcdf_restart) then
@@ -1163,7 +1172,10 @@ print *, 'pe,count(ice,all,ocean)=',mpp_pe(),count(Ice%ice_mask),count(Ice%mask)
        call error_mesg ('ice_model_mod', 'Writing NetCDF formatted restart file: RESTART/ice_model.res.nc', NOTE)
     endif
 
-    if (open_file(ice_restart_fileobj, fname, 'overwrite', Ice%domain, is_restart=.true.)) then
+    ! check if io domain set up, if so check if file can be opened
+    do_io = associated( mpp_get_io_domain(Ice%domain) )
+    if( do_io ) do_io = open_file(ice_restart_fileobj, fname, 'overwrite', Ice%domain, is_restart=.true.)
+    if (do_io) then
         call ice_register_restart(ice_restart_fileobj, Ice)
         call register_field(ice_restart_fileobj, "mlon", "double")
         call register_field(ice_restart_fileobj, "mlat", "double")
