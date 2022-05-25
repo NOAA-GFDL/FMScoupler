@@ -152,9 +152,9 @@ make -j NETCDF=3 DEBUG=on coupler_full_test.x
 # Report on the status of the build
 if [ $? -eq 0 ]
 then
-  echo "<NOTE> : make succeeded - full coupler."
+  echo "::note title=Build Succeeded:: null model with full coupler built successfully."
 else
-  echo "<NOTE> : make failed - full coupler."
+  echo "::error title=Build Failed:: null model with full coupler failed compilation."
   exit 1
 fi
 
@@ -164,9 +164,9 @@ make -j NETCDF=3 DEBUG=on coupler_simple_test.x
 # Report on the status of the build
 if [ $? -eq 0 ]
 then
-  echo "::note title=Build Succeeded:: null model built successfully."
+  echo "::note title=Build Succeeded:: null model with simple coupler built successfully."
 else
-  echo "::error title=Build Failed:: null model failed compilation."
+  echo "::error title=Build Failed:: null model with simple coupler failed compilation."
   exit 1
 fi
 # Run the null models test

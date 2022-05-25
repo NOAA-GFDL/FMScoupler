@@ -6,7 +6,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: underwoo/ubuntu_libfms_gnu
+      image: ryanmulhall/hpc-me.ubuntu-minimal:coupler
       env: 
         CC: mpicc
         FC: mpif90
