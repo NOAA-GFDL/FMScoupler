@@ -25,6 +25,11 @@ mk_template=${bld_dir}/mkmf/templates/linux-ubuntu-xenial-gnu.mk
 
 # FMS
 git clone https://github.com/NOAA-GFDL/FMS.git $src_dir/FMS
+if [ "$1" ]; then
+  cd $src_dir/FMS
+  git checkout "$1" || echo "::error title=Run Failed:: Could not checkout commit $1"
+  cd $bld_dir
+fi
 
 # ocean_null
 git clone https://github.com/NOAA-GFDL/ocean_null.git $src_dir/ocean_null
