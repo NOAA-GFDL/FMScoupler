@@ -24,11 +24,11 @@ export PATH=${PATH}:${bld_dir}/mkmf/bin
 mk_template=${bld_dir}/mkmf/templates/linux-ubuntu-xenial-gnu.mk
 
 # FMS
-git clone https://github.com/NOAA-GFDL/FMS.git $src_dir/FMS
-if [ "$1" ]; then
-  cd $src_dir/FMS
-  git checkout "$1" || echo "::error title=Run Failed:: Could not checkout commit $1"
-  cd $bld_dir
+if [ "$1" == "--link-fms" ]; then
+  test -f "${script_root}/../../FMS" || echo "Error: --link-fms specified but FMS src not found(${script_root}/../../FMS)"
+  ln -s $(readlink -f ../../FMS) $src_dir/FMS
+else
+  git clone https://github.com/NOAA-GFDL/FMS.git $src_dir/FMS
 fi
 
 # ocean_null
