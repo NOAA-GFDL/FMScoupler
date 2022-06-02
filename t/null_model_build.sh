@@ -24,7 +24,7 @@ export PATH=${PATH}:${bld_dir}/mkmf/bin
 mk_template=${bld_dir}/mkmf/templates/linux-ubuntu-xenial-gnu.mk
 
 # FMS
-if [ "$1" == "--link-fms" ]; then
+if [ "$1" = "--link-fms" ]; then
   test -f "${script_root}/../../FMS" || echo "Error: --link-fms specified but FMS src not found(${script_root}/../../FMS)"
   ln -s $(readlink -f ../../FMS) $src_dir/FMS
 else
