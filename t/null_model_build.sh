@@ -24,12 +24,9 @@ export PATH=${PATH}:${bld_dir}/mkmf/bin
 mk_template=${bld_dir}/mkmf/templates/linux-ubuntu-xenial-gnu.mk
 
 # FMS
-if [ "$1" = "--link-fms" ]; then
-  #test -d "${script_root}/../../FMS" || echo "Error: --link-fms specified but FMS src not found(${script_root}/../../FMS)"
-  ls ../../../
-  echo asdsdsad
-  ls ../..
-  ln -s $(readlink -f ../../../FMS) $src_dir/FMS
+if [ "$1" = "--local-fms" ]; then
+  test -d "../../../FMS" || echo "Error: --local-fms specified but FMS src not found in parent directory" 1>&2
+  cp -r ../../../FMS $src_dir/FMS
 else
   git clone https://github.com/NOAA-GFDL/FMS.git $src_dir/FMS
 fi
@@ -102,7 +99,7 @@ EOF
 mkdir -p $bld_dir/fms
 list_paths -o $bld_dir/fms/pathnames_fms $src_dir/FMS
 cd $bld_dir/fms
-mkmf -m Makefile -a $src_dir -b $bld_dir -p libfms.a -t $mkmf_template -g -c "-Duse_netCDF -Duse_libMPI -DMAXFIELDS_=200 -DMAXFIELDMETHODS_=200 -DINTERNAL_FILE_NML -DHAVE_GETTID" -IFMS/include -IFMS/mpp/include $bld_dir/fms/pathnames_fms
+mkmf -m Makefile -a $src_dir -b $bld_dir -p libfms.a -t $mkmf_template -g -c "-Duse_netCDF -Duse_libMPI -DMAXFIELDS_=200 -DMAXFIELDMETHODS_=200 -DINTERNAL_FILE_NML" -IFMS/include -IFMS/mpp/include $bld_dir/fms/pathnames_fms
 cd $bld_dir
 
 # libocean_null
