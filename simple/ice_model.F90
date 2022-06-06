@@ -593,9 +593,7 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
 
 need_ic = .false.
 
-
-
-if ( open_file(ice_restart_fileobj, 'INPUT/ice_model.res.nc', 'read', Ice%domain, is_restart=.true.)) then
+if (open_file(ice_restart_fileobj, 'INPUT/ice_model.res.nc', 'read', Ice%domain, is_restart=.true.)) then
    if (mpp_pe() == mpp_root_pe()) call error_mesg ('ice_model_mod', &
             'Reading NetCDF formatted restart file: INPUT/ice_model.res.nc', NOTE)
 
