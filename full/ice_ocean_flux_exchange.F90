@@ -17,7 +17,8 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-
+!> \file
+!> \brief Handles flux calculations and exchange grids for ice and ocean
 module ice_ocean_flux_exchange_mod
 
 !! FMS

@@ -17,10 +17,10 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
+!> \file 
+!> \brief Handles calculation of fluxes on the exchange grids, see module page for more information
 
-!> \brief Driver program for the calculation of fluxes on the exchange grids
-!!
-!! \section surface_flux_config Surface Flux Configuration
+!> \page surface_flux_config Surface Flux Configuration
 !!
 !! surface_flux_mod is configured via the surface_flux_nml namelist in the `input.nml` file.
 !! The following table are the available namelist variables.
@@ -111,6 +111,8 @@
 !!     <td></td>
 !!   </tr>
 !! </table
+
+!> \brief Module for the calculation of fluxes on the exchange grids
 module surface_flux_mod
 
 use FMS

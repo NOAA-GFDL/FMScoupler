@@ -17,13 +17,14 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!
+!> \file
+!> \brief Couples component models for the atmosphere,
+!!  ocean (amip), land, and sea-ice using the exchange module. Simplified version
+!! of [**full/coupler_main.F90**](full_2coupler__main_8_f90.html)
 program coupler_main
 
 !-----------------------------------------------------------------------
 !
-!   program that couples component models for the atmosphere,
-!   ocean (amip), land, and sea-ice using the exchange module
 !
 !-----------------------------------------------------------------------
 
@@ -110,16 +111,24 @@ implicit none
 
 !-----------------------------------------------------------------------
 
-   integer, dimension(6) :: current_date = (/ 0, 0, 0, 0, 0, 0 /)
-   character(len=17) :: calendar = '                 '
-   logical :: force_date_from_namelist = .false.  ! override restart values for date
-   integer :: months=0, days=0, hours=0, minutes=0, seconds=0
+   integer, dimension(6) :: current_date     = (/ 0, 0, 0, 0, 0, 0 /) !< The date that the current integration starts with.  (See
+                                                                      !! force_date_from_namelist.)
+   character(len=17) :: calendar = '                 ' !< The calendar type used by the current integration.  Valid values are
+                                                       !! consistent with the time_manager module: 'gregorian', 'julian', 'noleap', or 'thirty_day'.
+                                                       !! The value 'no_calendar' cannot be used because the time_manager's date
+                                                       !! functions are used.  All values must be lower case.
+   logical :: force_date_from_namelist = .false.  !> override restart values for date
+   integer :: months=0  !< Number of months the current integration will be run
+   integer :: days=0    !< Number of days the current integration will be run
+   integer :: hours=0   !< Number of hours the current integration will be run
+   integer :: minutes=0 !< Number of minutes the current integration will be run
+   integer :: seconds=0 !< Number of seconds the current integration will be run
    integer :: dt_atmos = 0
    integer :: dt_ocean = 0
    integer :: atmos_nthreads = 1
 
-   logical :: do_chksum = .FALSE.  !! If .TRUE., do multiple checksums throughout the execution of the model.
-   logical :: do_land = .FALSE. !! If true, will call update_land_model_fast
+   logical :: do_chksum = .FALSE. !< If .TRUE., do multiple checksums throughout the execution of the model.
+   logical :: do_land = .FALSE.   !< If true, will call update_land_model_fast
    logical :: use_hyper_thread = .false.
 
    namelist /coupler_nml/ current_date, calendar, force_date_from_namelist, &
@@ -235,11 +244,9 @@ contains
 
 !#######################################################################
 
+  !> reads namelist and restart files, initializes all defined exchange grids and all boundary maps
   subroutine coupler_init
 
-!-----------------------------------------------------------------------
-!   initialize all defined exchange grids and all boundary maps
-!-----------------------------------------------------------------------
     integer :: total_days, total_seconds, ierr, io
     integer :: n, gnlon, gnlat
     integer :: date(6), flags
@@ -468,7 +475,7 @@ contains
   end subroutine coupler_init
 
 !#######################################################################
-
+  !> Finalizes a run and writes restart files
   subroutine coupler_end
 
     integer :: date(6)

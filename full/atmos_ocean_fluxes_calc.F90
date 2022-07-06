@@ -17,7 +17,8 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!
+!> \file
+!> \brief Calculates gas fluxes for atmosphere and ocean 
 module atmos_ocean_fluxes_calc_mod
 
   use FMS

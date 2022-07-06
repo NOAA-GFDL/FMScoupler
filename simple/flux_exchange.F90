@@ -17,7 +17,9 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!
+!> \file
+!> \brief Routines to handle flux exchanges through exchange grids for the
+!! simple coupler.
 module flux_exchange_mod
 
 !-----------------------------------------------------------------------

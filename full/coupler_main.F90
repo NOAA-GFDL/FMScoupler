@@ -17,14 +17,34 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!
+!> \file
+!! \brief Main driver program for full coupler. Provides the capability to couple component
+!! models (atmosphere, land, sea ice, and ocean).
+!!
+!! Please see the [**main page**](index.html) for additional information.
+
 !> \mainpage
 !!
-!! \brief  coupler_main couples component models for atmosphere, ocean,
-!! land and sea ice on independent grids.  It also controls the time integration.
+!! \brief FMS Coupler provides the capability to couple component models (atmosphere, land, sea ice, and ocean)
+!! on different logically rectangular grids.
+!!
+!! This repository holds 3 separate directories with driver programs for different usages
+!! along with modules with routines for common operations.
+!!
+!! There are currently 3 `coupler_main` driver programs, each with their own directory:
+!!   - the original 'full' coupler_main
+!!   - a slimmed down 'simple' version
+!!   - a [**SHiELD**](https://www.gfdl.noaa.gov/shield/) version for use with the model
+!!
+!! Additionally, files in the 'shared' directory holds modules used by multiple drivers.
+!! The information below is provided for the full coupler, but there is considerable overlap between the other
+!! versions. Documentation on all programs and modules is available through the [**files**](files.html) tab.
 !!
 !! \author Bruce Wyman <Bruce.Wyman@noaa.gov>
 !! \author V. Balaji <V.Balaji@noaa.gov>
+!!
+!! [**coupler_main.F90**](full_2coupler__main_8_f90.html) couples component models for atmosphere, ocean,
+!! land and sea ice on independent grids.  It also controls the time integration.
 !!
 !! This version couples model components representing atmosphere, ocean, land
 !! and sea ice on independent grids. Each model component is represented by a
@@ -48,10 +68,10 @@
 !!
 !! \section coupler_namelists  Namelists
 !!
-!! The three components of coupler: coupler_main, flux_exchange_mod, and surface_flux_mod
+!! The three components of coupler: @ref coupler_main , flux_exchange_mod, and surface_flux_mod
 !! are configured through three namelists
 !! * \ref coupler_config "coupler_nml"
-!! * \ref flux_exchange_config "flux_exchange_nml"
+!! * \ref flux_exchange_conf "flux_exchange_nml" 
 !! * \ref surface_flux_config "surface_flux_nml"
 !!
 !!
@@ -64,6 +84,7 @@
 !! -# The run length must be an intergal multiple of the coupling timestep dt_cpld.
 !!
 !! \section Main Program Example
+!! Below is some pseudo-code to illustrate the runtime loop of the coupler_main drivers.
 !!
 !! ~~~~~~~~~~{.f90}
 !! DO slow time steps (ocean)

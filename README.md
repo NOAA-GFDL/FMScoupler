@@ -74,6 +74,14 @@ fields are generated automatically from the three character ids of the participa
 appear in the above initialization call. For example, for atmosphere/sea ice exchange on the
 coupler’s surface exchange grid, the following fields are read by xgrid_mod: I_ATM_ATMxOCN, J_ATM_ATMxOCN, I_OCN_ATMxOCN, J_OCN_ATMxOCN, and AREA_ATMxOCN. These fields were placed in grid_spec.nc by the make_xgrids utility.
 
+### Source Code Documentation
+
+A publicly available version of this repository's doxygen-generated source documentation is
+available at https://noaa-gfdl.github.io/FMScoupler. It is updated upon every release.
+
+Alternatively, documentation can be generated manually by running `doxygen` in the top level of your
+cloned repository.
+
 ## Disclaimer
 
 The United States Department of Commerce (DOC) GitHub project code is provided
