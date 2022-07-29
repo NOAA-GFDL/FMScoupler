@@ -6,6 +6,14 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2022.03] - 2022-08-01
+### Added
+- Added doxygen comments for the simple and shield couplers, and general layout improvements for the generated site. It is now updated upon releases and hosted at noaa-gfdl.github.io/FMScoupler
+
+### Tag Commit Hashes
+2022.03-alpha1 c12af876d4baef20346db8391422b6b6df209c75
+2022.03-beta1  6d4d2b3dce8152400c8c15551763835689de8ddb
+
 ## [2022.02] - 2022-04-29
 ### Removed
 - Removes grid code and variables from SHiELD/coupler_main and fixes data_override_init
