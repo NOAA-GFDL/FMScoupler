@@ -164,6 +164,8 @@ module atm_land_ice_flux_exchange_mod
   integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:), id_tr_ref(:), id_tr_ref_land(:)
   integer, allocatable :: id_tr_mol_flux0(:) !f1p
   integer, allocatable :: id_tr_flux_land(:), id_tr_mol_flux_land(:)
+  integer, allocatable :: id_tr_con_atm_land(:), id_tr_con_ref_land(:)
+  integer, allocatable :: id_tr_con_atm(:), id_tr_con_ref(:)
 
   ! id's for cmip specific fields
   integer :: id_tas, id_uas, id_vas, id_ts, id_psl, &
@@ -183,7 +185,10 @@ module atm_land_ice_flux_exchange_mod
 
   real, parameter :: d622 = rdgas/rvgas
   real, parameter :: d378 = 1.0-d622
+  real, parameter :: d608   = d378/d622
   real, parameter :: tfreeze = 273.15
+
+
   real, allocatable, dimension(:,:) :: frac_precip
 
   !--- the following is from flux_exchange_nml
@@ -257,6 +262,8 @@ module atm_land_ice_flux_exchange_mod
        ex_dfdtr_atm,  & !< d(tracer flux)/d(atm tracer)
        ex_e_tr_n,     & !< coefficient in implicit scheme
        ex_f_tr_delt_n   !< coefficient in implicit scheme
+
+  real, allocatable, dimension(:,:) :: ex_tr_con_ref, ex_tr_con_atm !deposition velocity at reference height and atmospheric height
 
   logical, allocatable, dimension(:) :: &
        ex_avail,     &   !< true where data on exchange grid are available
@@ -742,6 +749,7 @@ contains
          ex_del_q,      &
          ex_frac_open_sea
 
+    real :: rho
     real, dimension(n_xgrid_sfc,n_exch_tr) :: ex_tr_atm, ex_tr_ref
     ! jgj: added for co2_atm diagnostic
     real, dimension(n_xgrid_sfc)           :: ex_co2_atm_dvmr
@@ -797,6 +805,9 @@ contains
          ex_f_tr_delt_n (n_xgrid_sfc, n_exch_tr), &
          ex_e_tr_n      (n_xgrid_sfc, n_exch_tr), &
          ex_con_atm(n_xgrid_sfc), &
+
+         ex_tr_con_ref(n_xgrid_sfc, n_exch_tr), &
+         ex_tr_con_atm(n_xgrid_sfc, n_exch_tr), &
 
          ! MOD these were moved from local ! so they can be passed to flux down
          ex_flux_u(n_xgrid_sfc),    &
@@ -1635,8 +1646,11 @@ contains
     !$OMP                                  ex_rough_mom,ex_rough_heat,ex_rough_moist,ex_u_star,   &
     !$OMP                                  ex_b_star,ex_q_star,ex_del_m,ex_del_h,ex_del_q,        &
     !$OMP                                  ex_tr_ref,n_exch_tr,id_tr_ref,id_tr_ref_land,          &
-    !$OMP                                  ex_avail,ex_ref,ex_tr_surf,ex_tr_atm,isphum)           &
-    !$OMP                          private(is,ie)
+    !$OMP                                  ex_tr_con_ref, id_tr_con_ref, id_tr_con_ref_land,      &
+    !$OMP                                  ex_tr_con_atm, id_tr_con_atm, id_tr_con_atm_land,      &
+    !$OMP                                  ex_avail,ex_ref,ex_tr_surf,ex_tr_atm,isphum,           &
+    !$OMP                                  ex_flux_tr, ex_t_atm,ex_p_surf)                        &
+    !$OMP                          private(is,ie,rho)
     do l = 1, my_nblocks
        is=block_start(l)
        ie=block_end(l)
@@ -1654,9 +1668,15 @@ contains
           ex_tr_ref(i,:) = 1.e-20
           if (ex_avail(i)) then
                ex_ref(i)   = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i)
+               rho         = ex_p_surf(i)/(rdgas * ex_t_atm(i)*(1.0+d608*ex_tr_atm(i,isphum)))
                do tr=1,n_exch_tr
-                  if (id_tr_ref(tr).gt.0 .or. id_tr_ref_land(tr).gt.0) &
-                       ex_tr_ref(i,tr) = ex_tr_surf(i,tr) + (ex_tr_atm(i,tr)-ex_tr_surf(i,tr)) * ex_del_q(i)
+                  if (id_tr_ref(tr).gt.0 .or. id_tr_ref_land(tr).gt.0 .or. id_tr_con_ref(tr).gt.0 .or. id_tr_con_ref_land(tr).gt.0) then
+                     ex_tr_ref(i,tr) = ex_tr_surf(i,tr) + (ex_tr_atm(i,tr)-ex_tr_surf(i,tr)) * ex_del_q(i)
+                     ex_tr_con_ref(i,tr) = -ex_flux_tr(i,tr)/max(ex_tr_ref(i,tr)*rho,epsln)
+                  end if
+                  if (id_tr_con_atm(tr).gt.0 .or. id_tr_con_atm_land(tr).gt.0) then
+                     ex_tr_con_atm(i,tr) = -ex_flux_tr(i,tr)/max(ex_tr_atm(i,tr)*rho,epsln)
+                  end if
                end do
             end if
        enddo
@@ -2898,8 +2918,16 @@ contains
            elseif (id_tr_mol_flux(tr) > 0 .and. lowercase(trim(tr_units)).eq."vmr") then
               call get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
               used = send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMAIR, Time)
-       endif
-       endif
+           endif
+        endif
+        if ( id_tr_con_atm(tr) > 0 ) then
+           call get_from_xgrid (diag_atm, 'ATM', ex_tr_con_atm(:,tr), xmap_sfc)
+           used = send_data ( id_tr_con_atm(tr), diag_atm, Time )
+        end if
+        if ( id_tr_con_ref(tr) > 0 ) then
+           call get_from_xgrid (diag_atm, 'ATM', ex_tr_con_ref(:,tr), xmap_sfc)
+           used = send_data ( id_tr_con_ref(tr), diag_atm, Time )
+        end if
     enddo
 
 #ifndef _USE_LEGACY_LAND_
@@ -2924,6 +2952,19 @@ contains
           endif
        endif
     enddo
+
+    !-------- tracer deposition velocity
+    do tr=1,n_exch_tr
+       if ( id_tr_con_atm_land(tr) > 0 ) then
+          call get_from_xgrid_land (diag_land, 'LND', ex_tr_con_atm(:,tr), xmap_sfc)
+          call send_tile_data (id_tr_con_atm_land(tr), diag_land )
+       endif
+       if ( id_tr_con_ref_land(tr) > 0 ) then
+          call get_from_xgrid_land (diag_land, 'LND', ex_tr_con_ref(:,tr), xmap_sfc )
+          call send_tile_data (id_tr_con_ref_land(tr), diag_land )
+       endif
+    enddo
+
 #endif
 
     !-----------------------------------------------------------------------
@@ -3032,6 +3073,8 @@ contains
          ex_avail    ,  &
          ex_f_t_delt_n, &
          ex_tr_surf  ,  &
+         ex_tr_con_ref, &
+         ex_tr_con_atm, &
 
          ex_dfdtr_surf  , &
          ex_dfdtr_atm   , &
@@ -3433,8 +3476,17 @@ contains
             standard_name='specific_humidity', missing_value=-1.0 )
        allocate(id_tr_flux_land(n_exch_tr))
        allocate(id_tr_mol_flux_land(n_exch_tr))
+       allocate(id_tr_con_atm_land(n_exch_tr))
+       allocate(id_tr_con_ref_land(n_exch_tr))
+
        do tr = 1, n_exch_tr
           call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, name, longname, units )
+
+          id_tr_con_atm_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_tot_con_atm', Land_axes, Time, &
+               'vd of '//trim(longname), 'm/s', missing_value=-1.0 )
+          id_tr_con_ref_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_tot_con_ref', Land_axes, Time, &
+               'vd of '//trim(longname)//' at '//trim(label_zh), 'm/s', missing_value=-1.0 )
+
           id_tr_flux_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_flux', Land_axes, Time, &
                'flux of '//trim(longname), trim(units)//' kg air/(m2 s)', missing_value=-1.0 )
           if ( lowercase(trim(name))=='co2') then
@@ -3461,12 +3513,19 @@ contains
     allocate(id_tr_flux(n_exch_tr))
     allocate(id_tr_mol_flux(n_exch_tr))
     allocate(id_tr_mol_flux0(n_exch_tr))
-
+    allocate(id_tr_con_atm(n_exch_tr))
+    allocate(id_tr_con_ref(n_exch_tr))
     allocate(id_tr_ref(n_exch_tr))
     allocate(id_tr_ref_land(n_exch_tr))
 
     do tr = 1, n_exch_tr
        call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, name, longname, units )
+
+       id_tr_con_atm(tr) = register_tiled_diag_field( mod_name, trim(name)//'_tot_con_atm', atmos_axes, Time, &
+            'vd of '//trim(longname), 'm/s', missing_value=-1.0 )
+       id_tr_con_ref(tr) = register_tiled_diag_field( mod_name, trim(name)//'_tot_con_ref', atmos_axes, Time, &
+            'vd of '//trim(longname)//' at '//trim(label_zh), 'm/s', missing_value=-1.0 )
+
        id_tr_atm(tr) = register_diag_field (mod_name, trim(name)//'_atm', atmos_axes, Time, &
             trim(longname)//' at btm level', trim(units))
        id_tr_surf(tr) = register_diag_field (mod_name, trim(name)//'_surf', atmos_axes, Time, &
@@ -3476,7 +3535,7 @@ contains
        if ( tr .ne. isphum ) then
           id_tr_ref(tr) = register_diag_field (mod_name, trim(name)//'_ref',  atmos_axes, Time, &
                trim(longname)//' at '//trim(label_zh), trim(units),missing_value=-1.0)
-          id_tr_ref_land(tr) = register_diag_field (mod_name, trim(name)//'_ref_land', land_axes, Time, &
+          id_tr_ref_land(tr) = register_diag_field ('flux_land', trim(name)//'_ref_land', land_axes, Time, &
                trim(longname)//' at '//trim(label_zh)//' over land', trim(units),missing_value=-1.0)
        else
           id_tr_ref(tr) = -1
