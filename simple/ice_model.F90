@@ -524,6 +524,11 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
   !enddo
   !enddo
 
+  ! set io domain if not there in order to check files
+  if ( .not. associated(mpp_get_io_domain(Ice%domain)) ) then
+    call mpp_define_io_domain(Ice%domain, (/ 1, 1 /) )
+  endif
+
   ! read the land mask from a file (land=1)
   if (open_file(land_mask_fileobj, 'INPUT/land_mask.nc', 'read', Ice%domain)) then
       call read_data (land_mask_fileobj, 'land_mask', Ice%glon)
