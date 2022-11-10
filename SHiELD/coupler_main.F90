@@ -32,8 +32,9 @@ use atmos_model_mod, only: atmos_model_init, atmos_model_end,  &
                            update_atmos_model_state,           &
                            atmos_data_type, atmos_model_restart
 !--- FMS old io
+#ifdef use_deprecated_io
 use fms_io_mod, only: fms_io_exit!< This can't be removed until fms_io is not used at all
-
+#endif
 implicit none
 
 !-----------------------------------------------------------------------
@@ -454,7 +455,9 @@ contains
    call diag_manager_end (Time_atmos)
 
 !----- to be removed once fms_io is fully deprecated -----
+#ifdef use_deprecated_io
    call fms_io_exit()
+#endif
 
 !-----------------------------------------------------------------------
 
