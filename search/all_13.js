@@ -8,7 +8,7 @@ var searchData=
   ['temp_5fice_386',['temp_ice',['../namespaceice__model__mod.html#a8916b1478604e2da7ecea14cf4dfdf20',1,'ice_model_mod']]],
   ['temp_5fice_5ffreeze_387',['temp_ice_freeze',['../namespaceice__model__mod.html#a12903831181559c162e825549f139e7f',1,'ice_model_mod']]],
   ['temp_5fsst_388',['temp_sst',['../namespaceice__model__mod.html#a04a20dcacf655c21e5f47206ae06f344',1,'ice_model_mod']]],
-  ['tfreeze_389',['tfreeze',['../namespaceatm__land__ice__flux__exchange__mod.html#a8f36d7021f66e3fa87247d3f45450519',1,'atm_land_ice_flux_exchange_mod::tfreeze()'],['../namespaceflux__exchange__mod.html#a7ddeb5da1f6b84553155a11fc11131c4',1,'flux_exchange_mod::tfreeze()']]],
+  ['tfreeze_389',['tfreeze',['../namespaceflux__exchange__mod.html#a7ddeb5da1f6b84553155a11fc11131c4',1,'flux_exchange_mod::tfreeze()'],['../namespaceatm__land__ice__flux__exchange__mod.html#a8f36d7021f66e3fa87247d3f45450519',1,'atm_land_ice_flux_exchange_mod::tfreeze()']]],
   ['thickness_390',['thickness',['../structice__model__mod_1_1ice__data__type.html#a4fc960a59d3520d6acf290a76e0e246b',1,'ice_model_mod::ice_data_type']]],
   ['thickness_5fmin_391',['thickness_min',['../namespaceice__model__mod.html#a753820dd4f1115554e58b0bdc566dd8d',1,'ice_model_mod']]],
   ['time_392',['time',['../structice__model__mod_1_1ice__data__type.html#af64167685ea038310322fc8b5ca9201a',1,'ice_model_mod::ice_data_type']]],
