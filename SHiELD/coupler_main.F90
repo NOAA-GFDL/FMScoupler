@@ -118,19 +118,20 @@ implicit none
 !#######################################################################
 
  call fms_init()
+
+ initClock = mpp_clock_id( '-Initialization' )
+ call mpp_clock_begin (initClock) !nesting problem
+
  call sat_vapor_pres_init()
  call fmsconstants_init()
-
- initClock = mpp_clock_id( 'Initialization' )
- call mpp_clock_begin (initClock) !nesting problem
 
  call coupler_init
  call print_memuse_stats('after coupler init')
 
  call mpp_set_current_pelist()
  call mpp_clock_end (initClock) !end initialization
- mainClock = mpp_clock_id( 'Main loop' )
- termClock = mpp_clock_id( 'Termination' )
+
+ mainClock = mpp_clock_id( '-Main Loop' )
  call mpp_clock_begin(mainClock) !begin main loop
 
  do nc = 1, num_cpld_calls
@@ -178,9 +179,12 @@ implicit none
 
  call mpp_set_current_pelist()
  call mpp_clock_end(mainClock)
+
+ termClock = mpp_clock_id( '-Termination' )
  call mpp_clock_begin(termClock)
 
  call coupler_end
+
  call mpp_set_current_pelist()
  call mpp_clock_end(termClock)
 

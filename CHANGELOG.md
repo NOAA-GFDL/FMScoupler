@@ -6,6 +6,23 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2023.01] - 2023-04-03
+### Fixed
+- Fixed IO domain related failures coming from ice model for the null model test
+### Added
+- Added clock optimizations to the SHiELD coupler
+
+### Tag Commit Hashes
+2023.01-alpha1 7c47be33b4049a96bbce3d9b4cc165dbb147e751
+2023.01-alpha2 7c47be33b4049a96bbce3d9b4cc165dbb147e751
+2023.01-alpha3 7c47be33b4049a96bbce3d9b4cc165dbb147e751
+2023.01-alpha4 7c47be33b4049a96bbce3d9b4cc165dbb147e751
+2023.01-beta1  2571fc016866898255559355b92347cd354082ce
+2023.01-beta2  2571fc016866898255559355b92347cd354082ce
+2023.01-beta3  2571fc016866898255559355b92347cd354082ce
+2023.01-beta4  2571fc016866898255559355b92347cd354082ce
+2023.01-beta5  2571fc016866898255559355b92347cd354082ce
+
 ## [2022.03] - 2022-08-01
 ### Added
 - Added doxygen comments for the simple and shield couplers, and general layout improvements for the generated site. It is now updated upon releases and hosted at noaa-gfdl.github.io/FMScoupler
