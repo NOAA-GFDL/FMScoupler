@@ -1757,7 +1757,7 @@ contains
         call mpp_set_current_pelist(Ice%fast_pelist)
       elseif (Ice%slow_ice_pe) then
         call mpp_set_current_pelist(Ice%slow_pelist)
-      elseif ((.not.Ice%slow_ice_pe).and.(.not.Ice%fast_ice_pe)) then
+      else
         call mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
       endif
       if (mpp_pe().EQ.mpp_root_pe()) then
