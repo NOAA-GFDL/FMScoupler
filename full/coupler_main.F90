@@ -1480,21 +1480,16 @@ contains
         write( text,'(a,2i6,a,i2.2)' )'Ice PE range: ', Ice%pelist(1), Ice%pelist(ice_npes), &
              ' ens_', ensemble_id
         call mpp_error( NOTE, 'coupler_init: '//trim(text) )
-      elseif (concurrent_ice .and. do_atmos) then
-        write( text,'(a,2i6,a,i2.2)' )'Ice PE range: ', Ice%pelist(1), Ice%pelist(ice_npes+ocean_npes), &
-             ' ens_', ensemble_id
-        call mpp_error( NOTE, 'coupler_init: '//trim(text) )
-        call mpp_error( NOTE, 'coupler_init: Running with CONCURRENT ICE coupling.' )
-        write( text,'(a,2i6,a,i2.2)' )'slow Ice PE range: ', Ice%slow_pelist(1), Ice%slow_pelist(ocean_npes), &
-             ' ens_', ensemble_id
-        call mpp_error( NOTE, 'coupler_init: '//trim(text) )
-        write( text,'(a,2i6,a,i2.2)' )'fast Ice PE range: ', Ice%fast_pelist(1), Ice%fast_pelist(ice_npes), &
-             ' ens_', ensemble_id
-        call mpp_error( NOTE, 'coupler_init: '//trim(text) )
-      elseif(concurrent_ice .and. (.not.do_atmos)) then
-        write( text,'(a,2i6,a,i2.2)' )'Ice PE range: ', Ice%pelist(1), Ice%pelist(ice_npes), &
-             ' ens_', ensemble_id
-        call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+      elseif (concurrent_ice) then
+        if (do_atmos) then
+          write( text,'(a,2i6,a,i2.2)' )'Ice PE range: ', Ice%pelist(1), Ice%pelist(ice_npes+ocean_npes), &
+               ' ens_', ensemble_id
+          call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+        elseif ((.not.do_atmos)) then
+          write( text,'(a,2i6,a,i2.2)' )'Ice PE range: ', Ice%pelist(1), Ice%pelist(ice_npes), &
+               ' ens_', ensemble_id
+          call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+        endif
         call mpp_error( NOTE, 'coupler_init: Running with CONCURRENT ICE coupling.' )
         write( text,'(a,2i6,a,i2.2)' )'slow Ice PE range: ', Ice%slow_pelist(1), Ice%slow_pelist(ocean_npes), &
              ' ens_', ensemble_id
@@ -1552,8 +1547,7 @@ contains
     if (Atm%pe) then
       call mpp_set_current_pelist(Atm%pelist)
       if (atmos_npes /= npes) diag_model_subset = DIAG_OTHER  ! change diag_model_subset from DIAG_ALL
-    endif
-    if (Ocean%is_ocean_pe) then  ! Error check above for disjoint pelists should catch any problem
+    elseif (Ocean%is_ocean_pe) then  ! Error check above for disjoint pelists should catch any problem
       call mpp_set_current_pelist(Ocean%pelist)
       ! The FMS diag manager has a convention that segregates files with "ocean"
       ! in their names from the other files to handle long diag tables.  This
@@ -1761,11 +1755,9 @@ contains
     if (Ice%pe) then  ! This occurs for all fast or slow ice PEs.
       if (Ice%fast_ice_pe) then
         call mpp_set_current_pelist(Ice%fast_pelist)
-      endif
-      if (Ice%slow_ice_pe) then
+      elseif (Ice%slow_ice_pe) then
         call mpp_set_current_pelist(Ice%slow_pelist)
-      endif
-      if ((.not.Ice%slow_ice_pe).and.(.not.Ice%fast_ice_pe)) then
+      elseif ((.not.Ice%slow_ice_pe).and.(.not.Ice%fast_ice_pe)) then
         call mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
       endif
       if (mpp_pe().EQ.mpp_root_pe()) then
