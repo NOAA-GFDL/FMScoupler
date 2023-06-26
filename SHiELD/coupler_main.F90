@@ -120,19 +120,19 @@ implicit none
  call fms_init()
 
  initClock = mpp_clock_id( '-Initialization' )
- call mpp_clock_begin (initClock) !nesting problem
+ call fms_mpp_clock_begin (initClock) !nesting problem
 
- call sat_vapor_pres_init()
+ call fms_sat_vapor_pres_sat_vapor_pres_init()
  call fmsconstants_init()
 
  call coupler_init
- call print_memuse_stats('after coupler init')
+ call fms_memutils_print_memuse_stats('after coupler init')
 
- call mpp_set_current_pelist()
- call mpp_clock_end (initClock) !end initialization
+ call fms_mpp_set_current_pelist()
+ call fms_mpp_clock_end (initClock) !end initialization
 
  mainClock = mpp_clock_id( '-Main Loop' )
- call mpp_clock_begin(mainClock) !begin main loop
+ call fms_mpp_clock_begin(mainClock) !begin main loop
 
  do nc = 1, num_cpld_calls
 
@@ -171,22 +171,22 @@ implicit none
       endif
     endif
 
-    call print_memuse_stats('after full step')
+    call fms_memutils_print_memuse_stats('after full step')
 
  enddo
 
 !-----------------------------------------------------------------------
 
- call mpp_set_current_pelist()
- call mpp_clock_end(mainClock)
+ call fms_mpp_set_current_pelist()
+ call fms_mpp_clock_end(mainClock)
 
  termClock = mpp_clock_id( '-Termination' )
- call mpp_clock_begin(termClock)
+ call fms_mpp_clock_begin(termClock)
 
  call coupler_end
 
- call mpp_set_current_pelist()
- call mpp_clock_end(termClock)
+ call fms_mpp_set_current_pelist()
+ call fms_mpp_clock_end(termClock)
 
  call fms_end
 
@@ -219,16 +219,16 @@ contains
    ierr = check_nml_error(io, 'coupler_nml')
 
 !----- write namelist to logfile -----
-   call write_version_number (version, tag)
+   call fms_write_version_number (version, tag)
    if (mpp_pe() == mpp_root_pe()) write(stdlog(),nml=coupler_nml)
 
 !----- allocate and set the pelist (to the global pelist) -----
    allocate( Atm%pelist  (mpp_npes()) )
-   call mpp_get_current_pelist(Atm%pelist)
+   call fms_mpp_get_current_pelist(Atm%pelist)
 
 !----- read restart file -----
     if (file_exists('INPUT/coupler.res')) then
-       call ascii_read('INPUT/coupler.res', restart_file)
+       call fms_fms2_io_ascii_read('INPUT/coupler.res', restart_file)
        read(restart_file(1), *) calendar_type
        read(restart_file(2), *) date_init
        read(restart_file(3), *) date
@@ -263,7 +263,7 @@ contains
 
     endif
 
-    call set_calendar_type (calendar_type)
+    call fms_time_manager_set_calendar_type (calendar_type)
 
 !----- write current/initial date actually used to logfile file -----
     if ( mpp_pe() == mpp_root_pe() ) then
@@ -277,10 +277,10 @@ contains
 
 !-----------------------------------------------------------------------
 !------ initialize diagnostics manager ------
-    call diag_manager_init (TIME_INIT=date)
+    call fms_diag_manager_init (TIME_INIT=date)
 
 !----- always override initial/base date with diag_manager value -----
-    call get_base_date ( date_init(1), date_init(2), date_init(3), &
+    call fms_diag_manager_get_base_date ( date_init(1), date_init(2), date_init(3), &
                          date_init(4), date_init(5), date_init(6)  )
 
 !----- use current date if no base date ------
@@ -314,7 +314,7 @@ contains
     Time_end      = Time_atmos + Run_length
 
     !Need to pass Time_end into diag_manager for multiple thread case.
-    call diag_manager_set_time_end(Time_end)
+    call fms_diag_manager_set_time_end(Time_end)
 
 
 !-----------------------------------------------------------------------
@@ -324,7 +324,7 @@ contains
     month = month_name(date(2))
     if ( mpp_pe() == mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
-    call get_date (Time_end, date(1), date(2), date(3),  &
+    call fms_time_manager_get_date (Time_end, date(1), date(2), date(3),  &
                              date(4), date(5), date(6))
     month = month_name(date(2))
     if ( mpp_pe() == mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
@@ -383,10 +383,10 @@ contains
     call  atmos_model_init (Atm,  Time_init, Time_atmos, Time_step_atmos, &
                             iau_offset)
 
-    call print_memuse_stats('after atmos model init')
+    call fms_memutils_print_memuse_stats('after atmos model init')
 
 !------ initialize data_override -----
-    if (.NOT.Atm%bounded_domain) call data_override_init (Atm_domain_in  = Atm%domain)
+    if (.NOT.Atm%bounded_domain) call fms_data_override_init (Atm_domain_in  = Atm%domain)
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
@@ -408,7 +408,7 @@ contains
 
 !----- compute current date ------
 
-      call get_date (Time_atmos, date(1), date(2), date(3),  &
+      call fms_time_manager_get_date (Time_atmos, date(1), date(2), date(3),  &
                                  date(4), date(5), date(6))
 
 !----- write restart file ------
@@ -443,7 +443,7 @@ contains
       call atmos_model_end (Atm)
 
 
-      call get_date (Time_atmos, date(1), date(2), date(3),  &
+      call fms_time_manager_get_date (Time_atmos, date(1), date(2), date(3),  &
                                  date(4), date(5), date(6))
 
 !----- check time versus expected ending time ----
@@ -455,7 +455,7 @@ contains
     call coupler_restart()
 
 !----- final output of diagnostic fields ----0
-   call diag_manager_end (Time_atmos)
+   call fms_diag_manager_end (Time_atmos)
 
 !----- to be removed once fms_io is fully deprecated -----
    call fms_io_exit()

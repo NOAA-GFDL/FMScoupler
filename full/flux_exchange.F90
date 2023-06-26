@@ -639,10 +639,10 @@ contains
       !! that impact the fluxes.
 
     if (.not.gas_fluxes_initialized) then
-      call atmos_ocean_type_fluxes_init( )
+      call fms_atmos_ocean_type_fluxes_init( )
       call ocean_model_flux_init( )
       call atmos_tracer_flux_init( )
-      call atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
+      call fms_atmos_ocean_fluxes_init(ex_gas_fluxes, ex_gas_fields_atm, ex_gas_fields_ice)
       gas_fluxes_initialized = .true.
     endif
 
@@ -714,7 +714,7 @@ contains
     !       be meaningfully set from the atmospheric model (not from the field table)
     !
 
-    call sat_vapor_pres_init()
+    call fms_sat_vapor_pres_sat_vapor_pres_init()
 
     nthreads = 1
     ! assign nblocks to number of threads.
@@ -731,7 +731,7 @@ contains
     ierr = check_nml_error (io, 'flux_exchange_nml')
 
     !----- write namelist to logfile -----
-    call write_version_number (version, tag)
+    call fms_write_version_number (version, tag)
     if( mpp_pe() == mpp_root_pe() )write( logunit, nml=flux_exchange_nml )
     if(nblocks<1) call error_mesg ('flux_exchange_mod',  &
          'flux_exchange_nml nblocks must be positive', FATAL)
@@ -748,10 +748,10 @@ contains
     if(present(dt_atmos)) Dt_atm = real(dt_atmos)
     if(present(dt_cpld )) Dt_cpl = real(dt_cpld)
 
-    call get_ocean_model_area_elements(Ocean%domain, grid_file)
+    call fms_xgrid_get_ocean_model_area_elements(Ocean%domain, grid_file)
 
     if( Atm%pe )then
-       call mpp_set_current_pelist(Atm%pelist)
+       call fms_mpp_set_current_pelist(Atm%pelist)
        cplClock = mpp_clock_id( 'Land-ice-atm coupler', flags=clock_flag_default, grain=CLOCK_COMPONENT )
        call check_atm_grid(Atm, grid_file)
        call atm_land_ice_flux_exchange_init(Time, Atm, Land, Ice, atmos_ice_boundary, land_ice_atmos_boundary, &
@@ -763,7 +763,7 @@ contains
        call land_ice_flux_exchange_init(Land, Ice, land_ice_boundary, Dt_cpl, do_runoff, cplClock)
     end if
 
-    call mpp_set_current_pelist()
+    call fms_mpp_set_current_pelist()
     call ice_ocean_flux_exchange_init(Time, Ice, Ocean, Ocean_state,ice_ocean_boundary, ocean_ice_boundary, &
          Dt_cpl, debug_stocks, do_area_weighted_flux, ex_gas_fields_ice, ex_gas_fluxes, do_ocean, slow_ice_ocean_pelist )
 
@@ -827,7 +827,7 @@ contains
        endif
     enddo
 
-    call stocks_report(Time)
+    call fms_stock_constant_stocks_report(Time)
 
 
   end subroutine flux_check_stocks
@@ -868,7 +868,7 @@ contains
     enddo
 
 
-    call stocks_report_init(Time)
+    call fms_stocks_report_init(Time)
 
 
   end subroutine flux_init_stocks
@@ -895,13 +895,13 @@ contains
     character(len=20) :: dim_names(2) !> Array of dimension names
     integer :: ppos
 
-    call mpp_get_global_domain(Atm%domain, isg, ieg, jsg, jeg, xsize=nxg, ysize=nyg)
-    call mpp_get_compute_domain(Atm%domain, isc, iec, jsc, jec)
-    call mpp_get_data_domain(Atm%domain, isd, ied, jsd, jed)
+    call fms_mpp_domains_get_global_domain(Atm%domain, isg, ieg, jsg, jeg, xsize=nxg, ysize=nyg)
+    call fms_mpp_domains_get_compute_domain(Atm%domain, isc, iec, jsc, jec)
+    call fms_mpp_domains_get_data_domain(Atm%domain, isd, ied, jsd, jed)
 
     !< Open the grid files with pelist argument so that only one pes open/reads the file
     allocate(pes(mpp_npes()))
-    call mpp_get_current_pelist(pes)
+    call fms_mpp_get_current_pelist(pes)
 
     if ( .not. open_file(grid_file_obj, grid_file, "read", pelist=pes)) then
          call error_mesg ('atm_land_ice_flux_exchange_mod',  &
@@ -916,7 +916,7 @@ contains
     joff = lbound(Atm%lon_bnd,2) - jsc
 
     if(variable_exists(grid_file_obj, "AREA_ATM" ) ) then  ! old grid
-       call get_variable_size(grid_file_obj, "AREA_ATM", siz(1:2))
+       call fms_fms2_io_get_variable_size(grid_file_obj, "AREA_ATM", siz(1:2))
        nlon = siz(1)
        nlat = siz(2)
 
@@ -931,8 +931,8 @@ contains
        end if
        allocate( atmlonb(isg:ieg+1) )
        allocate( atmlatb(jsg:jeg+1) )
-       call read_data(grid_file_obj, 'xba', atmlonb)
-       call read_data(grid_file_obj, 'yba', atmlatb)
+       call fms_fms2_io_read_data(grid_file_obj, 'xba', atmlonb)
+       call fms_fms2_io_read_data(grid_file_obj, 'yba', atmlatb)
 
        do i=isc, iec+1
           if(abs(atmlonb(i)-Atm%lon_bnd(i+ioff,jsc+joff)*45.0/atan(1.0))>bound_tol) then
@@ -954,14 +954,14 @@ contains
        enddo
        deallocate(atmlonb, atmlatb)
     else if(variable_exists(grid_file_obj, "atm_mosaic_file" ) ) then  ! mosaic grid file.
-       call read_data(grid_file_obj, 'atm_mosaic_file', atm_mosaic_file)
+       call fms_fms2_io_read_data(grid_file_obj, 'atm_mosaic_file', atm_mosaic_file)
 
        if ( .not. open_file(atm_mosaic_file_obj, "INPUT/"//trim(atm_mosaic_file)//"", "read", pelist=pes)) then
            call error_mesg ('atm_land_ice_flux_exchange_mod',  &
               & 'Error opening '//trim(atm_mosaic_file), FATAL)
        endif
 
-       call read_data(atm_mosaic_file_obj, "gridfiles", buffer, corner=1)
+       call fms_fms2_io_read_data(atm_mosaic_file_obj, "gridfiles", buffer, corner=1)
 
        !< Remove the .tile from the filename to get basename
        ppos = index(trim(buffer),".tile")
@@ -971,13 +971,13 @@ contains
           tile_file = buffer
        endif
 
-       call close_file(atm_mosaic_file_obj)
+       call fms_fms2_io_close_file(atm_mosaic_file_obj)
 
-       call mpp_copy_domain(Atm%domain, domain2)
-       call mpp_create_super_grid_domain(domain2)
-       call mpp_define_io_domain  (domain2, (/1,1/))
+       call fms_mpp_domains_copy_domain(Atm%domain, domain2)
+       call fms_mpp_domains_create_super_grid_domain(domain2)
+       call fms_mpp_domains_define_io_domain  (domain2, (/1,1/))
 
-       call mpp_get_compute_domain(domain2, isc2, iec2, jsc2, jec2)
+       call fms_mpp_domains_get_compute_domain(domain2, isc2, iec2, jsc2, jec2)
 
        if(isc2 .NE. 2*isc-1 .OR. iec2 .NE. 2*iec+1 .OR. jsc2 .NE. 2*jsc-1 .OR. jec2 .NE. 2*jec+1) then
           call mpp_error(FATAL, 'atm_land_ice_flux_exchange_mod: supergrid domain is not set properly')
@@ -989,7 +989,7 @@ contains
               & 'Error opening '//trim(tile_file), FATAL)
        endif
 
-       call get_variable_size(tile_file_obj, 'area', siz(1:2))
+       call fms_fms2_io_get_variable_size(tile_file_obj, 'area', siz(1:2))
        nlon = siz(1); nlat = siz(2)
        if( mod(nlon,2) .NE. 0) call mpp_error(FATAL,  &
             'atm_land_ice_flux_exchange_mod: atmos supergrid longitude size can not be divided by 2')
@@ -1009,19 +1009,19 @@ contains
        allocate(tmpx(isc2:iec2,jsc2:jec2), tmpy(isc2:iec2,jsc2:jec2) )
 
        !< Register the dimension of the variables "x" and "y" in the atm_mosaic_file
-       call get_variable_dimension_names(tile_file_obj, "x", dim_names)
-       call register_axis(tile_file_obj, dim_names(1), "x")
-       call register_axis(tile_file_obj, dim_names(2), "y")
-       call register_field(tile_file_obj, "x", "double", dim_names)
-       call register_field(tile_file_obj, "y", "double", dim_names)
+       call fms_fms2_io_get_variable_dimension_names(tile_file_obj, "x", dim_names)
+       call fms_fms2_io_register_axis(tile_file_obj, dim_names(1), "x")
+       call fms_fms2_io_register_axis(tile_file_obj, dim_names(2), "y")
+       call fms_fms2_io_register_field(tile_file_obj, "x", "double", dim_names)
+       call fms_fms2_io_register_field(tile_file_obj, "y", "double", dim_names)
 
        !< Read the variables "x" and "y" as domain decomposed variables from the atm_moasic_file
-       call read_data( tile_file_obj, 'x', tmpx)
-       call read_data( tile_file_obj, 'y', tmpy)
+       call fms_fms2_io_read_data( tile_file_obj, 'x', tmpx)
+       call fms_fms2_io_read_data( tile_file_obj, 'y', tmpy)
 
-       call close_file(tile_file_obj)
+       call fms_fms2_io_close_file(tile_file_obj)
 
-       call mpp_deallocate_domain(domain2)
+       call fms_mpp_domains_deallocate_domain(domain2)
 
        do j = jsc, jec+1
           do i = isc, iec+1
@@ -1046,7 +1046,7 @@ contains
        call mpp_error(FATAL, 'atm_land_ice_flux_exchange_mod: both AREA_ATMxOCN and ocn_mosaic_file does not exist in '//trim(grid_file))
     end if
 
-    call close_file(grid_file_obj)
+    call fms_fms2_io_close_file(grid_file_obj)
   end subroutine check_atm_grid
 
 end module flux_exchange_mod

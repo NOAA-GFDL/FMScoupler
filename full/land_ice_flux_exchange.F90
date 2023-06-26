@@ -64,7 +64,7 @@ contains
     fluxLandIceClock = mpp_clock_id( 'Flux land to ice', flags=clock_flag_default, grain=CLOCK_ROUTINE )
 
     if (do_runoff) then
-       call setup_xmap(xmap_runoff, (/ 'LND', 'OCN' /),       &
+       call fms_xgrid_setup_xmap(xmap_runoff, (/ 'LND', 'OCN' /),       &
             (/ Land%Domain, Ice%Domain /),                    &
             "INPUT/grid_spec.nc"             )
        ! exchange grid indices
@@ -73,7 +73,7 @@ contains
        if (n_xgrid_runoff.eq.1) write (*,'(a,i6,6x,a)') 'PE = ', mpp_pe(), 'Runoff  exchange size equals one.'
     endif
 
-    call mpp_get_compute_domain( Ice%domain, is, ie, js, je )
+    call fms_mpp_domains_get_compute_domain( Ice%domain, is, ie, js, je )
 
     !allocate land_ice_boundary
     allocate( land_ice_boundary%runoff(is:ie,js:je) )
@@ -113,34 +113,34 @@ contains
     real, dimension(size(Land_Ice_Boundary%runoff,1),size(Land_Ice_Boundary%runoff,2),1) :: ice_buf
 
     !Balaji
-    call mpp_clock_begin(cplClock)
-    call mpp_clock_begin(fluxLandIceClock)
+    call fms_mpp_clock_begin(cplClock)
+    call fms_mpp_clock_begin(fluxLandIceClock)
 
     ! ccc = conservation_check(Land%discharge, 'LND', xmap_runoff)
     ! if (mpp_pe()==mpp_root_pe()) print *,'RUNOFF', ccc
 
     if (do_runoff) then
-       call put_to_xgrid ( Land%discharge,      'LND', ex_runoff,  xmap_runoff)
-       call put_to_xgrid ( Land%discharge_snow, 'LND', ex_calving, xmap_runoff)
-       call put_to_xgrid ( Land%discharge_heat,      'LND', ex_runoff_hflx,  xmap_runoff)
-       call put_to_xgrid ( Land%discharge_snow_heat, 'LND', ex_calving_hflx, xmap_runoff)
-       call get_from_xgrid (ice_buf, 'OCN', ex_runoff,  xmap_runoff)
+       call fms_xgrid_put_to_xgrid ( Land%discharge,      'LND', ex_runoff,  xmap_runoff)
+       call fms_xgrid_put_to_xgrid ( Land%discharge_snow, 'LND', ex_calving, xmap_runoff)
+       call fms_xgrid_put_to_xgrid ( Land%discharge_heat,      'LND', ex_runoff_hflx,  xmap_runoff)
+       call fms_xgrid_put_to_xgrid ( Land%discharge_snow_heat, 'LND', ex_calving_hflx, xmap_runoff)
+       call fms_xgrid_get_from_xgrid (ice_buf, 'OCN', ex_runoff,  xmap_runoff)
        Land_Ice_Boundary%runoff = ice_buf(:,:,1);
-       call get_from_xgrid (ice_buf, 'OCN', ex_calving, xmap_runoff)
+       call fms_xgrid_get_from_xgrid (ice_buf, 'OCN', ex_calving, xmap_runoff)
        Land_Ice_Boundary%calving = ice_buf(:,:,1);
-       call get_from_xgrid (ice_buf, 'OCN', ex_runoff_hflx,  xmap_runoff)
+       call fms_xgrid_get_from_xgrid (ice_buf, 'OCN', ex_runoff_hflx,  xmap_runoff)
        Land_Ice_Boundary%runoff_hflx = ice_buf(:,:,1);
-       call get_from_xgrid (ice_buf, 'OCN', ex_calving_hflx, xmap_runoff)
+       call fms_xgrid_get_from_xgrid (ice_buf, 'OCN', ex_calving_hflx, xmap_runoff)
        Land_Ice_Boundary%calving_hflx = ice_buf(:,:,1);
        !Balaji
-       call data_override('ICE', 'runoff' , Land_Ice_Boundary%runoff , Time)
-       call data_override('ICE', 'calving', Land_Ice_Boundary%calving, Time)
-       call data_override('ICE', 'runoff_hflx' , Land_Ice_Boundary%runoff_hflx , Time)
-       call data_override('ICE', 'calving_hflx', Land_Ice_Boundary%calving_hflx, Time)
+       call fms_data_override('ICE', 'runoff' , Land_Ice_Boundary%runoff , Time)
+       call fms_data_override('ICE', 'calving', Land_Ice_Boundary%calving, Time)
+       call fms_data_override('ICE', 'runoff_hflx' , Land_Ice_Boundary%runoff_hflx , Time)
+       call fms_data_override('ICE', 'calving_hflx', Land_Ice_Boundary%calving_hflx, Time)
 
        ! compute stock increment
        ice_buf(:,:,1) = Land_Ice_Boundary%runoff + Land_Ice_Boundary%calving
-       call stock_move(from=Lnd_stock(ISTOCK_WATER), to=Ice_stock(ISTOCK_WATER), &
+       call fms_xgrid_stock_move(from=Lnd_stock(ISTOCK_WATER), to=Ice_stock(ISTOCK_WATER), &
             & grid_index=X2_GRID_ICE, &
             & data=ice_buf, &
             & xmap=xmap_runoff, &
@@ -154,8 +154,8 @@ contains
        Land_Ice_Boundary%calving_hflx = 0.0
     endif
 
-    call mpp_clock_end(fluxLandIceClock)
-    call mpp_clock_end(cplClock)
+    call fms_mpp_clock_end(fluxLandIceClock)
+    call fms_mpp_clock_end(cplClock)
 
   end subroutine flux_land_to_ice
 

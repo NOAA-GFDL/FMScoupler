@@ -139,11 +139,11 @@ implicit none
 !#######################################################################
 
    call fms_init()
-   call mpp_init()
+   call fms_mpp_init()
    initClock = mpp_clock_id( 'Initialization' )
    mainClock = mpp_clock_id( 'Main loop' )
    termClock = mpp_clock_id( 'Termination' )
-   call mpp_clock_begin (initClock)
+   call fms_mpp_clock_begin (initClock)
 
    call fms_init
    call fmsconstants_init
@@ -152,8 +152,8 @@ implicit none
    call coupler_init
    if (do_chksum) call coupler_chksum('coupler_init+', 0)
 
-   call mpp_clock_end (initClock) !end initialization
-   call mpp_clock_begin(mainClock) !begin main loop
+   call fms_mpp_clock_end (initClock) !end initialization
+   call fms_mpp_clock_begin(mainClock) !begin main loop
 
 
    !------ ocean/slow-ice integration loop ------
@@ -230,11 +230,11 @@ implicit none
 
 !-----------------------------------------------------------------------
 
-   call mpp_clock_end(mainClock)
-   call mpp_clock_begin(termClock)
+   call fms_mpp_clock_end(mainClock)
+   call fms_mpp_clock_begin(termClock)
 
    call coupler_end
-   call mpp_clock_end(termClock)
+   call fms_mpp_clock_end(termClock)
 
    call fms_end
 
@@ -271,17 +271,17 @@ contains
 
 !----- write namelist to logfile -----
 
-    call write_version_number (version, tag)
+    call fms_write_version_number (version, tag)
     if (mpp_pe() == mpp_root_pe()) write(stdlog(),nml=coupler_nml)
 
 !----- allocate and set the pelist (to the global pelist) -----
     allocate( Atm%pelist  (mpp_npes()) )
-    call mpp_get_current_pelist(Atm%pelist)
+    call fms_mpp_get_current_pelist(Atm%pelist)
 
 !----- read restart file -----
 
     if (file_exists('INPUT/coupler.res')) then
-       call ascii_read('INPUT/coupler.res', restart_file)
+       call fms_fms2_io_ascii_read('INPUT/coupler.res', restart_file)
        read(restart_file(1), *) calendar_type
        read(restart_file(2), *) date_init
        read(restart_file(3), *) date
@@ -321,7 +321,7 @@ contains
 
     endif
 
-    call set_calendar_type (calendar_type)
+    call fms_time_manager_set_calendar_type (calendar_type)
 
 !----- write current/initial date actually used to logfile file -----
 
@@ -338,11 +338,11 @@ contains
 !-----------------------------------------------------------------------
 !------ initialize diagnostics manager ------
 
-    call diag_manager_init
+    call fms_diag_manager_init
 
 !----- always override initial/base date with diag_manager value -----
 
-    call get_base_date ( date_init(1), date_init(2), date_init(3), &
+    call fms_diag_manager_get_base_date ( date_init(1), date_init(2), date_init(3), &
                          date_init(4), date_init(5), date_init(6)  )
 
 !----- use current date if no base date ------
@@ -379,7 +379,7 @@ contains
     Time_end      = Time_atmos + Run_length
 
     !Need to pass Time_end into diag_manager for multiple thread case.
-    call diag_manager_set_time_end(Time_end)
+    call fms_diag_manager_set_time_end(Time_end)
 
 
 !-----------------------------------------------------------------------
@@ -389,7 +389,7 @@ contains
     month = month_name(date(2))
     if ( mpp_pe() == mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
-    call get_date (Time_end, date(1), date(2), date(3),  &
+    call fms_time_manager_get_date (Time_end, date(1), date(2), date(3),  &
                              date(4), date(5), date(6))
     month = month_name(date(2))
     if ( mpp_pe() == mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
@@ -432,12 +432,12 @@ contains
     call  atmos_model_init (Atm,  Time_init, Time_atmos, Time_step_atmos, &
            .false.) ! do_concurrent_radiation
 
-    call mpp_get_global_domain(Atm%Domain, xsize=gnlon, ysize=gnlat)
+    call fms_mpp_domains_get_global_domain(Atm%Domain, xsize=gnlon, ysize=gnlat)
     allocate ( glon_bnd(gnlon+1,gnlat+1), glat_bnd(gnlon+1,gnlat+1) )
-    call mpp_set_domain_symmetry(Atm%Domain, .true.)
-    call mpp_global_field(Atm%Domain, Atm%lon_bnd, glon_bnd, position=CORNER)
-    call mpp_global_field(Atm%Domain, Atm%lat_bnd, glat_bnd, position=CORNER)
-    call mpp_set_domain_symmetry(Atm%Domain, .false.)
+    call fms_mpp_domains_set_domain_symmetry(Atm%Domain, .true.)
+    call fms_mpp_domains_global_field(Atm%Domain, Atm%lon_bnd, glon_bnd, position=CORNER)
+    call fms_mpp_domains_global_field(Atm%Domain, Atm%lat_bnd, glat_bnd, position=CORNER)
+    call fms_mpp_domains_set_domain_symmetry(Atm%Domain, .false.)
 
     call   land_model_init (Atmos_land_boundary, Land, &
                             Time_init, Time_atmos, Time_step_atmos, Time_step_ocean, &
@@ -450,9 +450,9 @@ contains
                             glon_bnd, glat_bnd, atmos_domain=Atm%Domain)
 
 !------ initialize data_override -----
-    call data_override_init(Atm_domain_in = Atm%domain)
-    call data_override_init(Ice_domain_in = Ice%domain)
-    call data_override_init(Land_domain_in = Land%domain)
+    call fms_data_override_init(Atm_domain_in = Atm%domain)
+    call fms_data_override_init(Ice_domain_in = Ice%domain)
+    call fms_data_override_init(Land_domain_in = Land%domain)
 
 !------------------------------------------------------------------------
 !---- setup allocatable storage for fluxes exchanged between models ----
@@ -484,7 +484,7 @@ contains
 
 !----- compute current date ------
 
-    call get_date (Time_atmos, date(1), date(2), date(3),  &
+    call fms_time_manager_get_date (Time_atmos, date(1), date(2), date(3),  &
                                date(4), date(5), date(6))
 
 !----- check time versus expected ending time ----
@@ -512,7 +512,7 @@ contains
     call  land_model_end (Atmos_land_boundary, Land)
     call   ice_model_end (Ice)
 
-    call diag_manager_end (Time_atmos)
+    call fms_diag_manager_diag_manager_end (Time_atmos)
 
     call  fms_io_exit
 
@@ -538,9 +538,9 @@ contains
     type(tracer_ind_type), allocatable :: tr_table(:)
     character(32) :: tr_name
 
-    call get_number_tracers (MODEL_ATMOS, num_tracers=n_atm_tr_tot, &
+    call fms_tracer_manager_get_number_tracers (MODEL_ATMOS, num_tracers=n_atm_tr_tot, &
                              num_prog=n_atm_tr)
-    call get_number_tracers (MODEL_LAND, num_tracers=n_lnd_tr_tot, &
+    call fms_tracer_manager_get_number_tracers (MODEL_LAND, num_tracers=n_lnd_tr_tot, &
                              num_prog=n_lnd_tr)
 
     ! Assemble the table of tracer number translation by matching names of
@@ -549,7 +549,7 @@ contains
     allocate(tr_table(n_atm_tr))
     n = 1
     do i = 1,n_atm_tr
-       call get_tracer_names( MODEL_ATMOS, i, tr_name )
+       call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, i, tr_name )
        tr_table(n)%atm = i
        tr_table(n)%ice = get_tracer_index ( MODEL_ICE,  tr_name )
        tr_table(n)%lnd = get_tracer_index ( MODEL_LAND, tr_name )
@@ -573,7 +573,7 @@ contains
     do tr = 1,n_exch_tr
        n = tr_table(tr)%atm
       if (n /= NO_TRACER) then
-          call get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
+          call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
           write(outunit,100) 'atm%'//trim(tr_name), mpp_chksum(Atm%tr_bot(:,:,n))
        endif
     enddo

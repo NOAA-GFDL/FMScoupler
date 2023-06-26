@@ -249,7 +249,7 @@ endif
 
    if (trim(sst_method) == 'mixed_layer') then
 
-       call get_time ( Ice%Time_step_slow, dt )
+       call fms_time_manager_get_time ( Ice%Time_step_slow, dt )
 
        where (Ice%mask .and. .not. Ice%ice_mask)
           flux_i = ( Atmos_boundary%lw_flux + Atmos_boundary%sw_flux -   &
@@ -361,7 +361,7 @@ endif
 
  !---- get the specified sea-ice fraction -----
 
-    call get_amip_ice (Ice%Time, Amip_ice, ice_frac )
+    call fms_amip_interp_get_amip_ice (Ice%Time, Amip_ice, ice_frac )
 
   ! determine which grid boxes have ice coverage
     where ( Ice%mask(:,:) .and. ice_frac > 0.5 )
@@ -385,7 +385,7 @@ endif
 
  !---- get the specified ocean temperature -----
 
-    call get_amip_sst (Ice%Time, Amip_sst, sea_temp )
+    call fms_amip_interp_get_amip_sst (Ice%Time, Amip_sst, sea_temp )
 
   ! determine which grid boxes have open ocean coverage ----
     where ( Ice%mask(:,:) .and. .not.Ice%ice_mask(:,:))
@@ -433,7 +433,7 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
 
  do_netcdf_restart = .true. !< Always do netcdf!
 
- call write_version_number (version, tagname)
+ call fms_write_version_number (version, tagname)
  if ( mpp_pe() == mpp_root_pe() ) then
     write (stdlog(), nml=ice_model_nml)
  endif
@@ -504,7 +504,7 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
 ! get global domain indices
 ! this assumes that domain2d type has been assigned
 
-  call mpp_get_global_domain ( Ice%Domain, isg, ieg, jsg, jeg )
+  call fms_mpp_domains_get_global_domain ( Ice%Domain, isg, ieg, jsg, jeg )
 
   allocate ( Ice%glon_bnd (isg:ieg+1,jsg:jeg+1), &
              Ice%glat_bnd (isg:ieg+1,jsg:jeg+1), &
@@ -526,18 +526,18 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
 
   ! set io domain if not there in order to check files
   if ( .not. associated(mpp_get_io_domain(Ice%domain)) ) then
-    call mpp_define_io_domain(Ice%domain, (/ 1, 1 /) )
+    call fms_mpp_domains_define_io_domain(Ice%domain, (/ 1, 1 /) )
   endif
 
   ! read the land mask from a file (land=1)
   if (open_file(land_mask_fileobj, 'INPUT/land_mask.nc', 'read', Ice%domain)) then
-      call read_data (land_mask_fileobj, 'land_mask', Ice%glon)
+      call fms_fms2_io_read_data (land_mask_fileobj, 'land_mask', Ice%glon)
       where (Ice%glon > 0.50)
          Ice%gmask = .false.
       elsewhere
          Ice%gmask = .true.
       endwhere
-      call close_file(land_mask_fileobj)
+      call fms_fms2_io_close_file(land_mask_fileobj)
   else
       Ice%gmask = .true.  ! aqua-planet
   endif
@@ -559,7 +559,7 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
 !----------------------------------------------------------
 ! get compute domain indices
 
-  call mpp_get_compute_domain ( Ice%Domain, is, ie, js, je )
+  call fms_mpp_domains_get_compute_domain ( Ice%Domain, is, ie, js, je )
 
   allocate ( Ice%lon_bnd        (is:ie+1,js:je+1), &
              Ice%lat_bnd        (is:ie+1,js:je+1), &
@@ -597,15 +597,15 @@ if (open_file(ice_restart_fileobj, 'INPUT/ice_model.res.nc', 'read', Ice%domain,
    if (mpp_pe() == mpp_root_pe()) call error_mesg ('ice_model_mod', &
             'Reading NetCDF formatted restart file: INPUT/ice_model.res.nc', NOTE)
 
-   call read_data(ice_restart_fileobj, 'mlon', mlon)
-   call read_data(ice_restart_fileobj, 'mlat', mlat)
+   call fms_fms2_io_read_data(ice_restart_fileobj, 'mlon', mlon)
+   call fms_fms2_io_read_data(ice_restart_fileobj, 'mlat', mlat)
    if (mlon /= nlon .or. mlat /= nlat )  &
         call error_mesg ('ice_model_init',           &
                         'incorrect resolution on restart', FATAL)
 
    call ice_register_restart(ice_restart_fileobj, Ice)
-   call read_restart(ice_restart_fileobj)
-   call close_file(ice_restart_fileobj)
+   call fms_fms2_io_read_restart(ice_restart_fileobj)
+   call fms_fms2_io_close_file(ice_restart_fileobj)
 else
   !--- if no restart then no ice ---
       need_ic = .true.
@@ -1131,25 +1131,25 @@ print *, 'pe,count(ice,all,ocean)=',mpp_pe(),count(Ice%ice_mask),count(Ice%mask)
  dim_names(2) = "yaxis_1"
  dim_names(3) = "Time"
 
- call register_axis(fileobj, dim_names(1), "x")
- call register_axis(fileobj, dim_names(2), "y")
- call register_axis(fileobj, dim_names(3), unlimited)
+ call fms_fms2_io_register_axis(fileobj, dim_names(1), "x")
+ call fms_fms2_io_register_axis(fileobj, dim_names(2), "y")
+ call fms_fms2_io_register_axis(fileobj, dim_names(3), unlimited)
 
  !< Register the domain decomposed dimensions as variables so that the combiner can work
  !! correctly
- call register_field(fileobj, dim_names(1), "double", (/dim_names(1)/))
- call register_field(fileobj, dim_names(2), "double", (/dim_names(2)/))
+ call fms_fms2_io_register_field(fileobj, dim_names(1), "double", (/dim_names(1)/))
+ call fms_fms2_io_register_field(fileobj, dim_names(2), "double", (/dim_names(2)/))
 
- call register_restart_field ( fileobj, 't_surf',         Ice%t_surf,         dim_names )
- call register_restart_field ( fileobj, 'thickness',      Ice%thickness,      dim_names )
- call register_restart_field ( fileobj, 'albedo',         Ice%albedo,         dim_names )
- call register_restart_field ( fileobj, 'albedo_vis_dir', Ice%albedo_vis_dir, dim_names )
- call register_restart_field ( fileobj, 'albedo_nir_dir', Ice%albedo_nir_dir, dim_names )
- call register_restart_field ( fileobj, 'albedo_vis_dif', Ice%albedo_vis_dif, dim_names )
- call register_restart_field ( fileobj, 'albedo_nir_dif', Ice%albedo_nir_dif, dim_names )
- call register_restart_field ( fileobj, 'rough_mom',      Ice%rough_mom,      dim_names )
- call register_restart_field ( fileobj, 'rough_heat',     Ice%rough_heat,     dim_names )
- call register_restart_field ( fileobj, 'rough_moist',    Ice%rough_moist,    dim_names )
+ call fms_fms2_io_register_restart_field ( fileobj, 't_surf',         Ice%t_surf,         dim_names )
+ call fms_fms2_io_register_restart_field ( fileobj, 'thickness',      Ice%thickness,      dim_names )
+ call fms_fms2_io_register_restart_field ( fileobj, 'albedo',         Ice%albedo,         dim_names )
+ call fms_fms2_io_register_restart_field ( fileobj, 'albedo_vis_dir', Ice%albedo_vis_dir, dim_names )
+ call fms_fms2_io_register_restart_field ( fileobj, 'albedo_nir_dir', Ice%albedo_nir_dir, dim_names )
+ call fms_fms2_io_register_restart_field ( fileobj, 'albedo_vis_dif', Ice%albedo_vis_dif, dim_names )
+ call fms_fms2_io_register_restart_field ( fileobj, 'albedo_nir_dif', Ice%albedo_nir_dif, dim_names )
+ call fms_fms2_io_register_restart_field ( fileobj, 'rough_mom',      Ice%rough_mom,      dim_names )
+ call fms_fms2_io_register_restart_field ( fileobj, 'rough_heat',     Ice%rough_heat,     dim_names )
+ call fms_fms2_io_register_restart_field ( fileobj, 'rough_moist',    Ice%rough_moist,    dim_names )
 
  end subroutine ice_register_restart
 
@@ -1170,13 +1170,13 @@ print *, 'pe,count(ice,all,ocean)=',mpp_pe(),count(Ice%ice_mask),count(Ice%mask)
 
     if (open_file(ice_restart_fileobj, fname, 'overwrite', Ice%domain, is_restart=.true.)) then
         call ice_register_restart(ice_restart_fileobj, Ice)
-        call register_field(ice_restart_fileobj, "mlon", "double")
-        call register_field(ice_restart_fileobj, "mlat", "double")
-        call write_restart(ice_restart_fileobj)
-        call write_data(ice_restart_fileobj, 'mlon', size(Ice%gmask,1))
-        call write_data(ice_restart_fileobj, 'mlat', size(Ice%gmask,2))
+        call fms_fms2_io_register_field(ice_restart_fileobj, "mlon", "double")
+        call fms_fms2_io_register_field(ice_restart_fileobj, "mlat", "double")
+        call fms_fms2_io_write_restart(ice_restart_fileobj)
+        call fms_fms2_io_write_data(ice_restart_fileobj, 'mlon', size(Ice%gmask,1))
+        call fms_fms2_io_write_data(ice_restart_fileobj, 'mlat', size(Ice%gmask,2))
         call add_domain_dimension_data(ice_restart_fileobj)
-        call close_file(ice_restart_fileobj)
+        call fms_fms2_io_close_file(ice_restart_fileobj)
     endif !< if(open_file)
  endif
 
@@ -1197,12 +1197,12 @@ print *, 'pe,count(ice,all,ocean)=',mpp_pe(),count(Ice%ice_mask),count(Ice%mask)
   integer, dimension(:), allocatable :: buffer !< Buffer with axis data
   integer :: is, ie !< Starting and Ending indices for data
 
-    call get_global_io_domain_indices(fileobj, "xaxis_1", is, ie, indices=buffer)
-    call write_data(fileobj, "xaxis_1", buffer)
+    call fms_fms2_io_get_global_io_domain_indices(fileobj, "xaxis_1", is, ie, indices=buffer)
+    call fms_fms2_io_write_data(fileobj, "xaxis_1", buffer)
     deallocate(buffer)
 
-    call get_global_io_domain_indices(fileobj, "yaxis_1", is, ie, indices=buffer)
-    call write_data(fileobj, "yaxis_1", buffer)
+    call fms_fms2_io_get_global_io_domain_indices(fileobj, "yaxis_1", is, ie, indices=buffer)
+    call fms_fms2_io_write_data(fileobj, "yaxis_1", buffer)
     deallocate(buffer)
  end subroutine add_domain_dimension_data
 

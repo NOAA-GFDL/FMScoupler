@@ -288,8 +288,8 @@ subroutine surface_flux_1d (                                           &
 
   t_surf1 = t_surf0 + del_temp
 
-  call escomp ( t_surf0, e_sat  )  ! saturation vapor pressure
-  call escomp ( t_surf1, e_sat1 )  ! perturbed  vapor pressure
+  call fms_sat_vapor_pres_escomp ( t_surf0, e_sat  )  ! saturation vapor pressure
+  call fms_sat_vapor_pres_escomp ( t_surf1, e_sat1 )  ! perturbed  vapor pressure
 
   if(use_mixing_ratio) then
     ! surface mixing ratio at saturation
@@ -366,7 +366,7 @@ subroutine surface_flux_1d (                                           &
   endif
 
   !  monin-obukhov similarity theory
-  call mo_drag (thv_atm, thv_surf, z_atm,                  &
+  call fms_monin_obukhov_mo_drag (thv_atm, thv_surf, z_atm,                  &
        rough_mom, rough_heat, rough_moist, w_atm,          &
        cd_m, cd_t, cd_q, u_star, b_star, avail             )
 
@@ -685,14 +685,14 @@ subroutine surface_flux_init
   ierr = check_nml_error(io,'surface_flux_nml')
 
   ! write version number
-  call write_version_number(version, tagname)
+  call fms_write_version_number(version, tagname)
 
   unit = stdlog()
   if ( mpp_pe() == mpp_root_pe() )  write (unit, nml=surface_flux_nml)
 
   if(.not. use_virtual_temp) d608 = 0.0
 
-  call monin_obukhov_init()
+  call fms_monin_obukhov_init()
 
   module_is_initialized = .true.
 

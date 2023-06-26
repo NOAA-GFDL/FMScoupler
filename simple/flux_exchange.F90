@@ -339,7 +339,7 @@ real :: zrefm, zrefh
        !---- optimize calculation ----
         if ( id_t_ref <= 0 ) zrefh = zrefm
 
-         call mo_profile ( zrefm, zrefh, Atm%z_bot,           &
+         call fms_monin_obukhov_mo_profile ( zrefm, zrefh, Atm%z_bot,           &
                           rough_mom, rough_heat, rough_moist, &
                           u_star, b_star, q_star,             &
                           del_m, del_h, del_q                 )
@@ -352,8 +352,8 @@ real :: zrefm, zrefh
 
          t_ref = t_ca + (Atm%t_bot-t_ca) * del_h
          !call escomp (t_ref, qs_ref)
-         call compute_qs (t_ref, p_surf, qs_ref, q = ref)
-         call compute_qs (t_ref, p_surf, qs_ref_cmip,  &
+         call fms_sat_vapor_pres_compute_qs (t_ref, p_surf, qs_ref, q = ref)
+         call fms_sat_vapor_pres_compute_qs (t_ref, p_surf, qs_ref_cmip,  &
             q = ref, es_over_liq_and_ice = .true.)
          qs_ref = d622*qs_ref/(p_surf-d378*qs_ref)
 
@@ -578,7 +578,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
   endwhere
 
  !??????? should this be done in land model ??????
-  call escomp (t_surf_new, q_surf_new)
+  call fms_sat_vapor_pres_escomp (t_surf_new, q_surf_new)
   where (Land%mask(:,:,1))
      q_surf_new = Land%tr(:,:,1,1)
   elsewhere
@@ -623,7 +623,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
    if ( id_hfss   > 0 ) used = send_data ( id_hfss,   flux_t,     Time )
    if ( id_ts     > 0 ) used = send_data ( id_ts,     t_surf_new, Time )
 
-   call sum_diag_integral_field ('evap', flux_q*86400.)
+   call fms_sum_diag_integral_field ('evap', flux_q*86400.)
 
 !=======================================================================
 !---- deallocate module storage ----
@@ -668,20 +668,20 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 !-----------------------------------------------------------------------
 !----- save the grid indices -----
 
-   call mpp_get_compute_domain (Atm%Domain, is, ie, js, je )
+   call fms_mpp_domains_get_compute_domain (Atm%Domain, is, ie, js, je )
 
 !--------- write version number and namelist ------------------
 
-   call write_version_number (version, tag)
+   call fms_write_version_number (version, tag)
    if ( mpp_pe() == mpp_root_pe() ) write (stdlog(), nml=flux_exchange_nml)
 
 
-   call diag_integral_field_init ('evap', 'f6.3')
-   call diag_field_init ( Time, Atm%axes(1:2) )
+   call fms_diag_integral_field_init ('evap', 'f6.3')
+   call fms_diag_field_init ( Time, Atm%axes(1:2) )
 
 !----- find out number of atmospheric prognostic tracers and index of specific
 !      humidity in the tracer table
-   call get_number_tracers (MODEL_ATMOS, num_tracers=n_atm_tr_tot, &
+   call fms_tracer_manager_get_number_tracers (MODEL_ATMOS, num_tracers=n_atm_tr_tot, &
                             num_prog=n_atm_tr)
    isphum = get_tracer_index( MODEL_ATMOS, 'sphum' )
    if (isphum==NO_TRACER) &
@@ -689,7 +689,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 !-----------------------------------------------------------------------
 !------ allocate atmos_land_boundary ------
 
-   call mpp_get_compute_domain ( Land%Domain, isc, iec, jsc, jec )
+   call fms_mpp_domains_get_compute_domain ( Land%Domain, isc, iec, jsc, jec )
    if (isc /= is .or. iec /= ie .or. jsc /= js .or. jec /= je ) &
          call error_mesg ('flux_exchange_init', 'land model '// &
                 'domain does not match atmosphere domain', FATAL)
@@ -733,7 +733,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 !-----------------------------------------------------------------------
 !------ allocate atmos ice boundary ------
 
-   call mpp_get_compute_domain ( Ice%Domain, isc, iec, jsc, jec )
+   call fms_mpp_domains_get_compute_domain ( Ice%Domain, isc, iec, jsc, jec )
    if (isc /= is .or. iec /= ie .or. jsc /= js .or. jec /= je ) &
           call error_mesg ('flux_exchange_init', 'ice model '// &
                 'domain does not match atmosphere domain', FATAL)
@@ -1067,7 +1067,7 @@ subroutine diag_field_init ( Time, atmos_axes )
                             'Near-Surface Air Temperature', 'K' , &
                              standard_name='air_temperature' )
     if ( id_tas > 0 .and. id_height2m > 0) &
-       call diag_field_add_attribute( id_tas, 'coordinates', 'height2m' )
+       call fms_diag_manager_diag_field_add_attribute( id_tas, 'coordinates', 'height2m' )
 ! in diag table include height2m wherever tas is included
 
     id_evspsbl = register_cmip_diag_field_2d ( mod_name, 'evspsbl', Time, &
@@ -1078,31 +1078,31 @@ subroutine diag_field_init ( Time, atmos_axes )
                            'Eastward Near-Surface Wind', 'm s-1', &
                             standard_name='eastward_wind' )
     if ( id_uas > 0 .and. id_height10m > 0) &
-       call diag_field_add_attribute( id_uas, 'coordinates', 'height10m' )
+       call fms_diag_manager_diag_field_add_attribute( id_uas, 'coordinates', 'height10m' )
 
     id_vas = register_cmip_diag_field_2d ( mod_name, 'vas', Time, &
                           'Northward Near-Surface Wind', 'm s-1', &
                            standard_name='northward_wind' )
     if ( id_vas > 0 .and. id_height10m > 0 ) &
-       call diag_field_add_attribute( id_vas, 'coordinates', 'height10m' )
+       call fms_diag_manager_diag_field_add_attribute( id_vas, 'coordinates', 'height10m' )
 
     id_sfcWind = register_cmip_diag_field_2d ( mod_name, 'sfcWind', Time, &
                                       'Near-Surface Wind Speed', 'm s-1', &
                                        standard_name='wind_speed' )
     if ( id_sfcWind > 0 .and. id_height10m > 0 ) &
-       call diag_field_add_attribute( id_sfcWind, 'coordinates', 'height10m' )
+       call fms_diag_manager_diag_field_add_attribute( id_sfcWind, 'coordinates', 'height10m' )
 
     id_huss = register_cmip_diag_field_2d ( mod_name, 'huss', Time, &
                            'Near-Surface Specific Humidity', '1.0', &
                             standard_name='specific_humidity' )
     if ( id_huss > 0 .and. id_height2m > 0 ) &
-       call diag_field_add_attribute( id_huss, 'coordinates', 'height2m' )
+       call fms_diag_manager_diag_field_add_attribute( id_huss, 'coordinates', 'height2m' )
 
     id_hurs = register_cmip_diag_field_2d ( mod_name, 'hurs', Time, &
                              'Near-Surface Relative Humidity', '%', &
                               standard_name='relative_humidity' )
     if ( id_hurs > 0 .and. id_height2m > 0 ) &
-       call diag_field_add_attribute( id_hurs, 'coordinates', 'height2m' )
+       call fms_diag_manager_diag_field_add_attribute( id_hurs, 'coordinates', 'height2m' )
 
     id_ts = register_cmip_diag_field_2d ( mod_name, 'ts', Time, &
                                     'Surface Temperature', 'K', &
@@ -1124,7 +1124,7 @@ subroutine diag_field_init ( Time, atmos_axes )
                         'Surface Upward Latent Heat Flux', 'W m-2', &
                     standard_name='surface_upward_latent_heat_flux' )
     if ( id_hfls > 0 ) &
-       call diag_field_add_attribute( id_hfls, 'comment', 'Lv*evap' )
+       call fms_diag_manager_diag_field_add_attribute( id_hfls, 'comment', 'Lv*evap' )
 
     id_hfss = register_cmip_diag_field_2d ( mod_name, 'hfss', Time, &
                       'Surface Upward Sensible Heat Flux', 'W m-2', &
