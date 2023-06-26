@@ -43,13 +43,13 @@ contains
   !! \throw FATAL, "Unknown flux type ([flux_type]) for [name]"
   subroutine atmos_ocean_fluxes_calc(gas_fields_atm, gas_fields_ice,&
       & gas_fluxes, seawater, tsurf, ustar, cd_m)
-    type(coupler_1d_bc_type), intent(in)    :: gas_fields_atm !< Structure containing atmospheric surface
+    type(fms_coupler_1d_bc_type), intent(in)    :: gas_fields_atm !< Structure containing atmospheric surface
                                                               !! variables that are used in the calculation
                                                               !! of the atmosphere-ocean gas fluxes.
-    type(coupler_1d_bc_type), intent(in)    :: gas_fields_ice !< Structure containing ice-top and ocean
+    type(fms_coupler_1d_bc_type), intent(in)    :: gas_fields_ice !< Structure containing ice-top and ocean
                                                               !! surface variables that are used in the
                                                               !! calculation of the atmosphere-ocean gas fluxes.
-    type(coupler_1d_bc_type), intent(inout) :: gas_fluxes !< Structure containing the gas fluxes between
+    type(fms_coupler_1d_bc_type), intent(inout) :: gas_fluxes !< Structure containing the gas fluxes between
                                                           !! the atmosphere and the ocean and parameters
                                                           !! related to the calculation of these fluxes.
     real, dimension(:), intent(in)           :: seawater  !< 1 for the open water category, 0 if ice or land.

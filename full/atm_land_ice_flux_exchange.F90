@@ -241,10 +241,10 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
   integer :: isphum = NO_TRACER       !< index of specific humidity tracer in tracer table
   integer :: ico2   = NO_TRACER       !< index of co2 tracer in tracer table
   integer :: inh3   = NO_TRACER       !< index of nh3 tracer in tracer table
-  type(coupler_1d_bc_type), pointer :: ex_gas_fields_atm=>NULL() !< gas fields in atm
+  type(fms_coupler_1d_bc_type), pointer :: ex_gas_fields_atm=>NULL() !< gas fields in atm
                                                                  !< Place holder for various atmospheric fields.
-  type(coupler_1d_bc_type), pointer :: ex_gas_fields_ice=>NULL() ! gas fields on ice
-  type(coupler_1d_bc_type), pointer :: ex_gas_fluxes=>NULL()     ! gas flux
+  type(fms_coupler_1d_bc_type), pointer :: ex_gas_fields_ice=>NULL() ! gas fields on ice
+  type(fms_coupler_1d_bc_type), pointer :: ex_gas_fluxes=>NULL()     ! gas flux
                                                                  !< Place holder of intermediate calculations, such as
                                                                  !< piston velocities etc.
 
@@ -305,7 +305,7 @@ contains
     logical,              intent(in)    :: do_forecast_in, partition_fprec_from_lprec_in
     integer,              intent(in)    :: nblocks_in
     integer,              intent(in)    :: cplClock_in
-    type(coupler_1d_bc_type), intent(in), target :: ex_gas_fields_atm_in, ex_gas_fields_ice_in, ex_gas_fluxes_in
+    type(fms_coupler_1d_bc_type), intent(in), target :: ex_gas_fields_atm_in, ex_gas_fields_ice_in, ex_gas_fluxes_in
 
     character(len=48), parameter :: module_name = 'flux_exchange_mod'
     character(len=64), parameter    :: sub_name = 'flux_exchange_init'

@@ -1182,7 +1182,7 @@ contains
     integer :: time_stamp_unit !< Unif of the time_stamp file
     integer :: ascii_unit  !< Unit of a dummy ascii file
 
-    type(coupler_1d_bc_type), pointer :: &
+    type(fms_coupler_1d_bc_type), pointer :: &
       gas_fields_atm => NULL(), &  ! A pointer to the type describing the
               ! atmospheric fields that will participate in the gas fluxes.
       gas_fields_ocn => NULL(), &  ! A pointer to the type describing the ocean

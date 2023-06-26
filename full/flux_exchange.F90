@@ -591,15 +591,15 @@ module flux_exchange_mod
        & partition_fprec_from_lprec, scale_precip_2d
 
   logical :: gas_fluxes_initialized = .false.  ! This is set to true when the following types are initialized.
-  type(coupler_1d_bc_type), target :: ex_gas_fields_atm  ! gas fields in atm
+  type(fms_coupler_1d_bc_type), target :: ex_gas_fields_atm  ! gas fields in atm
       !< Structure containing atmospheric surfacevariables that are used in the
       !! calculation of the atmosphere-ocean gas fluxes, as well as parameters
       !! regulating these fluxes.
-  type(coupler_1d_bc_type), target :: ex_gas_fields_ice  ! gas fields atop the ice or ocean
+  type(fms_coupler_1d_bc_type), target :: ex_gas_fields_ice  ! gas fields atop the ice or ocean
       !< Structure containing ice-top and ocean surface variables that are used
       !! in the calculation of the atmosphere-ocean gas fluxes, as well as parameters
       !! regulating these fluxes.
-  type(coupler_1d_bc_type), target :: ex_gas_fluxes      ! gas fluxes between the atm and ocean
+  type(fms_coupler_1d_bc_type), target :: ex_gas_fluxes      ! gas fluxes between the atm and ocean
       !< A structure for exchanging gas or tracer fluxes between the atmosphere and ocean,
       !! defined by the field table, as well as a place holder of intermediate calculations,
       !! such as piston velocities, and parameters that impact the fluxes.
@@ -624,15 +624,15 @@ contains
   !! ex_gas_fluxes and ex_gas_fields arrays, although the data is not allocated yet.
   !! This is intended to be called (optionally) prior to flux_exchange_init.
   subroutine gas_exchange_init (gas_fields_atm, gas_fields_ice, gas_fluxes)
-    type(coupler_1d_bc_type), optional, pointer :: gas_fields_atm
+    type(fms_coupler_1d_bc_type), optional, pointer :: gas_fields_atm
       !< Pointer to a structure containing atmospheric surface variables that
       !! are used in the calculation of the atmosphere-ocean gas fluxes, as well
       !! as parameters regulating these fluxes.
-    type(coupler_1d_bc_type), optional, pointer :: gas_fields_ice
+    type(fms_coupler_1d_bc_type), optional, pointer :: gas_fields_ice
       !< Pointer to a structure containing ice-top and ocean surface variables
       !! that are used in the calculation of the atmosphere-ocean gas fluxes,
       !! as well as parameters regulating these fluxes.
-    type(coupler_1d_bc_type), optional, pointer :: gas_fluxes
+    type(fms_coupler_1d_bc_type), optional, pointer :: gas_fluxes
       !< Pointer to a s structure for exchanging gas or tracer fluxes between the
       !! atmosphere and ocean, defined by the field table, as well as a place holder
       !! of intermediate calculations, such as piston velocities, and parameters
