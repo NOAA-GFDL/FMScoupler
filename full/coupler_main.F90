@@ -337,8 +337,9 @@ program coupler_main
   use FMS, status_fms=>status
   use FMSconstants, only: fmsconstants_init
 
-  !< Can't get rid of this until fms_io is no longer used at all
+#ifdef use_deprecated_io
   use fms_io_mod,              only: fms_io_exit
+#endif
 
 ! model interfaces used to couple the component models:
 !               atmosphere, land, ice, and ocean
@@ -1960,7 +1961,9 @@ contains
     call coupler_restart(Time, Time_restart_current)
 
     call diag_manager_end (Time)
+#ifdef use_deprecated_io
     call fms_io_exit
+#endif
     call mpp_set_current_pelist()
 
 !-----------------------------------------------------------------------
