@@ -184,6 +184,9 @@ tarFile=coupler_null_test_data_full_simple.tar.gz
 wget ftp://ftp.gfdl.noaa.gov/perm/GFDL_pubrelease/test_data/${tarFile}
 tar zxf ${tarFile}
 
+# add an io layout to the full nml
+sed -i '22i  io_layout = 1, 1' input-full.nml
+
 # Get the full namelist
 ln -s input-full.nml input.nml
 # Run the null model with the full coupler
