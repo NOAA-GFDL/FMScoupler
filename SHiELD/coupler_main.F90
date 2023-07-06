@@ -48,7 +48,7 @@ implicit none
 !-----------------------------------------------------------------------
 ! ----- coupled model time -----
 
-   type (time_type) :: Time_atmos, Time_init, Time_end,  &
+   type (FmsTime_type) :: Time_atmos, Time_init, Time_end,  &
                        Time_step_atmos, Time_step_ocean, &
                        Time_restart, Time_step_restart,  &
                        Time_start_restart, Time_restart_aux, &
@@ -119,10 +119,10 @@ implicit none
 
  call fms_init()
 
- initClock = mpp_clock_id( '-Initialization' )
+ initClock = fms_mpp_clock_id( '-Initialization' )
  call fms_mpp_clock_begin (initClock) !nesting problem
 
- call fms_sat_vapor_pres_sat_vapor_pres_init()
+ call fms_sat_vapor_pres_init()
  call fmsconstants_init()
 
  call coupler_init
@@ -131,7 +131,7 @@ implicit none
  call fms_mpp_set_current_pelist()
  call fms_mpp_clock_end (initClock) !end initialization
 
- mainClock = mpp_clock_id( '-Main Loop' )
+ mainClock = fms_mpp_clock_id( '-Main Loop' )
  call fms_mpp_clock_begin(mainClock) !begin main loop
 
  do nc = 1, num_cpld_calls
@@ -148,15 +148,15 @@ implicit none
     if (intrm_rst) then
       if (nc /= num_cpld_calls) then
         if (intrm_rst_1step .and. nc == 1) then
-          timestamp = date_to_string (Time_atmos)
+          timestamp = fms_time_manager_date_to_string (Time_atmos)
           call atmos_model_restart(Atm, timestamp)
           call coupler_restart(timestamp)
         endif
         if (Time_atmos == Time_restart .or. Time_atmos == Time_restart_aux) then
           if (Time_atmos == Time_restart) then
-            timestamp = date_to_string (Time_restart)
+            timestamp = fms_time_manager_date_to_string (Time_restart)
           else
-            timestamp = date_to_string (Time_restart_aux)
+            timestamp = fms_time_manager_date_to_string (Time_restart_aux)
           endif
           call atmos_model_restart(Atm, timestamp)
           call coupler_restart(timestamp)
@@ -180,7 +180,7 @@ implicit none
  call fms_mpp_set_current_pelist()
  call fms_mpp_clock_end(mainClock)
 
- termClock = mpp_clock_id( '-Termination' )
+ termClock = fms_mpp_clock_id( '-Termination' )
  call fms_mpp_clock_begin(termClock)
 
  call coupler_end
@@ -203,7 +203,7 @@ contains
     integer :: total_days, total_seconds, unit, ierr, io
     integer :: n
     integer :: date(6), flags
-    type (time_type) :: Run_length
+    type (FmsTime_type) :: Run_length
     character(len=9) :: month
 
     character(len=:), dimension(:), allocatable :: restart_file !< Restart file saved as a string
@@ -215,20 +215,20 @@ contains
 
 !----- read namelist -------
 !----- for backwards compatibilty read from file coupler.nml -----
-   read(input_nml_file, nml=coupler_nml, iostat=io)
+   read(fms_mpp_input_nml_file, nml=coupler_nml, iostat=io)
    ierr = check_nml_error(io, 'coupler_nml')
 
 !----- write namelist to logfile -----
    call fms_write_version_number (version, tag)
-   if (mpp_pe() == mpp_root_pe()) write(stdlog(),nml=coupler_nml)
+   if (fms_mpp_pe() == fms_mpp_root_pe()) write(fms_mpp_stdlog(),nml=coupler_nml)
 
 !----- allocate and set the pelist (to the global pelist) -----
-   allocate( Atm%pelist  (mpp_npes()) )
+   allocate( Atm%pelist  (fms_mpp_npes()) )
    call fms_mpp_get_current_pelist(Atm%pelist)
 
 !----- read restart file -----
-    if (file_exists('INPUT/coupler.res')) then
-       call fms_fms2_io_ascii_read('INPUT/coupler.res', restart_file)
+    if (fms2_io_file_exists('INPUT/coupler.res')) then
+       call fms2_io_ascii_read('INPUT/coupler.res', restart_file)
        read(restart_file(1), *) calendar_type
        read(restart_file(2), *) date_init
        read(restart_file(3), *) date
@@ -247,7 +247,7 @@ contains
       endif
 
 !----- override calendar type with namelist value -----
-      select case( uppercase(trim(calendar)) )
+      select case( fms_mpp_uppercase(trim(calendar)) )
       case( 'JULIAN' )
           calendar_type = JULIAN
       case( 'NOLEAP' )
@@ -257,7 +257,7 @@ contains
       case( 'NO_CALENDAR' )
           calendar_type = NO_CALENDAR
       case default
-          call mpp_error ( FATAL, 'COUPLER_MAIN: coupler_nml entry calendar must '// &
+          call fms_mpp_error ( FATAL, 'COUPLER_MAIN: coupler_nml entry calendar must '// &
                                   'be one of JULIAN|NOLEAP|THIRTY_DAY|NO_CALENDAR.' )
       end select
 
@@ -266,8 +266,8 @@ contains
     call fms_time_manager_set_calendar_type (calendar_type)
 
 !----- write current/initial date actually used to logfile file -----
-    if ( mpp_pe() == mpp_root_pe() ) then
-      write (stdlog(),16) date(1),trim(month_name(date(2))),date(3:6)
+    if ( fms_mpp_pe() == fms_mpp_root_pe() ) then
+      write (fms_mpp_stdlog(),16) date(1),trim(fms_time_manager_month_name(date(2))),date(3:6)
     endif
  16 format ('  current date used = ',i4,1x,a,2i3,2(':',i2.2),' gmt')
 
@@ -277,20 +277,20 @@ contains
 
 !-----------------------------------------------------------------------
 !------ initialize diagnostics manager ------
-    call fms_diag_manager_init (TIME_INIT=date)
+    call fms_diag_init (TIME_INIT=date)
 
 !----- always override initial/base date with diag_manager value -----
-    call fms_diag_manager_get_base_date ( date_init(1), date_init(2), date_init(3), &
+    call fms_diag_get_base_date ( date_init(1), date_init(2), date_init(3), &
                          date_init(4), date_init(5), date_init(6)  )
 
 !----- use current date if no base date ------
     if ( date_init(1) == 0 ) date_init = date
 
 !----- set initial and current time types ------
-    Time_init  = set_date (date_init(1), date_init(2), date_init(3), &
+    Time_init  = fms_time_manager_set_date (date_init(1), date_init(2), date_init(3), &
                            date_init(4), date_init(5), date_init(6))
 
-    Time_atmos = set_date (date(1), date(2), date(3),  &
+    Time_atmos = fms_time_manager_set_date (date(1), date(2), date(3),  &
                            date(4), date(5), date(6))
 
 !-----------------------------------------------------------------------
@@ -304,52 +304,52 @@ contains
     Time_end = Time_atmos
     total_days = 0
     do n = 1, months
-       total_days = total_days + days_in_month(Time_end)
-       Time_end = Time_atmos + set_time (0,total_days)
+       total_days = total_days + fms_time_manager_days_in_month(Time_end)
+       Time_end = Time_atmos + fms_time_manager_set_time (0,total_days)
     enddo
 
     total_days    = total_days + days
     total_seconds = hours*3600 + minutes*60 + seconds
-    Run_length    = set_time (total_seconds,total_days)
+    Run_length    = fms_time_manager_set_time (total_seconds,total_days)
     Time_end      = Time_atmos + Run_length
 
     !Need to pass Time_end into diag_manager for multiple thread case.
-    call fms_diag_manager_set_time_end(Time_end)
+    call fms_diag_set_time_end(Time_end)
 
 
 !-----------------------------------------------------------------------
 !----- write time stamps (for start time and end time) ------
-    if ( mpp_pe().EQ.mpp_root_pe() ) open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
 
-    month = month_name(date(2))
-    if ( mpp_pe() == mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
+    month = fms_time_manager_month_name(date(2))
+    if ( fms_mpp_pe() == fms_mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
     call fms_time_manager_get_date (Time_end, date(1), date(2), date(3),  &
                              date(4), date(5), date(6))
-    month = month_name(date(2))
-    if ( mpp_pe() == mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
+    month = fms_time_manager_month_name(date(2))
+    if ( fms_mpp_pe() == fms_mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
-    if ( mpp_pe().EQ.mpp_root_pe() ) close (time_stamp_unit)
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) close (time_stamp_unit)
 
  20 format (6i4,2x,a3)
 
 !-----------------------------------------------------------------------
 !----- compute the time steps ------
-    Time_step_atmos = set_time (dt_atmos,0)
-    Time_step_ocean = set_time (dt_ocean,0)
+    Time_step_atmos = fms_time_manager_set_time (dt_atmos,0)
+    Time_step_ocean = fms_time_manager_set_time (dt_ocean,0)
     num_cpld_calls  = Run_length / Time_step_ocean
     num_atmos_calls = Time_step_ocean / Time_step_atmos
 
-    Time_step_restart = set_time (restart_secs, restart_days)
+    Time_step_restart = fms_time_manager_set_time (restart_secs, restart_days)
     if (restart_start_secs > 0 .or. restart_start_days > 0) then
-       Time_start_restart = set_time (restart_start_secs, restart_start_days)
+       Time_start_restart = fms_time_manager_set_time (restart_start_secs, restart_start_days)
        Time_restart = Time_atmos + Time_start_restart
     else
        Time_restart = Time_atmos + Time_step_restart
     end if
-    Time_step_restart_aux = set_time (restart_secs_aux, restart_days_aux)
-    Time_duration_restart_aux = set_time (restart_duration_secs_aux, restart_duration_days_aux)
-    Time_start_restart_aux = set_time (restart_start_secs_aux, restart_start_days_aux)
+    Time_step_restart_aux = fms_time_manager_set_time (restart_secs_aux, restart_days_aux)
+    Time_duration_restart_aux = fms_time_manager_set_time (restart_duration_secs_aux, restart_duration_days_aux)
+    Time_start_restart_aux = fms_time_manager_set_time (restart_start_secs_aux, restart_start_days_aux)
     Time_restart_aux = Time_atmos + Time_start_restart_aux
     Time_restart_end_aux = Time_restart_aux + Time_duration_restart_aux
 
@@ -390,7 +390,7 @@ contains
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
-    if ( mpp_pe() == 0) then
+    if ( fms_mpp_pe() == 0) then
        open(newunit = ascii_unit, file='RESTART/file', status='replace', form='formatted')
        close(ascii_unit,status="delete")
     endif
@@ -419,7 +419,7 @@ contains
       file_res = 'RESTART/'//trim(time_stamp)//'.coupler.res'
     endif
 
-    if ( mpp_pe().EQ.mpp_root_pe()) then
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe()) then
        open(newunit = restart_unit, file=file_res, status='replace', form='formatted')
        write(restart_unit, '(i6,8x,a)' )calendar_type, &
             '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
@@ -455,7 +455,7 @@ contains
     call coupler_restart()
 
 !----- final output of diagnostic fields ----0
-   call fms_diag_manager_end (Time_atmos)
+   call fms_diag_end (Time_atmos)
 
 !----- to be removed once fms_io is fully deprecated -----
    call fms_io_exit()

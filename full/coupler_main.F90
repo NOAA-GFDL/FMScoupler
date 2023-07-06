@@ -334,7 +334,7 @@ program coupler_main
   !--- F90 module for OpenMP
   use omp_lib
 
-  use FMS, status_fms=>status
+  use FMS !, status_fms=>status
   use FMSconstants, only: fmsconstants_init
 
   !< Can't get rid of this until fms_io is no longer used at all
@@ -427,10 +427,10 @@ program coupler_main
 !-----------------------------------------------------------------------
 ! ----- coupled model time -----
 
-  type (time_type) :: Time, Time_init, Time_end, &
+  type (FmsTime_type) :: Time, Time_init, Time_end, &
                       Time_step_atmos, Time_step_cpld
-  type(time_type) :: Time_atmos, Time_ocean
-  type(time_type) :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
+  type(FmsTime_type) :: Time_atmos, Time_ocean
+  type(FmsTime_type) :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
 
   integer :: num_atmos_calls, na
   integer :: num_cpld_calls, nc
@@ -439,7 +439,7 @@ program coupler_main
   type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ocn_bc_restart => NULL()
 
   integer                              :: num_ice_bc_restart=0, num_ocn_bc_restart=0
-  type(time_type)                      :: Time_restart, Time_restart_current, Time_start
+  type(FmsTime_type)                      :: Time_restart, Time_restart_current, Time_start
   character(len=32)                    :: timestamp
 
 ! ----- coupled model initial date -----
@@ -579,7 +579,7 @@ program coupler_main
 
   call fms_mpp_init()
 !these clocks are on the global pelist
-  initClock = mpp_clock_id( 'Initialization' )
+  initClock = fms_mpp_clock_id( 'Initialization' )
   call fms_mpp_clock_begin(initClock)
 
   call fms_init
@@ -605,59 +605,59 @@ program coupler_main
 
   if (Atm%pe) then
     call fms_mpp_set_current_pelist(Atm%pelist)
-    newClock1 = mpp_clock_id( 'generate_sfc_xgrid' )
+    newClock1 = fms_mpp_clock_id( 'generate_sfc_xgrid' )
   endif
   if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
      call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
-    newClock2 = mpp_clock_id( 'flux_ocean_to_ice' )
-    newClock3 = mpp_clock_id( 'flux_ice_to_ocean' )
+    newClock2 = fms_mpp_clock_id( 'flux_ocean_to_ice' )
+    newClock3 = fms_mpp_clock_id( 'flux_ice_to_ocean' )
   endif
   if (Atm%pe) then
     call fms_mpp_set_current_pelist(Atm%pelist)
-    newClock5 = mpp_clock_id( 'ATM' )
-    newClock7  = mpp_clock_id( ' ATM: atmos loop' )
-    newClocka  = mpp_clock_id( '  A-L: atmos_tracer_driver_gather_data' )
-    newClockb  = mpp_clock_id( '  A-L: sfc_boundary_layer' )
-    newClockl  = mpp_clock_id( '  A-L: update_atmos_model_dynamics')
+    newClock5 = fms_mpp_clock_id( 'ATM' )
+    newClock7  = fms_mpp_clock_id( ' ATM: atmos loop' )
+    newClocka  = fms_mpp_clock_id( '  A-L: atmos_tracer_driver_gather_data' )
+    newClockb  = fms_mpp_clock_id( '  A-L: sfc_boundary_layer' )
+    newClockl  = fms_mpp_clock_id( '  A-L: update_atmos_model_dynamics')
     if (.not. do_concurrent_radiation) then
-      newClockj  = mpp_clock_id( '  A-L: serial radiation' )
+      newClockj  = fms_mpp_clock_id( '  A-L: serial radiation' )
     endif
-    newClockc  = mpp_clock_id( '  A-L: update_atmos_model_down' )
-    newClockd  = mpp_clock_id( '  A-L: flux_down_from_atmos' )
-    newClocke  = mpp_clock_id( '  A-L: update_land_model_fast' )
-    newClockf  = mpp_clock_id( '  A-L: update_ice_model_fast' )
-    newClockg  = mpp_clock_id( '  A-L: flux_up_to_atmos' )
-    newClockh  = mpp_clock_id( '  A-L: update_atmos_model_up' )
+    newClockc  = fms_mpp_clock_id( '  A-L: update_atmos_model_down' )
+    newClockd  = fms_mpp_clock_id( '  A-L: flux_down_from_atmos' )
+    newClocke  = fms_mpp_clock_id( '  A-L: update_land_model_fast' )
+    newClockf  = fms_mpp_clock_id( '  A-L: update_ice_model_fast' )
+    newClockg  = fms_mpp_clock_id( '  A-L: flux_up_to_atmos' )
+    newClockh  = fms_mpp_clock_id( '  A-L: update_atmos_model_up' )
     if (do_concurrent_radiation) then
-      newClockj  = mpp_clock_id( '  A-L: concurrent radiation' )
-      newClocki  = mpp_clock_id( '  A-L: concurrent atmos' )
+      newClockj  = fms_mpp_clock_id( '  A-L: concurrent radiation' )
+      newClocki  = fms_mpp_clock_id( '  A-L: concurrent atmos' )
     endif
-    newClockk  = mpp_clock_id( '  A-L: update_atmos_model_state')
-    newClock8  = mpp_clock_id( ' ATM: update_land_model_slow' )
-    newClock9  = mpp_clock_id( ' ATM: flux_land_to_ice' )
+    newClockk  = fms_mpp_clock_id( '  A-L: update_atmos_model_state')
+    newClock8  = fms_mpp_clock_id( ' ATM: update_land_model_slow' )
+    newClock9  = fms_mpp_clock_id( ' ATM: flux_land_to_ice' )
   endif
   if (Ice%pe) then
     if (Ice%fast_ice_pe) call fms_mpp_set_current_pelist(Ice%fast_pelist)
-    newClock6f = mpp_clock_id( ' Ice: set_ice_surface fast' )
-    newClock10f = mpp_clock_id( ' Ice: update_ice_model_slow fast' )
+    newClock6f = fms_mpp_clock_id( ' Ice: set_ice_surface fast' )
+    newClock10f = fms_mpp_clock_id( ' Ice: update_ice_model_slow fast' )
 
     if (Ice%slow_ice_pe) call fms_mpp_set_current_pelist(Ice%slow_pelist)
-    newClock6s = mpp_clock_id( ' Ice: set_ice_surface slow' )
-    newClock10s = mpp_clock_id( ' Ice: update_ice_model_slow slow' )
-    newClock11 = mpp_clock_id( ' Ice: flux_ice_to_ocean_stocks' )
+    newClock6s = fms_mpp_clock_id( ' Ice: set_ice_surface slow' )
+    newClock10s = fms_mpp_clock_id( ' Ice: update_ice_model_slow slow' )
+    newClock11 = fms_mpp_clock_id( ' Ice: flux_ice_to_ocean_stocks' )
 
     call fms_mpp_set_current_pelist(Ice%pelist)
-    newClock6e = mpp_clock_id( ' Ice: set_ice_surface exchange' )
-    newClock10e = mpp_clock_id( ' Ice: update_ice_model_slow exchange' )
+    newClock6e = fms_mpp_clock_id( ' Ice: set_ice_surface exchange' )
+    newClock10e = fms_mpp_clock_id( ' Ice: update_ice_model_slow exchange' )
   endif
   if (Ocean%is_ocean_pe) then
     call fms_mpp_set_current_pelist(Ocean%pelist)
-    newClock12 = mpp_clock_id( 'OCN' )
+    newClock12 = fms_mpp_clock_id( 'OCN' )
   endif
   call fms_mpp_set_current_pelist()
-  newClock4 = mpp_clock_id( 'flux_check_stocks' )
-  newClock13 = mpp_clock_id( 'intermediate restart' )
-  newClock14 = mpp_clock_id( 'final flux_check_stocks' )
+  newClock4 = fms_mpp_clock_id( 'flux_check_stocks' )
+  newClock13 = fms_mpp_clock_id( 'intermediate restart' )
+  newClock14 = fms_mpp_clock_id( 'final flux_check_stocks' )
 
   do nc = 1, num_cpld_calls
     if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc)
@@ -852,7 +852,7 @@ program coupler_main
                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
           if (do_debug)  call fms_memutils_print_memuse_stats( 'update down')
 
-          call fms_fms_mpp_clock_begin(newClockd)
+          call fms_mpp_clock_begin(newClockd)
           call flux_down_from_atmos( Time_atmos, Atm, Land, Ice, &
                                      Land_ice_atmos_boundary, &
                                      Atmos_land_boundary, &
@@ -1078,10 +1078,10 @@ program coupler_main
     !--- write out intermediate restart file when needed.
     if (Time >= Time_restart) then
       Time_restart_current = Time
-      Time_restart = increment_date(Time, restart_interval(1), restart_interval(2), &
+      Time_restart = fms_time_manager_increment_date(Time, restart_interval(1), restart_interval(2), &
            restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
-      timestamp = date_to_string(time_restart_current)
-      outunit= stdout()
+      timestamp = fms_time_manager_date_to_string(time_restart_current)
+      outunit= fms_mpp_stdout()
       write(outunit,*) '=> NOTE from program coupler: intermediate restart file is written and ', &
            trim(timestamp),' is appended as prefix to each restart file name'
       if (Atm%pe) then
@@ -1099,8 +1099,8 @@ program coupler_main
     if (do_chksum) call coupler_chksum('MAIN_LOOP+', nc)
     write( text,'(a,i6)' )'Main loop at coupling timestep=', nc
     call fms_memutils_print_memuse_stats(text)
-    outunit= stdout()
-    if (mpp_pe() == mpp_root_pe() .and. Atm%pe .and. do_concurrent_radiation) then
+    outunit= fms_mpp_stdout()
+    if (fms_mpp_pe() == fms_mpp_root_pe() .and. Atm%pe .and. do_concurrent_radiation) then
       write(outunit,102) 'At coupling step ', nc,' of ',num_cpld_calls, &
            ' Atm & Rad (imbalance): ',omp_sec(1),' (',imb_sec(1),')  ',omp_sec(2),' (',imb_sec(2),')'
     endif
@@ -1159,7 +1159,7 @@ contains
 
     integer :: ierr, io,    m, i, outunit, logunit, errunit
     integer :: date(6)
-    type (time_type) :: Run_length
+    type (FmsTime_type) :: Run_length
     character(len=9) :: month
     integer :: pe, npes
 
@@ -1182,7 +1182,7 @@ contains
     integer :: time_stamp_unit !< Unif of the time_stamp file
     integer :: ascii_unit  !< Unit of a dummy ascii file
 
-    type(fms_coupler_1d_bc_type), pointer :: &
+    type(FmsCoupler1dBC_type), pointer :: &
       gas_fields_atm => NULL(), &  ! A pointer to the type describing the
               ! atmospheric fields that will participate in the gas fluxes.
       gas_fields_ocn => NULL(), &  ! A pointer to the type describing the ocean
@@ -1191,11 +1191,11 @@ contains
               ! atmosphere-ocean gas and tracer fluxes.
 !-----------------------------------------------------------------------
 
-    outunit = stdout()
-    errunit = stderr()
-    logunit = stdlog()
+    outunit = fms_mpp_stdout()
+    errunit = fms_mpp_stderr()
+    logunit = fms_mpp_stdlog()
 
-    if (mpp_pe().EQ.mpp_root_pe()) then
+    if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Entering coupler_init at '&
                        //trim(walldate)//' '//trim(walltime)
@@ -1206,12 +1206,12 @@ contains
 
 !----- read namelist -------
 
-    read (input_nml_file, coupler_nml, iostat=io)
+    read (fms_mpp_input_nml_file, coupler_nml, iostat=io)
     ierr = check_nml_error (io, 'coupler_nml')
 
 !----- read date and calendar type from restart file -----
-    if (file_exists('INPUT/coupler.res')) then
-       call fms_fms2_io_ascii_read('INPUT/coupler.res', restart_file)
+    if (fms2_io_file_exists('INPUT/coupler.res')) then
+       call fms2_io_ascii_read('INPUT/coupler.res', restart_file)
        read(restart_file(1), *) calendar_type
        read(restart_file(2), *) date_init
        read(restart_file(3), *) date
@@ -1233,7 +1233,7 @@ contains
 
 !----- override calendar type with namelist value -----
 
-      select case( uppercase(trim(calendar)) )
+      select case( fms_mpp_uppercase(trim(calendar)) )
       case( 'GREGORIAN' )
         calendar_type = GREGORIAN
       case( 'JULIAN' )
@@ -1250,19 +1250,19 @@ contains
 
     call fms_time_manager_set_calendar_type (calendar_type, err_msg)
     if (err_msg /= '') then
-      call mpp_error(FATAL, 'ERROR in coupler_init: '//trim(err_msg))
+      call fms_mpp_error(FATAL, 'ERROR in coupler_init: '//trim(err_msg))
     endif
 
     if (concurrent .AND. .NOT.(use_lag_fluxes .OR. concurrent_ice) ) &
-      call mpp_error( WARNING, 'coupler_init: you have set concurrent=TRUE, &
+      call fms_mpp_error( WARNING, 'coupler_init: you have set concurrent=TRUE, &
             & use_lag_fluxes=FALSE, and concurrent_ice=FALSE &
             & in coupler_nml. When not using lag fluxes, components &
             & will synchronize at two points, and thus run serially.' )
-    if (concurrent_ice .AND. .NOT.slow_ice_with_ocean ) call mpp_error(WARNING, &
+    if (concurrent_ice .AND. .NOT.slow_ice_with_ocean ) call fms_mpp_error(WARNING, &
            'coupler_init: concurrent_ice is true, but slow ice_with_ocean is &
            & false in coupler_nml.  These two flags should both be true to avoid &
            & effectively serializing the run.' )
-    if (use_lag_fluxes .AND. concurrent_ice ) call mpp_error(WARNING, &
+    if (use_lag_fluxes .AND. concurrent_ice ) call fms_mpp_error(WARNING, &
            'coupler_init: use_lag_fluxes and concurrent_ice are both true. &
            & These two coupling options are intended to be exclusive.' )
 
@@ -1276,13 +1276,13 @@ contains
     !NOTE: if the ensemble_size=1 the input/output files will not be renamed.
     !
 
-    if (mpp_pe().EQ.mpp_root_pe()) then
+    if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Starting initializing ensemble_manager at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
     call fms_ensemble_manager_init() ! init pelists for ensembles
-    if (mpp_pe().EQ.mpp_root_pe()) then
+    if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Finished initializing ensemble_manager at '&
                        //trim(walldate)//' '//trim(walltime)
@@ -1298,25 +1298,25 @@ contains
       if (ocean_npes.EQ.0 ) ocean_npes = npes - atmos_npes
 !both must now be non-zero
       if (atmos_npes.EQ.0 .OR. ocean_npes.EQ.0 ) &
-        call mpp_error( FATAL, 'coupler_init: atmos_npes or ocean_npes must be specified for concurrent coupling.' )
+        call fms_mpp_error( FATAL, 'coupler_init: atmos_npes or ocean_npes must be specified for concurrent coupling.' )
       if (atmos_npes+ocean_npes.NE.npes ) &
-        call mpp_error( FATAL, 'coupler_init: atmos_npes+ocean_npes must equal npes for concurrent coupling.' )
+        call fms_mpp_error( FATAL, 'coupler_init: atmos_npes+ocean_npes must equal npes for concurrent coupling.' )
     else                        !serial timestepping
       if ((atmos_npes.EQ.0) .and. (do_atmos .or. do_land .or. do_ice)) atmos_npes = npes
       if ((ocean_npes.EQ.0) .and. (do_ocean)) ocean_npes = npes
       if (max(atmos_npes,ocean_npes).EQ.npes) then !overlapping pelists
         ! do nothing
       else                    !disjoint pelists
-        if (atmos_npes+ocean_npes.NE.npes ) call mpp_error( FATAL,  &
+        if (atmos_npes+ocean_npes.NE.npes ) call fms_mpp_error( FATAL,  &
              'coupler_init: atmos_npes+ocean_npes must equal npes for serial coupling on disjoint pelists.' )
       endif
     endif
 
     if (land_npes == 0 ) land_npes = atmos_npes
-    if (land_npes > atmos_npes) call mpp_error(FATAL, 'coupler_init: land_npes > atmos_npes')
+    if (land_npes > atmos_npes) call fms_mpp_error(FATAL, 'coupler_init: land_npes > atmos_npes')
 
     if (ice_npes  == 0 ) ice_npes  = atmos_npes
-    if (ice_npes  > atmos_npes) call mpp_error(FATAL, 'coupler_init: ice_npes > atmos_npes')
+    if (ice_npes  > atmos_npes) call fms_mpp_error(FATAL, 'coupler_init: ice_npes > atmos_npes')
 
     allocate( Atm%pelist  (atmos_npes) )
     allocate( Ocean%pelist(ocean_npes) )
@@ -1334,9 +1334,9 @@ contains
     allocate(ensemble_pelist(1:ensemble_size,1:npes))
     call fms_ensemble_manager_get_ensemble_pelist(ensemble_pelist)
 
-    Atm%pe            = ANY(Atm%pelist   .EQ. mpp_pe())
-    Ocean%is_ocean_pe = ANY(Ocean%pelist .EQ. mpp_pe())
-    Land%pe           = ANY(Land%pelist  .EQ. mpp_pe())
+    Atm%pe            = ANY(Atm%pelist   .EQ. fms_mpp_pe())
+    Ocean%is_ocean_pe = ANY(Ocean%pelist .EQ. fms_mpp_pe())
+    Land%pe           = ANY(Land%pelist  .EQ. fms_mpp_pe())
 
     Ice%shared_slow_fast_PEs = .not.slow_ice_with_ocean
     ! This is where different settings would be applied if the fast and slow
@@ -1373,8 +1373,8 @@ contains
       slow_ice_ocean_pelist(:) = Ocean%pelist(:)
     endif
 
-    Ice%fast_ice_pe = ANY(Ice%fast_pelist(:) .EQ. mpp_pe())
-    Ice%slow_ice_pe = ANY(Ice%slow_pelist(:) .EQ. mpp_pe())
+    Ice%fast_ice_pe = ANY(Ice%fast_pelist(:) .EQ. fms_mpp_pe())
+    Ice%slow_ice_pe = ANY(Ice%slow_pelist(:) .EQ. fms_mpp_pe())
     Ice%pe = Ice%fast_ice_pe .OR. Ice%slow_ice_pe
     call fms_mpp_declare_pelist(slow_ice_ocean_pelist)
     !--- dynamic threading turned off when affinity placement is in use
@@ -1399,11 +1399,11 @@ contains
    !--- initialization clock
     if (Atm%pe) then
       call fms_mpp_set_current_pelist(Atm%pelist)
-      id_atmos_model_init = mpp_clock_id( '  Init: atmos_model_init ' )
+      id_atmos_model_init = fms_mpp_clock_id( '  Init: atmos_model_init ' )
     endif
     if (Land%pe) then
       call fms_mpp_set_current_pelist(Land%pelist)
-      id_land_model_init  = mpp_clock_id( '  Init: land_model_init ' )
+      id_land_model_init  = fms_mpp_clock_id( '  Init: land_model_init ' )
     endif
     if (Ice%pe) then
       if (Ice%shared_slow_fast_PEs) then
@@ -1413,74 +1413,74 @@ contains
       elseif (Ice%slow_ice_pe) then
         call fms_mpp_set_current_pelist(Ice%slow_pelist)
       else
-        call mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
+        call fms_mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
       endif
-      id_ice_model_init   = mpp_clock_id( '  Init: ice_model_init ' )
+      id_ice_model_init   = fms_mpp_clock_id( '  Init: ice_model_init ' )
     endif
     if (Ocean%is_ocean_pe) then
       call fms_mpp_set_current_pelist(Ocean%pelist)
-      id_ocean_model_init = mpp_clock_id( '  Init: ocean_model_init ' )
+      id_ocean_model_init = fms_mpp_clock_id( '  Init: ocean_model_init ' )
     endif
     call fms_mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
-    id_flux_exchange_init = mpp_clock_id( '  Init: flux_exchange_init' )
+    id_flux_exchange_init = fms_mpp_clock_id( '  Init: flux_exchange_init' )
 
     call fms_mpp_set_current_pelist()
-    mainClock = mpp_clock_id( 'Main loop' )
-    termClock = mpp_clock_id( 'Termination' )
+    mainClock = fms_mpp_clock_id( 'Main loop' )
+    termClock = fms_mpp_clock_id( 'Termination' )
 
     !Write out messages on root PEs
-    if (mpp_pe().EQ.mpp_root_pe()) then
+    if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       write( text,'(a,2i6,a,i2.2)' )'Atmos PE range: ', Atm%pelist(1)  , Atm%pelist(atmos_npes)  ,&
            ' ens_', ensemble_id
-      call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+      call fms_mpp_error( NOTE, 'coupler_init: '//trim(text) )
       if (ocean_npes .gt. 0) then
         write( text,'(a,2i6,a,i2.2)' )'Ocean PE range: ', Ocean%pelist(1), Ocean%pelist(ocean_npes), &
              ' ens_', ensemble_id
-        call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+        call fms_mpp_error( NOTE, 'coupler_init: '//trim(text) )
       else
         write( text,'(a,i2.2)' )'Ocean PE range is not set (do_ocean=.false. and concurrent=.false.) for ens_', &
               ensemble_id
-        call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+        call fms_mpp_error( NOTE, 'coupler_init: '//trim(text) )
       endif
       write( text,'(a,2i6,a,i2.2)' )'Land PE range: ', Land%pelist(1)  , Land%pelist(land_npes)  ,&
            ' ens_', ensemble_id
-      call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+      call fms_mpp_error( NOTE, 'coupler_init: '//trim(text) )
       write( text,'(a,2i6,a,i2.2)' )'Ice PE range: ', Ice%pelist(1), Ice%pelist(ice_npes), &
            ' ens_', ensemble_id
-      call mpp_error( NOTE, 'coupler_init: '//trim(text) )
+      call fms_mpp_error( NOTE, 'coupler_init: '//trim(text) )
 
       if (concurrent) then
-        call mpp_error( NOTE, 'coupler_init: Running with CONCURRENT coupling.' )
+        call fms_mpp_error( NOTE, 'coupler_init: Running with CONCURRENT coupling.' )
 
         write( logunit,'(a)' )'Using concurrent coupling...'
         write( logunit,'(a,4i6)' ) &
               'atmos_pe_start, atmos_pe_end, ocean_pe_start, ocean_pe_end=', &
               Atm%pelist(1)  , Atm%pelist(atmos_npes), Ocean%pelist(1), Ocean%pelist(ocean_npes)
       else
-        call mpp_error( NOTE, 'coupler_init: Running with SERIAL coupling.' )
+        call fms_mpp_error( NOTE, 'coupler_init: Running with SERIAL coupling.' )
       endif
       if (use_lag_fluxes) then
-        call mpp_error( NOTE, 'coupler_init: Sending LAG fluxes to ocean.' )
+        call fms_mpp_error( NOTE, 'coupler_init: Sending LAG fluxes to ocean.' )
       else
-        call mpp_error( NOTE, 'coupler_init: Sending most recent fluxes to ocean.' )
+        call fms_mpp_error( NOTE, 'coupler_init: Sending most recent fluxes to ocean.' )
       endif
-      if (concurrent_ice) call mpp_error( NOTE, &
+      if (concurrent_ice) call fms_mpp_error( NOTE, &
         'coupler_init: using lagged slow-ice coupling mode.')
-      if (combined_ice_and_ocean) call mpp_error( NOTE, &
+      if (combined_ice_and_ocean) call fms_mpp_error( NOTE, &
         'coupler_init: advancing the ocean and slow-ice in a single call.')
-      if (combined_ice_and_ocean .and. .not.concurrent_ice) call mpp_error( FATAL, &
+      if (combined_ice_and_ocean .and. .not.concurrent_ice) call fms_mpp_error( FATAL, &
         'coupler_init: concurrent_ice must be true if combined_ice_and_ocean is true.')
-      if (combined_ice_and_ocean .and. .not.slow_ice_with_ocean) call mpp_error( FATAL, &
+      if (combined_ice_and_ocean .and. .not.slow_ice_with_ocean) call fms_mpp_error( FATAL, &
         'coupler_init: slow_ice_with_ocean must be true if combined_ice_and_ocean is true.')
     endif
 
 !----- write namelist to logfile -----
-    if (mpp_pe() == mpp_root_pe() )write( logunit, nml=coupler_nml )
+    if (fms_mpp_pe() == fms_mpp_root_pe() )write( logunit, nml=coupler_nml )
 
 !----- write current/initial date actually used to logfile file -----
 
-    if ( mpp_pe().EQ.mpp_root_pe() ) &
-      write( logunit, 16 )date(1),trim(month_name(date(2))),date(3:6)
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) &
+      write( logunit, 16 )date(1),trim(fms_time_manager_month_name(date(2))),date(3:6)
 16  format ('  current date used = ',i4,1x,a,2i3,2(':',i2.2),' gmt')
 
 !-----------------------------------------------------------------------
@@ -1505,15 +1505,15 @@ contains
       if ((ocean_npes /= npes) .and. .not.slow_ice_with_ocean) &
         diag_model_subset = DIAG_OCEAN  ! change diag_model_subset from DIAG_ALL
     endif
-    if ( mpp_pe() == mpp_root_pe()) then
+    if ( fms_mpp_pe() == fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Starting to initialize diag_manager at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
     ! initialize diag_manager for processor subset output
-    call fms_diag_manager_init(DIAG_MODEL_SUBSET=diag_model_subset, TIME_INIT=date)
+    call fms_diag_init(DIAG_MODEL_SUBSET=diag_model_subset, TIME_INIT=date)
     call fms_memutils_print_memuse_stats( 'diag_manager_init' )
-    if ( mpp_pe() == mpp_root_pe()) then
+    if ( fms_mpp_pe() == fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Finished initializing diag_manager at '&
                        //trim(walldate)//' '//trim(walltime)
@@ -1524,7 +1524,7 @@ contains
     call fms_mpp_set_current_pelist()
 !----- always override initial/base date with diag_manager value -----
 
-    call fms_diag_manager_get_base_date ( date_init(1), date_init(2), date_init(3), &
+    call fms_diag_get_base_date ( date_init(1), date_init(2), date_init(3), &
          date_init(4), date_init(5), date_init(6)  )
 
 !----- use current date if no base date ------
@@ -1533,10 +1533,10 @@ contains
 
 !----- set initial and current time types ------
 
-    Time_init = set_date (date_init(1), date_init(2), date_init(3), &
+    Time_init = fms_time_manager_set_date (date_init(1), date_init(2), date_init(3), &
          date_init(4), date_init(5), date_init(6))
 
-    Time      = set_date (date(1), date(2), date(3),  &
+    Time      = fms_time_manager_set_date (date(1), date(2), date(3),  &
          date(4), date(5), date(6))
 
     Time_start = Time
@@ -1545,17 +1545,17 @@ contains
 
     Time_end = Time
     do m=1,months
-       Time_end = Time_end + set_time(0,days_in_month(Time_end))
+       Time_end = Time_end + fms_time_manager_set_time(0,fms_time_manager_days_in_month(Time_end))
     enddo
-    Time_end   = Time_end + set_time(hours*3600+minutes*60+seconds, days)
+    Time_end   = Time_end + fms_time_manager_set_time(hours*3600+minutes*60+seconds, days)
     !Need to pass Time_end into diag_manager for multiple thread case.
-    call fms_diag_manager_set_time_end(Time_end)
+    call fms_diag_set_time_end(Time_end)
 
     Run_length = Time_end - Time
 
 !--- get the time that last intermediate restart file was written out.
-    if (file_exists('INPUT/coupler.intermediate.res')) then
-       call fms_fms2_io_ascii_read('INPUT/coupler.intermediate.res', restart_file)
+    if (fms2_io_file_exists('INPUT/coupler.intermediate.res')) then
+       call fms2_io_ascii_read('INPUT/coupler.intermediate.res', restart_file)
        read(restart_file(1), *) date_restart
        deallocate(restart_file)
     else
@@ -1564,38 +1564,38 @@ contains
 
     Time_restart_current = Time
     if (ALL(restart_interval ==0)) then
-       Time_restart = increment_date(Time_end, 0, 0, 10, 0, 0, 0)   ! no intermediate restart
+       Time_restart = fms_time_manager_increment_date(Time_end, 0, 0, 10, 0, 0, 0)   ! no intermediate restart
     else
-       Time_restart = set_date(date_restart(1), date_restart(2), date_restart(3),  &
+       Time_restart = fms_time_manager_set_date(date_restart(1), date_restart(2), date_restart(3),  &
                                date_restart(4), date_restart(5), date_restart(6) )
-       Time_restart = increment_date(Time_restart, restart_interval(1), restart_interval(2), &
+       Time_restart = fms_time_manager_increment_date(Time_restart, restart_interval(1), restart_interval(2), &
             restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
-       if (Time_restart <= Time) call mpp_error(FATAL, &
+       if (Time_restart <= Time) call fms_mpp_error(FATAL, &
             '==>Error from program coupler: The first intermediate restart time is no larger than the start time')
     endif
 
 !-----------------------------------------------------------------------
 !----- write time stamps (for start time and end time) ------
 
-    if ( mpp_pe().EQ.mpp_root_pe() ) open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
 
-    month = month_name(date(2))
-    if ( mpp_pe().EQ.mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
+    month = fms_time_manager_month_name(date(2))
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
     call fms_time_manager_get_date (Time_end, date(1), date(2), date(3),  &
                    date(4), date(5), date(6))
-    month = month_name(date(2))
-    if ( mpp_pe().EQ.mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
+    month = fms_time_manager_month_name(date(2))
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
 
-    if ( mpp_pe().EQ.mpp_root_pe() ) close(time_stamp_unit)
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) close(time_stamp_unit)
 
 20  format (i6,5i4,2x,a3)
 
 !-----------------------------------------------------------------------
 !----- compute the time steps ------
 
-    Time_step_cpld  = set_time (dt_cpld ,0)
-    Time_step_atmos = set_time (dt_atmos,0)
+    Time_step_cpld  = fms_time_manager_set_time (dt_cpld ,0)
+    Time_step_atmos = fms_time_manager_set_time (dt_atmos,0)
 
 !----- determine maximum number of iterations per loop ------
 
@@ -1627,7 +1627,7 @@ contains
 !       before the individual models are initialized.
 !
 
-    if (mpp_pe().EQ.mpp_root_pe()) then
+    if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Starting to initialize tracer_manager at '&
                        //trim(walldate)//' '//trim(walltime)
@@ -1637,7 +1637,7 @@ contains
 !   available to the individual components.
     call gas_exchange_init(gas_fields_atm, gas_fields_ocn, gas_fluxes)
     call fms_coupler_types_init()
-    if (mpp_pe().EQ.mpp_root_pe()) then
+    if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Finished initializing tracer_manager at '&
                        //trim(walldate)//' '//trim(walltime)
@@ -1649,7 +1649,7 @@ contains
 !------ initialize component models ------
 !------ grid info now comes from grid_spec file
 
-    if (mpp_pe().EQ.mpp_root_pe()) then
+    if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Beginning to initialize component models at '&
                        //trim(walldate)//' '//trim(walltime)
@@ -1657,7 +1657,7 @@ contains
     if (Atm%pe) then
         call fms_mpp_set_current_pelist(Atm%pelist)
 !---- atmosphere ----
-        if (mpp_pe().EQ.mpp_root_pe()) then
+        if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
           call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
           write(errunit,*) 'Starting to initialize atmospheric model at '&
                            //trim(walldate)//' '//trim(walltime)
@@ -1670,7 +1670,7 @@ contains
 
         call fms_mpp_clock_end(id_atmos_model_init)
 
-        if (mpp_pe().EQ.mpp_root_pe()) then
+        if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
           call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
           write(errunit,*) 'Finished initializing atmospheric model at '&
                            //trim(walldate)//' '//trim(walltime)
@@ -1681,7 +1681,7 @@ contains
 !---- land ----------
     if (Land%pe) then
       call fms_mpp_set_current_pelist(Land%pelist)
-      if (mpp_pe().EQ.mpp_root_pe()) then
+      if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
         write(errunit,*) 'Starting to initialize land model at '&
                          //trim(walldate)//' '//trim(walltime)
@@ -1690,7 +1690,7 @@ contains
       call land_model_init( Atmos_land_boundary, Land, Time_init, Time, &
                             Time_step_atmos, Time_step_cpld )
       call fms_mpp_clock_end(id_land_model_init)
-      if (mpp_pe().EQ.mpp_root_pe()) then
+      if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
         write(errunit,*) 'Finished initializing land model at '&
                          //trim(walldate)//' '//trim(walltime)
@@ -1708,9 +1708,9 @@ contains
       elseif (Ice%slow_ice_pe) then
         call fms_mpp_set_current_pelist(Ice%slow_pelist)
       else
-        call mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
+        call fms_mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
       endif
-      if (mpp_pe().EQ.mpp_root_pe()) then
+      if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
         write(errunit,*) 'Starting to initialize ice model at '&
                          //trim(walldate)//' '//trim(walltime)
@@ -1726,7 +1726,7 @@ contains
       call fms_mpp_set_current_pelist(Ice%pelist)
       call share_ice_domains(Ice)
 
-      if (mpp_pe().EQ.mpp_root_pe()) then
+      if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
         write(errunit,*) 'Finished initializing ice model at '&
                          //trim(walldate)//' '//trim(walltime)
@@ -1741,7 +1741,7 @@ contains
 !---- ocean ---------
     if (Ocean%is_ocean_pe) then
       call fms_mpp_set_current_pelist(Ocean%pelist)
-      if (mpp_pe().EQ.mpp_root_pe()) then
+      if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
         write(errunit,*) 'Starting to initialize ocean model at '&
                          //trim(walldate)//' '//trim(walltime)
@@ -1761,19 +1761,19 @@ contains
 !$      call omp_set_num_threads(ocean_nthreads)
       endif
 
-      if (mpp_pe().EQ.mpp_root_pe()) then
+      if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
         write(errunit,*) 'Finished initializing ocean model at '&
                          //trim(walldate)//' '//trim(walltime)
       endif
       call fms_memutils_print_memuse_stats( 'ocean_model_init' )
-      if (mpp_pe().EQ.mpp_root_pe()) then
+      if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
         write(errunit,*) 'Starting to initialize data_override at '&
                          //trim(walldate)//' '//trim(walltime)
       endif
       call fms_data_override_init(Ocean_domain_in = Ocean%domain )
-      if (mpp_pe().EQ.mpp_root_pe()) then
+      if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
         write(errunit,*) 'Finished initializing data_override at '&
                          //trim(walldate)//' '//trim(walltime)
@@ -1785,19 +1785,19 @@ contains
     endif ! end of Ocean%is_ocean_pe
 
 !---------------------------------------------
-    if (mpp_pe().EQ.mpp_root_pe()) then
+    if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Finished initializing component models at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
     call fms_mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
 
-    call fms_mpp_broadcast_domain(Ice%domain)
-    call fms_mpp_broadcast_domain(Ice%slow_domain_NH)
-    call fms_mpp_broadcast_domain(Ocean%domain)
+    call fms_mpp_domains_broadcast_domain(Ice%domain)
+    call fms_mpp_domains_broadcast_domain(Ice%slow_domain_NH)
+    call fms_mpp_domains_broadcast_domain(Ocean%domain)
 !-----------------------------------------------------------------------
 !---- initialize flux exchange module ----
-    if (mpp_pe().EQ.mpp_root_pe()) then
+    if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Starting to initialize flux_exchange at '&
                        //trim(walldate)//' '//trim(walltime)
@@ -1810,7 +1810,7 @@ contains
     call fms_mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
     call fms_mpp_clock_end(id_flux_exchange_init)
     call fms_mpp_set_current_pelist()
-    if (mpp_pe().EQ.mpp_root_pe()) then
+    if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Finsihed initializing flux_exchange at '&
                        //trim(walldate)//' '//trim(walltime)
@@ -1830,7 +1830,7 @@ contains
 
           ! Restore the fields from the restart files
       do l = 1, num_ice_bc_restart
-         if(check_if_open(Ice_bc_restart(l))) call read_restart(Ice_bc_restart(l))
+         if(fms2_io_check_if_open(Ice_bc_restart(l))) call fms2_io_read_restart(Ice_bc_restart(l))
       enddo
 
       ! Check whether the restarts were read successfully.
@@ -1838,7 +1838,7 @@ contains
               test_by_field=.true.)
 
       do l = 1, num_ice_bc_restart
-         if(check_if_open(Ice_bc_restart(l))) call fms_fms2_io_close_file(Ice_bc_restart(l))
+         if(fms2_io_check_if_open(Ice_bc_restart(l))) call fms2_io_close_file(Ice_bc_restart(l))
       enddo
     endif !< ( Ice%slow_ice_pe )
 
@@ -1850,7 +1850,7 @@ contains
 
       ! Restore the fields from the restart files
       do l = 1, num_ocn_bc_restart
-         if(check_if_open(Ocn_bc_restart(l))) call fms_fms2_io_read_restart(Ocn_bc_restart(l))
+         if(fms2_io_check_if_open(Ocn_bc_restart(l))) call fms2_io_read_restart(Ocn_bc_restart(l))
       enddo
 
       ! Check whether the restarts were read successfully.
@@ -1858,7 +1858,7 @@ contains
               test_by_field=.true.)
 
       do l = 1, num_ocn_bc_restart
-         if(check_if_open(Ocn_bc_restart(l))) call fms_fms2_io_close_file(Ocn_bc_restart(l))
+         if(fms2_io_check_if_open(Ocn_bc_restart(l))) call fms2_io_close_file(Ocn_bc_restart(l))
       enddo
     endif !< ( Ocean%is_ocean_pe )
 
@@ -1867,14 +1867,14 @@ contains
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
 
-    if ( mpp_pe().EQ.mpp_root_pe() ) then
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) then
        open(newunit = ascii_unit, file='RESTART/file', status='replace', form='formatted')
        close(ascii_unit,status="delete")
     endif
 
     ! Call to daig_grid_end to free up memory used during regional
     ! output setup
-    CALL fms_diag_manager_diag_grid_end()
+    CALL fms_diag_grid_end()
 
 !-----------------------------------------------------------------------
     if ( do_endpoint_chksum ) then
@@ -1896,7 +1896,7 @@ contains
     call fms_mpp_set_current_pelist()
     call fms_memutils_print_memuse_stats('coupler_init')
 
-    if (mpp_pe().EQ.mpp_root_pe()) then
+    if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Exiting coupler_init at '&
                        //trim(walldate)//' '//trim(walltime)
@@ -1959,7 +1959,7 @@ contains
     !----- write restart file ------
     call coupler_restart(Time, Time_restart_current)
 
-    call fms_diag_manager_diag_manager_end (Time)
+    call fms_diag_end (Time)
     call fms_io_exit
     call fms_mpp_set_current_pelist()
 
@@ -1974,12 +1974,12 @@ contains
     integer, dimension(:), allocatable :: buffer !< Buffer with axis data
     integer :: is, ie !< Starting and Ending indices for data
 
-    call fms_fms2_io_get_global_io_domain_indices(fileobj, "xaxis_1", is, ie, indices=buffer)
-    call fms_fms2_io_write_data(fileobj, "xaxis_1", buffer)
+    call fms2_io_get_global_io_domain_indices(fileobj, "xaxis_1", is, ie, indices=buffer)
+    call fms2_io_write_data(fileobj, "xaxis_1", buffer)
     deallocate(buffer)
 
-    call fms_fms2_io_get_global_io_domain_indices(fileobj, "yaxis_1", is, ie, indices=buffer)
-    call fms_fms2_io_write_data(fileobj, "yaxis_1", buffer)
+    call fms2_io_get_global_io_domain_indices(fileobj, "yaxis_1", is, ie, indices=buffer)
+    call fms2_io_write_data(fileobj, "yaxis_1", buffer)
     deallocate(buffer)
 
    end subroutine add_domain_dimension_data
@@ -1987,7 +1987,7 @@ contains
 
   !> \brief Writing restart file that contains running time and restart file writing time.
   subroutine coupler_restart(Time_run, Time_res, time_stamp)
-    type(time_type),   intent(in)           :: Time_run, Time_res
+    type(FmsTime_type),   intent(in)           :: Time_run, Time_res
     character(len=*), intent(in),  optional :: time_stamp
     character(len=128)                      :: file_run, file_res
     integer :: yr, mon, day, hr, min, sec, date(6), n
@@ -2005,9 +2005,9 @@ contains
     endif
 
     !----- compute current date ------
-    call fms_mpp_domains_get_date (Time_run, date(1), date(2), date(3),  &
+    call fms_time_manager_get_date (Time_run, date(1), date(2), date(3),  &
                    date(4), date(5), date(6))
-    if ( mpp_pe().EQ.mpp_root_pe()) then
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe()) then
        open(newunit = restart_unit, file=file_run, status='replace', form='formatted')
        write(restart_unit, '(i6,8x,a)' )calendar_type, &
             '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
@@ -2020,7 +2020,7 @@ contains
     endif
 
     if (Time_res > Time_start) then
-      if ( mpp_pe().EQ.mpp_root_pe()) then
+      if ( fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         open(newunit = restart_unit, file=file_res, status='replace', form='formatted')
         call fms_time_manager_get_date(Time_res ,yr,mon,day,hr,min,sec)
         write(restart_unit, '(6i6,8x,a)' )yr,mon,day,hr,min,sec, &
@@ -2036,10 +2036,10 @@ contains
       call fms_coupler_type_register_restarts(Ocean%fields, Ocn_bc_restart, &
                num_ocn_bc_restart, Ocean%domain, to_read=.false., ocean_restart=.true., directory="RESTART/")
       do n = 1, num_ocn_bc_restart
-         if (check_if_open(Ocn_bc_restart(n))) then
-             call fms_fm2_io_write_restart(Ocn_bc_restart(n))
+         if (fms2_io_check_if_open(Ocn_bc_restart(n))) then
+             call fms2_io_write_restart(Ocn_bc_restart(n))
              call add_domain_dimension_data(Ocn_bc_restart(n))
-             call fms_fms2_io_close_file(Ocn_bc_restart(n))
+             call fms2_io_close_file(Ocn_bc_restart(n))
           endif
        enddo
     endif !< (Ocean%is_ocean_pe)
@@ -2051,10 +2051,10 @@ contains
       call fms_coupler_type_register_restarts(Ice%ocean_fluxes, Ice_bc_restart, &
                num_ice_bc_restart, Ice%slow_domain_NH, to_read=.false., ocean_restart=.false., directory="RESTART/")
       do n = 1, num_ice_bc_restart
-         if (check_if_open(Ice_bc_restart(n))) then
-             call fms_fms2_io_write_restart(Ice_bc_restart(n))
+         if (fms2_io_check_if_open(Ice_bc_restart(n))) then
+             call fms2_io_write_restart(Ice_bc_restart(n))
              call add_domain_dimension_data(Ice_bc_restart(n))
-             call fms_fms2_io_close_file(Ice_bc_restart(n))
+             call fms2_io_close_file(Ice_bc_restart(n))
          endif
       enddo
     endif !< (Atm%pe)
@@ -2091,8 +2091,8 @@ contains
     do i = 1,n_atm_tr
       call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, i, tr_name )
       tr_table(n)%atm = i
-      tr_table(n)%ice = get_tracer_index ( MODEL_ICE,  tr_name )
-      tr_table(n)%lnd = get_tracer_index ( MODEL_LAND, tr_name )
+      tr_table(n)%ice = fms_tracer_manager_get_tracer_index ( MODEL_ICE,  tr_name )
+      tr_table(n)%lnd = fms_tracer_manager_get_tracer_index ( MODEL_LAND, tr_name )
       if (tr_table(n)%ice/=NO_TRACER .or. tr_table(n)%lnd/=NO_TRACER) n = n+1
     enddo
     n_exch_tr = n-1
@@ -2103,44 +2103,44 @@ contains
     if (Atm%pe) then
       call fms_mpp_set_current_pelist(Atm%pelist)
 
-      outunit = stdout()
+      outunit = fms_mpp_stdout()
       write(outunit,*) 'BEGIN CHECKSUM(Atm):: ', id, timestep
-      write(outunit,100) 'atm%t_bot', mpp_chksum(atm%t_bot)
-      write(outunit,100) 'atm%z_bot', mpp_chksum(atm%z_bot)
-      write(outunit,100) 'atm%p_bot', mpp_chksum(atm%p_bot)
-      write(outunit,100) 'atm%u_bot', mpp_chksum(atm%u_bot)
-      write(outunit,100) 'atm%v_bot', mpp_chksum(atm%v_bot)
-      write(outunit,100) 'atm%p_surf', mpp_chksum(atm%p_surf)
-      write(outunit,100) 'atm%gust', mpp_chksum(atm%gust)
+      write(outunit,100) 'atm%t_bot', fms_mpp_chksum(atm%t_bot)
+      write(outunit,100) 'atm%z_bot', fms_mpp_chksum(atm%z_bot)
+      write(outunit,100) 'atm%p_bot', fms_mpp_chksum(atm%p_bot)
+      write(outunit,100) 'atm%u_bot', fms_mpp_chksum(atm%u_bot)
+      write(outunit,100) 'atm%v_bot', fms_mpp_chksum(atm%v_bot)
+      write(outunit,100) 'atm%p_surf', fms_mpp_chksum(atm%p_surf)
+      write(outunit,100) 'atm%gust', fms_mpp_chksum(atm%gust)
       do tr = 1,n_exch_tr
          n = tr_table(tr)%atm
          if (n /= NO_TRACER) then
             call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
-            write(outunit,100) 'atm%'//trim(tr_name), mpp_chksum(Atm%tr_bot(:,:,n))
+            write(outunit,100) 'atm%'//trim(tr_name), fms_mpp_chksum(Atm%tr_bot(:,:,n))
          endif
       enddo
 
-      write(outunit,100) 'land%t_surf', mpp_chksum(land%t_surf)
-      write(outunit,100) 'land%t_ca', mpp_chksum(land%t_ca)
-      write(outunit,100) 'land%rough_mom', mpp_chksum(land%rough_mom)
-      write(outunit,100) 'land%rough_heat', mpp_chksum(land%rough_heat)
-      write(outunit,100) 'land%rough_scale', mpp_chksum(land%rough_scale)
+      write(outunit,100) 'land%t_surf', fms_mpp_chksum(land%t_surf)
+      write(outunit,100) 'land%t_ca', fms_mpp_chksum(land%t_ca)
+      write(outunit,100) 'land%rough_mom', fms_mpp_chksum(land%rough_mom)
+      write(outunit,100) 'land%rough_heat', fms_mpp_chksum(land%rough_heat)
+      write(outunit,100) 'land%rough_scale', fms_mpp_chksum(land%rough_scale)
       do tr = 1,n_exch_tr
         n = tr_table(tr)%lnd
         if (n /= NO_TRACER) then
           call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
 #ifndef _USE_LEGACY_LAND_
-          write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,n))
+          write(outunit,100) 'land%'//trim(tr_name), fms_mpp_chksum(Land%tr(:,:,n))
 #else
-          write(outunit,100) 'land%'//trim(tr_name), mpp_chksum(Land%tr(:,:,:,n))
+          write(outunit,100) 'land%'//trim(tr_name), fms_mpp_chksum(Land%tr(:,:,:,n))
 #endif
         endif
       enddo
 
-      write(outunit,100) 'ice%t_surf', mpp_chksum(ice%t_surf)
-      write(outunit,100) 'ice%rough_mom', mpp_chksum(ice%rough_mom)
-      write(outunit,100) 'ice%rough_heat', mpp_chksum(ice%rough_heat)
-      write(outunit,100) 'ice%rough_moist', mpp_chksum(ice%rough_moist)
+      write(outunit,100) 'ice%t_surf', fms_mpp_chksum(ice%t_surf)
+      write(outunit,100) 'ice%rough_mom', fms_mpp_chksum(ice%rough_mom)
+      write(outunit,100) 'ice%rough_heat', fms_mpp_chksum(ice%rough_heat)
+      write(outunit,100) 'ice%rough_moist', fms_mpp_chksum(ice%rough_moist)
       write(outunit,*) 'STOP CHECKSUM(Atm):: ', id, timestep
 
     !endif

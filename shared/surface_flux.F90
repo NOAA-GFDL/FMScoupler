@@ -273,7 +273,7 @@ subroutine surface_flux_1d (                                           &
 
 
   if (.not. module_is_initialized) &
-     call mpp_error(FATAL, "surface_flux_1d: surface_flux_init is not called")
+     call fms_mpp_error(FATAL, "surface_flux_1d: surface_flux_init is not called")
 
   !---- use local value of surf temp ----
 
@@ -681,14 +681,14 @@ subroutine surface_flux_init
   integer :: unit, ierr, io
 
   ! read namelist
-  read (input_nml_file, surface_flux_nml, iostat=io)
+  read (fms_mpp_input_nml_file, surface_flux_nml, iostat=io)
   ierr = check_nml_error(io,'surface_flux_nml')
 
   ! write version number
   call fms_write_version_number(version, tagname)
 
-  unit = stdlog()
-  if ( mpp_pe() == mpp_root_pe() )  write (unit, nml=surface_flux_nml)
+  unit = fms_mpp_stdlog()
+  if ( fms_mpp_pe() == fms_mpp_root_pe() )  write (unit, nml=surface_flux_nml)
 
   if(.not. use_virtual_temp) d608 = 0.0
 

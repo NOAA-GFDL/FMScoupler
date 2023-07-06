@@ -34,7 +34,7 @@ module land_ice_flux_exchange_mod
 
   !---- exchange grid maps -----
 
-  type(xmap_type), save :: xmap_runoff
+  type(FmsXgridXmap_type), save :: xmap_runoff
   integer         :: n_xgrid_runoff=0
 
   ! Exchange grid indices
@@ -61,7 +61,7 @@ contains
     do_runoff = do_runoff_in
     cplClock = cplClock_in
     Dt_cpl   = Dt_cpl_in
-    fluxLandIceClock = mpp_clock_id( 'Flux land to ice', flags=clock_flag_default, grain=CLOCK_ROUTINE )
+    fluxLandIceClock = fms_mpp_clock_id( 'Flux land to ice', flags=fms_clock_flag_default, grain=CLOCK_ROUTINE )
 
     if (do_runoff) then
        call fms_xgrid_setup_xmap(xmap_runoff, (/ 'LND', 'OCN' /),       &
@@ -69,8 +69,8 @@ contains
             "INPUT/grid_spec.nc"             )
        ! exchange grid indices
        X2_GRID_LND = 1; X2_GRID_ICE = 2;
-       n_xgrid_runoff = max(xgrid_count(xmap_runoff),1)
-       if (n_xgrid_runoff.eq.1) write (*,'(a,i6,6x,a)') 'PE = ', mpp_pe(), 'Runoff  exchange size equals one.'
+       n_xgrid_runoff = max(fms_xgrid_count(xmap_runoff),1)
+       if (n_xgrid_runoff.eq.1) write (*,'(a,i6,6x,a)') 'PE = ', fms_mpp_pe(), 'Runoff  exchange size equals one.'
     endif
 
     call fms_mpp_domains_get_compute_domain( Ice%domain, is, ie, js, je )
@@ -101,7 +101,7 @@ contains
   !!        discharge_snow --> calving (kg/m2)
   !! </pre>
   subroutine flux_land_to_ice( Time, Land, Ice, Land_Ice_Boundary )
-    type(time_type),                intent(in) :: Time !< Current time
+    type(FmsTime_type),                intent(in) :: Time !< Current time
     type(land_data_type),           intent(in) :: Land !< A derived data type to specify land boundary data
     type(ice_data_type),            intent(in) :: Ice !< A derived data type to specify ice boundary data
     !real, dimension(:,:),         intent(out) :: runoff_ice, calving_ice
@@ -117,7 +117,7 @@ contains
     call fms_mpp_clock_begin(fluxLandIceClock)
 
     ! ccc = conservation_check(Land%discharge, 'LND', xmap_runoff)
-    ! if (mpp_pe()==mpp_root_pe()) print *,'RUNOFF', ccc
+    ! if (fms_mpp_pe()==fms_mpp_root_pe()) print *,'RUNOFF', ccc
 
     if (do_runoff) then
        call fms_xgrid_put_to_xgrid ( Land%discharge,      'LND', ex_runoff,  xmap_runoff)
@@ -140,7 +140,7 @@ contains
 
        ! compute stock increment
        ice_buf(:,:,1) = Land_Ice_Boundary%runoff + Land_Ice_Boundary%calving
-       call fms_xgrid_stock_move(from=Lnd_stock(ISTOCK_WATER), to=Ice_stock(ISTOCK_WATER), &
+       call fms_xgrid_stock_move(from=fms_stock_constants_lnd_stock(ISTOCK_WATER), to=fms_stock_constants_ice_stock(ISTOCK_WATER), &
             & grid_index=X2_GRID_ICE, &
             & data=ice_buf, &
             & xmap=xmap_runoff, &
