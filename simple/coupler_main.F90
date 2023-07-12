@@ -64,7 +64,9 @@ use FMS
 use FMSconstants, only: fmsconstants_init
 
 !--- FMS old io
+#ifdef use_deprecated_io
 use fms_io_mod, only: fms_io_exit!< This can't be removed until fms_io is not used at all
+#endif
 
 implicit none
 
@@ -511,10 +513,11 @@ contains
     call atmos_model_end (Atm)
     call  land_model_end (Atmos_land_boundary, Land)
     call   ice_model_end (Ice)
-
+    
     call fms_diag_end (Time_atmos)
-
+#ifdef use_deprecated_io
     call  fms_io_exit
+#endif
 
 ! call flux_exchange_end (Atm)
 
