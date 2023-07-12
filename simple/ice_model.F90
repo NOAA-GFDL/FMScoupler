@@ -27,7 +27,7 @@ use ocean_albedo_mod, only:  compute_ocean_albedo_new
 use  ocean_rough_mod, only:  compute_ocean_roughness, fixed_ocean_roughness
 
 !! FMS
-use FMS!,              only: fms_amip_interp_sst_anom
+use FMS
 use FMSconstants,     only: HLV, HLF, TFREEZE, pi
 
 implicit none
@@ -100,7 +100,7 @@ namelist /ice_model_nml/ diff, thickness_min, specified_ice_thickness,        &
                          heat_capacity_ocean, temp_ice_freeze, roughness_ice, &
                          ice_method, use_climo_ice, use_annual_ice, temp_ice, &
                          sst_method, use_climo_sst, use_annual_sst, temp_sst, &
-                         interp_method, do_netcdf_restart, fms_amip_interp_sst_anom
+                         interp_method, do_netcdf_restart, sst_anom
 
 !----------------------------------------------------------------
 
