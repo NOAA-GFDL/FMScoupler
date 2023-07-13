@@ -173,9 +173,9 @@ logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent f
                                            !! heat.  This option is available for legacy purposes, and is not recommended for
                                            !! new experiments.
 logical :: ncar_ocean_flux_multilevel  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.
-real :: bulk_zu                           !< Reference height for wind speed
-real :: bulk_zt                           !< Reference height for atm temperature
-real :: bulk_zq                           !< Reference height for atm humidity
+real :: bulk_zu = 10.                      !< Reference height for wind speed (meters)
+real :: bulk_zt = 10.                      !< Reference height for atm temperature (meters)
+real :: bulk_zq = 10.                      !< Reference height for atm humidity (meters)
 logical :: raoult_sat_vap        = .false. !< Reduce saturation vapor pressure to account for seawater
 logical :: do_simple             = .false.
 
