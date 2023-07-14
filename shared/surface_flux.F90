@@ -173,9 +173,9 @@ logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent f
                                            !! heat.  This option is available for legacy purposes, and is not recommended for
                                            !! new experiments.
 logical :: ncar_ocean_flux_multilevel  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.
-real :: bulk_zu                           !< Reference height for wind speed
-real :: bulk_zt                           !< Reference height for atm temperature
-real :: bulk_zq                           !< Reference height for atm humidity
+real :: bulk_zu = 10.                      !< Reference height for wind speed (meters)
+real :: bulk_zt = 10.                      !< Reference height for atm temperature (meters)
+real :: bulk_zq = 10.                      !< Reference height for atm humidity (meters)
 logical :: raoult_sat_vap        = .false. !< Reduce saturation vapor pressure to account for seawater
 logical :: do_simple             = .false.
 
@@ -273,7 +273,7 @@ subroutine surface_flux_1d (                                           &
 
 
   if (.not. module_is_initialized) &
-     call mpp_error(FATAL, "surface_flux_1d: surface_flux_init is not called")
+     call fms_mpp_error(FATAL, "surface_flux_1d: surface_flux_init is not called")
 
   !---- use local value of surf temp ----
 
@@ -288,8 +288,8 @@ subroutine surface_flux_1d (                                           &
 
   t_surf1 = t_surf0 + del_temp
 
-  call escomp ( t_surf0, e_sat  )  ! saturation vapor pressure
-  call escomp ( t_surf1, e_sat1 )  ! perturbed  vapor pressure
+  call fms_sat_vapor_pres_escomp ( t_surf0, e_sat  )  ! saturation vapor pressure
+  call fms_sat_vapor_pres_escomp ( t_surf1, e_sat1 )  ! perturbed  vapor pressure
 
   if(use_mixing_ratio) then
     ! surface mixing ratio at saturation
@@ -366,7 +366,7 @@ subroutine surface_flux_1d (                                           &
   endif
 
   !  monin-obukhov similarity theory
-  call mo_drag (thv_atm, thv_surf, z_atm,                  &
+  call fms_monin_obukhov_mo_drag (thv_atm, thv_surf, z_atm,                  &
        rough_mom, rough_heat, rough_moist, w_atm,          &
        cd_m, cd_t, cd_q, u_star, b_star, avail             )
 
@@ -681,18 +681,18 @@ subroutine surface_flux_init
   integer :: unit, ierr, io
 
   ! read namelist
-  read (input_nml_file, surface_flux_nml, iostat=io)
+  read (fms_mpp_input_nml_file, surface_flux_nml, iostat=io)
   ierr = check_nml_error(io,'surface_flux_nml')
 
   ! write version number
-  call write_version_number(version, tagname)
+  call fms_write_version_number(version, tagname)
 
-  unit = stdlog()
-  if ( mpp_pe() == mpp_root_pe() )  write (unit, nml=surface_flux_nml)
+  unit = fms_mpp_stdlog()
+  if ( fms_mpp_pe() == fms_mpp_root_pe() )  write (unit, nml=surface_flux_nml)
 
   if(.not. use_virtual_temp) d608 = 0.0
 
-  call monin_obukhov_init()
+  call fms_monin_obukhov_init()
 
   module_is_initialized = .true.
 
