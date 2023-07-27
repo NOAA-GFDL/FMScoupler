@@ -6,6 +6,24 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2023.02] - 2023-07-27
+### Fixed
+- SHARED: Fixes crashes due to uninitialized namelist variables.
+
+### Changed
+- Routines/variables from FMS have been updated to include a prefixes containing fms and the subdirectory/module name. This was necessitated by aliases being added to the 'global' libFMS.F90 module in FMS.
+- FULL: Adds logic for PE assignment in order to allow for a data atmosphere to be used alongside the combined ice-ocean driver.
+
+### Removed
+- Usage of fms_io and mpp_io has been deprecated. If using these modules in a model, you must compile both FMS and FMScoupler with the -Duse_deprecated_io CPP flag.
+
+### Tag Commit Hashes
+2023.02-alpha1 9da2d61f74671ccee775553a36439260c9241383
+2023.02-alpha2 9da2d61f74671ccee775553a36439260c9241383
+2023.02-alpha3 4ca21a7f3dc3649f934ad7b34e1a61b63e589712
+2023.02-beta1  78c438457cd49a82f6eaec2d57638ffc5084c688
+
+
 ## [2023.01] - 2023-04-03
 ### Fixed
 - Fixed IO domain related failures coming from ice model for the null model test
@@ -146,8 +164,6 @@ sequential patch number (starting from `01`).
 
 ### Tag Commit Hashes
 - 2020.02-beta1 (87e5798ddbb82a5011dfaa0dc0eb3c9231de18b1)
-- 2020.02-beta2 (6aa98ccbeda8b254b5ba1ccb46d3ae7379ef7a4c)
-- 2020.02-beta3 (6aa98ccbeda8b254b5ba1ccb46d3ae7379ef7a4c)
 
 ## [2020.01] - 2020-03-13
 
@@ -163,3 +179,5 @@ sequential patch number (starting from `01`).
 - testing_20190422 (2766a232809143778d77bc6918236e7085044b89)
 - testing_20190705 (14a9be493037a07f058adba947d8ce5af58af5d7)
 - testing_20190809 (14578f09a25c8e6101faba18342630af267cdba9)
+# ChangeLog
+All notable changes to this project will be documented in this file.
