@@ -164,6 +164,8 @@ sequential patch number (starting from `01`).
 
 ### Tag Commit Hashes
 - 2020.02-beta1 (87e5798ddbb82a5011dfaa0dc0eb3c9231de18b1)
+- 2020.02-beta2 (6aa98ccbeda8b254b5ba1ccb46d3ae7379ef7a4c)
+- 2020.02-beta3 (6aa98ccbeda8b254b5ba1ccb46d3ae7379ef7a4c)
 
 ## [2020.01] - 2020-03-13
 
@@ -179,5 +181,3 @@ sequential patch number (starting from `01`).
 - testing_20190422 (2766a232809143778d77bc6918236e7085044b89)
 - testing_20190705 (14a9be493037a07f058adba947d8ce5af58af5d7)
 - testing_20190809 (14578f09a25c8e6101faba18342630af267cdba9)
-# ChangeLog
-All notable changes to this project will be documented in this file.
