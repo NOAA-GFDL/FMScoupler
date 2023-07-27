@@ -682,7 +682,7 @@ subroutine surface_flux_init
 
   ! read namelist
   read (fms_mpp_input_nml_file, surface_flux_nml, iostat=io)
-  ierr = check_nml_error(io,'surface_flux_nml')
+  ierr = fms_check_nml_error(io,'surface_flux_nml')
 
   ! write version number
   call fms_write_version_number(version, tagname)

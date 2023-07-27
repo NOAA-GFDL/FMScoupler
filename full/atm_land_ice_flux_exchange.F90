@@ -422,12 +422,12 @@ contains
     enddo
 
     if (isphum==NO_TRACER) then
-       call error_mesg('atm_land_ice_flux_exchange_mod',&
+       call fms_error_mesg('atm_land_ice_flux_exchange_mod',&
             'tracer "sphum" must be present in the atmosphere', FATAL )
     endif
 
     if (ico2==NO_TRACER) then
-       call error_mesg('atm_land_ice_flux_exchange_mod',&
+       call fms_error_mesg('atm_land_ice_flux_exchange_mod',&
             'tracer "co2" not present in the atmosphere', NOTE )
     endif
 
@@ -715,7 +715,7 @@ contains
     integer :: isc,iec,jsc,jec
 
     ! [1] check that the module was initialized
-    if (do_init) call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+    if (do_init) call fms_error_mesg ('atm_land_ice_flux_exchange_mod',  &
          'must call atm_land_ice_flux_exchange_init first', FATAL)
     !Balaji
     call fms_mpp_clock_begin(cplClock)
@@ -3698,7 +3698,7 @@ contains
     !    needed for cmorizing various diagnostics.
     !--------------------------------------------------------------------
     area_id = fms_diag_get_field_id ('dynamics', 'area')
-    if (area_id .eq. DIAG_FIELD_NOT_FOUND) call error_mesg &
+    if (area_id .eq. DIAG_FIELD_NOT_FOUND) call fms_error_mesg &
          ('diag_field_init in atm_land_ice_flux_exchange_mod', &
          'diagnostic field "dynamics", "area" is not in the diag_table', NOTE)
 
