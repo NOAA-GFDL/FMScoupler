@@ -75,7 +75,7 @@ $(function() {
 <div class="title">atm_land_ice_flux_exchange.F90 File Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
-<h3 class="version">(9da2d61f74671ccee775553a36439260c9241383)</h3>
+<h3 class="version">(335594d7ba6f5302afb4dc59d48041c58169ca86)</h3>
 <p>Performs flux calculations and exchange grid operations for atmosphere, land and ice.  
 <a href="#details">More...</a></p>
 <table class="memberdecls">
@@ -138,8 +138,8 @@ Variables</h2></td></tr>
 <tr class="separator:a7fee92e02a103e833b54331d52d76348"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4176031acaa85bc64a9ba4a7035b36ac"><td class="memItemLeft" align="right" valign="top">character(len=128)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a4176031acaa85bc64a9ba4a7035b36ac">atm_land_ice_flux_exchange_mod::tag</a> = '$Name$'</td></tr>
 <tr class="separator:a4176031acaa85bc64a9ba4a7035b36ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab8f792a92409bae3c3522abfbd3fc675"><td class="memItemLeft" align="right" valign="top">type(xmap_type), save&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#ab8f792a92409bae3c3522abfbd3fc675">atm_land_ice_flux_exchange_mod::xmap_sfc</a></td></tr>
-<tr class="separator:ab8f792a92409bae3c3522abfbd3fc675"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a060404036e66ff995a7bdef403eef326"><td class="memItemLeft" align="right" valign="top">type(fmsxgridxmap_type), save&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a060404036e66ff995a7bdef403eef326">atm_land_ice_flux_exchange_mod::xmap_sfc</a></td></tr>
+<tr class="separator:a060404036e66ff995a7bdef403eef326"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aec976f33bcf263db8ec930400f1b5ba6"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#aec976f33bcf263db8ec930400f1b5ba6">atm_land_ice_flux_exchange_mod::n_xgrid_sfc</a> =0</td></tr>
 <tr class="separator:aec976f33bcf263db8ec930400f1b5ba6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a64ca82dba9df2806db81c86c57bd273d"><td class="memItemLeft" align="right" valign="top">character(len=4), parameter&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a64ca82dba9df2806db81c86c57bd273d">atm_land_ice_flux_exchange_mod::mod_name</a> = 'flux'</td></tr>
@@ -506,14 +506,14 @@ Variables</h2></td></tr>
 <tr class="memitem:a4fbbecb55a808875facb743fe7fc9c62"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a4fbbecb55a808875facb743fe7fc9c62">atm_land_ice_flux_exchange_mod::inh3</a> = NO_TRACER</td></tr>
 <tr class="memdesc:a4fbbecb55a808875facb743fe7fc9c62"><td class="mdescLeft">&#160;</td><td class="mdescRight">index of nh3 tracer in tracer table  <a href="namespaceatm__land__ice__flux__exchange__mod.html#a4fbbecb55a808875facb743fe7fc9c62">More...</a><br /></td></tr>
 <tr class="separator:a4fbbecb55a808875facb743fe7fc9c62"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac8d2ebdae19cd7084f6d3a4d2ec3f267"><td class="memItemLeft" align="right" valign="top">type(coupler_1d_bc_type), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#ac8d2ebdae19cd7084f6d3a4d2ec3f267">atm_land_ice_flux_exchange_mod::ex_gas_fields_atm</a> =&gt;NULL()</td></tr>
-<tr class="memdesc:ac8d2ebdae19cd7084f6d3a4d2ec3f267"><td class="mdescLeft">&#160;</td><td class="mdescRight">gas fields in atm Place holder for various atmospheric fields.  <a href="namespaceatm__land__ice__flux__exchange__mod.html#ac8d2ebdae19cd7084f6d3a4d2ec3f267">More...</a><br /></td></tr>
-<tr class="separator:ac8d2ebdae19cd7084f6d3a4d2ec3f267"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a9db0b4bc4ba84e55030cb06f2e3df13c"><td class="memItemLeft" align="right" valign="top">type(coupler_1d_bc_type), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a9db0b4bc4ba84e55030cb06f2e3df13c">atm_land_ice_flux_exchange_mod::ex_gas_fields_ice</a> =&gt;NULL()</td></tr>
-<tr class="separator:a9db0b4bc4ba84e55030cb06f2e3df13c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af3616f1a4b902c4c0fda04fe4de7f95e"><td class="memItemLeft" align="right" valign="top">type(coupler_1d_bc_type), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#af3616f1a4b902c4c0fda04fe4de7f95e">atm_land_ice_flux_exchange_mod::ex_gas_fluxes</a> =&gt;NULL()</td></tr>
-<tr class="memdesc:af3616f1a4b902c4c0fda04fe4de7f95e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Place holder of intermediate calculations, such as piston velocities etc.  <a href="namespaceatm__land__ice__flux__exchange__mod.html#af3616f1a4b902c4c0fda04fe4de7f95e">More...</a><br /></td></tr>
-<tr class="separator:af3616f1a4b902c4c0fda04fe4de7f95e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3266419d5fdecb4817fa06dad56056df"><td class="memItemLeft" align="right" valign="top">type(fmscoupler1dbc_type), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a3266419d5fdecb4817fa06dad56056df">atm_land_ice_flux_exchange_mod::ex_gas_fields_atm</a> =&gt;NULL()</td></tr>
+<tr class="memdesc:a3266419d5fdecb4817fa06dad56056df"><td class="mdescLeft">&#160;</td><td class="mdescRight">gas fields in atm Place holder for various atmospheric fields.  <a href="namespaceatm__land__ice__flux__exchange__mod.html#a3266419d5fdecb4817fa06dad56056df">More...</a><br /></td></tr>
+<tr class="separator:a3266419d5fdecb4817fa06dad56056df"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a07e2cfa8c59081b4aea8525879c304ab"><td class="memItemLeft" align="right" valign="top">type(fmscoupler1dbc_type), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a07e2cfa8c59081b4aea8525879c304ab">atm_land_ice_flux_exchange_mod::ex_gas_fields_ice</a> =&gt;NULL()</td></tr>
+<tr class="separator:a07e2cfa8c59081b4aea8525879c304ab"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6c4da192e1adc05ce9f87b40e4e97b9b"><td class="memItemLeft" align="right" valign="top">type(fmscoupler1dbc_type), pointer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a6c4da192e1adc05ce9f87b40e4e97b9b">atm_land_ice_flux_exchange_mod::ex_gas_fluxes</a> =&gt;NULL()</td></tr>
+<tr class="memdesc:a6c4da192e1adc05ce9f87b40e4e97b9b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Place holder of intermediate calculations, such as piston velocities etc.  <a href="namespaceatm__land__ice__flux__exchange__mod.html#a6c4da192e1adc05ce9f87b40e4e97b9b">More...</a><br /></td></tr>
+<tr class="separator:a6c4da192e1adc05ce9f87b40e4e97b9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a3eca478a281245b2a1217b66917936b0"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a3eca478a281245b2a1217b66917936b0">atm_land_ice_flux_exchange_mod::ni_atm</a></td></tr>
 <tr class="separator:a3eca478a281245b2a1217b66917936b0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7f93e3452d718c2449d09cfee5174987"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a7f93e3452d718c2449d09cfee5174987">atm_land_ice_flux_exchange_mod::nj_atm</a></td></tr>
@@ -564,7 +564,7 @@ Variables</h2></td></tr>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Apr 3 2023 19:20:23 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Fri Jul 28 2023 13:00:55 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

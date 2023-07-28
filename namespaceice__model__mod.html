@@ -155,10 +155,10 @@ Variables</h2></td></tr>
 <tr class="separator:abff82cb395c9a49b31e9de0bdb7e9c7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a98cf069c605d7abc02cbcb9db7260e4d"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__model__mod.html#a98cf069c605d7abc02cbcb9db7260e4d">je</a></td></tr>
 <tr class="separator:a98cf069c605d7abc02cbcb9db7260e4d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acb795a64c08b33a07b2b801c7e24c891"><td class="memItemLeft" align="right" valign="top">type(amip_interp_type), save&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__model__mod.html#acb795a64c08b33a07b2b801c7e24c891">amip_ice</a></td></tr>
-<tr class="separator:acb795a64c08b33a07b2b801c7e24c891"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a65620cfb6a75a2c15ca392252b7f2b0c"><td class="memItemLeft" align="right" valign="top">type(amip_interp_type), save&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__model__mod.html#a65620cfb6a75a2c15ca392252b7f2b0c">amip_sst</a></td></tr>
-<tr class="separator:a65620cfb6a75a2c15ca392252b7f2b0c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5663c456270837d94270cb3e853b8d11"><td class="memItemLeft" align="right" valign="top">type(fmsamipinterp_type), save&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__model__mod.html#a5663c456270837d94270cb3e853b8d11">amip_ice</a></td></tr>
+<tr class="separator:a5663c456270837d94270cb3e853b8d11"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad482a1238aba8004d9c21616d04163f3"><td class="memItemLeft" align="right" valign="top">type(fmsamipinterp_type), save&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__model__mod.html#ad482a1238aba8004d9c21616d04163f3">amip_sst</a></td></tr>
+<tr class="separator:ad482a1238aba8004d9c21616d04163f3"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa482dd87dc4c239130f7b8f8f4e2aafd"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__model__mod.html#aa482dd87dc4c239130f7b8f8f4e2aafd">module_is_initialized</a> = .false.</td></tr>
 <tr class="separator:aa482dd87dc4c239130f7b8f8f4e2aafd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4c4ab586477d470b99a4a9475810aee5"><td class="memItemLeft" align="right" valign="top">character(len=64)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__model__mod.html#a4c4ab586477d470b99a4a9475810aee5">fname</a> = 'INPUT/ice_model.res.nc'</td></tr>
@@ -284,25 +284,25 @@ Variables</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">type(time_type), intent(in)&#160;</td>
+          <td class="paramtype">type(fmstime_type), intent(in)&#160;</td>
           <td class="paramname"><em>Time_Init</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">type(time_type), intent(in)&#160;</td>
+          <td class="paramtype">type(fmstime_type), intent(in)&#160;</td>
           <td class="paramname"><em>Time</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">type(time_type), intent(in)&#160;</td>
+          <td class="paramtype">type(fmstime_type), intent(in)&#160;</td>
           <td class="paramname"><em>Time_step_fast</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">type(time_type), intent(in)&#160;</td>
+          <td class="paramtype">type(fmstime_type), intent(in)&#160;</td>
           <td class="paramname"><em>Time_step_slow</em>, </td>
         </tr>
         <tr>
@@ -320,7 +320,7 @@ Variables</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">type(domain2d), intent(in), target&#160;</td>
+          <td class="paramtype">type(fmsmppdomain2d), intent(in), target&#160;</td>
           <td class="paramname"><em>Atmos_domain</em>&#160;</td>
         </tr>
         <tr>
@@ -593,8 +593,8 @@ Variables</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Variable Documentation</h2>
-<a id="acb795a64c08b33a07b2b801c7e24c891"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acb795a64c08b33a07b2b801c7e24c891">&#9670;&nbsp;</a></span>amip_ice</h2>
+<a id="a5663c456270837d94270cb3e853b8d11"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5663c456270837d94270cb3e853b8d11">&#9670;&nbsp;</a></span>amip_ice</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -603,7 +603,7 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">type(amip_interp_type), save ice_model_mod::amip_ice</td>
+          <td class="memname">type(fmsamipinterp_type), save ice_model_mod::amip_ice</td>
         </tr>
       </table>
   </td>
@@ -615,8 +615,8 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a id="a65620cfb6a75a2c15ca392252b7f2b0c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a65620cfb6a75a2c15ca392252b7f2b0c">&#9670;&nbsp;</a></span>amip_sst</h2>
+<a id="ad482a1238aba8004d9c21616d04163f3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad482a1238aba8004d9c21616d04163f3">&#9670;&nbsp;</a></span>amip_sst</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -625,7 +625,7 @@ Variables</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">type(amip_interp_type), save ice_model_mod::amip_sst</td>
+          <td class="memname">type(fmsamipinterp_type), save ice_model_mod::amip_sst</td>
         </tr>
       </table>
   </td>
@@ -1278,7 +1278,7 @@ Variables</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Apr 3 2023 19:20:23 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Fri Jul 28 2023 13:00:55 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

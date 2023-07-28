@@ -8,8 +8,8 @@ var searchData=
   ['all_5fland_520',['all_land',['../namespaceflux__exchange__mod.html#a9f21ac3fea6a38f7959395b34a8ceb8b',1,'flux_exchange_mod']]],
   ['all_5focean_521',['all_ocean',['../namespaceflux__exchange__mod.html#a50c09e88b3fb6646814e283404760a7d',1,'flux_exchange_mod']]],
   ['alt_5fgustiness_522',['alt_gustiness',['../namespacesurface__flux__mod.html#a338fa27e4d5045147ebf3ee908c60e98',1,'surface_flux_mod']]],
-  ['amip_5fice_523',['amip_ice',['../namespaceice__model__mod.html#acb795a64c08b33a07b2b801c7e24c891',1,'ice_model_mod']]],
-  ['amip_5fsst_524',['amip_sst',['../namespaceice__model__mod.html#a65620cfb6a75a2c15ca392252b7f2b0c',1,'ice_model_mod']]],
+  ['amip_5fice_523',['amip_ice',['../namespaceice__model__mod.html#a5663c456270837d94270cb3e853b8d11',1,'ice_model_mod']]],
+  ['amip_5fsst_524',['amip_sst',['../namespaceice__model__mod.html#ad482a1238aba8004d9c21616d04163f3',1,'ice_model_mod']]],
   ['atm_525',['atm',['../structatm__land__ice__flux__exchange__mod_1_1tracer__ind__type.html#a6958e428760cf729bec6fc2748104d03',1,'atm_land_ice_flux_exchange_mod::tracer_ind_type']]],
   ['atm_5fprecip_5fnew_526',['atm_precip_new',['../namespaceflux__exchange__mod.html#a4133789f8990f2178df334764b71a74d',1,'flux_exchange_mod']]]
 ];
