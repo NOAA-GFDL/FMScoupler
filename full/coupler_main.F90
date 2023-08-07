@@ -1054,7 +1054,7 @@ program coupler_main
       if (combined_ice_and_ocean) then
         call flux_ice_to_ocean_stocks(Ice)
         call update_slow_ice_and_ocean(ice_ocean_driver_CS, Ice, Ocean_state, Ocean, &
-                      Ice_ocean_boundary, Time_ocean, Time_step_cpld )
+                      Ice_ocean_boundary, Time_ocean, Time_step_cpld, OIB=Ocean_ice_boundary)
       else
       if (do_chksum) call ocean_chksum('update_ocean_model-', nc, Ocean, Ice_ocean_boundary)
       ! update_ocean_model since fluxes don't change here
