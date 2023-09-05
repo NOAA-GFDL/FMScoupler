@@ -181,7 +181,7 @@ cd ${bld_dir}/run
 mkdir RESTART
 # Get the data files required for the run
 tarFile=coupler_null_test_data_full_simple.tar.gz
-wget ftp://ftp.gfdl.noaa.gov/perm/GFDL_pubrelease/test_data/${tarFile}
+curl -O ftp://ftp.gfdl.noaa.gov/perm/GFDL_pubrelease/test_data/${tarFile}
 tar zxf ${tarFile}
 
 # add an io layout to the full nml
