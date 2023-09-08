@@ -6,7 +6,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: noaagfdl/hpc-me.ubuntu-minimal:coupler
+      image: ghcr.io/noaa-gfdl/fms/fms-ci-rocky-gnu:12.3.0
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.github_token }}
       env: 
         CC: mpicc
         FC: mpif90
