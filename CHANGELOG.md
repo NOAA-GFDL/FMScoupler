@@ -6,6 +6,24 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2023.02] - 2023-07-27
+### Fixed
+- SHARED: Fixes crashes due to uninitialized namelist variables.
+
+### Changed
+- Routines/variables from FMS have been updated to include a prefixes containing fms and the subdirectory/module name. This was necessitated by aliases being added to the 'global' libFMS.F90 module in FMS.
+- FULL: Adds logic for PE assignment in order to allow for a data atmosphere to be used alongside the combined ice-ocean driver.
+
+### Removed
+- Usage of fms_io and mpp_io has been deprecated. If using these modules in a model, you must compile both FMS and FMScoupler with the -Duse_deprecated_io CPP flag.
+
+### Tag Commit Hashes
+2023.02-alpha1 9da2d61f74671ccee775553a36439260c9241383
+2023.02-alpha2 9da2d61f74671ccee775553a36439260c9241383
+2023.02-alpha3 4ca21a7f3dc3649f934ad7b34e1a61b63e589712
+2023.02-beta1  78c438457cd49a82f6eaec2d57638ffc5084c688
+
+
 ## [2023.01] - 2023-04-03
 ### Fixed
 - Fixed IO domain related failures coming from ice model for the null model test
