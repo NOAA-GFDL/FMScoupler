@@ -210,6 +210,7 @@ subroutine surface_flux_1d (                                           &
      flux_t, flux_q, flux_r, flux_u, flux_v,                           &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
+     thv_atm,   thv_surf,                                              &  ! ZNT 05/03/2020
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
      dt,        land,      seawater,     avail  )
@@ -250,6 +251,8 @@ subroutine surface_flux_1d (                                           &
                                      u_star, & !< Turbulent velocity scale
                                      b_star, & !< Turbulent buoyant scale
                                      q_star, & !< Turbulent moisture scale
+                                     thv_atm, &   ! ZNT 05/03/2020
+                                     thv_surf, &  ! ZNT 05/03/2020
                                      cd_m, & !< Momentum exchange coefficient
                                      cd_t, & ! Heat exchange coefficient
                                      cd_q !< Moisture exchange coefficient
@@ -262,7 +265,7 @@ subroutine surface_flux_1d (                                           &
 
   ! ---- local vars ----------------------------------------------------------
   real, dimension(size(t_atm(:))) ::                          &
-       thv_atm,  th_atm,   tv_atm,    thv_surf,            &
+       th_atm,   tv_atm,   &  ! ZNT 05/03/2020: removed thv_atm and thv_surf
        e_sat,    e_sat1,   q_sat,     q_sat1,    p_ratio,  &
        t_surf0,  t_surf1,  u_dif,     v_dif,               &
        rho_drag, drag_t,   drag_m,    drag_q,    rho,      &
@@ -448,6 +451,8 @@ subroutine surface_flux_1d (                                           &
      q_star     = 0.0
      q_surf     = 0.0
      w_atm      = 0.0
+     thv_atm    = 0.0 ! ZNT 05/03/2020
+     thv_surf   = 0.0 ! ZNT 05/03/2020
   endwhere
 
   ! calculate d(stress component)/d(atmos wind component)
@@ -477,6 +482,7 @@ subroutine surface_flux_0d (                                                 &
      flux_t_0,    flux_q_0,     flux_r_0,    flux_u_0,  flux_v_0,            &
      cd_m_0,      cd_t_0,       cd_q_0,                                      &
      w_atm_0,     u_star_0,     b_star_0,     q_star_0,                      &
+     thv_atm_0,   thv_surf_0,                                                &  ! ZNT 05/03/2020
      dhdt_surf_0, dedt_surf_0,  dedq_surf_0,  drdt_surf_0,                   &
      dhdt_atm_0,  dedq_atm_0,   dtaudu_atm_0, dtaudv_atm_0,                  &
      dt,          land_0,       seawater_0,  avail_0  )
@@ -518,6 +524,8 @@ subroutine surface_flux_0d (                                                 &
                        u_star_0, & !< Turbulent velocity scale
                        b_star_0, & !< Turbulent buoyant scale
                        q_star_0, & !< Turbulent moisture scale
+                       thv_atm_0, &   ! ZNT 05/03/2020
+                       thv_surf_0, &  ! ZNT 05/03/2020
                        cd_m_0, & !< Momentum exchange coefficient
                        cd_t_0, & ! Heat exchange coefficient
                        cd_q_0 !< Moisture exchange coefficient
@@ -536,6 +544,7 @@ subroutine surface_flux_0d (                                                 &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
        dhdt_atm,  dedq_atm,   dtaudu_atm,dtaudv_atm,         &
        w_atm,     u_star,     b_star,    q_star,             &
+       thv_atm,   thv_surf, &  ! ZNT 05/03/2020
        cd_m,      cd_t,       cd_q
   real, dimension(1) :: q_surf
 
@@ -571,6 +580,7 @@ subroutine surface_flux_0d (                                                 &
        flux_t, flux_q, flux_r, flux_u, flux_v,                           &
        cd_m,      cd_t,       cd_q,                                      &
        w_atm,     u_star,     b_star,     q_star,                        &
+       thv_atm,   thv_surf,                                              &  ! ZNT 05/03/2020
        dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
        dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
        dt,        land,      seawater, avail  )
@@ -593,6 +603,8 @@ subroutine surface_flux_0d (                                                 &
   b_star_0     = b_star(1)
   q_star_0     = q_star(1)
   q_surf_0     = q_surf(1)
+  thv_atm_0    = thv_atm(1)   ! ZNT 05/03/2020
+  thv_surf_0   = thv_surf(1)  ! ZNT 05/03/2020
   cd_m_0       = cd_m(1)
   cd_t_0       = cd_t(1)
   cd_q_0       = cd_q(1)
@@ -607,6 +619,7 @@ subroutine surface_flux_2d (                                           &
      flux_t,    flux_q,     flux_r,    flux_u,    flux_v,              &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
+     thv_atm,   thv_surf,                                              &  ! ZNT 05/03/2020
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
      dt,        land,       seawater,  avail  )
@@ -648,6 +661,8 @@ subroutine surface_flux_2d (                                           &
                                        u_star, & !< Turbulent velocity scale
                                        b_star, & !< Turbulent buoyant scale
                                        q_star, & !< Turbulent moisture scale
+                                       thv_atm, &   ! ZNT 05/03/2020
+                                       thv_surf, &  ! ZNT 05/03/2020
                                        cd_m, & !< Momentum exchange coefficient
                                        cd_t, & ! Heat exchange coefficient
                                        cd_q !< Moisture exchange coefficient
@@ -666,6 +681,7 @@ subroutine surface_flux_2d (                                           &
           flux_t(:,j),    flux_q(:,j),     flux_r(:,j),    flux_u(:,j),    flux_v(:,j),                   &
           cd_m(:,j),      cd_t(:,j),       cd_q(:,j),                                                     &
           w_atm(:,j),     u_star(:,j),     b_star(:,j),     q_star(:,j),                                  &
+          thv_atm(:,j),   thv_surf(:,j),                                                                  &  ! ZNT 05/03/2020
           dhdt_surf(:,j), dedt_surf(:,j),  dedq_surf(:,j),  drdt_surf(:,j),                               &
           dhdt_atm(:,j),  dedq_atm(:,j),   dtaudu_atm(:,j), dtaudv_atm(:,j),                              &
           dt,             land(:,j),       seawater(:,j),  avail(:,j)  )
