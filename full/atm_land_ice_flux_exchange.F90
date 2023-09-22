@@ -116,10 +116,6 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
              id_t_ref_land, id_rh_ref_land, id_u_ref_land, id_v_ref_land, &
              id_q_ref,  id_q_ref_land, id_q_flux_land, id_rh_ref_cmip, &
              id_hussLut_land, id_tasLut_land, id_t_flux_land
-  integer :: id_t_surf_in, id_t_ca_in, id_q_surf_in, &   ! ZNT 09/03/2020
-             id_q_surf_raw, id_t_atm_in, id_q_atm_in, & 
-             id_t_surf_out, id_t_ca_out, id_q_surf_out, id_t_atm_delt, id_q_atm_delt, &
-             id_t_flux_first, id_t_flux_second, id_q_flux_first, id_q_flux_second
   integer :: id_co2_atm_dvmr, id_co2_surf_dvmr
 ! 2017/08/15 jgj added
   integer :: id_co2_bot, id_co2_flux_pcair_atm, id_o2_flux_pcair_atm
@@ -1189,37 +1185,6 @@ contains
     endif
 #endif
 
-! ZNT 09/03/2020: some diagnoses before implicit update
-    if ( id_t_surf_in > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_t_surf, xmap_sfc)
-       used = fms_diag_send_data ( id_t_surf_in, diag_atm, Time )
-    endif
-    if ( id_t_ca_in > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_t_ca, xmap_sfc)
-       used = fms_diag_send_data ( id_t_ca_in, diag_atm, Time )
-    endif
-    if ( id_t_atm_in > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_t_atm, xmap_sfc)
-       used = fms_diag_send_data ( id_t_atm_in, diag_atm, Time )
-    endif
-    if ( id_q_atm_in > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_tr_atm(:,isphum), xmap_sfc)
-       used = fms_diag_send_data ( id_q_atm_in, diag_atm, Time )
-    endif
-    if ( id_q_surf_in > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_tr_surf(:,isphum), xmap_sfc)
-       used = fms_diag_send_data ( id_q_surf_in, diag_atm, Time )
-    endif
-    if ( id_t_flux_first > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_flux_t, xmap_sfc)
-       used = fms_diag_send_data ( id_t_flux_first, diag_atm, Time )
-    endif
-    if ( id_q_flux_first > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,isphum), xmap_sfc)
-       used = fms_diag_send_data ( id_q_flux_first, diag_atm, Time )
-    endif
-! ZNT 09/03/2020: end of added diagnoses
-
 
     !  call mpp_clock_end(fluxClock)
     zrefm = 10.0
@@ -2027,8 +1992,6 @@ contains
     integer :: tr, n, m ! tracer indices
     integer :: is, ie, l, i
 
-    real, dimension(size(Atmos_boundary%dt_t,1),size(Atmos_Boundary%dt_t,2)) :: diag_atm  ! ZNT
-
     !Balaji
     call fms_mpp_clock_begin(cplClock)
     call fms_mpp_clock_begin(fluxAtmDnClock)
@@ -2691,19 +2654,6 @@ contains
     used = fms_diag_send_data ( id_tauv,  -Atmos_boundary%v_flux, Time )
 
     !Balaji
-
-
-! ZNT 09/03/2020: some diagnoses between implicit update of ATM and SFC
-    if ( id_t_flux_second > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_flux_t, xmap_sfc)
-       used = fms_diag_send_data ( id_t_flux_second, diag_atm, Time )
-    endif
-    if ( id_q_flux_second > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,isphum), xmap_sfc)
-       used = fms_diag_send_data ( id_q_flux_second, diag_atm, Time )
-    endif
-! ZNT 09/03/2020: end of added diagnoses
-    
     call fms_mpp_clock_end(fluxAtmDnClock)
     call fms_mpp_clock_end(cplClock)
     !=======================================================================
@@ -2923,12 +2873,8 @@ contains
        do i = is, ie
           if(ex_avail(i) .and. (.not.ex_land(i))) then
              ! note that in this region (over ocean) ex_dt_t_surf == ex_dt_t_ca
-             ! Note ZNT 09/03/2020: Here the value ex_tr_surf_new(i,isphum) should be updated for analysis
-             !     workaround for now: calculate q_surf_new from updated flux.
              ex_delta_tr_n(i,isphum)  = ex_f_tr_delt_n(i,isphum) + ex_dt_t_surf(i) * ex_e_q_n(i)
              ex_flux_tr(i,isphum)     = ex_flux_tr(i,isphum)     + ex_dt_t_surf(i) * ex_dedt_surf(i)
-             ex_tr_surf_new(i,isphum) = ex_tr_surf(i,isphum) + & 
-                                        ex_dt_t_surf(i) * ex_dedt_surf(i) / (-ex_dfdtr_atm(i,isphum))
           endif
        enddo
     enddo
@@ -2963,30 +2909,6 @@ contains
 
     !=======================================================================
     !-------------------- diagnostics section ------------------------------
-
-! ZNT 09/03/2020: some diagnoses after implicit update
-    if ( id_t_atm_delt > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_delta_t_n, xmap_sfc)
-       used = fms_diag_send_data ( id_t_atm_delt, diag_atm, Time )
-    endif
-    if ( id_q_atm_delt > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_delta_tr_n(:,isphum), xmap_sfc)
-       used = fms_diag_send_data ( id_q_atm_delt, diag_atm, Time )
-    endif
-    if ( id_t_surf_out > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_t_surf_new, xmap_sfc)
-       used = fms_diag_send_data ( id_t_surf_out, diag_atm, Time )
-    endif
-    if ( id_t_ca_out > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_t_ca_new, xmap_sfc)
-       used = fms_diag_send_data ( id_t_ca_out, diag_atm, Time )
-    endif
-    if ( id_q_surf_out > 0 ) then
-       call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_tr_surf_new(:,isphum), xmap_sfc)
-       used = fms_diag_send_data ( id_q_surf_out, diag_atm, Time )
-    endif
-
-! ZNT 09/03/2020: end of added diagnoses
 
     !------- new surface temperature -----------
 #ifdef use_AM3_physics
@@ -3640,60 +3562,6 @@ contains
     id_del_q      = &
          fms_diag_register_diag_field ( mod_name, 'del_q',      atmos_axes, Time,     &
          'ref height interp factor for moisture','none' )
-
-! ZNT 09/03/2020: additional output fields
-    id_t_surf_in     = &
-         fms_diag_register_diag_field ( mod_name, 't_surf_in',     atmos_axes, Time, &
-         'surface temperature before surface exchange',    'deg_k', &
-         range=trange    )
-    id_t_ca_in       = &
-         fms_diag_register_diag_field ( mod_name, 't_ca_in',     atmos_axes, Time, &
-         'canopy air temperature before surface exchange',    'deg_k', &
-         range=trange    )
-    id_q_surf_in     = &
-         fms_diag_register_diag_field ( mod_name, 'q_surf_in',     atmos_axes, Time, &
-         'surface specific humidity before surface exchange',    'kg/kg')
-    id_q_surf_raw    = &
-         fms_diag_register_diag_field ( mod_name, 'q_surf_raw',     atmos_axes, Time, &
-         'surface specific humidity, raw input',    'kg/kg')
-    id_t_atm_in       = &
-         fms_diag_register_diag_field ( mod_name, 't_atm_in',     atmos_axes, Time, &
-         'temperature at btm level before surface exchange',    'deg_k', &
-         range=trange    )
-    id_q_atm_in     = &
-         fms_diag_register_diag_field ( mod_name, 'q_atm_in',     atmos_axes, Time, &
-         'specific humidity at btm level before surface exchange',    'kg/kg')
-    id_t_surf_out    = &
-         fms_diag_register_diag_field ( mod_name, 't_surf_out',     atmos_axes, Time, &
-         'surface temperature after surface exchange',    'deg_k', &
-         range=trange    )
-    id_t_ca_out      = &
-         fms_diag_register_diag_field ( mod_name, 't_ca_out',     atmos_axes, Time, &
-         'canopy air temperature after surface exchange',    'deg_k', &
-         range=trange    )
-    id_q_surf_out     = &
-         fms_diag_register_diag_field ( mod_name, 'q_surf_out',     atmos_axes, Time, &
-         'surface specific humidity after surface exchange',    'kg/kg')
-    id_t_atm_delt       = &
-         fms_diag_register_diag_field ( mod_name, 't_atm_delt',     atmos_axes, Time, &
-         'temperature change at btm level during surface exchange',    'deg_k', &
-         range=trange    )
-    id_q_atm_delt     = &
-         fms_diag_register_diag_field ( mod_name, 'q_atm_delt',     atmos_axes, Time, &
-         'specific humidity change at btm level during surface exchange',    'kg/kg')
-    id_t_flux_first     = &
-         fms_diag_register_diag_field ( mod_name, 'shflx_first',      atmos_axes, Time, &
-         'sensible heat flux, explicit',     'w/m2'    )
-    id_q_flux_first = & 
-         fms_diag_register_diag_field( mod_name, 'evap_first',       atmos_axes, Time, &
-         'evaporation rate, explicit',        'kg/m2/s'  )
-    id_t_flux_second     = &
-         fms_diag_register_diag_field ( mod_name, 'shflx_second',      atmos_axes, Time, &
-         'sensible heat flux, after atm update',     'w/m2'    )
-    id_q_flux_second = &
-         fms_diag_register_diag_field( mod_name, 'evap_second',       atmos_axes, Time, &
-         'evaporation rate, after atm update',        'kg/m2/s'  )
-! ZNT 09/03/2020: end of added output fields
 
     if( land_pe ) then
        ! set the default filter (for area and subsampling) for consequent calls to
