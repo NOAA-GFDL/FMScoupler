@@ -59,7 +59,7 @@ integer :: id_drag_moist,  id_drag_heat,  id_drag_mom,              &
            id_u_star, id_b_star, id_q_star, id_u_flux, id_v_flux,   &
            id_t_surf, id_t_flux, id_q_flux, id_r_flux,              &
            id_t_atm,  id_u_atm,  id_v_atm,  id_wind,                &
-           id_thv_atm, id_thv_surf,                                 & ! ZNT
+           id_thv_atm, id_thv_surf,                                 &
            id_t_ref,  id_rh_ref, id_u_ref,  id_v_ref,  id_q_ref,    &
            id_del_h,  id_del_m,  id_del_q, id_albedo,  id_gust,     &
            id_t_ca,   id_q_surf, id_q_atm, id_z_atm, id_p_atm,      &
@@ -804,9 +804,9 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
         allocate( land_ice_atmos_boundary%shflx(is:ie,js:je) )!miz
         allocate( land_ice_atmos_boundary%lhflx(is:ie,js:je) )!miz
 #endif
-   allocate( land_ice_atmos_boundary%wind(is:ie,js:je) )    !ZNT
-   allocate( land_ice_atmos_boundary%thv_atm(is:ie,js:je) ) !ZNT
-   allocate( land_ice_atmos_boundary%thv_surf(is:ie,js:je) )!ZNT
+   allocate( land_ice_atmos_boundary%wind(is:ie,js:je) )
+   allocate( land_ice_atmos_boundary%thv_atm(is:ie,js:je) )
+   allocate( land_ice_atmos_boundary%thv_surf(is:ie,js:je) )
    allocate( land_ice_atmos_boundary%rough_mom(is:ie,js:je) )
    allocate( land_ice_atmos_boundary%frac_open_sea(is:ie,js:je) )
 
@@ -834,9 +834,9 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
    land_ice_atmos_boundary%shflx=0.0
    land_ice_atmos_boundary%lhflx=0.0
 #endif
-   land_ice_atmos_boundary%wind=0.0     ! ZNT
-   land_ice_atmos_boundary%thv_atm=0.0  ! ZNT
-   land_ice_atmos_boundary%thv_surf=0.0 ! ZNT
+   land_ice_atmos_boundary%wind=0.0
+   land_ice_atmos_boundary%thv_atm=0.0
+   land_ice_atmos_boundary%thv_surf=0.0
    land_ice_atmos_boundary%rough_mom=0.01
    land_ice_atmos_boundary%frac_open_sea=0.0
 
@@ -958,11 +958,11 @@ subroutine diag_field_init ( Time, atmos_axes )
    fms_diag_register_diag_field ( mod_name, 'q_star',     atmos_axes, Time, &
        'moisture scale',      'kg water/kg air'   )
 
-   id_thv_atm = &   ! ZNT
+   id_thv_atm = &
    fms_diag_register_diag_field ( mod_name, 'thv_atm', atmos_axes, Time, &
        'surface air virtual potential temperature', 'K')
 
-   id_thv_surf = &  ! ZNT
+   id_thv_surf = &
    fms_diag_register_diag_field ( mod_name, 'thv_surf', atmos_axes, Time, &
        'surface virtual potential temperature', 'K')
 
@@ -1183,7 +1183,7 @@ subroutine surface_flux_2d (                                           &
      flux_t,    flux_q,     flux_r,    flux_u,    flux_v,              &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
-     thv_atm,   thv_surf,                                              &  ! ZNT 05/03/2020
+     thv_atm,   thv_surf,                                              &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
      dt,        land,       seawater,  avail  )
@@ -1201,7 +1201,7 @@ subroutine surface_flux_2d (                                           &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
        dhdt_atm,  dedq_atm,   dtaudu_atm,dtaudv_atm,         &
        w_atm,     u_star,     b_star,    q_star,             &
-       thv_atm,   thv_surf,                                  &  ! ZNT 05/03/2020
+       thv_atm,   thv_surf,                                  &
        cd_m,      cd_t,       cd_q
   real, intent(inout), dimension(:,:) :: q_surf
   real, intent(in) :: dt
@@ -1218,7 +1218,7 @@ subroutine surface_flux_2d (                                           &
           flux_t(:,j),    flux_q(:,j),     flux_r(:,j),    flux_u(:,j),    flux_v(:,j),             &
           cd_m(:,j),      cd_t(:,j),       cd_q(:,j),                                               &
           w_atm(:,j),     u_star(:,j),     b_star(:,j),     q_star(:,j),                            &
-          thv_atm(:,j),   thv_surf(:,j),                                                            &  ! ZNT 05/03/2020
+          thv_atm(:,j),   thv_surf(:,j),                                                            &
           dhdt_surf(:,j), dedt_surf(:,j),  dedq_surf(:,j),  drdt_surf(:,j),                         &
           dhdt_atm(:,j),  dedq_atm(:,j),   dtaudu_atm(:,j), dtaudv_atm(:,j),                        &
           dt,             land(:,j),       seawater(:,j),  avail(:,j)  )
