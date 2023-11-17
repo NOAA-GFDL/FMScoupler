@@ -109,6 +109,7 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
              id_u_star, id_b_star, id_q_star, id_u_flux, id_v_flux,   &
              id_t_surf, id_t_flux, id_r_flux, id_q_flux, id_slp,      &
              id_t_atm,  id_u_atm,  id_v_atm,  id_wind,                &
+             id_thv_atm, id_thv_surf,                                 &
              id_t_ref,  id_rh_ref, id_u_ref,  id_v_ref, id_wind_ref,  &
              id_del_h,  id_del_m,  id_del_q,  id_rough_scale,         &
              id_t_ca,   id_q_surf, id_q_atm, id_z_atm, id_p_atm, id_gust, &
@@ -571,6 +572,9 @@ contains
     allocate( land_ice_atmos_boundary%shflx(is:ie,js:je) )!miz
     allocate( land_ice_atmos_boundary%lhflx(is:ie,js:je) )!miz
 #endif
+    allocate( land_ice_atmos_boundary%wind(is:ie,js:je) )
+    allocate( land_ice_atmos_boundary%thv_atm(is:ie,js:je) )
+    allocate( land_ice_atmos_boundary%thv_surf(is:ie,js:je) )
     allocate( land_ice_atmos_boundary%rough_mom(is:ie,js:je) )
     allocate( land_ice_atmos_boundary%frac_open_sea(is:ie,js:je) )
     ! initialize boundary values for override experiments (mjh)
@@ -598,6 +602,9 @@ contains
     land_ice_atmos_boundary%shflx=0.0
     land_ice_atmos_boundary%lhflx=0.0
 #endif
+    land_ice_atmos_boundary%wind=0.0
+    land_ice_atmos_boundary%thv_atm=0.0
+    land_ice_atmos_boundary%thv_surf=0.0
     land_ice_atmos_boundary%rough_mom=0.01
     land_ice_atmos_boundary%frac_open_sea=0.0
 
@@ -679,6 +686,7 @@ contains
          ex_rough_mom, ex_rough_heat, ex_rough_moist, &
          ex_rough_scale,&
          ex_q_star,     &
+         ex_thv_atm, ex_thv_surf, &
          ex_cd_q,       &
          ex_ref, ex_ref_u, ex_ref_v, ex_u10, &
          ex_ref2,       &
@@ -1129,6 +1137,7 @@ contains
     !$OMP                                  ex_gust,ex_flux_t,ex_flux_tr,ex_flux_lw, &
     !$OMP                                  ex_flux_u,ex_flux_v,ex_cd_m,ex_cd_t,ex_cd_q, &
     !$OMP                                  ex_wind,ex_u_star,ex_b_star,ex_q_star,       &
+    !$OMP                                  ex_thv_atm,ex_thv_surf,                      &
     !$OMP                                  ex_dhdt_surf,ex_dedt_surf,ex_dfdtr_surf,   &
     !$OMP                                  ex_drdt_surf,ex_dhdt_atm,ex_dfdtr_atm,   &
     !$OMP                                  ex_dtaudu_atm, ex_dtaudv_atm,dt,ex_land, &
@@ -1146,6 +1155,7 @@ contains
             ex_flux_t(is:ie), ex_flux_tr(is:ie,isphum), ex_flux_lw(is:ie), ex_flux_u(is:ie), ex_flux_v(is:ie),         &
             ex_cd_m(is:ie),   ex_cd_t(is:ie), ex_cd_q(is:ie),                                    &
             ex_wind(is:ie),   ex_u_star(is:ie), ex_b_star(is:ie), ex_q_star(is:ie),                     &
+            ex_thv_atm(is:ie),   ex_thv_surf(is:ie),                                             &
             ex_dhdt_surf(is:ie), ex_dedt_surf(is:ie), ex_dfdtr_surf(is:ie,isphum),  ex_drdt_surf(is:ie),        &
             ex_dhdt_atm(is:ie),  ex_dfdtr_atm(is:ie,isphum),  ex_dtaudu_atm(is:ie), ex_dtaudv_atm(is:ie),       &
             dt,                                                             &
@@ -1165,6 +1175,7 @@ contains
             ex_flux_t, ex_flux_tr(:,isphum), ex_flux_lw, ex_flux_u, ex_flux_v,         &
             ex_cd_m,   ex_cd_t, ex_cd_q,                                               &
             ex_wind,   ex_u_star, ex_b_star, ex_q_star,                                &
+            ex_thv_atm, ex_thv_surf,                                                   &
             ex_dhdt_surf, ex_dedt_surf, ex_dfdtr_surf(:,isphum),  ex_drdt_surf,        &
             ex_dhdt_atm,  ex_dfdtr_atm(:,isphum),  ex_dtaudu_atm, ex_dtaudv_atm,       &
             dt,                                                                        &
@@ -1173,6 +1184,7 @@ contains
 
     endif
 #endif
+
 
     !  call mpp_clock_end(fluxClock)
     zrefm = 10.0
@@ -1395,6 +1407,14 @@ contains
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%u_ref,     'ATM', ex_ref_u     , xmap_sfc, complete=.false.) !bqx
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%v_ref,     'ATM', ex_ref_v     , xmap_sfc, complete=.true.) !bqx
 
+#ifndef use_AM3_physics
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%shflx,     'ATM', ex_flux_t    , xmap_sfc)
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%lhflx,     'ATM', ex_flux_tr(:,isphum), xmap_sfc)
+#endif
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%wind,      'ATM', ex_wind      , xmap_sfc)
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%thv_atm,   'ATM', ex_thv_atm   , xmap_sfc)
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%thv_surf,  'ATM', ex_thv_surf  , xmap_sfc)
+
 #ifdef use_AM3_physics
     if (do_forecast) then
        call fms_xgrid_get_from_xgrid (Ice%t_surf, 'OCN', ex_t_surf,  xmap_sfc)
@@ -1580,6 +1600,10 @@ contains
 
     !------- moisture scale -----------
     used = fms_diag_send_data ( id_q_star, Land_Ice_Atmos_Boundary%q_star, Time )
+
+    !------- surf and atm virtual potential temperature -----------
+    used = fms_diag_send_data ( id_thv_atm,  Land_Ice_Atmos_Boundary%thv_atm,  Time )
+    used = fms_diag_send_data ( id_thv_surf, Land_Ice_Atmos_Boundary%thv_surf, Time )
 
     !-----------------------------------------------------------------------
     !------ diagnostics for fields at bottom atmospheric level ------
@@ -3432,6 +3456,14 @@ contains
     id_q_star     = &
          fms_diag_register_diag_field ( mod_name, 'q_star',     atmos_axes, Time, &
          'moisture scale',      'kg water/kg air'   )
+
+    id_thv_atm = &
+         fms_diag_register_diag_field ( mod_name, 'thv_atm', atmos_axes, Time, &
+         'surface air virtual potential temperature', 'K')
+
+    id_thv_surf = &
+         fms_diag_register_diag_field ( mod_name, 'thv_surf', atmos_axes, Time, &
+         'surface virtual potential temperature', 'K')
 
     id_u_flux     = &
          fms_diag_register_diag_field ( mod_name, 'tau_x',      atmos_axes, Time, &
