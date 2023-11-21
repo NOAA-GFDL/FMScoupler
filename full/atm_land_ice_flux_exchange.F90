@@ -2621,7 +2621,7 @@ contains
     call fms_xgrid_stock_move( &
          & FROM = fms_stock_constants_atm_stock(ISTOCK_WATER), &
          & TO   = fms_stock_constants_ice_stock(ISTOCK_WATER), &
-         & stock_data2d = (Ice_boundary%lprec + Ice_boundary%fprec), &
+         & stock_data3d = (Ice_boundary%lprec + Ice_boundary%fprec), &
          & grid_index=X1_GRID_ICE, &
          & xmap=xmap_sfc, &
          & delta_t=Dt_atm, &
@@ -2632,7 +2632,7 @@ contains
     call fms_xgrid_stock_move( &
          & FROM = fms_stock_constants_atm_stock(ISTOCK_HEAT), &
          & TO   = fms_stock_constants_ice_stock(ISTOCK_HEAT), &
-         & stock_data2d = (-Ice_boundary%t_flux + Ice_boundary%lw_flux - Ice_boundary%fprec*HLF + Ice_boundary%sw_flux_vis_dir + &
+         & stock_data3d = (-Ice_boundary%t_flux + Ice_boundary%lw_flux - Ice_boundary%fprec*HLF + Ice_boundary%sw_flux_vis_dir + &
          Ice_boundary%sw_flux_vis_dif + Ice_boundary%sw_flux_nir_dir + Ice_boundary%sw_flux_nir_dif), &
          & grid_index=X1_GRID_ICE, &
          & xmap=xmap_sfc, &
