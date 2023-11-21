@@ -142,7 +142,7 @@ contains
        ice_buf(:,:,1) = Land_Ice_Boundary%runoff + Land_Ice_Boundary%calving
        call fms_xgrid_stock_move(from=fms_stock_constants_lnd_stock(ISTOCK_WATER), to=fms_stock_constants_ice_stock(ISTOCK_WATER), &
             & grid_index=X2_GRID_ICE, &
-            & data=ice_buf, &
+            & stock_data3d=ice_buf, &
             & xmap=xmap_runoff, &
             & delta_t=Dt_cpl, &
             & from_side=ISTOCK_SIDE, to_side=ISTOCK_SIDE, &
