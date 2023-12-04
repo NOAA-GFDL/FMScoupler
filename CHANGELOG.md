@@ -8,7 +8,7 @@ sequential patch number (starting from `01`).
 
 ## [2023.04] - 2023-12-04
 ### Added
-- Adds additional output arguments `thv_atm` amd `thv_surf` to the `surface_flux` interface for use in a new atmosphere boundary layer scheme.
+- Adds additional output arguments `thv_atm` amd `thv_surf` to the `surface_flux` interface, as well as calls to xgrid and send data in order to use a new atmosphere boundary layer scheme.
 
 ### Changed
 - Routines using the `data` argument name explicictly have been updated to match corresponding FMS updates
