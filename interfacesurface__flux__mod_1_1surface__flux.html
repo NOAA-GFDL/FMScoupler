@@ -79,17 +79,17 @@ $(function() {
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-methods"></a>
 Private Member Functions</h2></td></tr>
-<tr class="memitem:a0c15a066b7c540e5105807f636f68beb"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="interfacesurface__flux__mod_1_1surface__flux.html#a0c15a066b7c540e5105807f636f68beb">surface_flux_1d</a> (t_atm, q_atm_in, u_atm, v_atm, p_atm, z_atm, p_surf, t_surf, t_ca, q_surf, u_surf, v_surf, rough_mom, rough_heat, rough_moist, rough_scale, gust, flux_t, flux_q, flux_r, flux_u, flux_v, cd_m, cd_t, cd_q, w_atm, u_star, b_star, q_star, dhdt_surf, dedt_surf, dedq_surf, drdt_surf, dhdt_atm, dedq_atm, dtaudu_atm, dtaudv_atm, dt, land, seawater, avail)</td></tr>
-<tr class="separator:a0c15a066b7c540e5105807f636f68beb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a16a4cc07dbc53a9999a660556507d3dd"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="interfacesurface__flux__mod_1_1surface__flux.html#a16a4cc07dbc53a9999a660556507d3dd">surface_flux_2d</a> (t_atm, q_atm_in, u_atm, v_atm, p_atm, z_atm, p_surf, t_surf, t_ca, q_surf, u_surf, v_surf, rough_mom, rough_heat, rough_moist, rough_scale, gust, flux_t, flux_q, flux_r, flux_u, flux_v, cd_m, cd_t, cd_q, w_atm, u_star, b_star, q_star, dhdt_surf, dedt_surf, dedq_surf, drdt_surf, dhdt_atm, dedq_atm, dtaudu_atm, dtaudv_atm, dt, land, seawater, avail)</td></tr>
-<tr class="separator:a16a4cc07dbc53a9999a660556507d3dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aae251f64f9ec074e3eb13cf535503e96"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="interfacesurface__flux__mod_1_1surface__flux.html#aae251f64f9ec074e3eb13cf535503e96">surface_flux_1d</a> (t_atm, q_atm_in, u_atm, v_atm, p_atm, z_atm, p_surf, t_surf, t_ca, q_surf, u_surf, v_surf, rough_mom, rough_heat, rough_moist, rough_scale, gust, flux_t, flux_q, flux_r, flux_u, flux_v, cd_m, cd_t, cd_q, w_atm, u_star, b_star, q_star, thv_atm, thv_surf, dhdt_surf, dedt_surf, dedq_surf, drdt_surf, dhdt_atm, dedq_atm, dtaudu_atm, dtaudv_atm, dt, land, seawater, avail)</td></tr>
+<tr class="separator:aae251f64f9ec074e3eb13cf535503e96"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab3e1a25220436f1a605d89d8cb820294"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="interfacesurface__flux__mod_1_1surface__flux.html#ab3e1a25220436f1a605d89d8cb820294">surface_flux_2d</a> (t_atm, q_atm_in, u_atm, v_atm, p_atm, z_atm, p_surf, t_surf, t_ca, q_surf, u_surf, v_surf, rough_mom, rough_heat, rough_moist, rough_scale, gust, flux_t, flux_q, flux_r, flux_u, flux_v, cd_m, cd_t, cd_q, w_atm, u_star, b_star, q_star, thv_atm, thv_surf, dhdt_surf, dedt_surf, dedq_surf, drdt_surf, dhdt_atm, dedq_atm, dtaudu_atm, dtaudv_atm, dt, land, seawater, avail)</td></tr>
+<tr class="separator:ab3e1a25220436f1a605d89d8cb820294"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>For the calculation of fluxes on the exchange grids. </p>
 <p>For the calculation of fluxes on the exchange grids. </p>
 </div><h2 class="groupheader">Member Function/Subroutine Documentation</h2>
-<a id="a0c15a066b7c540e5105807f636f68beb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0c15a066b7c540e5105807f636f68beb">&#9670;&nbsp;</a></span>surface_flux_1d()</h2>
+<a id="aae251f64f9ec074e3eb13cf535503e96"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aae251f64f9ec074e3eb13cf535503e96">&#9670;&nbsp;</a></span>surface_flux_1d()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -275,6 +275,18 @@ Private Member Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">real, dimension(:), intent(out)&#160;</td>
+          <td class="paramname"><em>thv_atm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(out)&#160;</td>
+          <td class="paramname"><em>thv_surf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(out)&#160;</td>
           <td class="paramname"><em>dhdt_surf</em>, </td>
         </tr>
         <tr>
@@ -408,8 +420,8 @@ Private Member Functions</h2></td></tr>
 
 </div>
 </div>
-<a id="a16a4cc07dbc53a9999a660556507d3dd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a16a4cc07dbc53a9999a660556507d3dd">&#9670;&nbsp;</a></span>surface_flux_2d()</h2>
+<a id="ab3e1a25220436f1a605d89d8cb820294"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab3e1a25220436f1a605d89d8cb820294">&#9670;&nbsp;</a></span>surface_flux_2d()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -595,6 +607,18 @@ Private Member Functions</h2></td></tr>
           <td class="paramkey"></td>
           <td></td>
           <td class="paramtype">real, dimension(:,:), intent(out)&#160;</td>
+          <td class="paramname"><em>thv_atm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:,:), intent(out)&#160;</td>
+          <td class="paramname"><em>thv_surf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:,:), intent(out)&#160;</td>
           <td class="paramname"><em>dhdt_surf</em>, </td>
         </tr>
         <tr>
@@ -729,12 +753,12 @@ Private Member Functions</h2></td></tr>
 </div>
 </div>
 <hr/>The documentation for this interface was generated from the following file:<ul>
-<li>shared/<a class="el" href="surface__flux_8_f90.html">surface_flux.F90 (77618869f48507c8629f28457cb701e25e1ea4fc)</a></li>
+<li>shared/<a class="el" href="surface__flux_8_f90.html">surface_flux.F90 (6442d387153064644325c96a5e9e2935139d5e3c)</a></li>
 </ul>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Fri Oct 27 2023 15:06:45 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Mon Dec 4 2023 19:33:30 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

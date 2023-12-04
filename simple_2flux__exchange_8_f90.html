@@ -74,7 +74,7 @@ $(function() {
 <div class="title">flux_exchange.F90 File Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
-<h3 class="version">(77618869f48507c8629f28457cb701e25e1ea4fc)</h3>
+<h3 class="version">(6442d387153064644325c96a5e9e2935139d5e3c)</h3>
 <p>Routines to handle flux exchanges through exchange grids for the simple coupler.  
 <a href="#details">More...</a></p>
 <table class="memberdecls">
@@ -99,8 +99,8 @@ Functions/Subroutines</h2></td></tr>
 <tr class="separator:ab9537fe935b63ea2cf7f9c8f895cb8e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a6485a12c7af1fed26ee7a8dac257a508"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a6485a12c7af1fed26ee7a8dac257a508">flux_exchange_mod::flux_exchange_end</a> (Atm)</td></tr>
 <tr class="separator:a6485a12c7af1fed26ee7a8dac257a508"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ae4009468ad2b7568f0137e611cded1f2"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#ae4009468ad2b7568f0137e611cded1f2">flux_exchange_mod::surface_flux_2d</a> (t_atm, q_atm_in, u_atm, v_atm, p_atm, z_atm, p_surf, t_surf, t_ca, q_surf, u_surf, v_surf, rough_mom, rough_heat, rough_moist, rough_scale, gust, flux_t, flux_q, flux_r, flux_u, flux_v, cd_m, cd_t, cd_q, w_atm, u_star, b_star, q_star, dhdt_surf, dedt_surf, dedq_surf, drdt_surf, dhdt_atm, dedq_atm, dtaudu_atm, dtaudv_atm, dt, land, seawater, avail)</td></tr>
-<tr class="separator:ae4009468ad2b7568f0137e611cded1f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a61d0127746fc39769346765dd050d378"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a61d0127746fc39769346765dd050d378">flux_exchange_mod::surface_flux_2d</a> (t_atm, q_atm_in, u_atm, v_atm, p_atm, z_atm, p_surf, t_surf, t_ca, q_surf, u_surf, v_surf, rough_mom, rough_heat, rough_moist, rough_scale, gust, flux_t, flux_q, flux_r, flux_u, flux_v, cd_m, cd_t, cd_q, w_atm, u_star, b_star, q_star, thv_atm, thv_surf, dhdt_surf, dedt_surf, dedq_surf, drdt_surf, dhdt_atm, dedq_atm, dtaudu_atm, dtaudv_atm, dt, land, seawater, avail)</td></tr>
+<tr class="separator:a61d0127746fc39769346765dd050d378"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
@@ -144,6 +144,10 @@ Variables</h2></td></tr>
 <tr class="separator:a68a451013bb15a69769140c127a4f1ff"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ac6e943ac77ba00189aa554241e759ecc"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#ac6e943ac77ba00189aa554241e759ecc">flux_exchange_mod::id_wind</a></td></tr>
 <tr class="separator:ac6e943ac77ba00189aa554241e759ecc"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8bea74f845722bd6e52014a3f4e643fd"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a8bea74f845722bd6e52014a3f4e643fd">flux_exchange_mod::id_thv_atm</a></td></tr>
+<tr class="separator:a8bea74f845722bd6e52014a3f4e643fd"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa11efd287049dbe74600ca2d2295f2b2"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#aa11efd287049dbe74600ca2d2295f2b2">flux_exchange_mod::id_thv_surf</a></td></tr>
+<tr class="separator:aa11efd287049dbe74600ca2d2295f2b2"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a373b24bf412bc3c5d9a8cd4b6612fc10"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a373b24bf412bc3c5d9a8cd4b6612fc10">flux_exchange_mod::id_t_ref</a></td></tr>
 <tr class="separator:a373b24bf412bc3c5d9a8cd4b6612fc10"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af2b89e05edbf76edca8d8b7056269ef8"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#af2b89e05edbf76edca8d8b7056269ef8">flux_exchange_mod::id_rh_ref</a></td></tr>
@@ -304,7 +308,7 @@ Variables</h2></td></tr>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Fri Oct 27 2023 15:06:45 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Mon Dec 4 2023 19:33:30 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>
