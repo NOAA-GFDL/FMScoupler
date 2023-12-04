@@ -6,6 +6,17 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2023.04] - 2023-12-04
+### Added
+- Adds additional output arguments `thv_atm` amd `thv_surf` to the `surface_flux` interface, as well as calls to xgrid and send data in order to use a new atmosphere boundary layer scheme.
+
+### Changed
+- Routines using the `data` argument name explicictly have been updated to match corresponding FMS updates
+
+### Tag Commit Hashes
+2023.04-beta1 93ce3642a7951eb11d7d39441911717923dfc768
+
+
 ## [2023.02] - 2023-07-27
 ### Fixed
 - SHARED: Fixes crashes due to uninitialized namelist variables.
