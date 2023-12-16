@@ -1026,9 +1026,47 @@ contains
                ex_gas_fields_ice%bc(n)%field(m)%values, xmap_sfc)
        enddo  !} m
     enddo  !} n
+
+    !Generate a wet mask array on the xgrid which is:
+    !       1: where there is any open water in the OCN grid cell
+    !       0: where there is no  open water in the OCN grid cell, i.e., totally ice covered or land
+    !This is a dynamic wet mask and particularly is not the same as a static land mask because seaice fractions change
+    ! as the model runs.
+    !One way to create such a mask is if 'OCN' puts an array on the xgrid which is
+    ! 1 on every OCN grid cell with the 3rd index equal to 1 (ice category 1 corresponds to open water in the grid cell)
+    ! 0 otherwise
+    !This wet mask will be used to limit the air-sea flux exchange to areas that are not totally covered by seaice.
     sea = 0.0; sea(:,:,1) = 1.0;
     ex_seawater = 0.0
-    call fms_xgrid_put_to_xgrid (sea,             'OCN', ex_seawater,    xmap_sfc)
+    call fms_xgrid_put_to_xgrid (sea, 'OCN', ex_seawater, xmap_sfc)
+
+    !Question: Why is the above ex_seawater a dynamic mask array?
+    !          From its construction it looks like a static array of 1s and 0s !
+    !Answer: The xmap_sfc is dynamic and changes as the model steps because it contains updated information about
+    !        seaice fractions. The updated array "ex_seawater" after the above "put" call will be 1 where there
+    !        is open water even if those grid cells where previously closed by seaice.
+    !        Particularly if we restrict xgrid calculations where  ex_seawater==1
+    !        only cells with (partially or totally) open water contribute and totally covered cells won't contribute.
+
+    !Not related to the above comments, it seems that the above ex_frac_open_sea could be replaced by ex_seawater
+    !for code cleaning.
+    !The following test does not print out anything for a fully coupled model. This asserts that
+    !1. The two arrays ex_frac_open_sea and  ex_seawater are the same
+    !   Their difference is that ex_frac_open_sea is a local array,
+    !   but ex_seawater is a module array used outside this subroutine
+    !2. The xgrid array "ex_seawater" is either 0 or 1 and nothing else, just like the "ONC" grid array "sea"
+    !Test:
+    !do l = 1, my_nblocks
+    !   is=block_start(l)
+    !   ie=block_end(l)
+    !   do i = is, ie
+    !      if(ex_frac_open_sea(i) /= ex_seawater(i)) &
+    !           print*,'ex_frac_open_sea != ex_seawater ',ex_frac_open_sea(i),ex_seawater(i) 
+    !      if(ex_seawater(i) /= 0.0 .or.ex_seawater(i) /= 1.0 )&
+    !           print*,'ex_seawater !1 or 0 ' ,ex_seawater(i)
+    !   enddo
+    !enddo
+    
     ex_t_ca = ex_t_surf ! slm, Mar 20 2002 to define values over the ocean
 
     ! [4.3] put land quantities onto exchange grid ----
