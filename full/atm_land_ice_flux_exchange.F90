@@ -1054,19 +1054,18 @@ contains
     !1. The two arrays ex_frac_open_sea and  ex_seawater are the same
     !   Their difference is that ex_frac_open_sea is a local array,
     !   but ex_seawater is a module array used outside this subroutine
-    !2. The xgrid array "ex_seawater" is either 0 or 1 and nothing else, just like the "ONC" grid array "sea"
+    !2. The xgrid array "ex_seawater" is either 0 or 1 and nothing else, just like the "OCN" grid array "sea"
     !Test:
     !do l = 1, my_nblocks
     !   is=block_start(l)
     !   ie=block_end(l)
     !   do i = is, ie
     !      if(ex_frac_open_sea(i) /= ex_seawater(i)) &
-    !           print*,'ex_frac_open_sea != ex_seawater ',ex_frac_open_sea(i),ex_seawater(i) 
+    !           print*,'ex_frac_open_sea != ex_seawater ',ex_frac_open_sea(i),ex_seawater(i)
     !      if(ex_seawater(i) /= 0.0 .or.ex_seawater(i) /= 1.0 )&
     !           print*,'ex_seawater !1 or 0 ' ,ex_seawater(i)
     !   enddo
     !enddo
-    
     ex_t_ca = ex_t_surf ! slm, Mar 20 2002 to define values over the ocean
 
     ! [4.3] put land quantities onto exchange grid ----
