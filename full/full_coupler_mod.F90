@@ -19,6 +19,8 @@
 !***********************************************************************
 module full_coupler_mod
 
+  use omp_lib 
+  
   use FMS !, status_fms=>status
   use FMSconstants, only: fmsconstants_init
 
