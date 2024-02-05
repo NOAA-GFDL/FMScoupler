@@ -895,7 +895,7 @@ contains
       call fms_mpp_clock_begin(full_coupler_clocks%ocean_model_init)
       call ocean_model_init( Ocean, Ocean_state, Time_init, Time, &
                              gas_fields_ocn=gas_fields_ocn  )
-      call fms_mpp_clock_end(full_coupler_clocksocean_model_init)
+      call fms_mpp_clock_end(full_coupler_clocks%ocean_model_init)
 
       if (concurrent) then
         call fms_mpp_set_current_pelist( Ocean%pelist )
@@ -1422,17 +1422,17 @@ contains
   end subroutine ocean_chksum
 
 !> \brief This subroutine sets the ID for clocks used in coupler_main
-  subroutine full_coupler_set_clock_ids(clocks, Atm, Land, Ice, Ocean, do_concurrent_radiation)
+  subroutine full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, do_concurrent_radiation)
 
     type(full_coupler_clock_type), intent(inout) :: full_coupler_clocks
-    type(atm_data_type),  intent(in) :: Atm
-    type(land_data_type), intent(in) :: Land
-    type(ice_data_type),  intent(in) :: Ice
+    type(atmos_data_type),  intent(in)  :: Atm
+    type(land_data_type), intent(in)    :: Land
+    type(ice_data_type),  intent(in)    :: Ice
     type(ocean_public_type), intent(in) :: Ocean
-    integer, intent(in) :: do_concurrent_radiation
+    logical, intent(in) :: do_concurrent_radiation
 
     !initialization clock is on global pe
-    full_coupler_clocks%inititialization = fms_mpp_clock_id( 'Initialization' )
+    full_coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
     If(Atm%pe) then
       call fms_mpp_set_current_pelist(Atm%pelist)
       full_coupler_clocks%generate_sfc_xgrid = fms_mpp_clock_id( 'generate_sfc_xgrid' )

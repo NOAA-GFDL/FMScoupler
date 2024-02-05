@@ -336,7 +336,7 @@ program coupler_main
   
   call fms_mpp_init()
   call fms_mpp_clock_begin(full_coupler_clocks%initialization)
-
+  
   call fms_init
   call fmsconstants_init
   call fms_affinity_init
@@ -347,7 +347,7 @@ program coupler_main
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(full_coupler_clocks%initialization) !end initialization
 
-  call fms_mpp_clock_begin(full_coupler_clocks_clocks%main) !begin main loop
+  call fms_mpp_clock_begin(full_coupler_clocks%main) !begin main loop
 
 !-----------------------------------------------------------------------
 !------ ocean/slow-ice integration loop ------
@@ -357,7 +357,7 @@ program coupler_main
     call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
   endif
 
-  call full_coupler_set_clock_ids(clocks, Atm, Land, Ice, Ocean, do_concurrent_radiation)
+  call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, do_concurrent_radiation)
 
   do nc = 1, num_cpld_calls
     if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc)
@@ -393,10 +393,10 @@ program coupler_main
 
       ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
       if (use_lag_fluxes) then
-        call fms_mpp_clock_begin(full_coupler_clocks%flux_ice_to_icean)
+        call fms_mpp_clock_begin(full_coupler_clocks%flux_ice_to_ocean)
         call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
         Time_flux_ice_to_ocean = Time
-        call fms_mpp_clock_end(clocks%flux%flux_ice_to_ocean)
+        call fms_mpp_clock_end(full_coupler_clocks%flux_ice_to_ocean)
       endif
     endif
 
