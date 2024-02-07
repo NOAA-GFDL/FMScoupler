@@ -331,6 +331,7 @@
 !!     This error should probably not occur because of checks done at initialization time.
 program coupler_main
 
+  use omp_lib
   use full_coupler_mod
   
   call fms_mpp_init()

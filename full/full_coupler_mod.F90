@@ -19,7 +19,7 @@
 !***********************************************************************
 module full_coupler_mod
 
-  use omp_lib 
+  use omp_lib !< F90 module for OpenMP
   
   use FMS !, status_fms=>status
   use FMSconstants, only: fmsconstants_init
@@ -88,47 +88,79 @@ module full_coupler_mod
   use iso_fortran_env
 
   implicit none
+  private
+  
+  public :: FMS, fmsconstants_init
+  public :: update_atmos_model_dynamics, update_atmos_model_down, update_atmos_model_up
+  public :: update_atmos_model_radiation, update_atmos_model_state
+  public :: update_land_model_fast, update_land_model_slow
+  public :: update_ice_model_fast, set_ice_surface_fields
+  public :: unpack_ocean_ice_boundary, exchange_slow_to_fast_ice
+  public :: ice_model_fast_cleanup, unpack_land_ice_boundary
+  public :: exchange_fast_to_slow_ice, update_ice_model_slow
+  public :: update_ocean_model, update_slow_ice_and_ocean
+  public :: sfc_boundary_layer, generate_sfc_xgrid, send_ice_mask_sic
+  public :: flux_down_from_atmos, flux_up_to_atmos
+  public :: flux_land_to_ice, flux_ice_to_ocean, flux_ocean_to_ice
+  public :: flux_ice_to_ocean_finish, flux_ocean_to_ice_finish
+  public :: flux_check_stocks, flux_init_stocks
+  public :: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
+  public :: flux_atmos_to_ocean, flux_ex_arrays_dealloc
+  public :: atmos_tracer_driver_gather_data
+
+  public :: atmos_model_restart, land_model_restart, ice_model_restart, ocean_model_restart
+
+  public :: atmos_data_type_chksum,   lnd_ice_atm_bnd_type_chksum
+  public :: lnd_atm_bnd_type_chksum,  ice_atm_bnd_type_chksum
+  public :: atm_lnd_bnd_type_chksum,  land_data_type_chksum
+  public :: ice_data_type_chksum,     ocn_ice_bnd_type_chksum
+  public :: atm_ice_bnd_type_chksum,  lnd_ice_bnd_type_chksum
+  public :: ocean_ice_boundary_type,  atmos_ice_boundary_type
+  public :: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
+
+  public :: coupler_init, coupler_end, coupler_restart
+  public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum, full_coupler_set_clock_ids
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id$'
-  character(len=128) :: tag = '$Name$'
+  character(len=128), public :: version = '$Id$'
+  character(len=128), public :: tag = '$Name$'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
 
-  type (atmos_data_type) :: Atm
-  type  (land_data_type) :: Land
-  type   (ice_data_type) :: Ice
+  type (atmos_data_type), public :: Atm
+  type  (land_data_type), public :: Land
+  type   (ice_data_type), public :: Ice
   ! allow members of ocean type to be aliased (ap)
-  type (ocean_public_type), target :: Ocean
-  type (ocean_state_type),  pointer :: Ocean_state => NULL()
+  type (ocean_public_type), target, public :: Ocean
+  type (ocean_state_type),  pointer, public :: Ocean_state => NULL()
 
-  type(atmos_land_boundary_type)     :: Atmos_land_boundary
-  type(atmos_ice_boundary_type)      :: Atmos_ice_boundary
-  type(land_ice_atmos_boundary_type) :: Land_ice_atmos_boundary
-  type(land_ice_boundary_type)       :: Land_ice_boundary
-  type(ice_ocean_boundary_type)      :: Ice_ocean_boundary
-  type(ocean_ice_boundary_type)      :: Ocean_ice_boundary
-  type(ice_ocean_driver_type), pointer :: ice_ocean_driver_CS => NULL()
+  type(atmos_land_boundary_type), public     :: Atmos_land_boundary
+  type(atmos_ice_boundary_type), public      :: Atmos_ice_boundary
+  type(land_ice_atmos_boundary_type), public :: Land_ice_atmos_boundary
+  type(land_ice_boundary_type), public       :: Land_ice_boundary
+  type(ice_ocean_boundary_type), public      :: Ice_ocean_boundary
+  type(ocean_ice_boundary_type), public      :: Ocean_ice_boundary
+  type(ice_ocean_driver_type), pointer, public :: ice_ocean_driver_CS => NULL()
 
 !-----------------------------------------------------------------------
 ! ----- coupled model time -----
 
-  type (FmsTime_type) :: Time, Time_init, Time_end, &
-                      Time_step_atmos, Time_step_cpld
-  type(FmsTime_type) :: Time_atmos, Time_ocean
-  type(FmsTime_type) :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
+  type(FmsTime_type), public :: Time, Time_init, Time_end
+  type(FmsTime_type), public :: Time_step_atmos, Time_step_cpld
+  type(FmsTime_type), public :: Time_atmos, Time_ocean
+  type(FmsTime_type), public :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
 
-  integer :: num_atmos_calls, na
-  integer :: num_cpld_calls, nc
+  integer, public :: num_atmos_calls, na
+  integer, public :: num_cpld_calls, nc
 
-  type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ice_bc_restart => NULL()
-  type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ocn_bc_restart => NULL()
+  type(FmsNetcdfDomainFile_t), dimension(:), pointer, public :: Ice_bc_restart => NULL()
+  type(FmsNetcdfDomainFile_t), dimension(:), pointer, public :: Ocn_bc_restart => NULL()
 
-  integer            :: num_ice_bc_restart=0, num_ocn_bc_restart=0
-  type(FmsTime_type) :: Time_restart, Time_restart_current, Time_start
-  character(len=32)  :: timestamp
+  integer, public            :: num_ice_bc_restart=0, num_ocn_bc_restart=0
+  type(FmsTime_type), public :: Time_restart, Time_restart_current, Time_start
+  character(len=32), public  :: timestamp
 
 ! ----- coupled model initial date -----
 
@@ -138,15 +170,15 @@ module full_coupler_mod
 !-----------------------------------------------------------------------
 !------ namelist interface -------
 
-  integer, dimension(6) :: restart_interval = (/ 0, 0, 0, 0, 0, 0/) !< The time interval that write out intermediate restart file.
-                                                                    !! The format is (yr,mo,day,hr,min,sec).  When restart_interval
-                                                                    !! is all zero, no intermediate restart file will be written out
-  integer, dimension(6) :: current_date     = (/ 0, 0, 0, 0, 0, 0 /) !< The date that the current integration starts with.  (See
-                                                                     !! force_date_from_namelist.)
+  integer, dimension(6), public :: restart_interval = (/ 0, 0, 0, 0, 0, 0/) !< The time interval that write out intermediate restart file.
+                                                                            !! The format is (yr,mo,day,hr,min,sec).  When restart_interval
+                                                                            !! is all zero, no intermediate restart file will be written out
+  integer, dimension(6) :: current_date  = (/ 0, 0, 0, 0, 0, 0 /) !< The date that the current integration starts with.  (See
+                                                                  !! force_date_from_namelist.)
   character(len=17) :: calendar = '                 ' !< The calendar type used by the current integration.  Valid values are
-                                                      !! consistent with the time_manager module: 'gregorian', 'julian', 'noleap', or 'thirty_day'.
-                                                      !! The value 'no_calendar' cannot be used because the time_manager's date
-                                                      !! functions are used.  All values must be lower case.
+                                                     !! consistent with the time_manager module: 'gregorian', 'julian', 'noleap', or 'thirty_day'.
+                                                     !! The value 'no_calendar' cannot be used because the time_manager's date
+                                                     !! functions are used.  All values must be lower case.
   logical :: force_date_from_namelist = .false.  !< Flag that determines whether the namelist variable current_date should override
                                                  !! the date in the restart file `INPUT/coupler.res`.  If the restart file does not
                                                  !! exist then force_date_from_namelist has no effect, the value of current_date
@@ -156,48 +188,48 @@ module full_coupler_mod
   integer :: hours=0   !< Number of hours the current integration will be run
   integer :: minutes=0 !< Number of minutes the current integration will be run
   integer :: seconds=0 !< Number of seconds the current integration will be run
-  integer :: dt_atmos = 0 !< Atmospheric model time step in seconds, including the fat coupling with land and sea ice
-  integer :: dt_cpld  = 0 !< Time step in seconds for coupling between ocean and atmospheric models.  This must be an
-                          !! integral multiple of dt_atmos and dt_ocean.  This is the "slow" timestep.
-  integer :: atmos_npes=0 !< The number of MPI tasks to use for the atmosphere
-  integer :: ocean_npes=0 !< The number of MPI tasks to use for the ocean
-  integer :: ice_npes=0   !< The number of MPI tasks to use for the ice
-  integer :: land_npes=0  !< The number of MPI tasks to use for the land
-  integer :: atmos_nthreads=1 !< Number of OpenMP threads to use in the atmosphere
-  integer :: ocean_nthreads=1 !< Number of OpenMP threads to use in the ocean
-  integer :: radiation_nthreads=1 !< Number of threads to use for the radiation.
-  logical :: do_atmos =.true. !< Indicates if this component should be executed.  If .FALSE., then execution is skipped.
-                              !! This is used when ALL the output fields sent by this component to the coupler have been
-                              !! overridden  using the data_override feature.  This is for advanced users only.
-  logical :: do_land =.true. !< See do_atmos
-  logical :: do_ice =.true.  !< See do_atmos
-  logical :: do_ocean=.true. !< See do_atmos
-  logical :: do_flux =.true. !< See do_atmos
-  logical :: concurrent=.FALSE. !< If .TRUE., the ocean executes concurrently with the atmosphere-land-ice on a separate
-                                !! set of PEs.  Concurrent should be .TRUE. if concurrent_ice is .TRUE.
-                                !! If .FALSE., the execution is serial: call atmos... followed by call ocean...
-  logical :: do_concurrent_radiation=.FALSE. !< If .TRUE. then radiation is done concurrently
-  logical :: use_lag_fluxes=.TRUE.  !< If .TRUE., the ocean is forced with SBCs from one coupling timestep ago.
-                                    !! If .FALSE., the ocean is forced with most recent SBCs.  For an old leapfrog
-                                    !! MOM4 coupling with dt_cpld=dt_ocean, lag fluxes can be shown to be stable
-                                    !! and current fluxes to be unconditionally unstable.  For dt_cpld>dt_ocean there
-                                    !! is probably sufficient damping for MOM4.  For more modern ocean models (such as
-                                    !! MOM5, GOLD or MOM6) that do not use leapfrog timestepping, use_lag_fluxes=.False.
-                                    !! should be much more stable.
-  logical :: concurrent_ice=.FALSE. !< If .TRUE., the slow sea-ice is forced with the fluxes that were used for the
-                                    !! fast ice processes one timestep before.  When used in conjuction with setting
-                                    !! slow_ice_with_ocean=.TRUE., this approach allows the atmosphere and
-                                    !! ocean to run concurrently even if use_lag_fluxes=.FALSE., and it can
-                                    !! be shown to ameliorate or eliminate several ice-ocean coupled instabilities.
-  logical :: slow_ice_with_ocean=.FALSE. !< If true, the slow sea-ice is advanced on the ocean processors.  Otherwise
-                                    !! the slow sea-ice processes are on the same PEs as the fast sea-ice.
-  logical :: combined_ice_and_ocean=.FALSE. !< If true, there is a single call from the coupler to advance
-                                    !! both the slow sea-ice and the ocean. slow_ice_with_ocean and
-                                    !! concurrent_ice must both be true if combined_ice_and_ocean is true.
-  logical :: do_chksum=.FALSE.      !! If .TRUE., do multiple checksums throughout the execution of the model.
+  integer, public :: dt_atmos = 0 !< Atmospheric model time step in seconds, including the fat coupling with land and sea ice
+  integer, public :: dt_cpld  = 0 !< Time step in seconds for coupling between ocean and atmospheric models.  This must be an
+                                  !! integral multiple of dt_atmos and dt_ocean.  This is the "slow" timestep.
+  integer, public :: atmos_npes=0 !< The number of MPI tasks to use for the atmosphere
+  integer, public :: ocean_npes=0 !< The number of MPI tasks to use for the ocean
+  integer, public :: ice_npes=0   !< The number of MPI tasks to use for the ice
+  integer, public :: land_npes=0  !< The number of MPI tasks to use for the land
+  integer, public :: atmos_nthreads=1 !< Number of OpenMP threads to use in the atmosphere
+  integer, public :: ocean_nthreads=1 !< Number of OpenMP threads to use in the ocean
+  integer, public :: radiation_nthreads=1 !< Number of threads to use for the radiation.
+  logical, public :: do_atmos =.true. !< Indicates if this component should be executed.  If .FALSE., then execution is skipped.
+                                      !! This is used when ALL the output fields sent by this component to the coupler have been
+                                      !! overridden  using the data_override feature.  This is for advanced users only.
+  logical, public :: do_land =.true. !< See do_atmos
+  logical, public :: do_ice =.true.  !< See do_atmos
+  logical, public :: do_ocean=.true. !< See do_atmos
+  logical, public :: do_flux =.true. !< See do_atmos
+  logical, public :: concurrent=.FALSE. !< If .TRUE., the ocean executes concurrently with the atmosphere-land-ice on a separate
+                                        !! set of PEs.  Concurrent should be .TRUE. if concurrent_ice is .TRUE.
+                                        !! If .FALSE., the execution is serial: call atmos... followed by call ocean...
+  logical, public :: do_concurrent_radiation=.FALSE. !< If .TRUE. then radiation is done concurrently
+  logical, public :: use_lag_fluxes=.TRUE.  !< If .TRUE., the ocean is forced with SBCs from one coupling timestep ago.
+                                            !! If .FALSE., the ocean is forced with most recent SBCs.  For an old leapfrog
+                                            !! MOM4 coupling with dt_cpld=dt_ocean, lag fluxes can be shown to be stable
+                                            !! and current fluxes to be unconditionally unstable.  For dt_cpld>dt_ocean there
+                                            !! is probably sufficient damping for MOM4.  For more modern ocean models (such as
+                                            !! MOM5, GOLD or MOM6) that do not use leapfrog timestepping, use_lag_fluxes=.False.
+                                            !! should be much more stable.
+  logical, public :: concurrent_ice=.FALSE. !< If .TRUE., the slow sea-ice is forced with the fluxes that were used for the
+                                            !! fast ice processes one timestep before.  When used in conjuction with setting
+                                            !! slow_ice_with_ocean=.TRUE., this approach allows the atmosphere and
+                                            !! ocean to run concurrently even if use_lag_fluxes=.FALSE., and it can
+                                            !! be shown to ameliorate or eliminate several ice-ocean coupled instabilities.
+  logical, public :: slow_ice_with_ocean=.FALSE. !< If true, the slow sea-ice is advanced on the ocean processors.  Otherwise
+                                                 !! the slow sea-ice processes are on the same PEs as the fast sea-ice.
+  logical, public :: combined_ice_and_ocean=.FALSE. !< If true, there is a single call from the coupler to advance
+                                                    !! both the slow sea-ice and the ocean. slow_ice_with_ocean and
+                                                    !! concurrent_ice must both be true if combined_ice_and_ocean is true.
+  logical, public :: do_chksum=.FALSE.          !! If .TRUE., do multiple checksums throughout the execution of the model.
   logical :: do_endpoint_chksum=.TRUE.  !< If .TRUE., do checksums of the initial and final states.
-  logical :: do_debug=.FALSE.       !< If .TRUE. print additional debugging messages.
-  integer :: check_stocks = 0 ! -1: never 0: at end of run only n>0: every n coupled steps
+  logical, public :: do_debug=.FALSE.       !< If .TRUE. print additional debugging messages.
+  integer, public :: check_stocks = 0       !< -1: never 0: at end of run only n>0: every n coupled steps
   logical :: use_hyper_thread = .false.
 
   namelist /coupler_nml/ current_date, calendar, force_date_from_namelist,         &
@@ -209,7 +241,8 @@ module full_coupler_mod
                          check_stocks, restart_interval, do_debug, do_chksum,      &
                          use_hyper_thread, concurrent_ice, slow_ice_with_ocean,    &
                          do_endpoint_chksum, combined_ice_and_ocean
-  
+
+  public :: full_coupler_clock_type
   type full_coupler_clock_type
     integer :: initialization
     integer :: main
@@ -252,17 +285,17 @@ module full_coupler_mod
     integer :: flux_exchange_init
   end type full_coupler_clock_type
 
-  type(full_coupler_clock_type) :: full_coupler_clocks
+  type(full_coupler_clock_type), public :: full_coupler_clocks
 
-  character(len=80) :: text
-  character(len=48), parameter  :: mod_name = 'coupler_main_mod'
+  character(len=80), public :: text
+  character(len=48), parameter :: mod_name = 'full_coupler_mod'
 
-  integer :: outunit
+  integer, public :: outunit
   integer :: ensemble_id = 1
   integer, allocatable :: ensemble_pelist(:, :)
-  integer, allocatable :: slow_ice_ocean_pelist(:)
-  integer :: conc_nthreads = 1
-  real :: dsec, omp_sec(2)=0.0, imb_sec(2)=0.0
+  integer, allocatable, public :: slow_ice_ocean_pelist(:)
+  integer, public :: conc_nthreads = 1
+  real, public :: dsec, omp_sec(2)=0.0, imb_sec(2)=0.0
 
 contains
 
