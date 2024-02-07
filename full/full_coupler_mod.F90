@@ -133,15 +133,15 @@ module full_coupler_mod
   type  (land_data_type), public :: Land
   type   (ice_data_type), public :: Ice
   ! allow members of ocean type to be aliased (ap)
-  type (ocean_public_type), target, public :: Ocean
+  type (ocean_public_type), target,  public :: Ocean
   type (ocean_state_type),  pointer, public :: Ocean_state => NULL()
 
-  type(atmos_land_boundary_type), public     :: Atmos_land_boundary
-  type(atmos_ice_boundary_type), public      :: Atmos_ice_boundary
+  type(atmos_land_boundary_type),     public :: Atmos_land_boundary
+  type(atmos_ice_boundary_type),      public :: Atmos_ice_boundary
   type(land_ice_atmos_boundary_type), public :: Land_ice_atmos_boundary
-  type(land_ice_boundary_type), public       :: Land_ice_boundary
-  type(ice_ocean_boundary_type), public      :: Ice_ocean_boundary
-  type(ocean_ice_boundary_type), public      :: Ocean_ice_boundary
+  type(land_ice_boundary_type),  public :: Land_ice_boundary
+  type(ice_ocean_boundary_type), public :: Ice_ocean_boundary
+  type(ocean_ice_boundary_type), public :: Ocean_ice_boundary
   type(ice_ocean_driver_type), pointer, public :: ice_ocean_driver_CS => NULL()
 
 !-----------------------------------------------------------------------
@@ -158,9 +158,9 @@ module full_coupler_mod
   type(FmsNetcdfDomainFile_t), dimension(:), pointer, public :: Ice_bc_restart => NULL()
   type(FmsNetcdfDomainFile_t), dimension(:), pointer, public :: Ocn_bc_restart => NULL()
 
-  integer, public            :: num_ice_bc_restart=0, num_ocn_bc_restart=0
+  integer,            public :: num_ice_bc_restart=0, num_ocn_bc_restart=0
   type(FmsTime_type), public :: Time_restart, Time_restart_current, Time_start
-  character(len=32), public  :: timestamp
+  character(len=32),  public :: timestamp
 
 ! ----- coupled model initial date -----
 
@@ -226,8 +226,8 @@ module full_coupler_mod
   logical, public :: combined_ice_and_ocean=.FALSE. !< If true, there is a single call from the coupler to advance
                                                     !! both the slow sea-ice and the ocean. slow_ice_with_ocean and
                                                     !! concurrent_ice must both be true if combined_ice_and_ocean is true.
-  logical, public :: do_chksum=.FALSE.          !! If .TRUE., do multiple checksums throughout the execution of the model.
-  logical :: do_endpoint_chksum=.TRUE.  !< If .TRUE., do checksums of the initial and final states.
+  logical, public :: do_chksum=.FALSE.      !! If .TRUE., do multiple checksums throughout the execution of the model.
+  logical :: do_endpoint_chksum=.TRUE.      !< If .TRUE., do checksums of the initial and final states.
   logical, public :: do_debug=.FALSE.       !< If .TRUE. print additional debugging messages.
   integer, public :: check_stocks = 0       !< -1: never 0: at end of run only n>0: every n coupled steps
   logical :: use_hyper_thread = .false.
