@@ -334,6 +334,8 @@ program coupler_main
   use full_coupler_mod
   
   call fms_mpp_init()
+
+  full_coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
   call fms_mpp_clock_begin(full_coupler_clocks%initialization)
   
   call fms_init

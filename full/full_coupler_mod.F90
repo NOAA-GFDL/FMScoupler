@@ -1437,8 +1437,6 @@ contains
     type(ocean_public_type), intent(in) :: Ocean
     logical, intent(in) :: do_concurrent_radiation
 
-    !initialization clock is on global pe
-    full_coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
     If(Atm%pe) then
       call fms_mpp_set_current_pelist(Atm%pelist)
       full_coupler_clocks%generate_sfc_xgrid = fms_mpp_clock_id( 'generate_sfc_xgrid' )
