@@ -505,11 +505,7 @@ program coupler_main
 !$OMP&    SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&    SHARED(Ocean_ice_boundary) &
 !$OMP&    SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&    SHARED(full_coupler_clocks%update_atmos_model_down, full_coupler_clocks%flux_down_from_atmos) &
-!&OMP&    SHARED(full_coupler_clocks%update_land_model_fast, full_coupler_clocks%update_ice_model_fast) &
-!&OMP&    SHARED(full_coupler_clocks%flux_up_to_atmos, full_coupler_clocks%update_atmos_model_up) &
-!&OMP&    SHARED(full_coupler_clocks%concurrent_atmos, full_coupler_clocks%concurrent_radiation) &
-!&OMP&    SHARED(full_coupler_clocks%update_atmos_model_dynamics)
+!$OMP&    SHARED(full_coupler_clocks)
 !$      if (omp_get_thread_num() == 0) then
 !$OMP     PARALLEL &
 !$OMP&      NUM_THREADS(1) &
@@ -519,11 +515,7 @@ program coupler_main
 !$OMP&      SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&      SHARED(Ocean_ice_boundary) &
 !$OMP&      SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&      SHARED(full_coupler_clocks%update_atmos_model_down, full_coupler_clocks%flux_down_from_atmos) &
-!&OMP&      SHARED(full_coupler_clocks%update_land_model_fast, full_coupler_clocks%update_ice_model_fast) &
-!&OMP&      SHARED(full_coupler_clocks%flux_up_to_atmos, full_coupler_clocks%update_atmos_model_up) &
-!&OMP&      SHARED(full_coupler_clocks%concurrent_atmos, full_coupler_clocks%concurrent_radiation) &
-!&OMP&      SHARED(full_coupler_clocks%update_atmos_model_dynamics)
+!$OMP&      SHARED(full_coupler_clocks)
 !$        call omp_set_num_threads(atmos_nthreads)
 !$        dsec=omp_get_wtime()
 

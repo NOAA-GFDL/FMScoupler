@@ -253,7 +253,7 @@ module full_coupler_mod
   end type full_coupler_clock_type
 
   type(full_coupler_clock_type) :: full_coupler_clocks
-  
+
   character(len=80) :: text
   character(len=48), parameter  :: mod_name = 'coupler_main_mod'
 
