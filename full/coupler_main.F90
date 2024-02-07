@@ -356,8 +356,6 @@ program coupler_main
     call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
   endif
 
-  call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, do_concurrent_radiation)
-
   do nc = 1, num_cpld_calls
     if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc)
     call fms_mpp_set_current_pelist()

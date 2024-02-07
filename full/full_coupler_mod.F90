@@ -538,6 +538,10 @@ contains
     Ice%slow_ice_pe = ANY(Ice%slow_pelist(:) .EQ. fms_mpp_pe())
     Ice%pe = Ice%fast_ice_pe .OR. Ice%slow_ice_pe
     call fms_mpp_declare_pelist(slow_ice_ocean_pelist)
+
+    !> The pelists need to be set before initializing the clocks
+    call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, do_concurrent_radiation)
+    
     !--- dynamic threading turned off when affinity placement is in use
 !$  call omp_set_dynamic(.FALSE.)
     !--- nested OpenMP enabled for OpenMP concurrent components
