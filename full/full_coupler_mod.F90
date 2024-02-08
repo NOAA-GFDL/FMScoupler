@@ -572,10 +572,6 @@ contains
     Ice%pe = Ice%fast_ice_pe .OR. Ice%slow_ice_pe
     call fms_mpp_declare_pelist(slow_ice_ocean_pelist)
 
-    !> The pelists need to be set before initializing the clocks
-    call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, &
-                                    do_concurrent_radiation, clock_type='init_coupler_clocks')
-    
     !--- dynamic threading turned off when affinity placement is in use
 !$  call omp_set_dynamic(.FALSE.)
     !--- nested OpenMP enabled for OpenMP concurrent components
@@ -594,6 +590,10 @@ contains
 !$      call omp_set_num_threads(atmos_nthreads)
       endif
     endif
+
+    !> The pelists need to be set before initializing the clocks
+    call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, &
+                                    do_concurrent_radiation, clock_type='init_model_clocks')
 
     !Write out messages on root PEs
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
@@ -835,9 +835,6 @@ contains
 !------ initialize component models ------
 !------ grid info now comes from grid_spec file
 
-    call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, &
-                                    do_concurrent_radiation, clock_type='init_model_clocks')
-    
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Beginning to initialize component models at '&
@@ -1477,6 +1474,7 @@ contains
 
     if( trim(clock_type) == 'coupler_initialization_clock' ) then
       full_coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
+
     else if( trim(clock_type) ==  'init_model_clocks' ) then
       !> initialization clock
       if (Atm%pe) then
@@ -1505,6 +1503,7 @@ contains
       call fms_mpp_set_current_pelist()
       full_coupler_clocks%main = fms_mpp_clock_id( 'Main loop' )
       full_coupler_clocks%termination = fms_mpp_clock_id( 'Termination' )
+
     else if( trim(clock_type) == 'init_coupler_clocks' ) then
       If(Atm%pe) then
         call fms_mpp_set_current_pelist(Atm%pelist)
@@ -1564,11 +1563,10 @@ contains
       full_coupler_clocks%flux_check_stocks       = fms_mpp_clock_id( 'flux_check_stocks' )
       full_coupler_clocks%intermediate_restart    = fms_mpp_clock_id( 'intermediate restart' )
       full_coupler_clocks%final_flux_check_stocks = fms_mpp_clock_id( 'final flux_check_stocks' )
-      
-      full_coupler_clocks%main = fms_mpp_clock_id( 'Main loop' )
-      full_coupler_clocks%termination = fms_mpp_clock_id( 'Termination' )
+
     else
       call fms_mpp_error(FATAL, 'clock_type not recognized when full_coupler_set_clock_ids')
+
     end if
     
   end subroutine full_coupler_set_clock_ids
