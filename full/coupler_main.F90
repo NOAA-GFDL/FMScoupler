@@ -336,7 +336,8 @@ program coupler_main
   
   call fms_mpp_init()
 
-  full_coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
+  call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, do_concurrent_radiation, &
+                                  clock_type='coupler_initialization_clock')
   call fms_mpp_clock_begin(full_coupler_clocks%initialization)
   
   call fms_init
