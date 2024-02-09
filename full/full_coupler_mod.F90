@@ -970,6 +970,9 @@ contains
 
     endif ! end of Ocean%is_ocean_pe
 
+    call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, &
+                                    do_concurrent_radiation, clock_type='init_coupler_clocks')
+    
 !---------------------------------------------
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
