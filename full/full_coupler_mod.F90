@@ -1475,4 +1475,4 @@ contains
   end subroutine ocean_chksum
 
 
-end module coupler_wrapper_mod
+end module full_coupler_mod
