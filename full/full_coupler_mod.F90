@@ -20,6 +20,7 @@
 module full_coupler_mod
 
   use omp_lib !< F90 module for OpenMP
+
   use FMS !, status_fms=>status
   use FMSconstants, only: fmsconstants_init
 
@@ -118,7 +119,7 @@ module full_coupler_mod
   public :: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
 
   public :: coupler_init, coupler_end, coupler_restart
-  public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum
+  public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum
 
 !-----------------------------------------------------------------------
 
