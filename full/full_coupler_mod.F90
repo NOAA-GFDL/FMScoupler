@@ -90,7 +90,7 @@ module full_coupler_mod
   implicit none
   private
 
-  public :: FMS, fmsconstants_init
+  public :: fmsconstants_init
   public :: update_atmos_model_dynamics, update_atmos_model_down, update_atmos_model_up
   public :: update_atmos_model_radiation, update_atmos_model_state
   public :: update_land_model_fast, update_land_model_slow

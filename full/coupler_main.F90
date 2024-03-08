@@ -333,6 +333,7 @@ program coupler_main
 
   !--- F90 module for OpenMP
   use omp_lib
+  use FMS
   use full_coupler_mod
   
   call fms_mpp_init()
