@@ -19,6 +19,7 @@
 !***********************************************************************
 module full_coupler_mod
 
+  use omp_lib !< F90 module for OpenMP
   use FMS !, status_fms=>status
   use FMSconstants, only: fmsconstants_init
 
@@ -88,7 +89,7 @@ module full_coupler_mod
   implicit none
   private
 
-    public :: FMS, fmsconstants_init
+  public :: FMS, fmsconstants_init
   public :: update_atmos_model_dynamics, update_atmos_model_down, update_atmos_model_up
   public :: update_atmos_model_radiation, update_atmos_model_state
   public :: update_land_model_fast, update_land_model_slow
@@ -121,8 +122,8 @@ module full_coupler_mod
 
 !-----------------------------------------------------------------------
 
-  character(len=128) :: version = '$Id$'
-  character(len=128) :: tag = '$Name$'
+  character(len=128), public :: version = '$Id$'
+  character(len=128), public :: tag = '$Name$'
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
@@ -134,21 +135,21 @@ module full_coupler_mod
   type (ocean_public_type), target,  public :: Ocean
   type (ocean_state_type),  pointer, public :: Ocean_state => NULL()
 
-  type(atmos_land_boundary_type), public     :: Atmos_land_boundary
-  type(atmos_ice_boundary_type),  public     :: Atmos_ice_boundary
+  type(atmos_land_boundary_type),     public :: Atmos_land_boundary
+  type(atmos_ice_boundary_type),      public :: Atmos_ice_boundary
   type(land_ice_atmos_boundary_type), public :: Land_ice_atmos_boundary
-  type(land_ice_boundary_type),  public       :: Land_ice_boundary
-  type(ice_ocean_boundary_type), public      :: Ice_ocean_boundary
-  type(ocean_ice_boundary_type), public      :: Ocean_ice_boundary
+  type(land_ice_boundary_type),  public :: Land_ice_boundary
+  type(ice_ocean_boundary_type), public :: Ice_ocean_boundary
+  type(ocean_ice_boundary_type), public :: Ocean_ice_boundary
   type(ice_ocean_driver_type), pointer, public :: ice_ocean_driver_CS => NULL()
 
 !-----------------------------------------------------------------------
 ! ----- coupled model time -----
 
-  type (FmsTime_type), public :: Time, Time_init, Time_end
-  type(FmsTime_type),  public :: Time_step_atmos, Time_step_cpld
-  type(FmsTime_type),  public :: Time_atmos, Time_ocean
-  type(FmsTime_type),  public :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
+  type(FmsTime_type), public :: Time, Time_init, Time_end
+  type(FmsTime_type), public :: Time_step_atmos, Time_step_cpld
+  type(FmsTime_type), public :: Time_atmos, Time_ocean
+  type(FmsTime_type), public :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
 
   integer, public :: num_atmos_calls, na
   integer, public :: num_cpld_calls, nc
