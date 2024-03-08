@@ -274,7 +274,7 @@ module full_coupler_mod
   integer, public :: id_atmos_model_init, id_land_model_init, id_ice_model_init
   integer, public :: id_ocean_model_init, id_flux_exchange_init
 
-  character(len=80) :: text
+  character(len=80), public :: text
   character(len=48), parameter  :: mod_name = 'coupler_main_mod'
 
   integer, public :: outunit
