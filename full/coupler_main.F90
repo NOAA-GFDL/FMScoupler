@@ -333,7 +333,7 @@ program coupler_main
 
   !--- F90 module for OpenMP
   use omp_lib
-  use coupler_wrapper_mod
+  use full_coupler_mod
   
   call fms_mpp_init()
   !these clocks are on the global pelist
