@@ -828,6 +828,7 @@ program coupler_main
       ! does not modify either Ocean or Ice_ocean_boundary
       call flux_ocean_from_ice_stocks(Ocean_state, Ocean, Ice_ocean_boundary)
 
+      call fms_diag_send_complete(Time_step_cpld)
       Time_ocean = Time_ocean +  Time_step_cpld
       Time = Time_ocean
 
