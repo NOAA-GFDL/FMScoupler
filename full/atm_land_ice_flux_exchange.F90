@@ -1735,7 +1735,7 @@ contains
        end if
 
        if(id_tr_ref_land(tr) > 0) then
-          call get_from_xgrid_land (diag_land, 'LND', ex_tr_ref(:,tr), xmap_sfc)
+          call get_from_xgrid_ug (diag_land, 'LND', ex_tr_ref(:,tr), xmap_sfc)
           !duplicate send_tile_data. We may remove id_q_ref_land in the future.
 #ifndef _USE_LEGACY_LAND_
           call send_tile_data (id_tr_ref_land(tr), diag_land)
@@ -2374,7 +2374,7 @@ contains
        call data_override_ug('LND', 'z_bot',  Land_boundary%z_bot, Time )
     endif
     if (associated(Land_boundary%con_atm)) then
-       call get_from_xgrid_land (Land_boundary%con_atm, 'LND', ex_con_atm, xmap_sfc)
+       call get_from_xgrid_ug (Land_boundary%con_atm, 'LND', ex_con_atm, xmap_sfc)
     end if
 #else
     call get_from_xgrid (Land_boundary%t_flux,  'LND', ex_flux_t,    xmap_sfc)
@@ -3105,11 +3105,11 @@ contains
     !-------- tracer deposition velocity
     do tr=1,n_exch_tr
        if ( id_tr_con_atm_land(tr) > 0 ) then
-          call get_from_xgrid_land (diag_land, 'LND', ex_tr_con_atm(:,tr), xmap_sfc)
+          call get_from_xgrid_ug (diag_land, 'LND', ex_tr_con_atm(:,tr), xmap_sfc)
           call send_tile_data (id_tr_con_atm_land(tr), diag_land )
        endif
        if ( id_tr_con_ref_land(tr) > 0 ) then
-          call get_from_xgrid_land (diag_land, 'LND', ex_tr_con_ref(:,tr), xmap_sfc )
+          call get_from_xgrid_ug (diag_land, 'LND', ex_tr_con_ref(:,tr), xmap_sfc )
           call send_tile_data (id_tr_con_ref_land(tr), diag_land )
        endif
     enddo
