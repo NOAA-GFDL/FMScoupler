@@ -1,18 +1,29 @@
+!***********************************************************************
+!*                   GNU Lesser General Public License
+!*
+!* This file is part of the GFDL Flexible Modeling System (FMS) Coupler.
+!*
+!* FMS Coupler is free software: you can redistribute it and/or modify
+!* it under the terms of the GNU Lesser General Public License as
+!* published by the Free Software Foundation, either version 3 of the
+!* License, or (at your option) any later version.
+!*
+!* FMS Coupler is distributed in the hope that it will be useful, but
+!* WITHOUT ANY WARRANTY; without even the implied warranty of
+!* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+!* General Public License for more details.
+!*
+!* You should have received a copy of the GNU Lesser General Public
+!* License along with FMS Coupler.
+!* If not, see <http://www.gnu.org/licenses/>.
+!***********************************************************************
+!> \file
+!> \brief Calculates gas fluxes for atmosphere and ocean 
 module atmos_ocean_fluxes_calc_mod
-  use coupler_types_mod, only : coupler_1d_bc_type,&
-      & ind_flux,&
-      & ind_kw,&
-      & ind_u10,&
-      & ind_alpha,&
-      & ind_pCair,&
-      & ind_psurf,&
-      & ind_sc_no,&
-      & ind_csurf,&
-      & ind_flux0,&
-      & ind_deltap,&
-      & ind_deposition
-  use mpp_mod,           only : mpp_error, FATAL
-  use constants_mod,     only : wtmair, rdgas, vonkarm
+
+  use FMS
+  use FMSconstants, only: wtmair, rdgas, vonkarm
+
   implicit none
   private
 
@@ -117,7 +128,7 @@ contains
                     & gas_fields_atm%bc(n)%field(ind_u10)%values(i) /&
                     & (770.+45.*gas_fluxes%bc(n)%param(1)**(1./3.)) *&
                     & 101325./(rdgas*wtmair*1e-3*tsurf(i) *&
-                    & gas_fields_ice%bc(n)%field(ind_alpha)%values(i))
+                    & max(gas_fields_ice%bc(n)%field(ind_alpha)%values(i),epsln))
                 !alpha: mol/m3/atm
                 cair(i) = &
                     gas_fields_ice%bc(n)%field(ind_alpha)%values(i) * &
@@ -150,7 +161,7 @@ contains
                     & calc_kw(tsurf(i),&
                     & gas_fields_atm%bc(n)%field(ind_psurf)%values(i),&
                     & gas_fields_atm%bc(n)%field(ind_u10)%values(i),&
-                    & 101325./(rdgas*wtmair*1e-3*tsurf(i)*gas_fields_ice%bc(n)%field(ind_alpha)%values(i)),&
+                    & 101325./(rdgas*wtmair*1e-3*tsurf(i)*max(gas_fields_ice%bc(n)%field(ind_alpha)%values(i),epsln)),&
                     & gas_fluxes%bc(n)%param(2),&
                     & gas_fluxes%bc(n)%param(1),&
                     & gas_fields_ice%bc(n)%field(ind_sc_no)%values(i))

@@ -17,9 +17,102 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
+!> \page flux_exchange_conf Flux Exchange Configuration
+!!
+!! flux_exchange_mod is configured via the flux_exchange_nml namelist in the `input.nml` file.
+!! The following table are the available namelist variables.
+!!
+!! <table>
+!!   <tr>
+!!     <th>Variable Name</th>
+!!     <th>Type</th>
+!!     <th>Default Value</th>
+!!     <th>Description</th>
+!!   </tr>
+!!   <tr>
+!!     <td>z_ref_heat</td>
+!!     <td>real</td>
+!!     <td>2.0</td>
+!!     <td>Reference height (meters) for temperature and relative humidity
+!!       diagnostics (t_ref, rh_ref, del_h, del_q).</td>
+!!   </tr>
+!!   <tr>
+!!     <td>z_ref_mom</td>
+!!     <td>real</td>
+!!     <td>10.0</td>
+!!     <td>Reference height (meters) for mementum diagnostics (u_ref, v_ref,
+!!       del_m).</td>
+!!   </tr>
+!!   <tr>
+!!     <td>ex_u_start_smooth_bug</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>By default, the global exchange grid `u_star` will not be interpolated
+!!       from atmospheric grid, this is different from Jakarta behavior and will
+!!       change answers.  So to preserve Jakarta behavior and reproduce answers
+!!       explicitly set this namelist variable to .true. in input.nml.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>sw1way_bug</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td></td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_area_weighted_flux</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td></td>
+!!   </tr>
+!!   <tr>
+!!     <td>debug_stocks</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td></td>
+!!   </tr>
+!!   <tr>
+!!     <td>divert_stocks_report</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td></td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_runoff</td>
+!!     <td>logical</td>
+!!     <td>.TRUE.</td>
+!!     <td>Turns on/off the land runoff interpolation to the ocean.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>do_forecast</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td></td>
+!!   </tr>
+!!   <tr>
+!!     <td>nblocks</td>
+!!     <td>integer</td>
+!!     <td>1</td>
+!!     <td>Specify number of blocks that n_xgrid_sfc is divided into. The main
+!!       purpose is for Openmp implementation. Normally you may set nblocks to be
+!!       coupler_nml atmos_nthreads.</td>
+!!   </tr>
+!!   <tr>
+!!     <td>partition_fprec_from_lprec</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!     <td>Option for ATM override experiments where liquid+frozen precip are combined.
+!!         This option will convert liquid precip to snow when t_ref is less than tfreeze parameter</td>
+!!   </tr>
+!!   <tr>
+!!     <td>scale_precip_2d</td>
+!!     <td>logical</td>
+!!     <td>.false.</td>
+!!     <td>Option to scale the Atm%lprec.
+!!         If this varible is set to .true. Atm%lprec will be rescaled by a field read from the data_table</td>
+!!   </tr>
+!!
 
-module flux_exchange_mod
-
+!> \file
 !> \author Bruce Wyman <Bruce.Wyman@noaa.gov>
 !! \author V. Balaji <V.Balaji@noaa.gov>
 !! \author Sergey Malyshev <Sergey.Malyshev@noaa.gov>
@@ -197,101 +290,9 @@ module flux_exchange_mod
 !! evap        | kg/m2/s         | evaporation rate
 !! lwflx       | w/m2            | net (down-up) longwave flux
 !!
-!! \section flux_exchange_config Flux Exchange Configuration
-!!
-!! flux_exchange_mod is configured via the flux_exchange_nml namelist in the `input.nml` file.
-!! The following table are the available namelist variables.
-!!
-!! <table>
-!!   <tr>
-!!     <th>Variable Name</th>
-!!     <th>Type</th>
-!!     <th>Default Value</th>
-!!     <th>Description</th>
-!!   </tr>
-!!   <tr>
-!!     <td>z_ref_heat</td>
-!!     <td>real</td>
-!!     <td>2.0</td>
-!!     <td>Reference height (meters) for temperature and relative humidity
-!!       diagnostics (t_ref, rh_ref, del_h, del_q).</td>
-!!   </tr>
-!!   <tr>
-!!     <td>z_ref_mom</td>
-!!     <td>real</td>
-!!     <td>10.0</td>
-!!     <td>Reference height (meters) for mementum diagnostics (u_ref, v_ref,
-!!       del_m).</td>
-!!   </tr>
-!!   <tr>
-!!     <td>ex_u_start_smooth_bug</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td>By default, the global exchange grid `u_star` will not be interpolated
-!!       from atmospheric grid, this is different from Jakarta behavior and will
-!!       change answers.  So to preserve Jakarta behavior and reproduce answers
-!!       explicitly set this namelist variable to .true. in input.nml.</td>
-!!   </tr>
-!!   <tr>
-!!     <td>sw1way_bug</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td></td>
-!!   </tr>
-!!   <tr>
-!!     <td>do_area_weighted_flux</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td></td>
-!!   </tr>
-!!   <tr>
-!!     <td>debug_stocks</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td></td>
-!!   </tr>
-!!   <tr>
-!!     <td>divert_stocks_report</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td></td>
-!!   </tr>
-!!   <tr>
-!!     <td>do_runoff</td>
-!!     <td>logical</td>
-!!     <td>.TRUE.</td>
-!!     <td>Turns on/off the land runoff interpolation to the ocean.</td>
-!!   </tr>
-!!   <tr>
-!!     <td>do_forecast</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td></td>
-!!   </tr>
-!!   <tr>
-!!     <td>nblocks</td>
-!!     <td>integer</td>
-!!     <td>1</td>
-!!     <td>Specify number of blocks that n_xgrid_sfc is divided into. The main
-!!       purpose is for Openmp implementation. Normally you may set nblocks to be
-!!       coupler_nml atmos_nthreads.</td>
-!!   </tr>
-!!   <tr>
-!!     <td>partition_fprec_from_lprec</td>
-!!     <td>logical</td>
-!!     <td>.FALSE.</td>
-!!     <td>Option for ATM override experiments where liquid+frozen precip are combined.
-!!         This option will convert liquid precip to snow when t_ref is less than tfreeze parameter</td>
-!!   </tr>
-!!   <tr>
-!!     <td>scale_precip_2d</td>
-!!     <td>logical</td>
-!!     <td>.false.</td>
-!!     <td>Option to scale the Atm%lprec.
-!!         If this varible is set to .true. Atm%lprec will be rescaled by a field read from the data_table</td>
-!!   </tr>
-!!
 !! \section main_example Main Program Example
+!!
+!! Below is some pseudo-code to illustrate the logic of the main loop.
 !!
 !! ~~~~~~~~~~{.f90}
 !! DO slow time steps (ocean)
@@ -493,20 +494,8 @@ module flux_exchange_mod
 !!                                             ! ocean MODEL GRID (m/s)
 !!                         Ocean%frazil        ! frazil at temperature points on the ocean MODEL GRID
 !! ~~~~~~~~~~
+module flux_exchange_mod
 
-  use mpp_mod,         only: mpp_npes, mpp_pe, mpp_root_pe, &
-       mpp_error, stderr, stdout, stdlog, FATAL, NOTE, mpp_set_current_pelist, &
-       mpp_clock_id, mpp_clock_begin, mpp_clock_end, mpp_sum, mpp_max, &
-       CLOCK_COMPONENT, CLOCK_SUBCOMPONENT, CLOCK_ROUTINE, lowercase, &
-       input_nml_file
-                    
-  use mpp_domains_mod, only: mpp_get_compute_domain, mpp_get_compute_domains, &
-                             mpp_global_sum, mpp_redistribute, operator(.EQ.)
-  use mpp_domains_mod, only: mpp_get_global_domain, mpp_get_data_domain
-  use mpp_domains_mod, only: mpp_set_global_domain, mpp_set_data_domain, mpp_set_compute_domain
-  use mpp_domains_mod, only: mpp_deallocate_domain, mpp_copy_domain, domain2d, mpp_compute_extent
-
-  use mpp_io_mod,      only: mpp_close, mpp_open, MPP_MULTI, MPP_SINGLE, MPP_OVERWR
 
 !model_boundary_data_type contains all model fields at the boundary.
 !model1_model2_boundary_type contains fields that model2 gets
@@ -517,32 +506,12 @@ module flux_exchange_mod
 !REGRID: physically distinct grids, via xgrid
 !REDIST: same grid, transfer in index space only
 !DIRECT: same grid, same decomp, direct copy
-  use atmos_model_mod,    only: atmos_data_type, land_ice_atmos_boundary_type
-  use ocean_model_mod,    only: ocean_public_type, ice_ocean_boundary_type
-  use ocean_model_mod,    only: ocean_state_type
-  use ice_model_mod,      only: ice_data_type, land_ice_boundary_type, &
-                                ocean_ice_boundary_type, atmos_ice_boundary_type, Ice_stock_pe
-  use land_model_mod,     only: land_data_type, atmos_land_boundary_type
-  use xgrid_mod,          only: get_ocean_model_area_elements
-  use  time_manager_mod,  only: time_type
-  use sat_vapor_pres_mod, only: sat_vapor_pres_init
-  use      constants_mod, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, PI, CP_OCEAN, &
-                                WTMCO2, WTMC
-!Balaji
-!utilities stuff into use fms_mod
-  use fms_mod,                    only: clock_flag_default, check_nml_error, error_mesg
-  use fms_mod,                    only: open_namelist_file, write_version_number
-  use fms_mod,                    only: field_exist, field_size, read_data, get_mosaic_tile_grid
-  use data_override_mod,          only: data_override
-  use coupler_types_mod,          only: coupler_1d_bc_type
-  use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init, atmos_ocean_type_fluxes_init
-  use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
-  use ocean_model_mod,            only: ocean_model_init_sfc, ocean_model_flux_init
-  use atmos_tracer_driver_mod,    only: atmos_tracer_flux_init
-  use stock_constants_mod,        only: NELEMS, ISTOCK_WATER, ISTOCK_HEAT, ISTOCK_SALT
-  use stock_constants_mod,        only: ISTOCK_SIDE, ISTOCK_TOP, ISTOCK_BOTTOM , STOCK_UNITS, STOCK_NAMES
-  use stock_constants_mod,        only: stocks_file, stocks_report, stocks_report_init
-  use stock_constants_mod,        only: Atm_stock, Ocn_stock, Lnd_stock, Ice_stock
+
+  use FMS
+  use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, &
+                          HLV, HLF, Radius, PI, CP_OCEAN, WTMCO2, WTMC
+
+!! Components
   use land_model_mod,             only: Lnd_stock_pe
   use ocean_model_mod,            only: Ocean_stock_pe
   use atmos_model_mod,            only: Atm_stock_pe
@@ -555,6 +524,16 @@ module flux_exchange_mod
   use ice_ocean_flux_exchange_mod,    only: flux_ocean_to_ice, flux_ocean_to_ice_finish
   use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean, flux_ice_to_ocean_finish
   use ice_ocean_flux_exchange_mod,    only: flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
+  use atmos_model_mod,    only: atmos_data_type, land_ice_atmos_boundary_type
+  use ocean_model_mod,    only: ocean_public_type, ice_ocean_boundary_type
+  use ocean_model_mod,    only: ocean_state_type
+  use ice_model_mod,      only: ice_data_type, land_ice_boundary_type, &
+                                ocean_ice_boundary_type, atmos_ice_boundary_type, Ice_stock_pe
+  use land_model_mod,     only: land_data_type, atmos_land_boundary_type
+  use atmos_ocean_fluxes_mod,     only: atmos_ocean_fluxes_init, atmos_ocean_type_fluxes_init
+  use atmos_ocean_fluxes_calc_mod, only: atmos_ocean_fluxes_calc
+  use ocean_model_mod,            only: ocean_model_init_sfc, ocean_model_flux_init
+  use atmos_tracer_driver_mod,    only: atmos_tracer_flux_init
 
   implicit none ; private
 
@@ -603,7 +582,7 @@ module flux_exchange_mod
 
   logical :: partition_fprec_from_lprec = .FALSE.  !< option for ATM override experiments where liquid+frozen precip are combined
   !! This option will convert liquid precip to snow when t_ref is less than
-  !! tfreeze parameter                
+  !! tfreeze parameter
   real, parameter    :: tfreeze = 273.15
   logical :: scale_precip_2d = .false.
 
@@ -645,7 +624,7 @@ contains
   !! ex_gas_fluxes and ex_gas_fields arrays, although the data is not allocated yet.
   !! This is intended to be called (optionally) prior to flux_exchange_init.
   subroutine gas_exchange_init (gas_fields_atm, gas_fields_ice, gas_fluxes)
-    type(coupler_1d_bc_type), optional, pointer :: gas_fields_atm 
+    type(coupler_1d_bc_type), optional, pointer :: gas_fields_atm
       !< Pointer to a structure containing atmospheric surface variables that
       !! are used in the calculation of the atmosphere-ocean gas fluxes, as well
       !! as parameters regulating these fluxes.
@@ -698,7 +677,7 @@ contains
     type(ice_data_type),               intent(inout)  :: Ice !< A derived data type to specify ice boundary data
     type(ocean_public_type),           intent(inout)  :: Ocean !< A derived data type to specify ocean boundary data
     type(ocean_state_type),            pointer        :: Ocean_state
-    ! All intent(OUT) derived types with pointer components must be 
+    ! All intent(OUT) derived types with pointer components must be
     ! COMPLETELY allocated here and in subroutines called from here;
     ! NO pointer components should have been allocated before entry if the
     ! derived type has intent(OUT) otherwise they may be lost.
@@ -730,7 +709,7 @@ contains
     !       ocean_tracer_flux_init is called first since it has the meaningful value to set
     !       for the input/output file names for the tracer flux values used in restarts. These
     !       values could be set in the field table, and this ordering allows this.
-    !       atmos_tracer_flux_init is called last since it will use the values set in 
+    !       atmos_tracer_flux_init is called last since it will use the values set in
     !       ocean_tracer_flux_init with the exception of atm_tr_index, which can only
     !       be meaningfully set from the atmospheric model (not from the field table)
     !
@@ -748,17 +727,8 @@ contains
     logunit = stdlog()
     !----- read namelist -------
 
-#ifdef INTERNAL_FILE_NML
     read (input_nml_file, flux_exchange_nml, iostat=io)
     ierr = check_nml_error (io, 'flux_exchange_nml')
-#else
-    unit = open_namelist_file()
-    ierr=1; do while (ierr /= 0)
-    read  (unit, nml=flux_exchange_nml, iostat=io, end=10)
-    ierr = check_nml_error (io, 'flux_exchange_nml')
-    enddo
-10  call mpp_close(unit)
-#endif
 
     !----- write namelist to logfile -----
     call write_version_number (version, tag)
@@ -824,12 +794,12 @@ contains
 
        if(present(Atm)) then
           ref_value = 0.0
-          call Atm_stock_pe(Atm, index=i, value=ref_value)        
+          call Atm_stock_pe(Atm, index=i, value=ref_value)
           if(i==ISTOCK_WATER .and. Atm%pe ) then
              ! decrease the Atm stock by the precip adjustment to reflect the fact that
              ! after an update_atmos_up call, the precip will be that of the future time step.
-             ! Thus, the stock call will represent the (explicit ) precip at 
-             ! the beginning of the preceding time step, and the (implicit) evap at the 
+             ! Thus, the stock call will represent the (explicit ) precip at
+             ! the beginning of the preceding time step, and the (implicit) evap at the
              ! end of the preceding time step
              call atm_stock_integrate(Atm, ATM_PRECIP_NEW)
              ref_value = ref_value + ATM_PRECIP_NEW
@@ -878,10 +848,9 @@ contains
     integer :: i
 
     stocks_file=stdout()
-    ! Divert output file for stocks if requested 
+    ! If the divert_stocks_report is set to true, write the stocks to a new file "stocks.out"
     if(mpp_pe()==mpp_root_pe() .and. divert_stocks_report) then
-       call mpp_open( stocks_file, 'stocks.out', action=MPP_OVERWR, threading=MPP_SINGLE, &
-            fileset=MPP_SINGLE, nohdrs=.TRUE. )       
+       open(newunit = stocks_file, file='stocks.out', status='replace', form='formatted')
     endif
 
     ! Initialize stock values
@@ -918,19 +887,36 @@ contains
     type(domain2d) :: domain2
     real, dimension(:,:), allocatable :: tmpx, tmpy
     real, dimension(:),   allocatable :: atmlonb, atmlatb
-    character(len=256)              :: atm_mosaic_file, tile_file
+    character(len=256)              :: atm_mosaic_file, tile_file, buffer
+
+    integer, dimension(:), allocatable :: pes !> Current pelist
+    type(FmsNetcdfFile_t) :: grid_file_obj, atm_mosaic_file_obj          !> Fms2io file obj
+    type(FmsNetcdfDomainFile_t) :: tile_file_obj          !> Fms2io file obj
+    character(len=20) :: dim_names(2) !> Array of dimension names
+    integer :: ppos
 
     call mpp_get_global_domain(Atm%domain, isg, ieg, jsg, jeg, xsize=nxg, ysize=nyg)
     call mpp_get_compute_domain(Atm%domain, isc, iec, jsc, jec)
     call mpp_get_data_domain(Atm%domain, isd, ied, jsd, jed)
+
+    !< Open the grid files with pelist argument so that only one pes open/reads the file
+    allocate(pes(mpp_npes()))
+    call mpp_get_current_pelist(pes)
+
+    if ( .not. open_file(grid_file_obj, grid_file, "read", pelist=pes)) then
+         call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+              & 'Error opening '//trim(grid_file), FATAL)
+    endif
+
     if(size(Atm%lon_bnd,1) .NE. iec-isc+2 .OR. size(Atm%lon_bnd,2) .NE. jec-jsc+2) then
        call error_mesg ('atm_land_ice_flux_exchange_mod',  &
             'size of Atm%lon_bnd does not match the Atm computational domain', FATAL)
     endif
     ioff = lbound(Atm%lon_bnd,1) - isc
     joff = lbound(Atm%lon_bnd,2) - jsc
-    if(field_exist(grid_file, "AREA_ATM" ) ) then  ! old grid
-       call field_size(grid_file, "AREA_ATM", siz)
+
+    if(variable_exists(grid_file_obj, "AREA_ATM" ) ) then  ! old grid
+       call get_variable_size(grid_file_obj, "AREA_ATM", siz(1:2))
        nlon = siz(1)
        nlat = siz(2)
 
@@ -945,8 +931,8 @@ contains
        end if
        allocate( atmlonb(isg:ieg+1) )
        allocate( atmlatb(jsg:jeg+1) )
-       call read_data(grid_file, 'xba', atmlonb, no_domain=.true. )
-       call read_data(grid_file, 'yba', atmlatb, no_domain=.true. )
+       call read_data(grid_file_obj, 'xba', atmlonb)
+       call read_data(grid_file_obj, 'yba', atmlatb)
 
        do i=isc, iec+1
           if(abs(atmlonb(i)-Atm%lon_bnd(i+ioff,jsc+joff)*45.0/atan(1.0))>bound_tol) then
@@ -967,10 +953,43 @@ contains
           endif
        enddo
        deallocate(atmlonb, atmlatb)
-    else if(field_exist(grid_file, "atm_mosaic_file" ) ) then  ! mosaic grid file.
-       call read_data(grid_file, 'atm_mosaic_file', atm_mosaic_file)
-       call get_mosaic_tile_grid(tile_file, 'INPUT/'//trim(atm_mosaic_file), Atm%domain)
-       call field_size(tile_file, 'area', siz)
+    else if(variable_exists(grid_file_obj, "atm_mosaic_file" ) ) then  ! mosaic grid file.
+       call read_data(grid_file_obj, 'atm_mosaic_file', atm_mosaic_file)
+
+       if ( .not. open_file(atm_mosaic_file_obj, "INPUT/"//trim(atm_mosaic_file)//"", "read", pelist=pes)) then
+           call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+              & 'Error opening '//trim(atm_mosaic_file), FATAL)
+       endif
+
+       call read_data(atm_mosaic_file_obj, "gridfiles", buffer, corner=1)
+
+       !< Remove the .tile from the filename to get basename
+       ppos = index(trim(buffer),".tile")
+       if ( ppos > 0 ) then
+          tile_file = buffer(1:ppos-1)//".nc"
+       else
+          tile_file = buffer
+       endif
+
+       call close_file(atm_mosaic_file_obj)
+
+       call mpp_copy_domain(Atm%domain, domain2)
+       call mpp_create_super_grid_domain(domain2)
+       call mpp_define_io_domain  (domain2, (/1,1/))
+
+       call mpp_get_compute_domain(domain2, isc2, iec2, jsc2, jec2)
+
+       if(isc2 .NE. 2*isc-1 .OR. iec2 .NE. 2*iec+1 .OR. jsc2 .NE. 2*jsc-1 .OR. jec2 .NE. 2*jec+1) then
+          call mpp_error(FATAL, 'atm_land_ice_flux_exchange_mod: supergrid domain is not set properly')
+       endif
+
+       !< This is will open the correct atm_mosaic_file for the current tile, i.e "C96_grid.tile1.nc"
+       if ( .not. open_file(tile_file_obj, "INPUT/"//trim(tile_file)//"", "read", domain2)) then
+          call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+              & 'Error opening '//trim(tile_file), FATAL)
+       endif
+
+       call get_variable_size(tile_file_obj, 'area', siz(1:2))
        nlon = siz(1); nlat = siz(2)
        if( mod(nlon,2) .NE. 0) call mpp_error(FATAL,  &
             'atm_land_ice_flux_exchange_mod: atmos supergrid longitude size can not be divided by 2')
@@ -987,19 +1006,21 @@ contains
                'atmosphere mosaic tile grid file incompatible with atmosphere resolution', FATAL)
        end if
 
-       call mpp_copy_domain(Atm%domain, domain2)
-       call mpp_set_compute_domain(domain2, 2*isc-1, 2*iec+1, 2*jsc-1, 2*jec+1, 2*(iec-isc)+3, 2*(jec-jsc)+3 )
-       call mpp_set_data_domain   (domain2, 2*isd-1, 2*ied+1, 2*jsd-1, 2*jed+1, 2*(ied-isd)+3, 2*(jed-jsd)+3 )
-       call mpp_set_global_domain (domain2, 2*isg-1, 2*ieg+1, 2*jsg-1, 2*jeg+1, 2*(ieg-isg)+3, 2*(jeg-jsg)+3 )
-       call mpp_get_compute_domain(domain2, isc2, iec2, jsc2, jec2)
-       if(isc2 .NE. 2*isc-1 .OR. iec2 .NE. 2*iec+1 .OR. jsc2 .NE. 2*jsc-1 .OR. jec2 .NE. 2*jec+1) then
-          call mpp_error(FATAL, 'atm_land_ice_flux_exchange_mod: supergrid domain is not set properly')
-       endif
-
        allocate(tmpx(isc2:iec2,jsc2:jec2), tmpy(isc2:iec2,jsc2:jec2) )
 
-       call read_data( tile_file, 'x', tmpx, domain2)
-       call read_data( tile_file, 'y', tmpy, domain2)
+       !< Register the dimension of the variables "x" and "y" in the atm_mosaic_file
+       call get_variable_dimension_names(tile_file_obj, "x", dim_names)
+       call register_axis(tile_file_obj, dim_names(1), "x")
+       call register_axis(tile_file_obj, dim_names(2), "y")
+       call register_field(tile_file_obj, "x", "double", dim_names)
+       call register_field(tile_file_obj, "y", "double", dim_names)
+
+       !< Read the variables "x" and "y" as domain decomposed variables from the atm_moasic_file
+       call read_data( tile_file_obj, 'x', tmpx)
+       call read_data( tile_file_obj, 'y', tmpy)
+
+       call close_file(tile_file_obj)
+
        call mpp_deallocate_domain(domain2)
 
        do j = jsc, jec+1
@@ -1025,6 +1046,7 @@ contains
        call mpp_error(FATAL, 'atm_land_ice_flux_exchange_mod: both AREA_ATMxOCN and ocn_mosaic_file does not exist in '//trim(grid_file))
     end if
 
+    call close_file(grid_file_obj)
   end subroutine check_atm_grid
 
 end module flux_exchange_mod
