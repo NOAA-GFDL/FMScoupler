@@ -335,6 +335,9 @@ program coupler_main
   use omp_lib
   use FMS
   use full_coupler_mod
+
+  use iso_fortran_env
+  implicit none
   
   call fms_mpp_init()
   !these clocks are on the global pelist
