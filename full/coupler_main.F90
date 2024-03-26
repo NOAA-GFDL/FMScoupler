@@ -351,7 +351,7 @@ program coupler_main
 #warning "FREDB_ID not defined. Continuing as normal."
   fredb_id = 'FREDB_ID was not defined (e.g. -DFREDB_ID=...) during preprocessing'
 #endif
-  
+
   arg_count = command_argument_count()
   DO i=0, arg_count
     CALL get_command_argument(i, arg, status=status)
@@ -359,7 +359,7 @@ program coupler_main
       write (error_unit,*) 'get_command_argument failed: status = ', status, ' arg = ', i
       stop 1
     end if
-    
+
     if (i .eq. 0) then
       executable_name = arg
     else if (arg == '--fredb_id') then
@@ -367,12 +367,12 @@ program coupler_main
       stop
     end if
   END DO
-  
+
   if (arg_count .ge. 1) then
     write (error_unit,*) 'Usage: '//TRIM(executable_name)//' [--fredb_id]'
     stop 1
   end if
-  
+
   call fms_mpp_init()
   !these clocks are on the global pelist
   initClock = fms_mpp_clock_id( 'Initialization' )
