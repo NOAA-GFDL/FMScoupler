@@ -338,6 +338,9 @@ program coupler_main
   use iso_fortran_env
   implicit none
 
+  INTEGER :: i, status, arg_count
+  CHARACTER(len=256) :: executable_name, arg, fredb_id
+
 #ifdef FREDB_ID
 #define xstr(s) str(s)
 #define str(s) #s
