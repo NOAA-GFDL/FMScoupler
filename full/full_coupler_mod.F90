@@ -123,8 +123,11 @@ module full_coupler_mod
 
 !-----------------------------------------------------------------------
 
-  character(len=128), public :: version = '$Id$'
-  character(len=128), public :: tag = '$Name$'
+#ifdef _FILE_VERSION
+  character(len=*), parameter :: version = _FILE_VERSION
+#else
+  character(len=*), parameter :: version = 'unknown'
+#endif
 
 !-----------------------------------------------------------------------
 !---- model defined-types ----
