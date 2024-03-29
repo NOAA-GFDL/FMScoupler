@@ -124,9 +124,15 @@ module full_coupler_mod
 !-----------------------------------------------------------------------
 
 #ifdef FULL_COUPLER_VERSION_
-  character(len=*), parameter :: version = FULL_COUPLER_VERSION_
+  character(len=*), parameter, public :: version = FULL_COUPLER_VERSION_
 #else
-  character(len=*), parameter :: version = 'unknown'
+  character(len=*), parameter, public :: version = 'FULL_COUPLER_MOD'
+#endif
+
+#ifdef FULL_COUPLER_TAG_
+  character(len=*), parameter, public :: tag = FULL_COUPLER_TAG_
+#else
+  character(len=*), parameter, public :: tag = 'unknown'
 #endif
 
 !-----------------------------------------------------------------------
