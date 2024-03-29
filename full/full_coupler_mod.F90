@@ -123,8 +123,8 @@ module full_coupler_mod
 
 !-----------------------------------------------------------------------
 
-#ifdef _FILE_VERSION
-  character(len=*), parameter :: version = _FILE_VERSION
+#ifdef FULL_COUPLER_VERSION_
+  character(len=*), parameter :: version = FULL_COUPLER_VERSION_
 #else
   character(len=*), parameter :: version = 'unknown'
 #endif
