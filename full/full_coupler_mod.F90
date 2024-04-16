@@ -372,7 +372,7 @@ contains
     read (fms_mpp_input_nml_file, coupler_nml, iostat=io)
     ierr = check_nml_error (io, 'coupler_nml')
 
-!----- read date and calendar type from restart file -----
+    !----- read date and calendar type from restart file -----
     if (fms2_io_file_exists('INPUT/coupler.res')) then
        call fms2_io_ascii_read('INPUT/coupler.res', restart_file)
        read(restart_file(1), *) calendar_type
@@ -593,6 +593,7 @@ contains
 
     !> The pelists need to be set before initializing the clocks
     call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, &
+                                    slow_ice_ocean_pelist, ensemble_pelist, ensemble_id, &
                                     do_concurrent_radiation, clock_type='init_model_clocks')
 
     !Write out messages on root PEs
@@ -971,6 +972,7 @@ contains
     endif ! end of Ocean%is_ocean_pe
 
     call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, &
+                                    slow_ice_ocean_pelist, ensemble_pelist,ensemble_id, &
                                     do_concurrent_radiation, clock_type='init_coupler_clocks')
 
 !---------------------------------------------
@@ -1467,23 +1469,20 @@ contains
 !> \brief This subroutine sets the ID for clocks used in coupler_main
   subroutine full_coupler_set_clock_ids(full_coupler_clocks_in, Atm_in, Land_in, Ice_in, Ocean_in, &
                                         slow_ice_ocean_pelist_in, ensemble_pelist_in, ensemble_id, &
-                                        do_concurrent_radiation_in, clock_type_in)
+                                        do_concurrent_radiation_in, clock_type)
 
     type(full_coupler_clock_type), intent(inout) :: full_coupler_clocks_in
     type(atmos_data_type),  intent(in)  :: Atm_in
     type(land_data_type), intent(in)    :: Land_in
     type(ice_data_type),  intent(in)    :: Ice_in
     type(ocean_public_type), intent(in) :: Ocean_in
-    integer, intent(in), dimension(:)   :: slow_ice_ocean_pelist
+    integer, intent(in), dimension(:)   :: slow_ice_ocean_pelist_in
     integer, intent(in), dimension(:,:) :: ensemble_pelist_in
     integer, intent(in) :: ensemble_id
     logical, intent(in) :: do_concurrent_radiation_in
-    character(len=*), intent(in) :: clock_type_in
+    character(len=*), intent(in) :: clock_type
 
-    if( trim(clock_type_in) == 'coupler_initialization_clock' ) then
-      full_coupler_clocks_in%initialization = fms_mpp_clock_id( 'Initialization' )
-
-    else if( trim(clock_type_in) ==  'init_model_clocks' ) then
+    if( trim(clock_type) ==  'init_model_clocks' ) then
       !> initialization clock
       if (Atm_in%pe) then
         call fms_mpp_set_current_pelist(Atm_in%pelist)
@@ -1512,7 +1511,7 @@ contains
       full_coupler_clocks_in%main = fms_mpp_clock_id( 'Main loop' )
       full_coupler_clocks_in%termination = fms_mpp_clock_id( 'Termination' )
 
-    else if( trim(clock_type_in) == 'init_coupler_clocks' ) then
+    else if( trim(clock_type) == 'init_coupler_clocks' ) then
       If(Atm_in%pe) then
         call fms_mpp_set_current_pelist(Atm_in%pelist)
         full_coupler_clocks_in%generate_sfc_xgrid = fms_mpp_clock_id( 'generate_sfc_xgrid' )
@@ -1572,7 +1571,7 @@ contains
       full_coupler_clocks_in%final_flux_check_stocks = fms_mpp_clock_id( 'final flux_check_stocks' )
 
     else
-      call fms_mpp_error(FATAL, 'clock_type not recognized when full_coupler_set_clock_ids')
+      call fms_mpp_error(FATAL, 'clock_type not recognized in full_coupler_set_clock_ids')
 
     end if
 

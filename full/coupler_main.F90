@@ -71,7 +71,7 @@
 !! The three components of coupler: @ref coupler_main , flux_exchange_mod, and surface_flux_mod
 !! are configured through three namelists
 !! * \ref coupler_config "coupler_nml"
-!! * \ref flux_exchange_conf "flux_exchange_nml" 
+!! * \ref flux_exchange_conf "flux_exchange_nml"
 !! * \ref surface_flux_config "surface_flux_nml"
 !!
 !!
@@ -373,17 +373,16 @@ program coupler_main
 
   call fms_mpp_init()
 
-  call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, do_concurrent_radiation, &
-                                  clock_type='coupler_initialization_clock')
+  full_coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
   call fms_mpp_clock_begin(full_coupler_clocks%initialization)
-  
+
   call fms_init
   call fmsconstants_init
   call fms_affinity_init
 
   call coupler_init
   if (do_chksum) call coupler_chksum('coupler_init+', 0)
-  
+
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(full_coupler_clocks%initialization) !end initialization
 
