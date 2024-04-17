@@ -119,7 +119,7 @@ module full_coupler_mod
   public :: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
 
   public :: coupler_init, coupler_end, coupler_restart
-  public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum, full_coupler_set_clock_ids
+  public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum, coupler_set_clock_ids
 
 !-----------------------------------------------------------------------
 
@@ -285,7 +285,7 @@ module full_coupler_mod
     integer :: flux_exchange_init
   end type full_coupler_clock_type
 
-  type(full_coupler_clock_type), public :: full_coupler_clocks
+  type(full_coupler_clock_type), public :: coupler_clocks
 
   character(len=80), public :: text
   character(len=48), parameter :: mod_name = 'full_coupler_mod'
@@ -592,9 +592,9 @@ contains
     endif
 
     !> The pelists need to be set before initializing the clocks
-    call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, &
-                                    slow_ice_ocean_pelist, ensemble_pelist, ensemble_id, &
-                                    do_concurrent_radiation, clock_type='init_model_clocks')
+    call coupler_set_clock_ids(coupler_clocks, Atm, Land, Ice, Ocean, &
+                               slow_ice_ocean_pelist, ensemble_pelist, ensemble_id, &
+                               do_concurrent_radiation, clock_type='init_model_clocks')
 
     !Write out messages on root PEs
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
@@ -850,12 +850,12 @@ contains
                            //trim(walldate)//' '//trim(walltime)
         endif
 
-        call fms_mpp_clock_begin(full_coupler_clocks%atmos_model_init)
+        call fms_mpp_clock_begin(coupler_clocks%atmos_model_init)
 
         call atmos_model_init( Atm, Time_init, Time, Time_step_atmos, &
                                do_concurrent_radiation)
 
-        call fms_mpp_clock_end(full_coupler_clocks%atmos_model_init)
+        call fms_mpp_clock_end(coupler_clocks%atmos_model_init)
 
         if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
           call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
@@ -873,10 +873,10 @@ contains
         write(errunit,*) 'Starting to initialize land model at '&
                          //trim(walldate)//' '//trim(walltime)
       endif
-      call fms_mpp_clock_begin(full_coupler_clocks%land_model_init)
+      call fms_mpp_clock_begin(coupler_clocks%land_model_init)
       call land_model_init( Atmos_land_boundary, Land, Time_init, Time, &
                             Time_step_atmos, Time_step_cpld )
-      call fms_mpp_clock_end(full_coupler_clocks%land_model_init)
+      call fms_mpp_clock_end(coupler_clocks%land_model_init)
       if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
         write(errunit,*) 'Finished initializing land model at '&
@@ -902,12 +902,12 @@ contains
         write(errunit,*) 'Starting to initialize ice model at '&
                          //trim(walldate)//' '//trim(walltime)
       endif
-      call fms_mpp_clock_begin(full_coupler_clocks%ice_model_init)
+      call fms_mpp_clock_begin(coupler_clocks%ice_model_init)
       call ice_model_init(Ice, Time_init, Time, Time_step_atmos, &
                            Time_step_cpld, Verona_coupler=.false., &
                           concurrent_ice=concurrent_ice, &
                           gas_fluxes=gas_fluxes, gas_fields_ocn=gas_fields_ocn )
-      call fms_mpp_clock_end(full_coupler_clocks%ice_model_init)
+      call fms_mpp_clock_end(coupler_clocks%ice_model_init)
 
       ! This must be called using the union of the ice PE_lists.
       call fms_mpp_set_current_pelist(Ice%pelist)
@@ -933,10 +933,10 @@ contains
         write(errunit,*) 'Starting to initialize ocean model at '&
                          //trim(walldate)//' '//trim(walltime)
       endif
-      call fms_mpp_clock_begin(full_coupler_clocks%ocean_model_init)
+      call fms_mpp_clock_begin(coupler_clocks%ocean_model_init)
       call ocean_model_init( Ocean, Ocean_state, Time_init, Time, &
                              gas_fields_ocn=gas_fields_ocn  )
-      call fms_mpp_clock_end(full_coupler_clocks%ocean_model_init)
+      call fms_mpp_clock_end(coupler_clocks%ocean_model_init)
 
       if (concurrent) then
         call fms_mpp_set_current_pelist( Ocean%pelist )
@@ -971,9 +971,9 @@ contains
 
     endif ! end of Ocean%is_ocean_pe
 
-    call full_coupler_set_clock_ids(full_coupler_clocks, Atm, Land, Ice, Ocean, &
-                                    slow_ice_ocean_pelist, ensemble_pelist,ensemble_id, &
-                                    do_concurrent_radiation, clock_type='init_coupler_clocks')
+    call coupler_set_clock_ids(coupler_clocks, Atm, Land, Ice, Ocean, &
+                               slow_ice_ocean_pelist, ensemble_pelist, ensemble_id, &
+                               do_concurrent_radiation, clock_type='init_coupler_clocks')
 
 !---------------------------------------------
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
@@ -993,13 +993,13 @@ contains
       write(errunit,*) 'Starting to initialize flux_exchange at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
-    call fms_mpp_clock_begin(full_coupler_clocks%flux_exchange_init)
+    call fms_mpp_clock_begin(coupler_clocks%flux_exchange_init)
     call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
              atmos_ice_boundary, land_ice_atmos_boundary, &
              land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
          do_ocean, slow_ice_ocean_pelist, dt_atmos=dt_atmos, dt_cpld=dt_cpld)
     call fms_mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
-    call fms_mpp_clock_end(full_coupler_clocks%flux_exchange_init)
+    call fms_mpp_clock_end(coupler_clocks%flux_exchange_init)
     call fms_mpp_set_current_pelist()
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
@@ -1467,11 +1467,11 @@ contains
   end subroutine ocean_chksum
 
 !> \brief This subroutine sets the ID for clocks used in coupler_main
-  subroutine full_coupler_set_clock_ids(full_coupler_clocks_in, Atm_in, Land_in, Ice_in, Ocean_in, &
+  subroutine coupler_set_clock_ids(coupler_clocks_in, Atm_in, Land_in, Ice_in, Ocean_in, &
                                         slow_ice_ocean_pelist_in, ensemble_pelist_in, ensemble_id, &
                                         do_concurrent_radiation_in, clock_type)
 
-    type(full_coupler_clock_type), intent(inout) :: full_coupler_clocks_in
+    type(full_coupler_clock_type), intent(inout) :: coupler_clocks_in
     type(atmos_data_type),  intent(in)  :: Atm_in
     type(land_data_type), intent(in)    :: Land_in
     type(ice_data_type),  intent(in)    :: Ice_in
@@ -1486,11 +1486,11 @@ contains
       !> initialization clock
       if (Atm_in%pe) then
         call fms_mpp_set_current_pelist(Atm_in%pelist)
-        full_coupler_clocks_in%atmos_model_init = fms_mpp_clock_id( '  Init: atmos_model_init ' )
+        coupler_clocks_in%atmos_model_init = fms_mpp_clock_id( '  Init: atmos_model_init ' )
       endif
       if (Land_in%pe) then
         call fms_mpp_set_current_pelist(Land_in%pelist)
-        full_coupler_clocks_in%land_model_init  = fms_mpp_clock_id( '  Init: land_model_init ' )
+        coupler_clocks_in%land_model_init  = fms_mpp_clock_id( '  Init: land_model_init ' )
       endif
       if (Ice_in%pe) then
         if (Ice_in%shared_slow_fast_PEs) then ; call fms_mpp_set_current_pelist(Ice_in%pelist)
@@ -1498,83 +1498,83 @@ contains
         elseif (Ice_in%slow_ice_pe) then ;  call fms_mpp_set_current_pelist(Ice_in%slow_pelist)
         else ; call fms_mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
         endif
-        full_coupler_clocks_in%ice_model_init   = fms_mpp_clock_id( '  Init: ice_model_init ' )
+        coupler_clocks_in%ice_model_init   = fms_mpp_clock_id( '  Init: ice_model_init ' )
       endif
       if (Ocean_in%is_ocean_pe) then
         call fms_mpp_set_current_pelist(Ocean_in%pelist)
-        full_coupler_clocks_in%ocean_model_init = fms_mpp_clock_id( '  Init: ocean_model_init ' )
+        coupler_clocks_in%ocean_model_init = fms_mpp_clock_id( '  Init: ocean_model_init ' )
       endif
       call fms_mpp_set_current_pelist(ensemble_pelist_in(ensemble_id,:))
-      full_coupler_clocks_in%flux_exchange_init = fms_mpp_clock_id( '  Init: flux_exchange_init' )
+      coupler_clocks_in%flux_exchange_init = fms_mpp_clock_id( '  Init: flux_exchange_init' )
 
       call fms_mpp_set_current_pelist()
-      full_coupler_clocks_in%main = fms_mpp_clock_id( 'Main loop' )
-      full_coupler_clocks_in%termination = fms_mpp_clock_id( 'Termination' )
+      coupler_clocks_in%main = fms_mpp_clock_id( 'Main loop' )
+      coupler_clocks_in%termination = fms_mpp_clock_id( 'Termination' )
 
     else if( trim(clock_type) == 'init_coupler_clocks' ) then
       If(Atm_in%pe) then
         call fms_mpp_set_current_pelist(Atm_in%pelist)
-        full_coupler_clocks_in%generate_sfc_xgrid = fms_mpp_clock_id( 'generate_sfc_xgrid' )
+        coupler_clocks_in%generate_sfc_xgrid = fms_mpp_clock_id( 'generate_sfc_xgrid' )
       end if
       if (Ice_in%slow_ice_PE .or. Ocean_in%is_ocean_pe) then
         call fms_mpp_set_current_pelist(slow_ice_ocean_pelist_in)
-        full_coupler_clocks_in%flux_ocean_to_ice = fms_mpp_clock_id( 'flux_ocean_to_ice' )
-        full_coupler_clocks%flux_ice_to_ocean    = fms_mpp_clock_id( 'flux_ice_to_ocean' )
+        coupler_clocks_in%flux_ocean_to_ice = fms_mpp_clock_id( 'flux_ocean_to_ice' )
+        coupler_clocks_in%flux_ice_to_ocean = fms_mpp_clock_id( 'flux_ice_to_ocean' )
       endif
       if (Atm_in%pe) then
         call fms_mpp_set_current_pelist(Atm_in%pelist)
-        full_coupler_clocks_in%atm         = fms_mpp_clock_id( 'ATM' )
-        full_coupler_clocks_in%atmos_loop  = fms_mpp_clock_id( ' ATM: atmos loop' )
-        full_coupler_clocks_in%atmos_tracer_driver_gather_data  &
+        coupler_clocks_in%atm         = fms_mpp_clock_id( 'ATM' )
+        coupler_clocks_in%atmos_loop  = fms_mpp_clock_id( ' ATM: atmos loop' )
+        coupler_clocks_in%atmos_tracer_driver_gather_data  &
                                            = fms_mpp_clock_id( '  A-L: atmos_tracer_driver_gather_data' )
-        full_coupler_clocks_in%sfc_boundary_layer           = fms_mpp_clock_id( '  A-L: sfc_boundary_layer' )
-        full_coupler_clocks_in%update_atmos_model_dynamics  = fms_mpp_clock_id( '  A-L: update_atmos_model_dynamics')
+        coupler_clocks_in%sfc_boundary_layer           = fms_mpp_clock_id( '  A-L: sfc_boundary_layer' )
+        coupler_clocks_in%update_atmos_model_dynamics  = fms_mpp_clock_id( '  A-L: update_atmos_model_dynamics')
         if (.not. do_concurrent_radiation_in) &
-          full_coupler_clocks_in%serial_radiation       = fms_mpp_clock_id( '  A-L: serial radiation' )
-        full_coupler_clocks_in%update_atmos_model_down  = fms_mpp_clock_id( '  A-L: update_atmos_model_down' )
-        full_coupler_clocks_in%flux_down_from_atmos     = fms_mpp_clock_id( '  A-L: flux_down_from_atmos' )
-        full_coupler_clocks_in%update_land_model_fast   = fms_mpp_clock_id( '  A-L: update_land_model_fast' )
-        full_coupler_clocks_in%update_ice_model_fast    = fms_mpp_clock_id( '  A-L: update_ice_model_fast' )
-        full_coupler_clocks_in%flux_up_to_atmos         = fms_mpp_clock_id( '  A-L: flux_up_to_atmos' )
-        full_coupler_clocks_in%update_atmos_model_up    = fms_mpp_clock_id( '  A-L: update_atmos_model_up' )
+          coupler_clocks_in%serial_radiation       = fms_mpp_clock_id( '  A-L: serial radiation' )
+        coupler_clocks_in%update_atmos_model_down  = fms_mpp_clock_id( '  A-L: update_atmos_model_down' )
+        coupler_clocks_in%flux_down_from_atmos     = fms_mpp_clock_id( '  A-L: flux_down_from_atmos' )
+        coupler_clocks_in%update_land_model_fast   = fms_mpp_clock_id( '  A-L: update_land_model_fast' )
+        coupler_clocks_in%update_ice_model_fast    = fms_mpp_clock_id( '  A-L: update_ice_model_fast' )
+        coupler_clocks_in%flux_up_to_atmos         = fms_mpp_clock_id( '  A-L: flux_up_to_atmos' )
+        coupler_clocks_in%update_atmos_model_up    = fms_mpp_clock_id( '  A-L: update_atmos_model_up' )
         if (do_concurrent_radiation_in) then
-          full_coupler_clocks_in%concurrent_radiation  = fms_mpp_clock_id( '  A-L: concurrent radiation' )
-          full_coupler_clocks_in%concurrent_atmos      = fms_mpp_clock_id( '  A-L: concurrent atmos' )
+          coupler_clocks_in%concurrent_radiation  = fms_mpp_clock_id( '  A-L: concurrent radiation' )
+          coupler_clocks_in%concurrent_atmos      = fms_mpp_clock_id( '  A-L: concurrent atmos' )
         endif
-        full_coupler_clocks_in%update_atmos_model_state  = fms_mpp_clock_id( '  A-L: update_atmos_model_state')
-        full_coupler_clocks_in%update_land_model_slow    = fms_mpp_clock_id( ' ATM: update_land_model_slow' )
-        full_coupler_clocks_in%flux_land_to_ice          = fms_mpp_clock_id( ' ATM: flux_land_to_ice' )
+        coupler_clocks_in%update_atmos_model_state  = fms_mpp_clock_id( '  A-L: update_atmos_model_state')
+        coupler_clocks_in%update_land_model_slow    = fms_mpp_clock_id( ' ATM: update_land_model_slow' )
+        coupler_clocks_in%flux_land_to_ice          = fms_mpp_clock_id( ' ATM: flux_land_to_ice' )
       endif
       if (Ice_in%pe) then
         if (Ice_in%fast_ice_pe) call fms_mpp_set_current_pelist(Ice_in%fast_pelist)
-        full_coupler_clocks_in%set_ice_surface_fast       = fms_mpp_clock_id( ' Ice: set_ice_surface fast' )
-        full_coupler_clocks_in%update_ice_model_slow_fast = fms_mpp_clock_id( ' Ice: update_ice_model_slow fast' )
+        coupler_clocks_in%set_ice_surface_fast       = fms_mpp_clock_id( ' Ice: set_ice_surface fast' )
+        coupler_clocks_in%update_ice_model_slow_fast = fms_mpp_clock_id( ' Ice: update_ice_model_slow fast' )
 
         if (Ice_in%slow_ice_pe) call fms_mpp_set_current_pelist(Ice_in%slow_pelist)
-        full_coupler_clocks_in%set_ice_surface_slow       = fms_mpp_clock_id( ' Ice: set_ice_surface slow' )
-        full_coupler_clocks_in%update_ice_model_slow_slow = fms_mpp_clock_id( ' Ice: update_ice_model_slow slow' )
-        full_coupler_clocks_in%flux_ice_to_ocean_stocks   = fms_mpp_clock_id( ' Ice: flux_ice_to_ocean_stocks' )
+        coupler_clocks_in%set_ice_surface_slow       = fms_mpp_clock_id( ' Ice: set_ice_surface slow' )
+        coupler_clocks_in%update_ice_model_slow_slow = fms_mpp_clock_id( ' Ice: update_ice_model_slow slow' )
+        coupler_clocks_in%flux_ice_to_ocean_stocks   = fms_mpp_clock_id( ' Ice: flux_ice_to_ocean_stocks' )
 
         call fms_mpp_set_current_pelist(Ice_in%pelist)
-        full_coupler_clocks_in%set_ice_surface_exchange       = fms_mpp_clock_id( ' Ice: set_ice_surface exchange' )
-        full_coupler_clocks_in%update_ice_model_slow_exchange = fms_mpp_clock_id( ' Ice: update_ice_model_slow exchange' )
+        coupler_clocks_in%set_ice_surface_exchange       = fms_mpp_clock_id( ' Ice: set_ice_surface exchange' )
+        coupler_clocks_in%update_ice_model_slow_exchange = fms_mpp_clock_id( ' Ice: update_ice_model_slow exchange' )
 
       endif
       if (Ocean_in%is_ocean_pe) then
         call fms_mpp_set_current_pelist(Ocean_in%pelist)
-        full_coupler_clocks_in%ocean = fms_mpp_clock_id( 'OCN' )
+        coupler_clocks_in%ocean = fms_mpp_clock_id( 'OCN' )
       endif
 
       call fms_mpp_set_current_pelist()
-      full_coupler_clocks_in%flux_check_stocks       = fms_mpp_clock_id( 'flux_check_stocks' )
-      full_coupler_clocks_in%intermediate_restart    = fms_mpp_clock_id( 'intermediate restart' )
-      full_coupler_clocks_in%final_flux_check_stocks = fms_mpp_clock_id( 'final flux_check_stocks' )
+      coupler_clocks_in%flux_check_stocks       = fms_mpp_clock_id( 'flux_check_stocks' )
+      coupler_clocks_in%intermediate_restart    = fms_mpp_clock_id( 'intermediate restart' )
+      coupler_clocks_in%final_flux_check_stocks = fms_mpp_clock_id( 'final flux_check_stocks' )
 
     else
-      call fms_mpp_error(FATAL, 'clock_type not recognized in full_coupler_set_clock_ids')
+      call fms_mpp_error(FATAL, 'clock_type not recognized in coupler_set_clock_ids')
 
     end if
 
-  end subroutine full_coupler_set_clock_ids
+  end subroutine coupler_set_clock_ids
 
 end module full_coupler_mod
