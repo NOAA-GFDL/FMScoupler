@@ -1471,6 +1471,8 @@ contains
                                         slow_ice_ocean_pelist_in, ensemble_pelist_in, ensemble_id, &
                                         do_concurrent_radiation_in, clock_type)
 
+    implicit none
+    
     type(full_coupler_clock_type), intent(inout) :: coupler_clocks_in
     type(atmos_data_type),  intent(in)  :: Atm_in
     type(land_data_type), intent(in)    :: Land_in
