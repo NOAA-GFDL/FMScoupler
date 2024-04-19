@@ -339,7 +339,58 @@ program coupler_main
   use iso_fortran_env
   implicit none
 
+  !> model defined types
+  type (atmos_data_type) :: Atm
+  type  (land_data_type) :: Land
+  type   (ice_data_type) :: Ice
+  ! allow members of ocean type to be aliased (ap)
+  type (ocean_public_type), target  :: Ocean
+  type (ocean_state_type),  pointer :: Ocean_state => NULL()
 
+  type(atmos_land_boundary_type) :: Atmos_land_boundary
+  type(atmos_ice_boundary_type)  :: Atmos_ice_boundary
+  type(land_ice_atmos_boundary_type)  :: Land_ice_atmos_boundary
+  type(land_ice_boundary_type)  :: Land_ice_boundary
+  type(ice_ocean_boundary_type) :: Ice_ocean_boundary
+  type(ocean_ice_boundary_type) :: Ocean_ice_boundary
+  type(ice_ocean_driver_type), pointer :: ice_ocean_driver_CS => NULL()
+
+  type(FmsTime_type) :: Time, Time_init, Time_end
+  type(FmsTime_type) :: Time_step_atmos, Time_step_cpld
+  type(FmsTime_type) :: Time_atmos, Time_ocean
+  type(FmsTime_type) :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
+
+  integer :: num_atmos_calls, na
+  integer :: num_cpld_calls, nc
+
+  type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ice_bc_restart => NULL()
+  type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ocn_bc_restart => NULL()
+
+  integer :: num_ice_bc_restart=0, num_ocn_bc_restart=0
+  type(FmsTime_type) :: Time_restart, Time_restart_current, Time_start
+  character(len=32),  public :: timestamp
+
+  !> coupled model initial date
+  integer :: date_init(6) = (/ 0, 0, 0, 0, 0, 0 /)
+  integer :: calendar_type = INVALID_CALENDAR
+
+  integer :: initClock, mainClock, termClock  
+  integer :: newClock0, newClock1, newClock2, newClock3, newClock4, newClock5, newClock7
+  integer :: newClock6f, newClock6s, newClock6e, newClock10f, newClock10s, newClock10e
+  integer :: newClock8, newClock9, newClock11, newClock12, newClock13, newClock14, newClocka
+  integer :: newClockb, newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki
+  integer :: newClockj, newClockk, newClockl
+  integer :: id_atmos_model_init, id_land_model_init, id_ice_model_init
+  integer :: id_ocean_model_init, id_flux_exchange_init
+
+  integer :: outunit
+  integer :: ensemble_id = 1
+  integer, allocatable :: ensemble_pelist(:, :)
+  integer, allocatable :: slow_ice_ocean_pelist(:)
+  integer :: conc_nthreads = 1
+  real :: dsec, omp_sec(2)=0.0, imb_sec(2)=0.0
+
+  !> FREDB_ID related variables
   INTEGER :: i, status, arg_count
   CHARACTER(len=256) :: executable_name, arg, fredb_id
 
@@ -381,8 +432,12 @@ program coupler_main
   call fms_init
   call fmsconstants_init
   call fms_affinity_init
-
-  call coupler_init
+  
+  call coupler_init(Atm, Ocean, Land, Ice, Ocean_ice_boundary, Ice_ocean_boundary, &
+      Ice_bc_restart, num_ice_bc_restart, Ocn_bc_restart, num_ocn_bc_restart, ensemble_pelist, &
+      slow_ice_ocean_pelist, id_atmos_model_init, id_land_model_init, id_ocean_model_init,     &
+      id_flux_exchange_init, mainClock, termClock, Time_init, Time_start, Time_end, Time_restart, &
+      Time_restart_current, Time_start, Time_step_cpld, Time_step_atmos, num_cpld_calls, num_atmos_calls)
   if (do_chksum) call coupler_chksum('coupler_init+', 0)
 
   call fms_mpp_set_current_pelist()

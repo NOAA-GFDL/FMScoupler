@@ -126,63 +126,21 @@ module full_coupler_mod
   character(len=128), public :: version = '$Id$'
   character(len=128), public :: tag = '$Name$'
 
-!-----------------------------------------------------------------------
-!---- model defined-types ----
-
-  type (atmos_data_type), public :: Atm
-  type  (land_data_type), public :: Land
-  type   (ice_data_type), public :: Ice
-  ! allow members of ocean type to be aliased (ap)
-  type (ocean_public_type), target,  public :: Ocean
-  type (ocean_state_type),  pointer, public :: Ocean_state => NULL()
-
-  type(atmos_land_boundary_type),     public :: Atmos_land_boundary
-  type(atmos_ice_boundary_type),      public :: Atmos_ice_boundary
-  type(land_ice_atmos_boundary_type), public :: Land_ice_atmos_boundary
-  type(land_ice_boundary_type),  public :: Land_ice_boundary
-  type(ice_ocean_boundary_type), public :: Ice_ocean_boundary
-  type(ocean_ice_boundary_type), public :: Ocean_ice_boundary
-  type(ice_ocean_driver_type), pointer, public :: ice_ocean_driver_CS => NULL()
-
-!-----------------------------------------------------------------------
-! ----- coupled model time -----
-
-  type(FmsTime_type), public :: Time, Time_init, Time_end
-  type(FmsTime_type), public :: Time_step_atmos, Time_step_cpld
-  type(FmsTime_type), public :: Time_atmos, Time_ocean
-  type(FmsTime_type), public :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
-
-  integer, public :: num_atmos_calls, na
-  integer, public :: num_cpld_calls, nc
-
-  type(FmsNetcdfDomainFile_t), dimension(:), pointer, public :: Ice_bc_restart => NULL()
-  type(FmsNetcdfDomainFile_t), dimension(:), pointer, public :: Ocn_bc_restart => NULL()
-
-  integer,            public :: num_ice_bc_restart=0, num_ocn_bc_restart=0
-  type(FmsTime_type), public :: Time_restart, Time_restart_current, Time_start
-  character(len=32),  public :: timestamp
-
-! ----- coupled model initial date -----
-
-  integer :: date_init(6) = (/ 0, 0, 0, 0, 0, 0 /)
-  integer :: calendar_type = INVALID_CALENDAR
-
-!-----------------------------------------------------------------------
-!------ namelist interface -------
+!> namelist interface 
 
   !> The time interval that write out intermediate restart file.
   !! The format is (yr,mo,day,hr,min,sec).  When restart_interval
   !! is all zero, no intermediate restart file will be written out
   integer, dimension(6), public :: restart_interval = (/ 0, 0, 0, 0, 0, 0/)
-
+  
   !> The date that the current integration starts with.  (See
   !! force_date_from_namelist.)
-  integer, dimension(6) :: current_date     = (/ 0, 0, 0, 0, 0, 0 /)                                                                      
-
+  integer, dimension(6) :: current_date     = (/ 0, 0, 0, 0, 0, 0 /)
   !< The calendar type used by the current integration.  Valid values are
   !! consistent with the time_manager module: 'gregorian', 'julian', 'noleap', or 'thirty_day'.
   !! The value 'no_calendar' cannot be used because the time_manager's date
   !! functions are used.  All values must be lower case.  
+
   character(len=17) :: calendar = '                 ' 
 
   !> Flag that determines whether the namelist variable current_date should override
@@ -191,11 +149,11 @@ module full_coupler_mod
   !! will be used.
   logical :: force_date_from_namelist = .false.  
 
-  integer :: months=0  !< Number of months the current integration will be run
-  integer :: days=0    !< Number of days the current integration will be run
-  integer :: hours=0   !< Number of hours the current integration will be run
-  integer :: minutes=0 !< Number of minutes the current integration will be run
-  integer :: seconds=0 !< Number of seconds the current integration will be run
+  integer, public :: months=0  !< Number of months the current integration will be run
+  integer, public :: days=0    !< Number of days the current integration will be run
+  integer, public :: hours=0   !< Number of hours the current integration will be run
+  integer, public :: minutes=0 !< Number of minutes the current integration will be run
+  integer, public :: seconds=0 !< Number of seconds the current integration will be run
   integer, public :: dt_atmos = 0 !< Atmospheric model time step in seconds, including the fast
                                   !! coupling with land and sea ice
   integer, public :: dt_cpld  = 0 !< Time step in seconds for coupling between ocean and atmospheric models.  This must
@@ -264,33 +222,17 @@ module full_coupler_mod
                          use_hyper_thread, concurrent_ice, slow_ice_with_ocean,    &
                          do_endpoint_chksum, combined_ice_and_ocean
 
-  integer, public :: initClock, mainClock, termClock
-
-  integer, public :: newClock0, newClock1, newClock2, newClock3, newClock4, newClock5, newClock7
-  integer, public :: newClock6f, newClock6s, newClock6e, newClock10f, newClock10s, newClock10e
-  integer, public :: newClock8, newClock9, newClock11, newClock12, newClock13, newClock14, newClocka
-  integer, public :: newClockb, newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki
-  integer, public :: newClockj, newClockk, newClockl
-
-  integer, public :: id_atmos_model_init, id_land_model_init, id_ice_model_init
-  integer, public :: id_ocean_model_init, id_flux_exchange_init
-
-  character(len=80), public :: text
-  character(len=48), parameter  :: mod_name = 'coupler_main_mod'
-
-  integer, public :: outunit
-  integer :: ensemble_id = 1
-  integer, allocatable, public :: ensemble_pelist(:, :)
-  integer, allocatable, public :: slow_ice_ocean_pelist(:)
-  integer, public :: conc_nthreads = 1
-  real, public :: dsec, omp_sec(2)=0.0, imb_sec(2)=0.0
-
 contains
 
 !#######################################################################
 
 !> \brief Initialize all defined exchange grids and all boundary maps
-  subroutine coupler_init
+  subroutine coupler_init(Atm, Ocean, Land, Ice, Ocean_ice_boundary, Ice_ocean_boundary,
+    Ice_bc_restart, num_ice_bc_restart, Ocn_bc_restart, num_ocn_bc_restart, ensemble_pelist,
+    slow_ice_ocean_pelist, id_atmos_model_init, id_land_model_init, id_ocean_model_init,
+    id_flux_exchange_init, mainClock, termClock, Time_init, Time_start, Time_end, Time_restart,
+    Time_restart_current, Time_start, Time_step_cpld, Time_step_atmos, num_cpld_calls, num_atmos_calls,
+    
 
     use ensemble_manager_mod, only : ensemble_manager_init, get_ensemble_id,ensemble_pelist_setup
     use ensemble_manager_mod, only : get_ensemble_size, get_ensemble_pelist
