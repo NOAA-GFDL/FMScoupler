@@ -71,7 +71,7 @@
 !! The three components of coupler: @ref coupler_main , flux_exchange_mod, and surface_flux_mod
 !! are configured through three namelists
 !! * \ref coupler_config "coupler_nml"
-!! * \ref flux_exchange_conf "flux_exchange_nml" 
+!! * \ref flux_exchange_conf "flux_exchange_nml"
 !! * \ref surface_flux_config "surface_flux_nml"
 !!
 !!
@@ -355,7 +355,7 @@ program coupler_main
   type(ocean_ice_boundary_type) :: Ocean_ice_boundary
   type(ice_ocean_driver_type), pointer :: ice_ocean_driver_CS => NULL()
 
-  type(FmsTime_type) :: Time, Time_init, Time_end
+  type(FmsTime_type) :: Time
   type(FmsTime_type) :: Time_step_atmos, Time_step_cpld
   type(FmsTime_type) :: Time_atmos, Time_ocean
   type(FmsTime_type) :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
@@ -366,15 +366,11 @@ program coupler_main
   type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ice_bc_restart => NULL()
   type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ocn_bc_restart => NULL()
 
-  integer :: num_ice_bc_restart=0, num_ocn_bc_restart=0
-  type(FmsTime_type) :: Time_restart, Time_restart_current, Time_start
-  character(len=32),  public :: timestamp
+  type(FmsTime_type) :: Time_restart, Time_start, Time_end
+  type(FmsTime_type) :: Time_restart_current
+  character(len=32) :: timestamp
 
-  !> coupled model initial date
-  integer :: date_init(6) = (/ 0, 0, 0, 0, 0, 0 /)
-  integer :: calendar_type = INVALID_CALENDAR
-
-  integer :: initClock, mainClock, termClock  
+  integer :: initClock, mainClock, termClock
   integer :: newClock0, newClock1, newClock2, newClock3, newClock4, newClock5, newClock7
   integer :: newClock6f, newClock6s, newClock6e, newClock10f, newClock10s, newClock10e
   integer :: newClock8, newClock9, newClock11, newClock12, newClock13, newClock14, newClocka
@@ -384,7 +380,7 @@ program coupler_main
   integer :: id_ocean_model_init, id_flux_exchange_init
 
   integer :: outunit
-  integer :: ensemble_id = 1
+  character(len=80) :: text
   integer, allocatable :: ensemble_pelist(:, :)
   integer, allocatable :: slow_ice_ocean_pelist(:)
   integer :: conc_nthreads = 1
@@ -432,13 +428,17 @@ program coupler_main
   call fms_init
   call fmsconstants_init
   call fms_affinity_init
-  
-  call coupler_init(Atm, Ocean, Land, Ice, Ocean_ice_boundary, Ice_ocean_boundary, &
-      Ice_bc_restart, num_ice_bc_restart, Ocn_bc_restart, num_ocn_bc_restart, ensemble_pelist, &
-      slow_ice_ocean_pelist, id_atmos_model_init, id_land_model_init, id_ocean_model_init,     &
-      id_flux_exchange_init, mainClock, termClock, Time_init, Time_start, Time_end, Time_restart, &
-      Time_restart_current, Time_start, Time_step_cpld, Time_step_atmos, num_cpld_calls, num_atmos_calls)
-  if (do_chksum) call coupler_chksum('coupler_init+', 0)
+
+
+  call coupler_init(Atm, Ocean, Land, Ice, Ocean_state, Atmos_land_boundary, Atmos_ice_boundary, &
+    Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary, &
+    Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, &
+    ensemble_pelist, slow_ice_ocean_pelist, id_atmos_model_init, id_land_model_init, &
+    id_ice_model_init, id_ocean_model_init, id_flux_exchange_init, mainClock, termClock, &
+    Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, num_cpld_calls, num_atmos_calls, &
+    Time_start, Time_end, Time_restart)
+
+  if (do_chksum) call coupler_chksum('coupler_init+', 0, Atm, Land, Ice)
 
   call fms_mpp_set_current_pelist()
 
@@ -511,7 +511,7 @@ program coupler_main
   newClock14 = fms_mpp_clock_id( 'final flux_check_stocks' )
 
   do nc = 1, num_cpld_calls
-    if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc)
+    if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
     call fms_mpp_set_current_pelist()
 
     if (do_chksum) then
@@ -552,7 +552,7 @@ program coupler_main
     endif
 
     if (do_chksum) then
-      call coupler_chksum('flux_ocn2ice+', nc)
+      call coupler_chksum('flux_ocn2ice+', nc, Atm, Land, Ice)
       if (Atm%pe) then
         call fms_mpp_set_current_pelist(Atm%pelist)
         call atmos_ice_land_chksum('fluxocn2ice+', nc, Atm, Land, Ice, &
@@ -944,11 +944,12 @@ program coupler_main
       if (Ocean%is_ocean_pe) then
         call ocean_model_restart(Ocean_state, timestamp)
       endif
-      call coupler_restart(Time, Time_restart_current, timestamp)
+      call coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
+                           Time, Time_restart_current, Time_start, Time_end, timestamp)
     endif
 
     !--------------
-    if (do_chksum) call coupler_chksum('MAIN_LOOP+', nc)
+    if (do_chksum) call coupler_chksum('MAIN_LOOP+', nc, Atm, Land, Ice)
     write( text,'(a,i6)' )'Main loop at coupling timestep=', nc
     call fms_memutils_print_memuse_stats(text)
     outunit= fms_mpp_stdout()
@@ -976,8 +977,11 @@ program coupler_main
   call fms_mpp_clock_end(mainClock)
   call fms_mpp_clock_begin(termClock)
 
-  if (do_chksum) call coupler_chksum('coupler_end-', nc)
-  call coupler_end
+  if (do_chksum) call coupler_chksum('coupler_end-', nc, Atm, Land, Ice)
+  call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
+    Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
+    Time, Time_start, Time_end, Time_restart_current)
+
 
   call fms_mpp_clock_end(termClock)
 
