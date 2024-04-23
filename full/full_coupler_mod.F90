@@ -120,7 +120,6 @@ module full_coupler_mod
   public :: atm_lnd_bnd_type_chksum,  land_data_type_chksum
   public :: ice_data_type_chksum,     ocn_ice_bnd_type_chksum
   public :: atm_ice_bnd_type_chksum,  lnd_ice_bnd_type_chksum
-  public :: ocean_ice_boundary_type,  atmos_ice_boundary_type
   public :: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
 
   public :: coupler_init, coupler_end, coupler_restart
@@ -464,7 +463,7 @@ contains
 
     ensemble_id = fms_ensemble_manager_get_ensemble_id()
 
-    if(allocated(ensemble_pelist)) call mpp_error(FATAL, 'ensemble_pelist unexpectedly has already been allocated')
+    if(allocated(ensemble_pelist)) call fms_mpp_error(FATAL, 'ensemble_pelist unexpectedly has already been allocated')
     allocate(ensemble_pelist(1:ensemble_size,1:npes))
     call fms_ensemble_manager_get_ensemble_pelist(ensemble_pelist)
 
@@ -489,7 +488,7 @@ contains
           if(.not.allocated(slow_ice_ocean_pelist)) then
             allocate(slow_ice_ocean_pelist(ocean_npes+ice_npes))
           else
-            call mpp_error(FATAL, 'allocation of slow_ice_ocean_pelist unexpectedly has already been allocated')
+            call fms_mpp_error(FATAL, 'allocation of slow_ice_ocean_pelist unexpectedly has already been allocated')
           end if
           slow_ice_ocean_pelist(1:ice_npes) = Ice%slow_pelist(:)
           slow_ice_ocean_pelist(ice_npes+1:ice_npes+ocean_npes) = Ocean%pelist(:)
