@@ -432,8 +432,8 @@ program coupler_main
 
   call coupler_init(Atm, Ocean, Land, Ice, Ocean_state, Atmos_land_boundary, Atmos_ice_boundary, &
     Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary, &
-    Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, &
-    ensemble_pelist, slow_ice_ocean_pelist, id_atmos_model_init, id_land_model_init, &
+    Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, &
+    conc_nthreads, id_atmos_model_init, id_land_model_init, &
     id_ice_model_init, id_ocean_model_init, id_flux_exchange_init, mainClock, termClock, &
     Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, num_cpld_calls, num_atmos_calls, &
     Time_start, Time_end, Time_restart)
