@@ -436,7 +436,7 @@ program coupler_main
     conc_nthreads, id_atmos_model_init, id_land_model_init, &
     id_ice_model_init, id_ocean_model_init, id_flux_exchange_init, mainClock, termClock, &
     Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, num_cpld_calls, num_atmos_calls, &
-    Time, Time_start, Time_end, Time_restart)
+    Time, Time_start, Time_end, Time_restart, Time_restart_current)
 
   if (do_chksum) call coupler_chksum('coupler_init+', 0, Atm, Land, Ice)
 
