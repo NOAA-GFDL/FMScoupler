@@ -226,7 +226,6 @@ module full_coupler_mod
                          use_hyper_thread, concurrent_ice, slow_ice_with_ocean,    &
                          do_endpoint_chksum, combined_ice_and_ocean
 
-  public :: coupler_clock_type
   type coupler_clock_type
     integer :: initialization
     integer :: main
@@ -269,8 +268,6 @@ module full_coupler_mod
     integer :: flux_exchange_init
   end type coupler_clock_type
 
-  type(coupler_clock_type), public :: coupler_clocks
-
   character(len=80) :: text
   character(len=48), parameter :: mod_name = 'coupler_main_mod'
 
@@ -285,11 +282,10 @@ contains
 
 !> \brief Initialize all defined exchange grids and all boundary maps
   subroutine coupler_init(Atm, Ocean, Land, Ice, Ocean_state, Atmos_land_boundary, Atmos_ice_boundary, &
-    Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary,          &
-    Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, conc_nthreads, &
-    id_atmos_model_init, id_land_model_init, id_ice_model_init, id_ocean_model_init, &
-    id_flux_exchange_init, mainClock, termClock, Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, &
-    num_cpld_calls, num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
+      Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary,              &
+      Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, conc_nthreads, &
+      coupler_clocks, Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, &
+      num_cpld_calls, num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
 
     implicit none
 
@@ -310,9 +306,7 @@ contains
     integer, intent(inout) :: conc_nthreads
     integer, allocatable, dimension(:,:), intent(inout) :: ensemble_pelist
     integer, allocatable, dimension(:),   intent(inout) :: slow_ice_ocean_pelist
-    integer, intent(inout) :: id_atmos_model_init, id_land_model_init
-    integer, intent(inout) :: id_ocean_model_init, id_flux_exchange_init, id_ice_model_init
-    integer, intent(inout) :: mainClock, termClock
+    type(coupler_clock_type) :: coupler_clocks
     type(FMSTime_type), intent(inout) :: Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean
     type(FMSTime_type), intent(inout) :: Time, Time_start, Time_end, Time_restart, Time_restart_current
 
@@ -611,7 +605,8 @@ contains
     endif
 
     !> The pelists need to be set before initializing the clocks
-    call coupler_set_clock_ids(Atm, Land, Ice, Ocean, ensemble_pelist, slow_ice_ocean_pelist, ensemble_id, clock_set='model_init_clocks')
+    call coupler_set_clock_ids(coupler_clocks, Atm, Land, Ice, Ocean, ensemble_pelist, &
+                               slow_ice_ocean_pelist, ensemble_id, clock_set='model_init_clocks')
 
     !Write out messages on root PEs
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
@@ -989,7 +984,8 @@ contains
 
     endif ! end of Ocean%is_ocean_pe
 
-    call coupler_set_clock_ids(Atm, Land, Ice, Ocean, ensemble_pelist, slow_ice_ocean_pelist, ensemble_id, clock_set='coupler_clocks')
+    call coupler_set_clock_ids(coupler_clocks, Atm, Land, Ice, Ocean, ensemble_pelist, &
+                               slow_ice_ocean_pelist, ensemble_id, clock_set='coupler_clocks')
 
 !---------------------------------------------
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
@@ -1522,10 +1518,12 @@ contains
   end subroutine ocean_chksum
 
 !> \brief This subroutine sets the ID for clocks used in coupler_main
-  subroutine coupler_set_clock_ids(Atm, Land, Ice, Ocean, ensemble_pelist, slow_ice_ocean_pelist, ensemble_id, clock_set)
+  subroutine coupler_set_clock_ids(coupler_clocks, Atm, Land, Ice, Ocean, ensemble_pelist,&
+      slow_ice_ocean_pelist, ensemble_id, clock_set)
 
     implicit none
 
+    type(coupler_clock_type), intent(inout) :: coupler_clocks
     type(atmos_data_type),   intent(in) :: Atm
     type(land_data_type),    intent(in) :: Land
     type(ocean_public_type), intent(in) :: Ocean
