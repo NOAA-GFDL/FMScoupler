@@ -125,6 +125,8 @@ module full_coupler_mod
   public :: coupler_init, coupler_end, coupler_restart
   public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum
 
+  public :: coupler_clock_type
+  
 !-----------------------------------------------------------------------
 
   character(len=128), public :: version = '$Id$'
@@ -226,7 +228,7 @@ module full_coupler_mod
                          use_hyper_thread, concurrent_ice, slow_ice_with_ocean,    &
                          do_endpoint_chksum, combined_ice_and_ocean
 
-  type coupler_clock_type
+  type coupler_clock_type 
     integer :: initialization
     integer :: main
     integer :: generate_sfc_xgrid
