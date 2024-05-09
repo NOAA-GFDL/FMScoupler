@@ -331,6 +331,7 @@
 !!     This error should probably not occur because of checks done at initialization time.
 program coupler_main
 
+  !--- F90 module for OpenMP
   use omp_lib
   use FMS
   use full_coupler_mod
@@ -369,15 +370,8 @@ program coupler_main
   type(FmsTime_type) :: Time_restart_current
   character(len=32) :: timestamp
 
-  integer :: initClock, mainClock, termClock
-  integer :: newClock0, newClock1, newClock2, newClock3, newClock4, newClock5, newClock7
-  integer :: newClock6f, newClock6s, newClock6e, newClock10f, newClock10s, newClock10e
-  integer :: newClock8, newClock9, newClock11, newClock12, newClock13, newClock14, newClocka
-  integer :: newClockb, newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki
-  integer :: newClockj, newClockk, newClockl
-  integer :: id_atmos_model_init, id_land_model_init, id_ice_model_init
-  integer :: id_ocean_model_init, id_flux_exchange_init
-
+  type(coupler_clock_type) :: coupler_clocks
+  
   integer :: outunit
   character(len=80) :: text
   integer, allocatable :: ensemble_pelist(:, :)
@@ -421,6 +415,7 @@ program coupler_main
 
   call fms_mpp_init()
 
+  !this clock is on the global pelist
   coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
   call fms_mpp_clock_begin(coupler_clocks%initialization)
 
@@ -428,14 +423,11 @@ program coupler_main
   call fmsconstants_init
   call fms_affinity_init
 
-
   call coupler_init(Atm, Ocean, Land, Ice, Ocean_state, Atmos_land_boundary, Atmos_ice_boundary, &
-    Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary, &
+    Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary,          &
     Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, &
-    conc_nthreads, id_atmos_model_init, id_land_model_init, &
-    id_ice_model_init, id_ocean_model_init, id_flux_exchange_init, mainClock, termClock, &
-    Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, num_cpld_calls, num_atmos_calls, &
-    Time, Time_start, Time_end, Time_restart, Time_restart_current)
+    conc_nthreads, coupler_clocks, Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean,      &
+    num_cpld_calls, num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
 
   if (do_chksum) call coupler_chksum('coupler_init+', 0, Atm, Land, Ice)
 
