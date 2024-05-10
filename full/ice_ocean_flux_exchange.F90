@@ -48,7 +48,7 @@ module ice_ocean_flux_exchange_mod
   logical :: debug_stocks = .false.
   logical :: do_area_weighted_flux = .false.
 
-  integer :: cplOcnClock
+  integer :: cplOcnClock, fluxOceanIceClock, fluxIceOceanClock
   real    :: Dt_cpl
   integer, allocatable :: slow_ice_ocean_pelist(:)
 
@@ -197,6 +197,8 @@ contains
       slow_ice_ocean_pelist = slow_ice_ocean_pelist_in
       call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
       cplOcnClock = fms_mpp_clock_id( 'Ice-ocean coupler', flags=fms_clock_flag_default, grain=CLOCK_COMPONENT )
+      fluxIceOceanClock = fms_mpp_clock_id( 'Flux ice to ocean', flags=fms_clock_flag_default, grain=CLOCK_ROUTINE )
+      fluxOceanIceClock = fms_mpp_clock_id( 'Flux ocean to ice', flags=fms_clock_flag_default, grain=CLOCK_ROUTINE )
     endif
 
   end subroutine ice_ocean_flux_exchange_init
@@ -235,6 +237,7 @@ contains
     logical       :: used
 
     call fms_mpp_clock_begin(cplOcnClock)
+    call fms_mpp_clock_begin(fluxIceOceanClock)
 
     if(ASSOCIATED(Ice_Ocean_Boundary%u_flux) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
          Ice%flux_u, Ice_Ocean_Boundary%u_flux, Ice_Ocean_Boundary%xtype, .FALSE. )
@@ -309,6 +312,8 @@ contains
     if(ASSOCIATED(Ice_Ocean_Boundary%q_flux) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
          Ice%flux_q, Ice_Ocean_Boundary%q_flux, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
 
+    call fms_mpp_clock_end(fluxIceOceanClock)
+    call fms_mpp_clock_end(cplOcnClock)
     !-----------------------------------------------------------------------
 
   end subroutine flux_ice_to_ocean
@@ -384,6 +389,7 @@ contains
     logical       :: used
 
     call fms_mpp_clock_begin(cplOcnClock)
+    call fms_mpp_clock_begin(fluxOceanIceClock)
 
     select case (Ocean_Ice_Boundary%xtype)
     case(DIRECT)
@@ -441,6 +447,7 @@ contains
        call fms_mpp_error( FATAL, 'flux_ocean_to_ice: Ocean_Ice_Boundary%xtype must be DIRECT or REDIST.' )
     end select
 
+    call fms_mpp_clock_end(fluxOceanIceClock)
     call fms_mpp_clock_end(cplOcnClock)
     !-----------------------------------------------------------------------
 
