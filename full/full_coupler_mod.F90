@@ -1616,7 +1616,7 @@ contains
 
   end subroutine coupler_set_clock_ids
 
-!> \brief This subroutine sets the ID for clocks used in coupler_main
+!> \brief This subroutine calls coupler_chksum as well as atmos_ice_land_chksum and ocean_chksum
   subroutine coupler_full_chksum(id, timestep, Atm, Land, Ice, Land_ice_atmos_boundary, &
       Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
 
