@@ -429,8 +429,6 @@ program coupler_main
     conc_nthreads, coupler_clocks, Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean,      &
     num_cpld_calls, num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
 
-  if (do_chksum) call coupler_chksum('coupler_init+', 0, Atm, Land, Ice)
-
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%initialization) !end initialization
 
@@ -445,21 +443,10 @@ program coupler_main
   endif
 
   do nc = 1, num_cpld_calls
-    if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
-    call fms_mpp_set_current_pelist()
 
-    if (do_chksum) then
-      if (Atm%pe) then
-        call fms_mpp_set_current_pelist(Atm%pelist)
-        call atmos_ice_land_chksum('MAIN_LOOP-', nc, Atm, Land, Ice, &
-                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      endif
-      if (Ocean%is_ocean_pe) then
-        call fms_mpp_set_current_pelist(Ocean%pelist)
-        call ocean_chksum('MAIN_LOOP-', nc, Ocean, Ice_ocean_boundary)
-      endif
-      call fms_mpp_set_current_pelist()
-    endif
+    if (do_chksum) call coupler_full_chksum('MAIN_LOOP-', nc, Atm, Land, Ice, &
+        Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary,     &
+        Ocean, Ice_ocean_boundary)
 
     ! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
     ! points when running concurrently. The calls are placed next to each other in
@@ -485,20 +472,9 @@ program coupler_main
       endif
     endif
 
-    if (do_chksum) then
-      call coupler_chksum('flux_ocn2ice+', nc, Atm, Land, Ice)
-      if (Atm%pe) then
-        call fms_mpp_set_current_pelist(Atm%pelist)
-        call atmos_ice_land_chksum('fluxocn2ice+', nc, Atm, Land, Ice, &
-                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      endif
-      if (Ocean%is_ocean_pe) then
-        call fms_mpp_set_current_pelist(Ocean%pelist)
-        call ocean_public_type_chksum('fluxocn2ice+', nc, Ocean)
-      endif
-      call fms_mpp_set_current_pelist()
-    endif
-
+    if (do_chksum) call coupler_full_chksum('flux_ocn2ice+', nc, Atm, Land, Ice, &
+        Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
+    
     ! To print the value of frazil heat flux at the right time the following block
     ! needs to sit here rather than at the end of the coupler loop.
     if (check_stocks > 0) then
