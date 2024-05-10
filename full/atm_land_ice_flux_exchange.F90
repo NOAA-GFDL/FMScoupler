@@ -261,7 +261,7 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
   !  REDIST: same physical grid, different decomposition, must move data around
   !  DIRECT: same physical grid, same domain decomposition, can directly copy data
   integer, parameter :: REGRID=1, REDIST=2, DIRECT=3
-  integer :: cplClock, sfcClock, fluxAtmDnClock, regenClock, fluxAtmUpClock
+  integer :: cplClock
 
   ! Exchange grid indices
   integer :: X1_GRID_ATM, X1_GRID_ICE, X1_GRID_LND
@@ -624,12 +624,6 @@ contains
        call fms_mpp_domains_get_compute_domain(Land%domain, xsize=nxc_lnd, ysize=nyc_lnd)
     endif
 
-    !Balaji: clocks on atm%pe only
-    sfcClock = fms_mpp_clock_id( 'SFC boundary layer', flags=fms_clock_flag_default, grain=CLOCK_SUBCOMPONENT )
-    fluxAtmDnClock = fms_mpp_clock_id( 'Flux DN from atm', flags=fms_clock_flag_default, grain=CLOCK_ROUTINE )
-    regenClock = fms_mpp_clock_id( 'XGrid generation', flags=fms_clock_flag_default, grain=CLOCK_ROUTINE )
-    fluxAtmUpClock = fms_mpp_clock_id( 'Flux UP to atm', flags=fms_clock_flag_default, grain=CLOCK_ROUTINE )
-
     do_init = .false.
 
   end subroutine atm_land_ice_flux_exchange_init
@@ -727,7 +721,6 @@ contains
          'must call atm_land_ice_flux_exchange_init first', FATAL)
     !Balaji
     call fms_mpp_clock_begin(cplClock)
-    call fms_mpp_clock_begin(sfcClock)
     ! [2] allocate storage for variables that are also used in flux_up_to_atmos
     allocate ( &
          ex_t_surf   (n_xgrid_sfc),  &
@@ -1223,7 +1216,6 @@ contains
 #endif
 
 
-    !  call mpp_clock_end(fluxClock)
     zrefm = 10.0
     zrefh = z_ref_heat
     !      ---- optimize calculation ----
@@ -1932,7 +1924,6 @@ contains
     endif
 
     !Balaji
-    call fms_mpp_clock_end(sfcClock)
     call fms_mpp_clock_end(cplClock)
 
     !=======================================================================
@@ -2031,7 +2022,6 @@ contains
 
     !Balaji
     call fms_mpp_clock_begin(cplClock)
-    call fms_mpp_clock_begin(fluxAtmDnClock)
     ov = .FALSE.
     !-----------------------------------------------------------------------
     !Balaji: fms_data_override calls moved here from coupler_main
@@ -2691,7 +2681,6 @@ contains
     used = fms_diag_send_data ( id_tauv,  -Atmos_boundary%v_flux, Time )
 
     !Balaji
-    call fms_mpp_clock_end(fluxAtmDnClock)
     call fms_mpp_clock_end(cplClock)
     !=======================================================================
 
@@ -2710,7 +2699,6 @@ contains
 
     !Balaji
     call fms_mpp_clock_begin(cplClock)
-    call fms_mpp_clock_begin(regenClock)
 
     call fms_mpp_domains_get_compute_domain(Ice%Domain, isc, iec, jsc, jec)
 
@@ -2731,7 +2719,6 @@ contains
     endif
 
     !Balaji
-    call fms_mpp_clock_end(regenClock)
     call fms_mpp_clock_end(cplClock)
     return
   end subroutine generate_sfc_xgrid
@@ -2798,7 +2785,6 @@ contains
 
     !Balaji
     call fms_mpp_clock_begin(cplClock)
-    call fms_mpp_clock_begin(fluxAtmUpClock)
     !-----------------------------------------------------------------------
     !Balaji: data_override calls moved here from coupler_main
     call fms_data_override ( 'ICE', 't_surf', Ice%t_surf,  Time)
@@ -3204,7 +3190,6 @@ contains
          & radius=Radius, ier=ier, verbose='stock move EVAP*HLV (Ice->ATm) ')
 
     !Balaji
-    call fms_mpp_clock_end(fluxAtmUpClock)
     call fms_mpp_clock_end(cplClock)
   end subroutine flux_up_to_atmos
 
