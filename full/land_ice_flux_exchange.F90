@@ -42,7 +42,7 @@ module land_ice_flux_exchange_mod
 
   public :: flux_land_to_ice, land_ice_flux_exchange_init
 
-  integer :: cplClock, fluxLandIceClock
+  integer :: cplClock
   logical :: do_runoff
   real    :: Dt_cpl
 contains
@@ -61,7 +61,6 @@ contains
     do_runoff = do_runoff_in
     cplClock = cplClock_in
     Dt_cpl   = Dt_cpl_in
-    fluxLandIceClock = fms_mpp_clock_id( 'Flux land to ice', flags=fms_clock_flag_default, grain=CLOCK_ROUTINE )
 
     if (do_runoff) then
        call fms_xgrid_setup_xmap(xmap_runoff, (/ 'LND', 'OCN' /),       &
@@ -114,7 +113,6 @@ contains
 
     !Balaji
     call fms_mpp_clock_begin(cplClock)
-    call fms_mpp_clock_begin(fluxLandIceClock)
 
     ! ccc = conservation_check(Land%discharge, 'LND', xmap_runoff)
     ! if (fms_mpp_pe()==fms_mpp_root_pe()) print *,'RUNOFF', ccc
@@ -154,7 +152,6 @@ contains
        Land_Ice_Boundary%calving_hflx = 0.0
     endif
 
-    call fms_mpp_clock_end(fluxLandIceClock)
     call fms_mpp_clock_end(cplClock)
 
   end subroutine flux_land_to_ice
