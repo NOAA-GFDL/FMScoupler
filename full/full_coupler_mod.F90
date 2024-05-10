@@ -1081,7 +1081,7 @@ contains
     CALL fms_diag_grid_end()
 
 !-----------------------------------------------------------------------
-    if ( do_endpoint_chksum ) call full_coupler_chksum('coupler_init+', 0, Atm, Land, Ice, &
+    if ( do_endpoint_chksum ) call coupler_full_chksum('coupler_init+', 0, Atm, Land, Ice, &
         Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
     
     call fms_memutils_print_memuse_stats('coupler_init')
@@ -1624,14 +1624,14 @@ contains
 
     character(len=*), intent(in) :: id
     integer         , intent(in) :: timestep    
-    type(atm_data_type),  intent(in) :: Atm
-    type(land_data_type), intent(in) :: Land
-    type(ice_data_type),  intent(in) :: Ice
+    type(atmos_data_type), intent(in) :: Atm
+    type(land_data_type),  intent(in) :: Land
+    type(ice_data_type),   intent(in) :: Ice
     type(land_ice_atmos_boundary_type), intent(in) :: Land_ice_atmos_boundary
-    type(atmos_ice_boundary_type), intent(in)      :: Atmos_ice_boundary
-    type(atmos_land_boundary), intent(in)          :: Atmos_land_boundary
-    type(ocean_public_type), intent(in)        :: Ocean
-    type(ice_ocean_boundary_type), intent(in) :: Ice_ocean_boundary
+    type(atmos_ice_boundary_type),  intent(in) :: Atmos_ice_boundary
+    type(atmos_land_boundary_type), intent(in) :: Atmos_land_boundary
+    type(ocean_public_type),        intent(in) :: Ocean
+    type(ice_ocean_boundary_type),  intent(in) :: Ice_ocean_boundary
 
 
     call coupler_chksum(trim(id), timestep, Atm, Land, Ice)
