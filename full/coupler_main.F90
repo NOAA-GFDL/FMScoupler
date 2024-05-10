@@ -437,10 +437,8 @@ program coupler_main
 !-----------------------------------------------------------------------
 !------ ocean/slow-ice integration loop ------
 
-  if (check_stocks >= 0) then
-    call fms_mpp_set_current_pelist()
-    call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
-  endif
+  if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
+                                                              coupler_clocks, init_stocks=.True.)
 
   do nc = 1, num_cpld_calls
 
@@ -477,14 +475,7 @@ program coupler_main
     
     ! To print the value of frazil heat flux at the right time the following block
     ! needs to sit here rather than at the end of the coupler loop.
-    if (check_stocks > 0) then
-      call fms_mpp_clock_begin(coupler_clocks%flux_check_stocks)
-      if (check_stocks*((nc-1)/check_stocks) == nc-1 .AND. nc > 1) then
-        call fms_mpp_set_current_pelist()
-        call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
-      endif
-      call fms_mpp_clock_end(coupler_clocks%flux_check_stocks)
-    endif
+    if (check_stocks > 0) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clock)
 
     if (do_ice .and. Ice%pe) then
       if (Ice%slow_ice_pe) then
@@ -874,16 +865,11 @@ program coupler_main
   enddo
 102 FORMAT(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
 
-  call fms_mpp_set_current_pelist()
-  call fms_mpp_clock_begin(coupler_clocks%final_flux_check_stocks)
-  if (check_stocks >= 0) then
-    call fms_mpp_set_current_pelist()
-    call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
-  endif
-  call fms_mpp_clock_end(coupler_clocks%final_flux_check_stocks)
+  if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
+                                                              coupler_clocks, finish_stocks=.True.)
 
-  call fms_mpp_set_current_pelist()
 !-----------------------------------------------------------------------
+  call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%main)
   call fms_mpp_clock_begin(coupler_clocks%termination)
 

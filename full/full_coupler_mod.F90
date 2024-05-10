@@ -108,7 +108,6 @@ module full_coupler_mod
   public :: flux_down_from_atmos, flux_up_to_atmos
   public :: flux_land_to_ice, flux_ice_to_ocean, flux_ocean_to_ice
   public :: flux_ice_to_ocean_finish, flux_ocean_to_ice_finish
-  public :: flux_check_stocks, flux_init_stocks
   public :: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
   public :: flux_atmos_to_ocean, flux_ex_arrays_dealloc
   public :: atmos_tracer_driver_gather_data
@@ -126,7 +125,8 @@ module full_coupler_mod
   public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum, coupler_full_chksum
 
   public :: coupler_clock_type
-  
+
+  public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
 !-----------------------------------------------------------------------
   
 #include <file_version.fh>
@@ -1650,5 +1650,61 @@ contains
     
   end subroutine coupler_full_chksum
 
+!> \brief This subroutine calls flux_init_stocks or does the final call to flux_check_stocks
+  subroutine coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
+      coupler_clocks, init_stocks, finish_stocks) 
+
+    implicit none
+    
+    type(FmsTime_type),     intent(in) :: Time
+    type(atmos_data_type),  intent(in) :: Atm
+    type(land_data_type),   intent(in) :: Land
+    type(ocean_state_type), pointer, intent(in) :: Ocean_state
+    type(coupler_clock_type), intent(in) :: coupler_clocks
+    logical, optional, intent(in) :: init_stocks, finish_stocks
+
+    logical :: init, finish
+
+    init=.False.   ; if(present(init_stocks)) init=init_stocks
+    finish=.False. ; if(present(finish_stocks)) finish=finish_stocks
+
+    if(init) then 
+      call fms_mpp_set_current_pelist()
+      call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
+    else if(finish) then
+      call fms_mpp_set_current_pelist()
+      call fms_mpp_clock_begin(coupler_clocks%final_flux_check_stocks)
+      if (check_stocks >= 0) then
+        call fms_mpp_set_current_pelist()
+        call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
+      endif
+      call fms_mpp_clock_end(coupler_clocks%final_flux_check_stocks)
+    else
+      call mpp_error(FATAL, 'coupler_flux_init_finish_stocks: either init or finish needs to be .True.')
+    end if
+    
+  end subroutine coupler_flux_init_stocks
+
+!> \brief This subroutine calls flux_init_stocks
+  subroutine coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
+
+    implicit none
+
+    integer, intent(in) :: nc
+    type(FmsTime_type), intent(in) :: Time
+    type(atmos_data_type), intent(in) :: Atm
+    type(land_data_type), intent(in) :: Land
+    type(ice_data_type), intent(in) :: Ice
+    type(ocean_state_type), pointer, intent(in) :: Ocean_state
+    type(coupler_clock_type), intent(in) :: coupler_clocks
+    
+    call fms_mpp_clock_begin(coupler_clocks%flux_check_stocks)
+    if (check_stocks*((nc-1)/check_stocks) == nc-1 .AND. nc > 1) then      
+      call fms_mpp_set_current_pelist()
+      call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
+    endif
+    call fms_mpp_clock_end(coupler_clocks%flux_check_stocks)
+    
+  end subroutine coupler_flux_check_stocks
   
 end module full_coupler_mod
