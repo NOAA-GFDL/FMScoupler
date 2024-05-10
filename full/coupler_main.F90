@@ -475,7 +475,7 @@ program coupler_main
     
     ! To print the value of frazil heat flux at the right time the following block
     ! needs to sit here rather than at the end of the coupler loop.
-    if (check_stocks > 0) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clock)
+    if (check_stocks > 0) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
 
     if (do_ice .and. Ice%pe) then
       if (Ice%slow_ice_pe) then

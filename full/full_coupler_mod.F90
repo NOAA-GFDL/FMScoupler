@@ -1656,11 +1656,12 @@ contains
 
     implicit none
     
-    type(FmsTime_type),     intent(in) :: Time
-    type(atmos_data_type),  intent(in) :: Atm
-    type(land_data_type),   intent(in) :: Land
-    type(ocean_state_type), pointer, intent(in) :: Ocean_state
-    type(coupler_clock_type), intent(in) :: coupler_clocks
+    type(FmsTime_type),    intent(in) :: Time
+    type(atmos_data_type), intent(inout) :: Atm
+    type(land_data_type),  intent(inout) :: Land
+    type(ice_data_type),   intent(inout) :: Ice
+    type(ocean_state_type), pointer, intent(inout) :: Ocean_state
+    type(coupler_clock_type), intent(inout)        :: coupler_clocks
     logical, optional, intent(in) :: init_stocks, finish_stocks
 
     logical :: init, finish
@@ -1680,10 +1681,10 @@ contains
       endif
       call fms_mpp_clock_end(coupler_clocks%final_flux_check_stocks)
     else
-      call mpp_error(FATAL, 'coupler_flux_init_finish_stocks: either init or finish needs to be .True.')
+      call fms_mpp_error(FATAL, 'coupler_flux_init_finish_stocks: either init or finish needs to be .True.')
     end if
     
-  end subroutine coupler_flux_init_stocks
+  end subroutine coupler_flux_init_finish_stocks
 
 !> \brief This subroutine calls flux_init_stocks
   subroutine coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
@@ -1692,11 +1693,11 @@ contains
 
     integer, intent(in) :: nc
     type(FmsTime_type), intent(in) :: Time
-    type(atmos_data_type), intent(in) :: Atm
-    type(land_data_type), intent(in) :: Land
-    type(ice_data_type), intent(in) :: Ice
-    type(ocean_state_type), pointer, intent(in) :: Ocean_state
-    type(coupler_clock_type), intent(in) :: coupler_clocks
+    type(atmos_data_type), intent(inout) :: Atm
+    type(land_data_type), intent(inout)  :: Land
+    type(ice_data_type), intent(inout)   :: Ice
+    type(ocean_state_type), pointer, intent(inout) :: Ocean_state
+    type(coupler_clock_type), intent(inout)        :: coupler_clocks
     
     call fms_mpp_clock_begin(coupler_clocks%flux_check_stocks)
     if (check_stocks*((nc-1)/check_stocks) == nc-1 .AND. nc > 1) then      
