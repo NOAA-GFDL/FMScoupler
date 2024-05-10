@@ -123,7 +123,7 @@ module full_coupler_mod
   public :: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
 
   public :: coupler_init, coupler_end, coupler_restart
-  public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum, coupler_full_chksum
+  public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum
 
   public :: coupler_clock_type
   
@@ -1081,9 +1081,23 @@ contains
     CALL fms_diag_grid_end()
 
 !-----------------------------------------------------------------------
-    if ( do_endpoint_chksum ) call full_coupler_chksum('coupler_init+', 0, Atm, Land, Ice, &
-        Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
-    
+    if ( do_endpoint_chksum ) then
+      if (Atm%pe) then
+        call fms_mpp_set_current_pelist(Atm%pelist)
+        call atmos_ice_land_chksum('coupler_init+', 0, Atm, Land, Ice, &
+                     Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+      endif
+      if (Ice%slow_ice_PE) then
+        call fms_mpp_set_current_pelist(Ice%slow_pelist)
+        call slow_ice_chksum('coupler_init+', 0, Ice, Ocean_ice_boundary)
+      endif
+      if (Ocean%is_ocean_pe) then
+        call fms_mpp_set_current_pelist(Ocean%pelist)
+        call ocean_chksum('coupler_init+', 0, Ocean, Ice_ocean_boundary)
+      endif
+    endif
+
+    call fms_mpp_set_current_pelist()
     call fms_memutils_print_memuse_stats('coupler_init')
 
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
@@ -1340,7 +1354,6 @@ contains
       write(outunit,100) 'atm%t_bot', fms_mpp_chksum(atm%t_bot)
       write(outunit,100) 'atm%z_bot', fms_mpp_chksum(atm%z_bot)
       write(outunit,100) 'atm%p_bot', fms_mpp_chksum(atm%p_bot)
-
       write(outunit,100) 'atm%u_bot', fms_mpp_chksum(atm%u_bot)
       write(outunit,100) 'atm%v_bot', fms_mpp_chksum(atm%v_bot)
       write(outunit,100) 'atm%p_surf', fms_mpp_chksum(atm%p_surf)
@@ -1616,39 +1629,4 @@ contains
 
   end subroutine coupler_set_clock_ids
 
-!> \brief This subroutine sets the ID for clocks used in coupler_main
-  subroutine coupler_full_chksum(id, timestep, Atm, Land, Ice, Land_ice_atmos_boundary, &
-      Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
-
-    implicit none
-
-    character(len=*), intent(in) :: id
-    integer         , intent(in) :: timestep    
-    type(atm_data_type),  intent(in) :: Atm
-    type(land_data_type), intent(in) :: Land
-    type(ice_data_type),  intent(in) :: Ice
-    type(land_ice_atmos_boundary_type), intent(in) :: Land_ice_atmos_boundary
-    type(atmos_ice_boundary_type), intent(in)      :: Atmos_ice_boundary
-    type(atmos_land_boundary), intent(in)          :: Atmos_land_boundary
-    type(ocean_public_type), intent(in)        :: Ocean
-    type(ice_ocean_boundary_type), intent(in) :: Ice_ocean_boundary
-
-
-    call coupler_chksum(trim(id), timestep, Atm, Land, Ice)
-    
-    if (Atm%pe) then
-      call fms_mpp_set_current_pelist(Atm%pelist)
-      call atmos_ice_land_chksum(trim(id), timestep, Atm, Land, Ice, &
-          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-    endif
-    if (Ocean%is_ocean_pe) then
-      call fms_mpp_set_current_pelist(Ocean%pelist)
-      call ocean_chksum(trim(id), timestep, Ocean, Ice_ocean_boundary)
-    endif
-
-    call fms_mpp_set_current_pelist()
-    
-  end subroutine coupler_full_chksum
-
-  
 end module full_coupler_mod
