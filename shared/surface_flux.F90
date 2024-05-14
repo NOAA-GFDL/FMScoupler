@@ -151,7 +151,7 @@ real, parameter :: kappa  = rdgas/cp_air
 real            :: d608   = d378/d622
       ! d608 set to zero at initialization if the use of
       ! virtual temperatures is turned off in namelist
-
+character(len=32) :: rough_scheme_ocean !< ocean roughness length scheme to be read from ocean_rough_nml
 
 ! ---- namelist with default values ------------------------------------------
 logical :: no_neg_q              = .false. !< If a_atm_in (specific humidity) is negative (because of numerical truncation),
@@ -175,15 +175,14 @@ logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent f
                                            !! new experiments.
 logical :: ncar_ocean_flux_multilevel  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.
 logical :: do_iter_monin_obukhov       = .false. !< A flag controls if iterates monin obukhov to update cd, ch, b_star, u_star 
-                                                 ! Note that so far it is only effective for the rough_scheme = 'hwrf17'
+                                                 ! Note that so far it is only effective for the rough_scheme_ocean = 'hwrf17'
 real :: bulk_zu = 10.                      !< Reference height for wind speed (meters)
 real :: bulk_zt = 10.                      !< Reference height for atm temperature (meters)
 real :: bulk_zq = 10.                      !< Reference height for atm humidity (meters)
 logical :: raoult_sat_vap        = .false. !< Reduce saturation vapor pressure to account for seawater
 logical :: do_simple             = .false.
-integer :: niter                 = 1       !< iteration times to call iter_monin_obukhov_ocean. Typically 3-5 will be enough
+integer :: niter                 = 5       !< iteration times to call iter_monin_obukhov_ocean. Typically 3-5 times should converge
 !
-character(len=32) :: rough_scheme = 'fixed'!< roughness length scheme to be read from ocean_rough_nml; not used if do_iter_monin_obukhov is false
 
 namelist /surface_flux_nml/ no_neg_q,                   &
                             use_virtual_temp,           &
@@ -380,7 +379,7 @@ subroutine surface_flux_1d (                                           &
 
   ! - iterate monin-obukhov over ocean with updated roughness length
   ! - the following fields, cd_m, cd_g, cd_q, u_star, b_star will be overrideen
-  ! - only effective when the rough_scheme is hwrf17
+  ! - only effective when the rough_scheme_ocean is hwrf17
   if (do_iter_monin_obukhov) then
     do i = 1, niter
      do j = 1, size(avail)
@@ -724,13 +723,11 @@ subroutine surface_flux_init
   read (fms_mpp_input_nml_file, surface_flux_nml, iostat=io)
   ierr = check_nml_error(io,'surface_flux_nml')
 
-  ! read rough_scheme from ocean_rough namelist
+  ! read rough_scheme_ocean from ocean_rough namelist
   ! Note that we should not use the variable 'rough_scheme' directly from ocean_rough,
-  ! because the intialization of ocean_rough is later than the surface_flux_init. Therefore,
-  ! the intial value of rough_scheme is still 'fixed' so that it has reproducibility issue 
-  ! for restart runs.
+  ! because the intialization of ocean_rough is later than the surface_flux_init. 
   if (do_iter_monin_obukhov) then
-    call read_ocean_rough_scheme(rough_scheme) 
+    call read_ocean_rough_scheme(rough_scheme_ocean) 
   endif
 
   ! write version number
@@ -1072,7 +1069,7 @@ subroutine iter_monin_obukhov_ocean (                      &
   u10 = sqrt(ref_u**2 + ref_v**2)
 
   ! can expand below for other z0/zt options
-  if (rough_scheme == 'hwrf17') then
+  if (rough_scheme_ocean == 'hwrf17') then
     call cal_z0_hwrf17(u10, rough_mom1)
     call cal_zt_hwrf17(u10, rough_heat1)
     rough_mom = rough_mom1
