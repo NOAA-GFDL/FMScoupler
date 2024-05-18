@@ -429,6 +429,8 @@ program coupler_main
     conc_nthreads, coupler_clocks, Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean,      &
     num_cpld_calls, num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
 
+  if (do_chksum) call coupler_chksum('coupler_init+', 0, Atm, Land, Ice)
+
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%initialization) !end initialization
 
@@ -437,14 +439,19 @@ program coupler_main
 !-----------------------------------------------------------------------
 !------ ocean/slow-ice integration loop ------
 
-  if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
-                                                              coupler_clocks, init_stocks=.True.)
+  if (check_stocks >= 0) then
+    call fms_mpp_set_current_pelist()
+    call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
+  endif
 
   do nc = 1, num_cpld_calls
 
-    if (do_chksum) call coupler_full_chksum('MAIN_LOOP-', nc, Atm, Land, Ice, &
-        Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary,     &
-        Ocean, Ice_ocean_boundary)
+    if (do_chksum) then      
+      call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)    
+      call coupler_atmos_ice_land_ocean_chksum('MAIN_LOOP-', nc, Atm, Land, Ice,&
+          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary,     &
+          Ocean, Ice_ocean_boundary)
+    end if
 
     call coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, Time, coupler_clocks, slow_ice_pelist)
     Time_flux_ocean_to_ice = Time
@@ -454,8 +461,12 @@ program coupler_main
       Time_flux_ice_to_ocean = Time
     end if
 
-    if (do_chksum) call coupler_full_chksum('flux_ocn2ice+', nc, Atm, Land, Ice, &
-        Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
+    if (do_chksum) then
+      call coupler_chksum('flux_ocn2ice+', nc, Atm, Land, Ice)
+      call coupler_atmos_ice_land_ocean_chksum('flux_ocn2ice+', nc, Atm, Land, Ice, &
+          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary,         &
+          Ocean, Ice_ocean_boundary)
+    end if
     
     ! To print the value of frazil heat flux at the right time the following block
     ! needs to sit here rather than at the end of the coupler loop.
@@ -841,17 +852,22 @@ program coupler_main
   enddo
 102 FORMAT(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
 
-  if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
-                                                              coupler_clocks, finish_stocks=.True.)
-
-!-----------------------------------------------------------------------
   call fms_mpp_set_current_pelist()
+  call fms_mpp_clock_begin(coupler_clocks%final_flux_check_stocks)
+  if (check_stocks >= 0) then
+    call fms_mpp_set_current_pelist()
+    call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
+  endif
+  call fms_mpp_clock_end(coupler_clocks%final_flux_check_stocks)
+
+  call fms_mpp_set_current_pelist()
+!-----------------------------------------------------------------------
   call fms_mpp_clock_end(coupler_clocks%main)
   call fms_mpp_clock_begin(coupler_clocks%termination)
 
   if (do_chksum) call coupler_chksum('coupler_end-', nc, Atm, Land, Ice)
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
-    Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
+      Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
     Time, Time_start, Time_end, Time_restart_current)
 
 

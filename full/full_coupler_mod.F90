@@ -108,6 +108,7 @@ module full_coupler_mod
   public :: flux_down_from_atmos, flux_up_to_atmos
   public :: flux_land_to_ice, flux_ice_to_ocean, flux_ocean_to_ice
   public :: flux_ice_to_ocean_finish, flux_ocean_to_ice_finish
+  public :: flux_check_stocks, flux_init_stocks
   public :: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
   public :: flux_atmos_to_ocean, flux_ex_arrays_dealloc
   public :: atmos_tracer_driver_gather_data
@@ -122,12 +123,14 @@ module full_coupler_mod
   public :: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
 
   public :: coupler_init, coupler_end, coupler_restart
-  public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum, coupler_full_chksum
+  public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum
+  public :: coupler_atmos_ice_land_ocean_chksum
 
   public :: coupler_clock_type
 
   public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
   public :: coupler_flux_ocean_to_ice, coupler_flux_ice_to_ocean
+
 !-----------------------------------------------------------------------
   
 #include <file_version.fh>
@@ -1119,18 +1122,12 @@ contains
     integer :: num_ice_bc_restart, num_ocn_bc_restart
 
     if ( do_endpoint_chksum ) then
-      if (Atm%pe) then
-        call fms_mpp_set_current_pelist(Atm%pelist)
-        call atmos_ice_land_chksum('coupler_end', 0, Atm, Land, Ice, &
-                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      endif
+      call coupler_atmos_ice_land_ocean_chksum('coupler_end', 0, Atm, Land, Ice, Land, &
+          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmo_land_boundary, Ocean,      &
+          Ice_ocean_boundary)
       if (Ice%slow_ice_PE) then
         call fms_mpp_set_current_pelist(Ice%slow_pelist)
         call slow_ice_chksum('coupler_end', 0, Ice, Ocean_ice_boundary)
-      endif
-      if (Ocean%is_ocean_pe) then
-        call fms_mpp_set_current_pelist(Ocean%pelist)
-        call ocean_chksum('coupler_end', 0, Ocean, Ice_ocean_boundary)
       endif
     endif
     call fms_mpp_set_current_pelist()
@@ -1617,12 +1614,12 @@ contains
 
   end subroutine coupler_set_clock_ids
 
-!> \brief This subroutine sets the ID for clocks used in coupler_main
-  subroutine coupler_full_chksum(id, timestep, Atm, Land, Ice, Land_ice_atmos_boundary, &
-      Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
-
+!> \brief This subroutine calls coupler_chksum as well as atmos_ice_land_chksum and ocean_chksum
+  subroutine coupler_atmos_ice_land_ocean_chksum(id, timestep, Atm, Land, Ice, Land_ice_atmos_boundary,&
+      Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary, Ocean_ice_boundary)
+    
     implicit none
-
+    
     character(len=*), intent(in) :: id
     integer         , intent(in) :: timestep    
     type(atmos_data_type), intent(in) :: Atm
@@ -1633,9 +1630,7 @@ contains
     type(atmos_land_boundary_type), intent(in) :: Atmos_land_boundary
     type(ocean_public_type),        intent(in) :: Ocean
     type(ice_ocean_boundary_type),  intent(in) :: Ice_ocean_boundary
-
-
-    call coupler_chksum(trim(id), timestep, Atm, Land, Ice)
+    type(ocean_ice_boundary_type), intent(in), optional :: Ocean_ice_boundary
     
     if (Atm%pe) then
       call fms_mpp_set_current_pelist(Atm%pelist)
@@ -1649,7 +1644,7 @@ contains
 
     call fms_mpp_set_current_pelist()
     
-  end subroutine coupler_full_chksum
+  end subroutine coupler_atmos_ice_land_ocean_chksum
 
 !> \brief This subroutine calls flux_init_stocks or does the final call to flux_check_stocks
   subroutine coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
