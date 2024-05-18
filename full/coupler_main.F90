@@ -486,14 +486,7 @@ program coupler_main
     
     ! To print the value of frazil heat flux at the right time the following block
     ! needs to sit here rather than at the end of the coupler loop.
-    if (check_stocks > 0) then
-      call fms_mpp_clock_begin(coupler_clocks%flux_check_stocks)
-      if (check_stocks*((nc-1)/check_stocks) == nc-1 .AND. nc > 1) then
-        call fms_mpp_set_current_pelist()
-        call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
-      endif
-      call fms_mpp_clock_end(coupler_clocks%flux_check_stocks)
-    endif
+    if (check_stocks > 0) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
 
     if (do_ice .and. Ice%pe) then
       if (Ice%slow_ice_pe) then
