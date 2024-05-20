@@ -125,7 +125,8 @@ module full_coupler_mod
   public :: coupler_init, coupler_end, coupler_restart
   public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum
   public :: coupler_atmos_ice_land_ocean_chksum
-
+  public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
+  
   public :: coupler_clock_type
 
   public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
@@ -1085,8 +1086,8 @@ contains
     CALL fms_diag_grid_end()
 
 !-----------------------------------------------------------------------
-    if ( do_endpoint_chksum ) call coupler_full_chksum('coupler_init+', 0, Atm, Land, Ice, &
-        Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
+    if ( do_endpoint_chksum ) call coupler_atmos_ice_land_ocean_chksum('coupler_init+', 0, Atm, Land, &
+        Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
     
     call fms_memutils_print_memuse_stats('coupler_init')
 
@@ -1122,9 +1123,8 @@ contains
     integer :: num_ice_bc_restart, num_ocn_bc_restart
 
     if ( do_endpoint_chksum ) then
-      call coupler_atmos_ice_land_ocean_chksum('coupler_end', 0, Atm, Land, Ice, Land, &
-          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmo_land_boundary, Ocean,      &
-          Ice_ocean_boundary)
+      call coupler_atmos_ice_land_ocean_chksum('coupler_end', 0, Atm, Land, Ice,   &
+          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
       if (Ice%slow_ice_PE) then
         call fms_mpp_set_current_pelist(Ice%slow_pelist)
         call slow_ice_chksum('coupler_end', 0, Ice, Ocean_ice_boundary)
