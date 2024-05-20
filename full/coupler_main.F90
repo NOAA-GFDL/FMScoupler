@@ -443,6 +443,8 @@ program coupler_main
       coupler_clocks, init_stocks=.True.)
 
   do nc = 1, num_cpld_calls
+    if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
+    call fms_mpp_set_current_pelist()
 
     if (do_chksum) then      
       call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)    
@@ -482,7 +484,6 @@ program coupler_main
           Ocean, Ice_ocean_boundary)
     end if
     
-    ! To print the value of frazil heat flux at the right time the following block
     ! needs to sit here rather than at the end of the coupler loop.
     if (check_stocks > 0) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
 
