@@ -1529,8 +1529,8 @@ contains
     endif
     if (Ice%pe) then
       if (Ice%shared_slow_fast_PEs) then ; call fms_mpp_set_current_pelist(Ice%pelist)
-      elseif (Ice%fast_ice_pe) then ;  call fms_mpp_set_current_pelist(Ice%fast_pelist)
-      elseif (Ice%slow_ice_pe) then ;  call fms_mpp_set_current_pelist(Ice%slow_pelist)
+      elseif (Ice%fast_ice_pe)      then ;  call fms_mpp_set_current_pelist(Ice%fast_pelist)
+      elseif (Ice%slow_ice_pe)      then ;  call fms_mpp_set_current_pelist(Ice%slow_pelist)
       else ; call fms_mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
       endif
       coupler_clocks%ice_model_init   = fms_mpp_clock_id( '  Init: ice_model_init ' )
