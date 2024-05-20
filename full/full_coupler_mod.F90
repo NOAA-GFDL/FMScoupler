@@ -1085,8 +1085,14 @@ contains
     CALL fms_diag_grid_end()
 
 !-----------------------------------------------------------------------
-    if ( do_endpoint_chksum ) call coupler_full_chksum('coupler_init+', 0, Atm, Land, Ice, &
-        Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
+    if ( do_endpoint_chksum ) then
+      call coupler_atmos_ice_land_ocean_chksum('coupler_init+', 0, Atm, Land, &
+          Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
+      if (Ice%slow_ice_PE) then
+        call fms_mpp_set_current_pelist(Ice%slow_pelist)
+        call slow_ice_chksum('coupler_init+', 0, Ice, Ocean_ice_boundary)
+      endif
+    end if
     
     call fms_memutils_print_memuse_stats('coupler_init')
 
@@ -1122,8 +1128,8 @@ contains
     integer :: num_ice_bc_restart, num_ocn_bc_restart
 
     if ( do_endpoint_chksum ) then
-      call coupler_atmos_ice_land_ocean_chksum('coupler_end', 0, Atm, Land, Ice, Land, &
-          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmo_land_boundary, Ocean,      &
+      call coupler_atmos_ice_land_ocean_chksum('coupler_end', 0, Atm, Land, Ice,  &
+          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, &
           Ice_ocean_boundary)
       if (Ice%slow_ice_PE) then
         call fms_mpp_set_current_pelist(Ice%slow_pelist)
@@ -1725,14 +1731,13 @@ contains
 
       !Ice intent is In, used only for accessing Ice%area and knowing if we are on an Ice pe
       call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
-      Time_flux_ocean_to_ice = Time
       call fms_mpp_clock_end(coupler_clocks%flux_ocean_to_ice)
     end if
     
   end subroutine coupler_flux_ocean_to_ice
 
 !> \brief This subroutine calls flux_ocean_to_ice
-  subroutine coupler_flux_ice_to_ocean((Ice, Ocean, Ice_ocean_boundary, Time, coupler_clocks, slow_ice_ocean_pelist)
+  subroutine coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, Time, coupler_clocks, slow_ice_ocean_pelist)
 
     implicit none
 
