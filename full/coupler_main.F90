@@ -458,6 +458,7 @@ program coupler_main
     if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
       call coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, Time, coupler_clocks, slow_ice_ocean_pelist)
       Time_flux_ocean_to_ice = Time
+
       if(use_lag_fluxes) then
         call coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, Time, coupler_clocks)
         Time_flux_ice_to_ocean = Time
