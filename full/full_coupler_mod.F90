@@ -1725,15 +1725,13 @@ contains
 
     !Redistribute quantities from Ocean to Ocean_ice_boundary
     
-    if (Ice%slow_ice_pe .or. Ocean%is_ocean_pe) then
-      ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
-      call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
-      call fms_mpp_clock_begin(coupler_clocks%flux_ocean_to_ice)
-
-      !Ice intent is In, used only for accessing Ice%area and knowing if we are on an Ice pe
-      call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
-      call fms_mpp_clock_end(coupler_clocks%flux_ocean_to_ice)
-    end if
+    ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
+    call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
+    call fms_mpp_clock_begin(coupler_clocks%flux_ocean_to_ice)
+    
+    !Ice intent is In, used only for accessing Ice%area and knowing if we are on an Ice pe
+    call flux_ocean_to_ice(Time, Ocean, Ice, Ocean_ice_boundary)
+    call fms_mpp_clock_end(coupler_clocks%flux_ocean_to_ice)
     
   end subroutine coupler_flux_ocean_to_ice
 
@@ -1750,15 +1748,14 @@ contains
     integer, dimension(:), optional, intent(in) :: slow_ice_ocean_pelist
 
     ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
-    if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-      !> mpp_set_current_pelist(slow_ice_ocean_pelist) is not required if coupler_flux_ice_to_ocean is being called after
-      !! coupler_flux_ocean_to_ice:  mpp_set_current_pelist(slow_ice_ocean_pelist) is called
-      !! in coupler_flux_ocean_to_ice
-      if(present(slow_ice_ocean_pelist)) call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)        
-      call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean)
-      call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
-      call fms_mpp_clock_end(coupler_clocks%flux_ice_to_ocean)
-    endif
+
+    !> mpp_set_current_pelist(slow_ice_ocean_pelist) is not required if coupler_flux_ice_to_ocean is being called after
+    !! coupler_flux_ocean_to_ice:  mpp_set_current_pelist(slow_ice_ocean_pelist) is called
+    !! in coupler_flux_ocean_to_ice
+    if(present(slow_ice_ocean_pelist)) call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)        
+    call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean)
+    call flux_ice_to_ocean(Time, Ice, Ocean, Ice_ocean_boundary)
+    call fms_mpp_clock_end(coupler_clocks%flux_ice_to_ocean)
 
   end subroutine coupler_flux_ice_to_ocean
     

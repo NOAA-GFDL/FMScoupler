@@ -451,12 +451,17 @@ program coupler_main
           Ocean, Ice_ocean_boundary)
     end if
 
-    call coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, Time, coupler_clocks, slow_ice_ocean_pelist)
-    Time_flux_ocean_to_ice = Time
-
-    if(use_lag_fluxes) then
-      call coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, Time, coupler_clocks)
-      Time_flux_ice_to_ocean = Time
+    ! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
+    ! points when running concurrently. The calls are placed next to each other in
+    ! concurrent mode to avoid multiple synchronizations within the main loop.
+    ! With concurrent_ice, these only occur on the ocean PEs.    
+    if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
+      call coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, Time, coupler_clocks, slow_ice_ocean_pelist)
+      Time_flux_ocean_to_ice = Time
+      if(use_lag_fluxes) then
+        call coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, Time, coupler_clocks)
+        Time_flux_ice_to_ocean = Time
+      end if
     end if
 
     if (do_chksum) then
