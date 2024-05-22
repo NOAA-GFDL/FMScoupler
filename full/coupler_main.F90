@@ -497,7 +497,9 @@ program coupler_main
                             Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
 
     if (Atm%pe) then
-
+      
+      if (.NOT.(do_ice.and.Ice%pe) .OR. (ice_npes.NE.atmos_npes)) call fms_mpp_set_current_pelist(Atm%pelist)
+      
       call fms_mpp_clock_begin(coupler_clocks%atm)
 
       call coupler_generate_sfc_xgrid(Land, Ice, coupler_clocks)
