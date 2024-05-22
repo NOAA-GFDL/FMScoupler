@@ -131,6 +131,9 @@ module full_coupler_mod
   public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
   public :: coupler_flux_ocean_to_ice, coupler_flux_ice_to_ocean
 
+  public :: coupler_exchange_slow_to_fast_ice, coupler_exchange_fast_to_slow_ice, &
+            coupler_set_ice_surface_fields
+  
 !-----------------------------------------------------------------------
   
 #include <file_version.fh>
@@ -1757,6 +1760,79 @@ contains
     call fms_mpp_clock_end(coupler_clocks%flux_ice_to_ocean)
 
   end subroutine coupler_flux_ice_to_ocean
+
+!> \brief This subroutine calls flux_ocean_to_ice_finish and unpack_ocean_ice_boundary
+  subroutine coupler_flux_ocean_to_ice_finish(nc, Time_flux_ocean_to_ice, Ice, Ocean_ice_boundary, coupler_clocks)
+
+    implicit none
+
+    integer,             intent(in)    :: nc
+    type(FmsTime_type),  intent(inout) :: Time_flux_ocean_to_ice
+    type(ice_data_type), intent(in)    :: Ice
+    type(ocean_ice_boundary_type), intent(in) :: Ocean_ice_boundary
+    type(coupler_clock_type),   intent(inout) :: coupler_clocks    
     
+    call fms_mpp_set_current_pelist(Ice%slow_pelist)
+    call fms_mpp_clock_begin(coupler_clocks%set_ice_surface_slow)
+    
+    ! This may do data override or diagnostics on Ice_ocean_boundary.                                                          
+    call flux_ocean_to_ice_finish( Time_flux_ocean_to_ice, Ice, Ocean_Ice_Boundary )    
+    call unpack_ocean_ice_boundary( Ocean_ice_boundary, Ice )
+    if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
+
+    call fms_mpp_clock_end(coupler_clocks%set_ice_surface_slow)
+        
+  end subroutine coupler_flux_ocean_to_ice_finish
+
+!> This subroutine calls exchange_slow_to_fast_ice
+  subroutine coupler_exchange_slow_to_fast_ice(Ice, coupler_clocks)
+
+    implicit none
+    type(ice_data_type), intent(inout) :: Ice
+    type(coupler_clock_type), intent(inout) :: coupler_clocks
+
+    ! This could be a point where the model is serialized if the fast and                                                        
+    ! slow ice are on different PEs.  
+    if (.not.Ice%shared_slow_fast_PEs) call fms_mpp_set_current_pelist(Ice%pelist)
+    call fms_mpp_clock_begin(coupler_clocks%set_ice_surface_exchange)
+    call exchange_slow_to_fast_ice(Ice)
+    call fms_mpp_clock_end(coupler_clocks%set_ice_surface_exchange)
+
+  end subroutine coupler_exchange_slow_to_fast_ice
+    
+  
+!> \brief This subroutine calls exchange_fast_to_slow_ice
+  subroutine coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks, set_ice_pelist)  
+
+    implicit none
+    type(ice_data_type), intent(inout) :: Ice
+    type(coupler_clock_type), intent(inout) :: coupler_clocks
+    logical, intent(in), optional :: set_ice_pelist
+
+    logical :: set_ice_pelist_in
+
+    set_ice_pelist_in = .False.
+    if(present(set_ice_pelist)) set_ice_pelist_in = set_ice_pelist
+
+    if(set ice_pelist_in .and. .not.Ice%shared_slow_fast_PEs) call fms_mpp_set_current_pelist(Ice%pelist)
+    call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_exchange)
+    call exchange_fast_to_slow_ice(Ice)
+    call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_exchange)
+    
+  end subroutine coupler_exchange_fast_to_slow_ice
+  
+!> \brief This subroutine calls set_ice_surface_fields
+  subroutine coupler_set_ice_surface_fields(Ice, coupler_clocks)
+
+    implicit none
+    type(ice_data_type), intent(inout) :: Ice
+    type(coupler_clock_type), intent(inout) :: coupler_clocks
+    
+    if (.not.Ice%shared_slow_fast_PEs) call fms_mpp_set_current_pelist(Ice%fast_pelist)
+    call fms_mpp_clock_begin(coupler_clocks%set_ice_surface_fast)
+    call set_ice_surface_fields(Ice)
+    call fms_mpp_clock_end(coupler_clocks%set_ice_surface_fast)
+    
+  end subroutine coupler_set_ice_surface_fields
     
 end module full_coupler_mod
