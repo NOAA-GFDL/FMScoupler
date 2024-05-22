@@ -1842,6 +1842,7 @@ end subroutine coupler_set_clock_ids
     implicit none
     type(land_data_type), intent(inout) :: Land
     type(ice_data_type),  intent(inout) :: Ice
+    type(coupler_clock_type), intent(inout) :: coupler_clocks
 
     if (.NOT.(do_ice .and. Ice%pe) .OR. (ice_npes .NE. atmos_npes)) &
       call fms_mpp_set_current_pelist(Atm%pelist)
