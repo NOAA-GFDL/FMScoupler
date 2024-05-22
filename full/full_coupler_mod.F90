@@ -1841,9 +1841,9 @@ end subroutine coupler_set_clock_ids
   subroutine coupler_generate_sfc_xgrid(Land, Ice, coupler_clocks)
 
     implicit none
-    type(land_data_type), intent(inout) :: Land
-    type(ice_data_type),  intent(inout) :: Ice
-    type(coupler_clock_type), intent(inout) :: coupler_clocks
+    type(land_data_type), intent(inout) :: Land   !< Land
+    type(ice_data_type),  intent(inout) :: Ice    !< Ice
+    type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
 
     call fms_mpp_clock_begin(coupler_clocks%generate_sfc_xgrid)
     call generate_sfc_xgrid( Land, Ice )
