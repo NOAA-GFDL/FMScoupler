@@ -108,7 +108,6 @@ module full_coupler_mod
   public :: flux_down_from_atmos, flux_up_to_atmos
   public :: flux_land_to_ice, flux_ice_to_ocean, flux_ocean_to_ice
   public :: flux_ice_to_ocean_finish, flux_ocean_to_ice_finish
-  public :: flux_check_stocks, flux_init_stocks
   public :: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
   public :: flux_atmos_to_ocean, flux_ex_arrays_dealloc
   public :: atmos_tracer_driver_gather_data
