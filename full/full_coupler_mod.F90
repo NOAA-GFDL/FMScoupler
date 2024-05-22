@@ -1827,7 +1827,7 @@ contains
     set_ice_pelist_in = .False.
     if(present(set_ice_pelist)) set_ice_pelist_in = set_ice_pelist
 
-    if(set ice_pelist_in .and. .not.Ice%shared_slow_fast_PEs) call fms_mpp_set_current_pelist(Ice%pelist)
+    if(set_ice_pelist_in .and. .not.Ice%shared_slow_fast_PEs) call fms_mpp_set_current_pelist(Ice%pelist)
     call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_exchange)
     call exchange_fast_to_slow_ice(Ice)
     call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_exchange)
