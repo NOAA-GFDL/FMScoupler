@@ -1781,7 +1781,7 @@ end subroutine coupler_set_clock_ids
 
     call fms_mpp_clock_end(coupler_clocks%set_ice_surface_slow)
 
-  end subroutine coupler_flux_ocean_to_ice_finish
+  end subroutine coupler_unpack_ocean_ice_boundary
 
 !> This subroutine calls exchange_slow_to_fast_ice
   subroutine coupler_exchange_slow_to_fast_ice(Ice, coupler_clocks)
