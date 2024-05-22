@@ -1735,7 +1735,8 @@ contains
   end subroutine coupler_flux_ocean_to_ice
 
 !> \brief This subroutine calls flux_ocean_to_ice
-  subroutine coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, Time, coupler_clocks, slow_ice_ocean_pelist)
+  subroutine coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, Time, coupler_clocks, slow_ice_ocean_pelist,
+                                       set_current_slow_ice_ocean_pelist)
 
     implicit none
 
@@ -1745,13 +1746,25 @@ contains
     type(FmsTime_type),       intent(inout) :: Time
     type(coupler_clock_type), intent(inout) :: coupler_clocks
     integer, dimension(:), optional, intent(in) :: slow_ice_ocean_pelist
+    logical,               optional, intent(in) :: set_current_slow_ice_ocean_pelist
 
-    ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
+    logical :: set_current_slow_ice_ocean_pelist_in
 
     !> mpp_set_current_pelist(slow_ice_ocean_pelist) is not required if coupler_flux_ice_to_ocean is being called after
     !! coupler_flux_ocean_to_ice:  mpp_set_current_pelist(slow_ice_ocean_pelist) is called
     !! in coupler_flux_ocean_to_ice
-    if(present(slow_ice_ocean_pelist)) call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)        
+    set_current_slow_ice_ocean_pelist_in=.False.
+    if(present(set_current_slow_ice_ocean_pelist)) &
+        set_current_slow_ice_ocean_pelist_in = set_current_slow_ice_ocean_pelist
+    
+    ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
+    
+    if(set_current_slow_ice_ocean_pelist_in) then
+      if(.not.present(slow_ice_ocean_pelist)) call mpp_error(FATAL, 'coupler_flux_ice_to_ocean tried\\
+              \\to set_current_pelist(slow_ice_ocean_pelist) but slow_ice_ocean_pelist is unknown')
+      call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
+    end if
+    
     call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean)
     call flux_ice_to_ocean(Time, Ice, Ocean, Ice_ocean_boundary)
     call fms_mpp_clock_end(coupler_clocks%flux_ice_to_ocean)
