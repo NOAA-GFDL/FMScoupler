@@ -371,7 +371,7 @@ program coupler_main
   character(len=32) :: timestamp
 
   type(coupler_clock_type) :: coupler_clocks
-  
+
   integer :: outunit
   character(len=80) :: text
   integer, allocatable :: ensemble_pelist(:, :)
@@ -446,8 +446,8 @@ program coupler_main
     if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
     call fms_mpp_set_current_pelist()
 
-    if (do_chksum) then      
-      call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)    
+    if (do_chksum) then
+      call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
       call coupler_atmos_ice_land_ocean_chksum('MAIN_LOOP-', nc, Atm, Land, Ice,&
           Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary,     &
           Ocean, Ice_ocean_boundary)
@@ -456,7 +456,7 @@ program coupler_main
     ! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
     ! points when running concurrently. The calls are placed next to each other in
     ! concurrent mode to avoid multiple synchronizations within the main loop.
-    ! With concurrent_ice, these only occur on the ocean PEs.    
+    ! With concurrent_ice, these only occur on the ocean PEs.
     if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
       call coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, Time, coupler_clocks, slow_ice_ocean_pelist)
       Time_flux_ocean_to_ice = Time
@@ -473,7 +473,7 @@ program coupler_main
           Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary,         &
           Ocean, Ice_ocean_boundary)
     end if
-    
+
     ! needs to sit here rather than at the end of the coupler loop.
     if (check_stocks > 0) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
 
@@ -485,7 +485,7 @@ program coupler_main
       ! slow ice are on different PEs.  call fms_mpp_set_current_pelist(Ice%pelist)
       ! is called if(.not.Ice%shared_slow_fast_PEs)
       call coupler_exchange_slow_to_fast_ice(Ice, coupler_clocks)
-      
+
       ! This call occurs all ice PEs.
       if (concurrent_ice) call coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks)
 
@@ -493,17 +493,14 @@ program coupler_main
       if (Ice%fast_ice_pe) call coupler_set_ice_surface_fields(Ice, coupler_clocks)
     endif
 
+    if(Atm%pe && do_chksum) call atmos_ice_land_chksum('set_ice_surface+', nc, Atm, Land, Ice, &
+                            Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+
     if (Atm%pe) then
-      if (.NOT.(do_ice .and. Ice%pe) .OR. (ice_npes .NE. atmos_npes)) &
-         call fms_mpp_set_current_pelist(Atm%pelist)
 
       call fms_mpp_clock_begin(coupler_clocks%atm)
-      if (do_chksum) call atmos_ice_land_chksum('set_ice_surface+', nc, Atm, Land, Ice, &
-                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      call fms_mpp_clock_begin(coupler_clocks%generate_sfc_xgrid)
-      call generate_sfc_xgrid( Land, Ice )
-      call fms_mpp_clock_end(coupler_clocks%generate_sfc_xgrid)
 
+      call coupler_generate_sfc_xgrid(Land, Ice, coupler_clocks)
       call send_ice_mask_sic(Time)
 
       !-----------------------------------------------------------------------
@@ -836,7 +833,7 @@ program coupler_main
 
   if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, finish_stocks=.True.)
-  
+
 !-----------------------------------------------------------------------
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%main)

@@ -103,7 +103,7 @@ module full_coupler_mod
   public :: ice_model_fast_cleanup, unpack_land_ice_boundary
   public :: update_ice_model_slow
   public :: update_ocean_model, update_slow_ice_and_ocean
-  public :: sfc_boundary_layer, generate_sfc_xgrid, send_ice_mask_sic
+  public :: sfc_boundary_layer, send_ice_mask_sic
   public :: flux_down_from_atmos, flux_up_to_atmos
   public :: flux_land_to_ice
   public :: flux_ice_to_ocean_finish
@@ -132,6 +132,8 @@ module full_coupler_mod
 
   public :: coupler_flux_ocean_to_ice_finish, coupler_exchange_slow_to_fast_ice, &
             coupler_exchange_fast_to_slow_ice, coupler_set_ice_surface_fields
+
+  public :: coupler_generate_sfc_xgrid
 
 !-----------------------------------------------------------------------
 
@@ -1834,6 +1836,21 @@ end subroutine coupler_set_clock_ids
     call fms_mpp_clock_end(coupler_clocks%set_ice_surface_fast)
 
   end subroutine coupler_set_ice_surface_fields
+
+!> \brief This subroutine calls generate_sfc_xgrid
+  subroutine coupler_generate_sfc_xgrid(Land, Ice, coupler_clocks)
+
+    implicit none
+    type(land_data_type), intent(inout) :: Land
+    type(ice_data_type),  intent(inout) :: Ice
+
+    if (.NOT.(do_ice .and. Ice%pe) .OR. (ice_npes .NE. atmos_npes)) &
+      call fms_mpp_set_current_pelist(Atm%pelist)
+    call fms_mpp_clock_begin(coupler_clocks%generate_sfc_xgrid)
+    call generate_sfc_xgrid( Land, Ice )
+    call fms_mpp_clock_end(coupler_clocks%generate_sfc_xgrid)
+
+  end subroutine coupler_generate_sfc_xgrid
 
 
 end module full_coupler_mod
