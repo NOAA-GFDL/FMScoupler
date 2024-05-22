@@ -1760,7 +1760,7 @@ contains
     ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
     
     if(set_current_slow_ice_ocean_pelist_in) then
-      if(.not.present(slow_ice_ocean_pelist)) call mpp_error(FATAL, 'coupler_flux_ice_to_ocean tried\\
+      if(.not.present(slow_ice_ocean_pelist)) call fms_mpp_error(FATAL, 'coupler_flux_ice_to_ocean tried\\
               \\to set_current_pelist(slow_ice_ocean_pelist) but slow_ice_ocean_pelist is unknown')
       call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
     end if
