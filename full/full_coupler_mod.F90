@@ -1735,8 +1735,8 @@ contains
   end subroutine coupler_flux_ocean_to_ice
 
 !> \brief This subroutine calls flux_ocean_to_ice
-  subroutine coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, Time, coupler_clocks, slow_ice_ocean_pelist,
-                                       set_current_slow_ice_ocean_pelist)
+  subroutine coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, Time, coupler_clocks,&
+                                       slow_ice_ocean_pelist, set_current_slow_ice_ocean_pelist)
 
     implicit none
 
