@@ -130,7 +130,7 @@ module full_coupler_mod
   public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
   public :: coupler_flux_ocean_to_ice, coupler_flux_ice_to_ocean
 
-  public :: coupler_flux_ocean_to_ice_finish, coupler_exchange_slow_to_fast_ice, &
+  public :: coupler_unpack_ocean_ice_boundary, coupler_exchange_slow_to_fast_ice, &
             coupler_exchange_fast_to_slow_ice, coupler_set_ice_surface_fields
 
   public :: coupler_generate_sfc_xgrid
@@ -1763,7 +1763,7 @@ end subroutine coupler_set_clock_ids
   end subroutine coupler_flux_ice_to_ocean
 
 !> \brief This subroutine calls flux_ocean_to_ice_finish and unpack_ocean_ice_boundary
-  subroutine coupler_flux_ocean_to_ice_finish(nc, Time_flux_ocean_to_ice, Ice, Ocean_ice_boundary, coupler_clocks)
+  subroutine coupler_unpack_ocean_ice_boundary(nc, Time_flux_ocean_to_ice, Ice, Ocean_ice_boundary, coupler_clocks)
 
     implicit none
 

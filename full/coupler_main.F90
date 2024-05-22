@@ -479,7 +479,7 @@ program coupler_main
 
     if (do_ice .and. Ice%pe) then
       if (Ice%slow_ice_pe) &
-          call coupler_flux_ocean_to_ice_finish(nc, Time_flux_ocean_to_ice, Ice, Ocean_ice_boundary, coupler_clocks)
+        call coupler_unpack_ocean_ice_boundary(nc, Time_flux_ocean_to_ice, Ice, Ocean_ice_boundary, coupler_clocks)
 
       ! This could be a point where the model is serialized if the fast and
       ! slow ice are on different PEs.  call fms_mpp_set_current_pelist(Ice%pelist)
