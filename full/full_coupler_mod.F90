@@ -125,7 +125,6 @@ module full_coupler_mod
   public :: coupler_init, coupler_end, coupler_restart
   public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum
   public :: coupler_atmos_ice_land_ocean_chksum
-  public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
   
   public :: coupler_clock_type
 
