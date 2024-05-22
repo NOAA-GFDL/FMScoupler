@@ -728,17 +728,17 @@ contains
     !----- read namelist -------
 
     read (fms_mpp_input_nml_file, flux_exchange_nml, iostat=io)
-    ierr = check_nml_error (io, 'flux_exchange_nml')
+    ierr = fms_check_nml_error (io, 'flux_exchange_nml')
 
     !----- write namelist to logfile -----
     call fms_write_version_number (version, tag)
     if( fms_mpp_pe() == fms_mpp_root_pe() )write( logunit, nml=flux_exchange_nml )
-    if(nblocks<1) call error_mesg ('flux_exchange_mod',  &
+    if(nblocks<1) call fms_error_mesg ('flux_exchange_mod',  &
          'flux_exchange_nml nblocks must be positive', FATAL)
     if(nblocks .NE. nthreads) then
        write(errmsg, '(a,i3,a,i3)')'flux_exchange_nml nblocks is set to ', nblocks, &
             ' is different from the default value (number of threads) = ', nthreads
-       call error_mesg ('flux_exchange_mod', errmsg, NOTE)
+       call fms_error_mesg ('flux_exchange_mod', errmsg, NOTE)
     endif
 
     ! required by stock_move, all fluxes used to update stocks will be zero if dt_atmos,
@@ -904,12 +904,12 @@ contains
     call fms_mpp_get_current_pelist(pes)
 
     if ( .not. fms2_io_open_file(grid_file_obj, grid_file, "read", pelist=pes)) then
-         call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+         call fms_error_mesg ('atm_land_ice_flux_exchange_mod',  &
               & 'Error opening '//trim(grid_file), FATAL)
     endif
 
     if(size(Atm%lon_bnd,1) .NE. iec-isc+2 .OR. size(Atm%lon_bnd,2) .NE. jec-jsc+2) then
-       call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+       call fms_error_mesg ('atm_land_ice_flux_exchange_mod',  &
             'size of Atm%lon_bnd does not match the Atm computational domain', FATAL)
     endif
     ioff = lbound(Atm%lon_bnd,1) - isc
@@ -926,7 +926,7 @@ contains
                   'atmosphere has', nxg, 'longitudes,', &
                   nyg, 'latitudes (see xba.dat and yba.dat)'
           end if
-          call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+          call fms_error_mesg ('atm_land_ice_flux_exchange_mod',  &
                'grid_spec.nc incompatible with atmosphere resolution', FATAL)
        end if
        allocate( atmlonb(isg:ieg+1) )
@@ -938,7 +938,7 @@ contains
           if(abs(atmlonb(i)-Atm%lon_bnd(i+ioff,jsc+joff)*45.0/atan(1.0))>bound_tol) then
              print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY at i= ',i, ': ', &
                   atmlonb(i),  Atm%lon_bnd(i+ioff,jsc+joff)*45.0/atan(1.0)
-             call error_mesg ('atm_land_ice_flux_exchange_mod', &
+             call fms_error_mesg ('atm_land_ice_flux_exchange_mod', &
                   'grid_spec.nc incompatible with atmosphere longitudes (see xba.dat and yba.dat)'&
                   , FATAL)
           endif
@@ -947,7 +947,7 @@ contains
           if(abs(atmlatb(j)-Atm%lat_bnd(isc+ioff,j+joff)*45.0/atan(1.0))>bound_tol) then
              print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY at j= ',j, ': ', &
                   atmlatb(j),  Atm%lat_bnd(isc+ioff, j+joff)*45.0/atan(1.0)
-             call error_mesg ('atm_land_ice_flux_exchange_mod', &
+             call fms_error_mesg ('atm_land_ice_flux_exchange_mod', &
                   'grid_spec.nc incompatible with atmosphere latitudes (see xba.dat and yba.dat)'&
                   , FATAL)
           endif
@@ -957,7 +957,7 @@ contains
        call fms2_io_read_data(grid_file_obj, 'atm_mosaic_file', atm_mosaic_file)
 
        if ( .not. fms2_io_open_file(atm_mosaic_file_obj, "INPUT/"//trim(atm_mosaic_file)//"", "read", pelist=pes)) then
-           call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+           call fms_error_mesg ('atm_land_ice_flux_exchange_mod',  &
               & 'Error opening '//trim(atm_mosaic_file), FATAL)
        endif
 
@@ -985,7 +985,7 @@ contains
 
        !< This is will open the correct atm_mosaic_file for the current tile, i.e "C96_grid.tile1.nc"
        if ( .not. fms2_io_open_file(tile_file_obj, "INPUT/"//trim(tile_file)//"", "read", domain2)) then
-          call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+          call fms_error_mesg ('atm_land_ice_flux_exchange_mod',  &
               & 'Error opening '//trim(tile_file), FATAL)
        endif
 
@@ -1002,7 +1002,7 @@ contains
              print *, 'atmosphere mosaic tile has', nlon, 'longitudes,', nlat, 'latitudes; ', &
                   'atmosphere has', nxg, 'longitudes,', nyg, 'latitudes'
           end if
-          call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+          call fms_error_mesg ('atm_land_ice_flux_exchange_mod',  &
                'atmosphere mosaic tile grid file incompatible with atmosphere resolution', FATAL)
        end if
 
@@ -1028,14 +1028,14 @@ contains
              if (abs(tmpx(2*i-1,2*j-1)-Atm%lon_bnd(i+ioff,j+joff)*45.0/atan(1.0))>bound_tol) then
                 print *, 'GRID_SPEC/ATMOS LONGITUDE INCONSISTENCY at i= ',i, ', j= ', j, ': ', &
                      tmpx(2*i-1,2*j-1),  Atm%lon_bnd(i+ioff,j+joff)*45.0/atan(1.0)
-                call error_mesg ('atm_land_ice_flux_exchange_mod', &
+                call fms_error_mesg ('atm_land_ice_flux_exchange_mod', &
                      'grid_spec.nc incompatible with atmosphere longitudes (see '//trim(tile_file)//')'&
                      ,FATAL)
              end if
              if (abs(tmpy(2*i-1,2*j-1)-Atm%lat_bnd(i+ioff,j+joff)*45.0/atan(1.0))>bound_tol) then
                 print *, 'GRID_SPEC/ATMOS LATITUDE INCONSISTENCY at i= ',i, ', j= ', j, ': ', &
                      tmpy(2*i-1,2*j-1),  Atm%lat_bnd(i+ioff,j+joff)*45.0/atan(1.0)
-                call error_mesg ('atm_land_ice_flux_exchange_mod', &
+                call fms_error_mesg ('atm_land_ice_flux_exchange_mod', &
                      'grid_spec.nc incompatible with atmosphere latitudes (see '//trim(tile_file)//')'&
                      ,FATAL)
              end if
