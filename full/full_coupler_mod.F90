@@ -1781,9 +1781,9 @@ contains
 
     integer,             intent(in)    :: nc
     type(FmsTime_type),  intent(inout) :: Time_flux_ocean_to_ice
-    type(ice_data_type), intent(in)    :: Ice
-    type(ocean_ice_boundary_type), intent(in) :: Ocean_ice_boundary
-    type(coupler_clock_type),   intent(inout) :: coupler_clocks    
+    type(ice_data_type), intent(inout) :: Ice
+    type(ocean_ice_boundary_type), intent(inout) :: Ocean_ice_boundary
+    type(coupler_clock_type),      intent(inout) :: coupler_clocks
     
     call fms_mpp_set_current_pelist(Ice%slow_pelist)
     call fms_mpp_clock_begin(coupler_clocks%set_ice_surface_slow)
@@ -1820,7 +1820,7 @@ contains
     implicit none
     type(ice_data_type), intent(inout) :: Ice
     type(coupler_clock_type), intent(inout) :: coupler_clocks
-    logical, intent(in), optional :: set_ice_pelist
+    logical, optional, intent(in) :: set_ice_pelist
 
     logical :: set_ice_pelist_in
 
