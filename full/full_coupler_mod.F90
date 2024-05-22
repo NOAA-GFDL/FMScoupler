@@ -1767,11 +1767,11 @@ end subroutine coupler_set_clock_ids
 
     implicit none
 
-    integer,             intent(in)    :: nc
-    type(FmsTime_type),  intent(inout) :: Time_flux_ocean_to_ice
-    type(ice_data_type), intent(inout) :: Ice
-    type(ocean_ice_boundary_type), intent(inout) :: Ocean_ice_boundary
-    type(coupler_clock_type),      intent(inout) :: coupler_clocks
+    integer,             intent(in)    :: nc                     !< Current outer loop timestep
+    type(FmsTime_type),  intent(inout) :: Time_flux_ocean_to_ice !< Time flux_ocean_to_ice
+    type(ice_data_type), intent(inout) :: Ice                    !< Ice
+    type(ocean_ice_boundary_type), intent(inout) :: Ocean_ice_boundary  !< Ocean_ice_boundary
+    type(coupler_clock_type),      intent(inout) :: coupler_clocks      !< coupler_clocks
 
     call fms_mpp_set_current_pelist(Ice%slow_pelist)
     call fms_mpp_clock_begin(coupler_clocks%set_ice_surface_slow)
@@ -1789,8 +1789,8 @@ end subroutine coupler_set_clock_ids
   subroutine coupler_exchange_slow_to_fast_ice(Ice, coupler_clocks)
 
     implicit none
-    type(ice_data_type), intent(inout) :: Ice
-    type(coupler_clock_type), intent(inout) :: coupler_clocks
+    type(ice_data_type), intent(inout) :: Ice                !< Ice
+    type(coupler_clock_type), intent(inout) :: coupler_clocks !<coupler_clocks
 
     ! This could be a point where the model is serialized if the fast and
     ! slow ice are on different PEs.
@@ -1801,14 +1801,13 @@ end subroutine coupler_set_clock_ids
 
   end subroutine coupler_exchange_slow_to_fast_ice
 
-
 !> \brief This subroutine calls exchange_fast_to_slow_ice
   subroutine coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks, set_ice_current_pelist)
 
     implicit none
-    type(ice_data_type), intent(inout) :: Ice
-    type(coupler_clock_type), intent(inout) :: coupler_clocks
-    logical, optional, intent(in) :: set_ice_current_pelist
+    type(ice_data_type), intent(inout) :: Ice                 !< Ice
+    type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
+    logical, optional, intent(in) :: set_ice_current_pelist   !< If true, call mpp_set_current_pelist(Ice%pelist)
 
     logical :: set_ice_current_pelist_in
 
@@ -1826,8 +1825,8 @@ end subroutine coupler_set_clock_ids
   subroutine coupler_set_ice_surface_fields(Ice, coupler_clocks)
 
     implicit none
-    type(ice_data_type), intent(inout) :: Ice
-    type(coupler_clock_type), intent(inout) :: coupler_clocks
+    type(ice_data_type), intent(inout) :: Ice                 !< Ice
+    type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
 
     if (.not.Ice%shared_slow_fast_PEs) call fms_mpp_set_current_pelist(Ice%fast_pelist)
     call fms_mpp_clock_begin(coupler_clocks%set_ice_surface_fast)
