@@ -729,7 +729,7 @@ program coupler_main
       endif
 
       ! This could be a point where the model is serialized; This calls on all ice PEs
-      if (.not.concurrent_ice) call coupler_exchange_fast_to_slow(Ice, coupler_clocks, set_ice_pelist=.True.)
+      if (.not.concurrent_ice) call coupler_exchange_fast_to_slow(Ice, coupler_clocks, set_ice_current_pelist=.True.)
 
       !   ------ slow-ice model ------
 

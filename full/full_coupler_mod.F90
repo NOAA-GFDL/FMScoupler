@@ -1815,19 +1815,19 @@ contains
     
   
 !> \brief This subroutine calls exchange_fast_to_slow_ice
-  subroutine coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks, set_ice_pelist)  
+  subroutine coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks, set_ice_current_pelist)  
 
     implicit none
     type(ice_data_type), intent(inout) :: Ice
     type(coupler_clock_type), intent(inout) :: coupler_clocks
-    logical, optional, intent(in) :: set_ice_pelist
+    logical, optional, intent(in) :: set_ice_current_pelist
 
-    logical :: set_ice_pelist_in
+    logical :: set_ice_current_pelist_in
 
-    set_ice_pelist_in = .False.
-    if(present(set_ice_pelist)) set_ice_pelist_in = set_ice_pelist
+    set_ice_current_pelist_in = .False.
+    if(present(set_ice_current_pelist)) set_ice_current_pelist_in = set_ice_current_pelist
 
-    if(set_ice_pelist_in .and. .not.Ice%shared_slow_fast_PEs) call fms_mpp_set_current_pelist(Ice%pelist)
+    if(set_ice_current_pelist_in .and. .not.Ice%shared_slow_fast_PEs) call fms_mpp_set_current_pelist(Ice%pelist)
     call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_exchange)
     call exchange_fast_to_slow_ice(Ice)
     call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_exchange)
