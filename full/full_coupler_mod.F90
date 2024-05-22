@@ -1703,14 +1703,13 @@ end subroutine coupler_set_clock_ids
   end subroutine coupler_flux_check_stocks
 
   !> \brief This subroutine calls flux_ocean_to_ice
-  subroutine coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary,Time, coupler_clocks, slow_ice_ocean_pelist)
+  subroutine coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, coupler_clocks, slow_ice_ocean_pelist)
 
     implicit none
 
     type(ocean_public_type), intent(inout) :: Ocean
     type(ice_data_type),     intent(in)    :: Ice
     type(ocean_ice_boundary_type), intent(inout) :: Ocean_ice_boundary
-    type(FmsTime_type),       intent(inout) :: Time
     type(coupler_clock_type), intent(inout) :: coupler_clocks
     integer, dimension(:),    intent(in)    :: slow_ice_ocean_pelist
 
@@ -1721,13 +1720,14 @@ end subroutine coupler_set_clock_ids
     call fms_mpp_clock_begin(coupler_clocks%flux_ocean_to_ice)
 
     !Ice intent is In, used only for accessing Ice%area and knowing if we are on an Ice pe
-    call flux_ocean_to_ice(Time, Ocean, Ice, Ocean_ice_boundary)
+    call flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary)
+
     call fms_mpp_clock_end(coupler_clocks%flux_ocean_to_ice)
 
   end subroutine coupler_flux_ocean_to_ice
 
 !> \brief This subroutine calls flux_ocean_to_ice
-  subroutine coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, Time, coupler_clocks,&
+  subroutine coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, coupler_clocks,&
                                        slow_ice_ocean_pelist, set_current_slow_ice_ocean_pelist)
 
     implicit none
@@ -1735,7 +1735,6 @@ end subroutine coupler_set_clock_ids
     type(ice_data_type),     intent(inout)  :: Ice
     type(ocean_public_type), intent(inout)  :: Ocean
     type(ice_ocean_boundary_type), intent(inout) :: Ice_ocean_boundary
-    type(FmsTime_type),       intent(inout) :: Time
     type(coupler_clock_type), intent(inout) :: coupler_clocks
     integer, dimension(:), optional, intent(in) :: slow_ice_ocean_pelist
     logical,               optional, intent(in) :: set_current_slow_ice_ocean_pelist
@@ -1758,7 +1757,7 @@ end subroutine coupler_set_clock_ids
     end if
 
     call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean)
-    call flux_ice_to_ocean(Time, Ice, Ocean, Ice_ocean_boundary)
+    call flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary)
     call fms_mpp_clock_end(coupler_clocks%flux_ice_to_ocean)
 
   end subroutine coupler_flux_ice_to_ocean

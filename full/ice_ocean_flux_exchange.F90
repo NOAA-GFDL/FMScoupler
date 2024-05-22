@@ -224,9 +224,8 @@ contains
   !!       runoff = mass of calving since last time step (Kg/m2)
   !!       p_surf = surface pressure (Pa)
   !! </pre>
-  subroutine flux_ice_to_ocean ( Time, Ice, Ocean, Ice_Ocean_Boundary )
+  subroutine flux_ice_to_ocean ( Ice, Ocean, Ice_Ocean_Boundary )
 
-    type(FmsTime_type),                 intent(in)  :: Time !< Current time
     type(ice_data_type),             intent(in)  :: Ice  !< A derived data type to specify ice boundary data
     type(ocean_public_type),         intent(in)  :: Ocean !< A derived data type to specify ocean boundary data
     type(ice_ocean_boundary_type), intent(inout) :: Ice_Ocean_Boundary !< A derived data type to specify properties and fluxes
@@ -376,9 +375,8 @@ contains
   !!
   !! \throw FATAL, "Ocean_Ice_Boundary%xtype must be DIRECT or REDIST."
   !!    The value of variable xtype of ice_ocean_boundary_type data must be DIRECT or REDIST.
-  subroutine flux_ocean_to_ice ( Time, Ocean, Ice, Ocean_Ice_Boundary )
+  subroutine flux_ocean_to_ice ( Ocean, Ice, Ocean_Ice_Boundary )
 
-    type(FmsTime_type),                 intent(in)  :: Time  !< Current time
     type(ocean_public_type),         intent(in)  :: Ocean !< A derived data type to specify ocean boundary data
     type(ice_data_type),             intent(in)  :: Ice   !< A derived data type to specify ice boundary data
     type(ocean_ice_boundary_type), intent(inout) :: Ocean_Ice_Boundary !< A derived data type to specify properties and fluxes
