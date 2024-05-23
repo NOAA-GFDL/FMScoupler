@@ -497,8 +497,8 @@ program coupler_main
       
       if (.NOT.(do_ice.and.Ice%pe) .OR. (ice_npes.NE.atmos_npes)) call fms_mpp_set_current_pelist(Atm%pelist)
 
-      call atmos_ice_land_chksum('set_ice_surface+', nc, Atm, Land, Ice, &
-                                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+      if(do_chksum) call atmos_ice_land_chksum('set_ice_surface+', nc, Atm, Land, Ice, &
+                                               Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
       
       call fms_mpp_clock_begin(coupler_clocks%atm)
 
