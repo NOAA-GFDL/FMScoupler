@@ -415,9 +415,9 @@ program coupler_main
 
   call fms_mpp_init()
 
-  !this clock is on the global pelist
-  coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
-  call fms_mpp_clock_begin(coupler_clocks%initialization)
+  !these clocks are on the global pelist
+  initClock = fms_mpp_clock_id( 'Initialization' )
+  call fms_mpp_clock_begin(initClock)
 
   call fms_init
   call fmsconstants_init
@@ -915,7 +915,6 @@ program coupler_main
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
     Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
     Time, Time_start, Time_end, Time_restart_current)
-
 
   call fms_mpp_clock_end(coupler_clocks%termination)
 
