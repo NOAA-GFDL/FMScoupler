@@ -308,7 +308,9 @@ contains
     integer, intent(inout) :: conc_nthreads
     integer, allocatable, dimension(:,:), intent(inout) :: ensemble_pelist
     integer, allocatable, dimension(:),   intent(inout) :: slow_ice_ocean_pelist
+
     type(coupler_clock_type) :: coupler_clocks
+
     type(FMSTime_type), intent(inout) :: Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean
     type(FMSTime_type), intent(inout) :: Time, Time_start, Time_end, Time_restart, Time_restart_current
 
@@ -382,7 +384,8 @@ contains
     read (fms_mpp_input_nml_file, coupler_nml, iostat=io)
     ierr = check_nml_error (io, 'coupler_nml')
 
-    !----- read date and calendar type from restart file -----
+!----- read date and calendar type from restart file -----
+
     if (fms2_io_file_exists('INPUT/coupler.res')) then
        call fms2_io_ascii_read('INPUT/coupler.res', restart_file)
        read(restart_file(1), *) calendar_type
@@ -609,6 +612,39 @@ contains
     !> The pelists need to be set before initializing the clocks
     call coupler_set_clock_ids(coupler_clocks, Atm, Land, Ice, Ocean, ensemble_pelist, &
                                slow_ice_ocean_pelist, ensemble_id)
+
+   !--- initialization clock
+    if (Atm%pe) then
+      call fms_mpp_set_current_pelist(Atm%pelist)
+      id_atmos_model_init = fms_mpp_clock_id( '  Init: atmos_model_init ' )
+    endif
+    if (Land%pe) then
+      call fms_mpp_set_current_pelist(Land%pelist)
+      id_land_model_init  = fms_mpp_clock_id( '  Init: land_model_init ' )
+    endif
+    if (Ice%pe) then
+      if (Ice%shared_slow_fast_PEs) then
+        call fms_mpp_set_current_pelist(Ice%pelist)
+      elseif (Ice%fast_ice_pe) then
+        call fms_mpp_set_current_pelist(Ice%fast_pelist)
+      elseif (Ice%slow_ice_pe) then
+        call fms_mpp_set_current_pelist(Ice%slow_pelist)
+      else
+        call fms_mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
+      endif
+      id_ice_model_init   = fms_mpp_clock_id( '  Init: ice_model_init ' )
+    endif
+    if (Ocean%is_ocean_pe) then
+      call fms_mpp_set_current_pelist(Ocean%pelist)
+      id_ocean_model_init = fms_mpp_clock_id( '  Init: ocean_model_init ' )
+    endif
+    call fms_mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
+    id_flux_exchange_init = fms_mpp_clock_id( '  Init: flux_exchange_init' )
+
+    call fms_mpp_set_current_pelist()
+    mainClock = fms_mpp_clock_id( 'Main loop' )
+    termClock = fms_mpp_clock_id( 'Termination' )
+>>>>>>> fms/main
 
     !Write out messages on root PEs
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
@@ -888,10 +924,12 @@ contains
         write(errunit,*) 'Starting to initialize land model at '&
                          //trim(walldate)//' '//trim(walltime)
       endif
+
       call fms_mpp_clock_begin(coupler_clocks%land_model_init)
       call land_model_init( Atmos_land_boundary, Land, Time_init, Time, &
                             Time_step_atmos, Time_step_cpld )
       call fms_mpp_clock_end(coupler_clocks%land_model_init)
+
       if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
         write(errunit,*) 'Finished initializing land model at '&
@@ -917,6 +955,7 @@ contains
         write(errunit,*) 'Starting to initialize ice model at '&
                          //trim(walldate)//' '//trim(walltime)
       endif
+
       call fms_mpp_clock_begin(coupler_clocks%ice_model_init)
       call ice_model_init(Ice, Time_init, Time, Time_step_atmos, &
                            Time_step_cpld, Verona_coupler=.false., &
@@ -948,6 +987,7 @@ contains
         write(errunit,*) 'Starting to initialize ocean model at '&
                          //trim(walldate)//' '//trim(walltime)
       endif
+
       call fms_mpp_clock_begin(coupler_clocks%ocean_model_init)
       call ocean_model_init( Ocean, Ocean_state, Time_init, Time, &
                              gas_fields_ocn=gas_fields_ocn  )
@@ -1004,6 +1044,7 @@ contains
       write(errunit,*) 'Starting to initialize flux_exchange at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
+
     call fms_mpp_clock_begin(coupler_clocks%flux_exchange_init)
     call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
              atmos_ice_boundary, land_ice_atmos_boundary, &
@@ -1011,6 +1052,7 @@ contains
          do_ocean, slow_ice_ocean_pelist, dt_atmos=dt_atmos, dt_cpld=dt_cpld)
     call fms_mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
     call fms_mpp_clock_end(coupler_clocks%flux_exchange_init)
+
     call fms_mpp_set_current_pelist()
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)

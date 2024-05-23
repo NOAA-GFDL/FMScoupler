@@ -6,6 +6,26 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2024.01] - 2024-05-03
+
+### Added
+- Adds option to run SHiELD with a gregorian calender (#105)
+- Adds a `diag_send_complete` call for FMS diag_manager rewrite(#101)
+- Adds documentation for the exchange grid (#98)
+
+### Tag Commit Hashes
+- 2024.01-alpha1 6442d387153064644325c96a5e9e2935139d5e3c
+- 2024.01-alpha2 6442d387153064644325c96a5e9e2935139d5e3c
+- 2024.01-alpha3 f4782c2c033df086eeac29fbbefb4a0bdac1649f
+- 2024.01-beta1  f4782c2c033df086eeac29fbbefb4a0bdac1649f
+- 2024.01-beta2  f4782c2c033df086eeac29fbbefb4a0bdac1649f
+- 2024.01-beta3  d15c35a92ac4f04c57c539eaa56301c8f70d53cf
+- 2024.01-alpha4 d15c35a92ac4f04c57c539eaa56301c8f70d53cf
+- 2024.01-alpha5 d15c35a92ac4f04c57c539eaa56301c8f70d53cf
+- 2024.01-alpha6 4dc9b0f2a85d34b0fdc8477625b91794a77ac747
+- 2024.01-beta4  4dc9b0f2a85d34b0fdc8477625b91794a77ac747
+- 2024.01-beta5  4dc9b0f2a85d34b0fdc8477625b91794a77ac747
+
 ## [2023.04] - 2023-12-04
 ### Added
 - Adds additional output arguments `thv_atm` amd `thv_surf` to the `surface_flux` interface, as well as calls to xgrid and send data in order to use a new atmosphere boundary layer scheme.
