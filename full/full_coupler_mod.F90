@@ -385,7 +385,6 @@ contains
     ierr = check_nml_error (io, 'coupler_nml')
 
 !----- read date and calendar type from restart file -----
-
     if (fms2_io_file_exists('INPUT/coupler.res')) then
        call fms2_io_ascii_read('INPUT/coupler.res', restart_file)
        read(restart_file(1), *) calendar_type
@@ -589,7 +588,6 @@ contains
     Ice%slow_ice_pe = ANY(Ice%slow_pelist(:) .EQ. fms_mpp_pe())
     Ice%pe = Ice%fast_ice_pe .OR. Ice%slow_ice_pe
     call fms_mpp_declare_pelist(slow_ice_ocean_pelist)
-
     !--- dynamic threading turned off when affinity placement is in use
 !$  call omp_set_dynamic(.FALSE.)
     !--- nested OpenMP enabled for OpenMP concurrent components
@@ -644,7 +642,6 @@ contains
     call fms_mpp_set_current_pelist()
     mainClock = fms_mpp_clock_id( 'Main loop' )
     termClock = fms_mpp_clock_id( 'Termination' )
->>>>>>> fms/main
 
     !Write out messages on root PEs
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
