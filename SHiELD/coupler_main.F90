@@ -389,7 +389,7 @@ contains
     call fms_memutils_print_memuse_stats('after atmos model init')
 
 !------ initialize data_override -----
-    if (.NOT.Atm%bounded_domain) call fms_data_override_init (Atm_domain_in  = Atm%domain)
+    call fms_data_override_init (Atm_domain_in  = Atm%domain)
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
