@@ -611,38 +611,6 @@ contains
     call coupler_set_clock_ids(coupler_clocks, Atm, Land, Ice, Ocean, ensemble_pelist, &
                                slow_ice_ocean_pelist, ensemble_id)
 
-   !--- initialization clock
-    if (Atm%pe) then
-      call fms_mpp_set_current_pelist(Atm%pelist)
-      id_atmos_model_init = fms_mpp_clock_id( '  Init: atmos_model_init ' )
-    endif
-    if (Land%pe) then
-      call fms_mpp_set_current_pelist(Land%pelist)
-      id_land_model_init  = fms_mpp_clock_id( '  Init: land_model_init ' )
-    endif
-    if (Ice%pe) then
-      if (Ice%shared_slow_fast_PEs) then
-        call fms_mpp_set_current_pelist(Ice%pelist)
-      elseif (Ice%fast_ice_pe) then
-        call fms_mpp_set_current_pelist(Ice%fast_pelist)
-      elseif (Ice%slow_ice_pe) then
-        call fms_mpp_set_current_pelist(Ice%slow_pelist)
-      else
-        call fms_mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
-      endif
-      id_ice_model_init   = fms_mpp_clock_id( '  Init: ice_model_init ' )
-    endif
-    if (Ocean%is_ocean_pe) then
-      call fms_mpp_set_current_pelist(Ocean%pelist)
-      id_ocean_model_init = fms_mpp_clock_id( '  Init: ocean_model_init ' )
-    endif
-    call fms_mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
-    id_flux_exchange_init = fms_mpp_clock_id( '  Init: flux_exchange_init' )
-
-    call fms_mpp_set_current_pelist()
-    mainClock = fms_mpp_clock_id( 'Main loop' )
-    termClock = fms_mpp_clock_id( 'Termination' )
-
     !Write out messages on root PEs
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       write( text,'(a,2i6,a,i2.2)' )'Atmos PE range: ', Atm%pelist(1)  , Atm%pelist(atmos_npes)  ,&
