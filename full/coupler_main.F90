@@ -371,7 +371,7 @@ program coupler_main
   character(len=32) :: timestamp
 
   type(coupler_clock_type) :: coupler_clocks
-
+  
   integer :: outunit
   character(len=80) :: text
   integer, allocatable :: ensemble_pelist(:, :)
@@ -415,7 +415,7 @@ program coupler_main
 
   call fms_mpp_init()
 
-  !this clock is on the global pelist
+  !these clocks are on the global pelist
   coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
   call fms_mpp_clock_begin(coupler_clocks%initialization)
 
@@ -837,7 +837,7 @@ program coupler_main
   if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, finish_stocks=.True.)
 
-!-----------------------------------------------------------------------
+  !-----------------------------------------------------------------------
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%main)
   call fms_mpp_clock_begin(coupler_clocks%termination)
@@ -845,8 +845,7 @@ program coupler_main
   if (do_chksum) call coupler_chksum('coupler_end-', nc, Atm, Land, Ice)
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
       Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
-    Time, Time_start, Time_end, Time_restart_current)
-
+      Time, Time_start, Time_end, Time_restart_current)
 
   call fms_mpp_clock_end(coupler_clocks%termination)
 
