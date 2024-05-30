@@ -148,11 +148,6 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
   !--- the following is from flux_exchange_nml
   real    :: z_ref_heat =  2. !< Reference height (meters) for temperature and relative humidity diagnostics (t_ref, rh_ref, del_h, del_q)
   real    :: z_ref_mom  = 10. !< Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)
-  logical :: ex_u_star_smooth_bug = .false. !< By default, the global exchange grid \c u_star will not be interpolated
-                                            !! from atmospheric grid, this is different from Jakarta behavior and will
-                                            !! change answers.  So to preserve Jakarta behavior and reproduce answers
-                                            !! explicitly set this namelist variable to .true. in input.nml.
-  logical :: sw1way_bug = .false.
   logical :: do_area_weighted_flux = .FALSE.
   logical :: do_forecast = .false.
   integer :: nblocks = 1
@@ -287,7 +282,7 @@ contains
   !!    The latitude from file grid_spec.nc is different from the latitude from atmosphere model.
   subroutine atm_land_ice_flux_exchange_init(Time, Atm, Land, Ice, atmos_ice_boundary, land_ice_atmos_boundary, &
                                              Dt_atm_in, Dt_cpl_in, z_ref_heat_in, z_ref_mom_in,                 &
-                                             ex_u_star_smooth_bug_in, sw1way_bug_in, do_area_weighted_flux_in,  &
+                                             do_area_weighted_flux_in,  &
                                              do_forecast_in, partition_fprec_from_lprec_in, scale_precip_2d_in, &
                                              nblocks_in, cplClock_in, ex_gas_fields_atm_in, &
                                              ex_gas_fields_ice_in, ex_gas_fluxes_in)
@@ -301,8 +296,8 @@ contains
     real,                 intent(in)    :: Dt_atm_in !< Atmosphere time step in seconds
     real,                 intent(in)    :: Dt_cpl_in !< Coupled time step in seconds
     real,                 intent(in)    :: z_ref_heat_in, z_ref_mom_in
-    logical,              intent(in)    :: ex_u_star_smooth_bug_in, scale_precip_2d_in
-    logical,              intent(in)    :: sw1way_bug_in, do_area_weighted_flux_in
+    logical,              intent(in)    :: scale_precip_2d_in
+    logical,              intent(in)    :: do_area_weighted_flux_in
     logical,              intent(in)    :: do_forecast_in, partition_fprec_from_lprec_in
     integer,              intent(in)    :: nblocks_in
     integer,              intent(in)    :: cplClock_in
@@ -325,8 +320,6 @@ contains
     Dt_cpl = Dt_cpl_in
     z_ref_heat = z_ref_heat_in
     z_ref_mom = z_ref_mom_in
-    ex_u_star_smooth_bug = ex_u_star_smooth_bug_in
-    sw1way_bug = sw1way_bug_in
     do_area_weighted_flux = do_area_weighted_flux_in
     do_forecast = do_forecast_in
     partition_fprec_from_lprec = partition_fprec_from_lprec_in
@@ -2083,10 +2076,6 @@ contains
 
     !---- put atmosphere quantities onto exchange grid ----
 
-    if(sw1way_bug) then
-       call fms_xgrid_put_to_xgrid (Atm%flux_sw, 'ATM', ex_flux_sw, xmap_sfc, complete=.false.)
-       call fms_xgrid_put_to_xgrid (Atm%flux_sw_vis, 'ATM', ex_flux_sw_vis, xmap_sfc, complete=.false.)
-    end if
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_flux_sw_dir, &
     !$OMP                                  ex_flux_sw_vis_dir,ex_flux_sw_dif,ex_delta_u,    &
     !$OMP                                  ex_flux_sw_vis_dif,ex_flux_lwd,ex_delta_v )      &
@@ -2128,10 +2117,6 @@ contains
     call fms_xgrid_put_to_xgrid (Atm%coszen,  'ATM', ex_coszen, xmap_sfc, complete=.true.)
 
     call fms_xgrid_put_to_xgrid (Atm%flux_lw, 'ATM', ex_flux_lwd, xmap_sfc, remap_method=remap_method, complete=.false.)
-    if(ex_u_star_smooth_bug) then
-       call fms_xgrid_put_to_xgrid (Atmos_boundary%u_star, 'ATM', ex_u_star_smooth, xmap_sfc, remap_method=remap_method, complete=.false.)
-       ex_u_star = ex_u_star_smooth
-    endif
 
 
     ! MOD changed the following two lines to put Atmos%surf_diff%delta_u and v
@@ -2157,53 +2142,30 @@ contains
     !-----------------------------------------------------------------------
     !---- adjust sw flux for albedo variations on exch grid ----
     !---- adjust 4 categories (vis/nir dir/dif) separately  ----
-    if( sw1way_bug ) then ! to reproduce old results, may remove in the next major release.
-       !-----------------------------------------------------------------------
-       !---- adjust sw flux for albedo variations on exch grid ----
-       !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_flux_sw,ex_albedo_fix, &
-       !$OMP                                  ex_flux_sw_vis,ex_albedo_vis_dir_fix,ex_flux_sw_dir,       &
-       !$OMP                                  ex_albedo_vis_dif_fix,ex_flux_sw_vis_dir,ex_flux_sw_dif,   &
-       !$OMP                                  ex_flux_sw_vis_dif)                                        &
-       !$OMP                          private(is,ie)
-       do l = 1, my_nblocks
-          is=block_start(l)
-          ie=block_end(l)
-          do i = is, ie
-             ex_flux_sw(i) = ex_flux_sw(i) * ex_albedo_fix(i)
+    !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_flux_sw_dir, &
+    !$OMP                                  ex_flux_sw_vis_dir,ex_albedo_nir_dir_fix,        &
+    !$OMP                                  ex_albedo_vis_dir_fix,ex_flux_sw_dif,            &
+    !$OMP                                  ex_flux_sw_vis_dif,ex_flux_sw_vis,ex_flux_sw,    &
+    !$OMP                                  ex_albedo_nir_dif_fix,ex_albedo_vis_dif_fix   )  &
+    !$OMP                          private(is,ie)
+    do l = 1, my_nblocks
+       is=block_start(l)
+       ie=block_end(l)
+       do i = is, ie
+          ex_flux_sw_dir(i) = ex_flux_sw_dir(i) - ex_flux_sw_vis_dir(i)     ! temporarily nir/dir
+          ex_flux_sw_dir(i) = ex_flux_sw_dir(i) * ex_albedo_nir_dir_fix(i)  ! fix nir/dir
+          ex_flux_sw_vis_dir(i) = ex_flux_sw_vis_dir(i) * ex_albedo_vis_dir_fix(i) ! fix vis/dir
+          ex_flux_sw_dir(i) = ex_flux_sw_dir(i) + ex_flux_sw_vis_dir(i)     ! back to total dir
 
-             ex_flux_sw_vis(i) = ex_flux_sw_vis(i) * ex_albedo_vis_dir_fix(i)
-             ex_flux_sw_dir(i) = ex_flux_sw_dir(i) * ex_albedo_vis_dir_fix(i)
-             ex_flux_sw_dif(i) = ex_flux_sw_dif(i) * ex_albedo_vis_dif_fix(i)
-             ex_flux_sw_vis_dir(i) = ex_flux_sw_vis_dir(i) * ex_albedo_vis_dir_fix(i)
-             ex_flux_sw_vis_dif(i) = ex_flux_sw_vis_dif(i) * ex_albedo_vis_dif_fix(i)
-          enddo
+          ex_flux_sw_dif(i) = ex_flux_sw_dif(i) - ex_flux_sw_vis_dif(i)     ! temporarily nir/dif
+          ex_flux_sw_dif(i) = ex_flux_sw_dif(i) * ex_albedo_nir_dif_fix(i)  ! fix nir/dif
+          ex_flux_sw_vis_dif(i) = ex_flux_sw_vis_dif(i) * ex_albedo_vis_dif_fix(i) ! fix vis/dif
+          ex_flux_sw_dif(i) = ex_flux_sw_dif(i) + ex_flux_sw_vis_dif(i)     ! back to total dif
+
+          ex_flux_sw_vis(i) = ex_flux_sw_vis_dir(i) + ex_flux_sw_vis_dif(i) ! legacy, remove later
+          ex_flux_sw(i)     = ex_flux_sw_dir(i)     + ex_flux_sw_dif(i)     ! legacy, remove later
        enddo
-    else
-       !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_flux_sw_dir, &
-       !$OMP                                  ex_flux_sw_vis_dir,ex_albedo_nir_dir_fix,        &
-       !$OMP                                  ex_albedo_vis_dir_fix,ex_flux_sw_dif,            &
-       !$OMP                                  ex_flux_sw_vis_dif,ex_flux_sw_vis,ex_flux_sw,    &
-       !$OMP                                  ex_albedo_nir_dif_fix,ex_albedo_vis_dif_fix   )  &
-       !$OMP                          private(is,ie)
-       do l = 1, my_nblocks
-          is=block_start(l)
-          ie=block_end(l)
-          do i = is, ie
-             ex_flux_sw_dir(i) = ex_flux_sw_dir(i) - ex_flux_sw_vis_dir(i)     ! temporarily nir/dir
-             ex_flux_sw_dir(i) = ex_flux_sw_dir(i) * ex_albedo_nir_dir_fix(i)  ! fix nir/dir
-             ex_flux_sw_vis_dir(i) = ex_flux_sw_vis_dir(i) * ex_albedo_vis_dir_fix(i) ! fix vis/dir
-             ex_flux_sw_dir(i) = ex_flux_sw_dir(i) + ex_flux_sw_vis_dir(i)     ! back to total dir
-
-             ex_flux_sw_dif(i) = ex_flux_sw_dif(i) - ex_flux_sw_vis_dif(i)     ! temporarily nir/dif
-             ex_flux_sw_dif(i) = ex_flux_sw_dif(i) * ex_albedo_nir_dif_fix(i)  ! fix nir/dif
-             ex_flux_sw_vis_dif(i) = ex_flux_sw_vis_dif(i) * ex_albedo_vis_dif_fix(i) ! fix vis/dif
-             ex_flux_sw_dif(i) = ex_flux_sw_dif(i) + ex_flux_sw_vis_dif(i)     ! back to total dif
-
-             ex_flux_sw_vis(i) = ex_flux_sw_vis_dir(i) + ex_flux_sw_vis_dif(i) ! legacy, remove later
-             ex_flux_sw(i)     = ex_flux_sw_dir(i)     + ex_flux_sw_dif(i)     ! legacy, remove later
-          enddo
-       enddo
-    end if
+    enddo
 
 !!$  ex_flux_sw_dir = ex_flux_sw_dir - ex_flux_sw_vis_dir            ! temporarily nir/dir
 !!$  ex_flux_sw_dir = ex_flux_sw_dir * ex_albedo_nir_dir_fix         ! fix nir/dir
