@@ -370,18 +370,7 @@ program coupler_main
   type(FmsTime_type) :: Time_restart_current
   character(len=32) :: timestamp
 
-<<<<<<< HEAD
   type(coupler_clock_type) :: coupler_clocks
-=======
-  integer :: initClock, mainClock, termClock
-  integer :: newClock0, newClock1, newClock2, newClock3, newClock4, newClock5, newClock7
-  integer :: newClock6f, newClock6s, newClock6e, newClock10f, newClock10s, newClock10e
-  integer :: newClock8, newClock9, newClock11, newClock12, newClock13, newClock14, newClocka
-  integer :: newClockb, newClockc, newClockd, newClocke, newClockf, newClockg, newClockh, newClocki
-  integer :: newClockj, newClockk, newClockl
-  integer :: id_atmos_model_init, id_land_model_init, id_ice_model_init
-  integer :: id_ocean_model_init, id_flux_exchange_init
->>>>>>> fms/main
 
   integer :: outunit
   character(len=80) :: text
@@ -425,37 +414,20 @@ program coupler_main
   end if
 
   call fms_mpp_init()
-<<<<<<< HEAD
 
   !this clock is on the global pelist
   coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
   call fms_mpp_clock_begin(coupler_clocks%initialization)
-=======
-  !these clocks are on the global pelist
-  initClock = fms_mpp_clock_id( 'Initialization' )
-  call fms_mpp_clock_begin(initClock)
->>>>>>> fms/main
 
   call fms_init
   call fmsconstants_init
   call fms_affinity_init
 
-<<<<<<< HEAD
   call coupler_init(Atm, Ocean, Land, Ice, Ocean_state, Atmos_land_boundary, Atmos_ice_boundary, &
     Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary,          &
     Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, &
     conc_nthreads, coupler_clocks, Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean,      &
     num_cpld_calls, num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
-=======
-
-  call coupler_init(Atm, Ocean, Land, Ice, Ocean_state, Atmos_land_boundary, Atmos_ice_boundary, &
-    Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary, &
-    Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, &
-    conc_nthreads, id_atmos_model_init, id_land_model_init, &
-    id_ice_model_init, id_ocean_model_init, id_flux_exchange_init, mainClock, termClock, &
-    Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, num_cpld_calls, num_atmos_calls, &
-    Time, Time_start, Time_end, Time_restart, Time_restart_current)
->>>>>>> fms/main
 
   if (do_chksum) call coupler_chksum('coupler_init+', 0, Atm, Land, Ice)
 
@@ -497,24 +469,10 @@ program coupler_main
 
     if (do_chksum) then
       call coupler_chksum('flux_ocn2ice+', nc, Atm, Land, Ice)
-<<<<<<< HEAD
       call coupler_atmos_ice_land_ocean_chksum('flux_ocn2ice+', nc, Atm, Land, Ice, &
           Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary,         &
           Ocean, Ice_ocean_boundary)
     end if
-=======
-      if (Atm%pe) then
-        call fms_mpp_set_current_pelist(Atm%pelist)
-        call atmos_ice_land_chksum('fluxocn2ice+', nc, Atm, Land, Ice, &
-                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      endif
-      if (Ocean%is_ocean_pe) then
-        call fms_mpp_set_current_pelist(Ocean%pelist)
-        call ocean_public_type_chksum('fluxocn2ice+', nc, Ocean)
-      endif
-      call fms_mpp_set_current_pelist()
-    endif
->>>>>>> fms/main
 
     ! needs to sit here rather than at the end of the coupler loop.
     if (check_stocks > 0) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
@@ -910,14 +868,8 @@ program coupler_main
 
   if (do_chksum) call coupler_chksum('coupler_end-', nc, Atm, Land, Ice)
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
-<<<<<<< HEAD
       Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
-    Time, Time_start, Time_end, Time_restart_current)
-=======
-    Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
-    Time, Time_start, Time_end, Time_restart_current)
-
->>>>>>> fms/main
+      Time, Time_start, Time_end, Time_restart_current)
 
 
   call fms_mpp_clock_end(coupler_clocks%termination)
