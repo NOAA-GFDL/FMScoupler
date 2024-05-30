@@ -124,9 +124,7 @@ module full_coupler_mod
   public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum
 
   public :: coupler_atmos_ice_land_ocean_chksum
-
-  public :: coupler_clock_type
-
+  
   public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
   public :: coupler_flux_ocean_to_ice, coupler_flux_ice_to_ocean
 
@@ -139,7 +137,6 @@ module full_coupler_mod
   
 !-----------------------------------------------------------------------
   
->>>>>>> fms/main
 #include <file_version.fh>
 
   !> namelist interface
@@ -1099,14 +1096,15 @@ contains
 
 !-----------------------------------------------------------------------
     if ( do_endpoint_chksum ) then
-       call coupler_atmos_ice_land_ocean_chksum('coupler_init+', 0, Atm, Land, Ice, &
+      call coupler_atmos_ice_land_ocean_chksum('coupler_init+', 0, Atm, Land, Ice, &
           Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
       if (Ice%slow_ice_PE) then
         call fms_mpp_set_current_pelist(Ice%slow_pelist)
         call slow_ice_chksum('coupler_init+', 0, Ice, Ocean_ice_boundary)
       end if
     end if
-
+    
+    call fms_mpp_set_current_pelist()
     call fms_memutils_print_memuse_stats('coupler_init')
 
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
