@@ -128,9 +128,8 @@ module full_coupler_mod
   public :: coupler_clock_type
   
 !-----------------------------------------------------------------------
-
-  character(len=128), public :: version = '$Id$'
-  character(len=128), public :: tag = '$Name$'
+  
+#include <file_version.fh>
 
   !> namelist interface
 
@@ -227,6 +226,7 @@ module full_coupler_mod
                          check_stocks, restart_interval, do_debug, do_chksum,      &
                          use_hyper_thread, concurrent_ice, slow_ice_with_ocean,    &
                          do_endpoint_chksum, combined_ice_and_ocean
+
 
   !> coupler_clock_type derived type consist of all clock ids that will be set and used
   !! in full coupler_main.
@@ -379,7 +379,7 @@ contains
     endif
 
 !----- write version to logfile -------
-    call fms_write_version_number(version, tag)
+    call fms_write_version_number('FULL_COUPLER_MOD', version)
 
 !----- read namelist -------
 
@@ -1530,6 +1530,7 @@ contains
                                    slow_ice_ocean_pelist, ensemble_id)
 
     implicit none
+
 
     type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
     type(atmos_data_type),   intent(in) :: Atm   !< Atm, required to retrieve pe information
