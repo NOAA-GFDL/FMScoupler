@@ -227,6 +227,9 @@ module full_coupler_mod
                          use_hyper_thread, concurrent_ice, slow_ice_with_ocean,    &
                          do_endpoint_chksum, combined_ice_and_ocean
 
+
+  !> coupler_clock_type derived type consist of all clock ids that will be set and used
+  !! in full coupler_main.
   type coupler_clock_type 
     integer :: initialization
     integer :: main
@@ -1528,14 +1531,15 @@ contains
 
     implicit none
 
-    type(coupler_clock_type), intent(inout) :: coupler_clocks
-    type(atmos_data_type),   intent(in) :: Atm
-    type(land_data_type),    intent(in) :: Land
-    type(ocean_public_type), intent(in) :: Ocean
-    type(ice_data_type),     intent(in) :: Ice
-    integer, dimension(:),   intent(in) :: slow_ice_ocean_pelist
-    integer, dimension(:,:), intent(in) :: ensemble_pelist
-    integer, intent(in) :: ensemble_id    
+
+    type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
+    type(atmos_data_type),   intent(in) :: Atm   !< Atm, required to retrieve pe information
+    type(land_data_type),    intent(in) :: Land  !< Land, required to retrieve pe information
+    type(ocean_public_type), intent(in) :: Ocean !< Ocean, required to retrieve pe information
+    type(ice_data_type),     intent(in) :: Ice   !< Ice, required to retrieve pe information
+    integer, dimension(:),   intent(in) :: slow_ice_ocean_pelist !< slow_ice_oean_pelist
+    integer, dimension(:,:), intent(in) :: ensemble_pelist       !< ensemble_pelist
+    integer, intent(in) :: ensemble_id !< ensemble_id used as index in ensemble_pelist
 
     !> initialization clock
     if (Atm%pe) then
