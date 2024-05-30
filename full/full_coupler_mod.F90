@@ -1614,7 +1614,7 @@ contains
       call fms_mpp_set_current_pelist(Ocean%pelist)
       coupler_clocks%ocean = fms_mpp_clock_id( 'OCN' )
     endif
-
+    
     call fms_mpp_set_current_pelist()
     coupler_clocks%flux_check_stocks       = fms_mpp_clock_id( 'flux_check_stocks' )
     coupler_clocks%intermediate_restart    = fms_mpp_clock_id( 'intermediate restart' )
@@ -1847,6 +1847,4 @@ contains
 
   end subroutine coupler_set_ice_surface_fields
       
-end subroutine coupler_set_clock_ids
-
 end module full_coupler_mod
