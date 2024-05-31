@@ -439,27 +439,17 @@ program coupler_main
 !-----------------------------------------------------------------------
 !------ ocean/slow-ice integration loop ------
 
-  if (check_stocks >= 0) then
-    call fms_mpp_set_current_pelist()
-    call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
-  endif
+  if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
+      coupler_clocks, init_stocks=.True.)
 
   do nc = 1, num_cpld_calls
-    if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
-    call fms_mpp_set_current_pelist()
 
-    if (do_chksum) then
-      if (Atm%pe) then
-        call fms_mpp_set_current_pelist(Atm%pelist)
-        call atmos_ice_land_chksum('MAIN_LOOP-', nc, Atm, Land, Ice, &
-                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      endif
-      if (Ocean%is_ocean_pe) then
-        call fms_mpp_set_current_pelist(Ocean%pelist)
-        call ocean_chksum('MAIN_LOOP-', nc, Ocean, Ice_ocean_boundary)
-      endif
-      call fms_mpp_set_current_pelist()
-    endif
+    if (do_chksum) then      
+      call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)    
+      call coupler_atmos_ice_land_ocean_chksum('MAIN_LOOP-', nc, Atm, Land, Ice,&
+          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary,     &
+          Ocean, Ice_ocean_boundary)
+    end if
 
     ! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
     ! points when running concurrently. The calls are placed next to each other in
@@ -487,28 +477,13 @@ program coupler_main
 
     if (do_chksum) then
       call coupler_chksum('flux_ocn2ice+', nc, Atm, Land, Ice)
-      if (Atm%pe) then
-        call fms_mpp_set_current_pelist(Atm%pelist)
-        call atmos_ice_land_chksum('fluxocn2ice+', nc, Atm, Land, Ice, &
-                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      endif
-      if (Ocean%is_ocean_pe) then
-        call fms_mpp_set_current_pelist(Ocean%pelist)
-        call ocean_public_type_chksum('fluxocn2ice+', nc, Ocean)
-      endif
-      call fms_mpp_set_current_pelist()
-    endif
-
-    ! To print the value of frazil heat flux at the right time the following block
+      call coupler_atmos_ice_land_ocean_chksum('flux_ocn2ice+', nc, Atm, Land, Ice, &
+          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary,         &
+          Ocean, Ice_ocean_boundary)
+    end if
+    
     ! needs to sit here rather than at the end of the coupler loop.
-    if (check_stocks > 0) then
-      call fms_mpp_clock_begin(coupler_clocks%flux_check_stocks)
-      if (check_stocks*((nc-1)/check_stocks) == nc-1 .AND. nc > 1) then
-        call fms_mpp_set_current_pelist()
-        call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
-      endif
-      call fms_mpp_clock_end(coupler_clocks%flux_check_stocks)
-    endif
+    if (check_stocks > 0) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
 
     if (do_ice .and. Ice%pe) then
       if (Ice%slow_ice_pe) then
@@ -898,14 +873,9 @@ program coupler_main
   enddo
 102 FORMAT(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
 
-  call fms_mpp_set_current_pelist()
-  call fms_mpp_clock_begin(coupler_clocks%final_flux_check_stocks)
-  if (check_stocks >= 0) then
-    call fms_mpp_set_current_pelist()
-    call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
-  endif
-  call fms_mpp_clock_end(coupler_clocks%final_flux_check_stocks)
-
+  if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
+      coupler_clocks, finish_stocks=.True.)
+  
   call fms_mpp_set_current_pelist()
 !-----------------------------------------------------------------------
   call fms_mpp_clock_end(coupler_clocks%main)
@@ -913,8 +883,8 @@ program coupler_main
 
   if (do_chksum) call coupler_chksum('coupler_end-', nc, Atm, Land, Ice)
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
-    Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
-    Time, Time_start, Time_end, Time_restart_current)
+      Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
+      Time, Time_start, Time_end, Time_restart_current)
 
   call fms_mpp_clock_end(coupler_clocks%termination)
 

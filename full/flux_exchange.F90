@@ -760,11 +760,11 @@ contains
 
   subroutine flux_check_stocks(Time, Atm, Lnd, Ice, Ocn_state)
 
-    type(FmsTime_type)                           :: Time
-    type(atmos_data_type), optional           :: Atm
-    type(land_data_type), optional            :: Lnd
-    type(ice_data_type), optional             :: Ice
-    type(ocean_state_type), optional, pointer :: Ocn_state
+    type(FmsTime_type),    intent(in)              :: Time
+    type(atmos_data_type), intent(inout), optional :: Atm
+    type(land_data_type),  intent(inout), optional :: Lnd
+    type(ice_data_type),   intent(inout), optional :: Ice
+    type(ocean_state_type), intent(inout), optional, pointer :: Ocn_state
 
     real :: ref_value
     integer :: i
