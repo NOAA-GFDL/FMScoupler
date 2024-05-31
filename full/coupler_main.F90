@@ -886,7 +886,7 @@ program coupler_main
   if (do_chksum) call coupler_chksum('coupler_end-', nc, Atm, Land, Ice)
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
       Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
-    Time, Time_start, Time_end, Time_restart_current)
+      Time, Time_start, Time_end, Time_restart_current)
 
   call fms_mpp_clock_end(coupler_clocks%termination)
 

@@ -229,48 +229,6 @@ module full_coupler_mod
                          use_hyper_thread, concurrent_ice, slow_ice_with_ocean,    &
                          do_endpoint_chksum, combined_ice_and_ocean
 
-  type coupler_clock_type 
-    integer :: initialization
-    integer :: main
-    integer :: generate_sfc_xgrid
-    integer :: flux_ocean_to_ice
-    integer :: flux_ice_to_ocean
-    integer :: atm
-    integer :: atmos_loop
-    integer :: atmos_tracer_driver_gather_data
-    integer :: sfc_boundary_layer
-    integer :: update_atmos_model_dynamics
-    integer :: serial_radiation
-    integer :: update_atmos_model_down
-    integer :: flux_down_from_atmos
-    integer :: update_land_model_fast
-    integer :: update_ice_model_fast
-    integer :: flux_up_to_atmos
-    integer :: update_atmos_model_up
-    integer :: concurrent_radiation
-    integer :: concurrent_atmos
-    integer :: update_atmos_model_state
-    integer :: update_land_model_slow
-    integer :: flux_land_to_ice
-    integer :: set_ice_surface_fast
-    integer :: update_ice_model_slow_fast
-    integer :: set_ice_surface_slow
-    integer :: update_ice_model_slow_slow
-    integer :: flux_ice_to_ocean_stocks
-    integer :: set_ice_surface_exchange
-    integer :: update_ice_model_slow_exchange
-    integer :: ocean
-    integer :: flux_check_stocks
-    integer :: intermediate_restart
-    integer :: final_flux_check_stocks
-    integer :: termination
-    integer :: atmos_model_init
-    integer :: land_model_init
-    integer :: ice_model_init
-    integer :: ocean_model_init
-    integer :: flux_exchange_init
-  end type coupler_clock_type
-
   !> coupler_clock_type derived type consist of all clock ids that will be set and used
   !! in full coupler_main.
   type coupler_clock_type 
@@ -1135,13 +1093,13 @@ contains
       call coupler_atmos_ice_land_ocean_chksum('coupler_init+', 0, Atm, Land, Ice, &
           Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
       if (Ice%slow_ice_PE) then
-        call fms_mpp_set_current_pelist(Ice%slow_pelist)        
+        call fms_mpp_set_current_pelist(Ice%slow_pelist)
         call slow_ice_chksum('coupler_init+', 0, Ice, Ocean_ice_boundary)
       end if
     end if
     
     call fms_memutils_print_memuse_stats('coupler_init')
-    
+
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
       write(errunit,*) 'Exiting coupler_init at '&
@@ -1519,7 +1477,7 @@ contains
 
     call ice_data_type_chksum(    id, timestep, Ice)
     call ocn_ice_bnd_type_chksum( id, timestep, Ocean_ice_boundary)
-    
+
   end subroutine slow_ice_chksum
 
 
