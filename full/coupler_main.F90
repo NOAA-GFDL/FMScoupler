@@ -415,7 +415,7 @@ program coupler_main
 
   call fms_mpp_init()
 
-  !this clock is on the global pelist
+  !these clocks are on the global pelist
   coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
   call fms_mpp_clock_begin(coupler_clocks%initialization)
 
@@ -443,8 +443,6 @@ program coupler_main
                                                               coupler_clocks, init_stocks=.True.)
 
   do nc = 1, num_cpld_calls
-    if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
-    call fms_mpp_set_current_pelist()
 
     if (do_chksum) then
       call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
@@ -860,7 +858,6 @@ program coupler_main
 
   if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, finish_stocks=.True.)
-
 !-----------------------------------------------------------------------
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%main)
@@ -870,7 +867,6 @@ program coupler_main
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
       Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
       Time, Time_start, Time_end, Time_restart_current)
-
 
   call fms_mpp_clock_end(coupler_clocks%termination)
 

@@ -759,7 +759,11 @@ contains
   !! component.
 
   subroutine flux_check_stocks(Time, Atm, Lnd, Ice, Ocn_state)
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> fms/main
     type(FmsTime_type),    intent(in)              :: Time
     type(atmos_data_type), intent(inout), optional :: Atm
     type(land_data_type),  intent(inout), optional :: Lnd

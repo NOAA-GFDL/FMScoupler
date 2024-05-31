@@ -126,11 +126,11 @@ module full_coupler_mod
 
   public :: coupler_atmos_ice_land_ocean_chksum
 
-  public :: coupler_clock_type
-
   public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
   public :: coupler_flux_ocean_to_ice, coupler_flux_ice_to_ocean
 
+  public :: coupler_clock_type
+  
 !-----------------------------------------------------------------------
 
 #include <file_version.fh>
@@ -231,7 +231,9 @@ module full_coupler_mod
                          use_hyper_thread, concurrent_ice, slow_ice_with_ocean,    &
                          do_endpoint_chksum, combined_ice_and_ocean
 
-  type coupler_clock_type
+  !> coupler_clock_type derived type consist of all clock ids that will be set and used
+  !! in full coupler_main.
+  type coupler_clock_type 
     integer :: initialization
     integer :: main
     integer :: generate_sfc_xgrid
@@ -311,7 +313,9 @@ contains
     integer, intent(inout) :: conc_nthreads
     integer, allocatable, dimension(:,:), intent(inout) :: ensemble_pelist
     integer, allocatable, dimension(:),   intent(inout) :: slow_ice_ocean_pelist
+
     type(coupler_clock_type) :: coupler_clocks
+
     type(FMSTime_type), intent(inout) :: Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean
     type(FMSTime_type), intent(inout) :: Time, Time_start, Time_end, Time_restart, Time_restart_current
 
@@ -608,7 +612,6 @@ contains
       endif
     endif
 
-
     !> The pelists need to be set before initializing the clocks
     call coupler_set_clock_ids(coupler_clocks, Atm, Land, Ice, Ocean, ensemble_pelist, &
                                slow_ice_ocean_pelist, ensemble_id)
@@ -871,8 +874,9 @@ contains
         call fms_mpp_clock_begin(coupler_clocks%atmos_model_init)
         call atmos_model_init( Atm, Time_init, Time, Time_step_atmos, &
                                do_concurrent_radiation)
+
         call fms_mpp_clock_end(coupler_clocks%atmos_model_init)
-        
+
         if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
           call DATE_AND_TIME(walldate, walltime, wallzone, wallvalues)
           write(errunit,*) 'Finished initializing atmospheric model at '&
@@ -1087,7 +1091,7 @@ contains
 
 !-----------------------------------------------------------------------
     if ( do_endpoint_chksum ) then
-       call coupler_atmos_ice_land_ocean_chksum('coupler_init+', 0, Atm, Land, Ice, &
+      call coupler_atmos_ice_land_ocean_chksum('coupler_init+', 0, Atm, Land, Ice, &
           Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
       if (Ice%slow_ice_PE) then
         call fms_mpp_set_current_pelist(Ice%slow_pelist)
@@ -1129,9 +1133,8 @@ contains
     integer :: num_ice_bc_restart, num_ocn_bc_restart
 
     if ( do_endpoint_chksum ) then
-      call coupler_atmos_ice_land_ocean_chksum('coupler_end', 0, Atm, Land, Ice,  &
-          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, &
-          Ice_ocean_boundary)
+      call coupler_atmos_ice_land_ocean_chksum('coupler_end', 0, Atm, Land, Ice,   &
+          Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
       if (Ice%slow_ice_PE) then
         call fms_mpp_set_current_pelist(Ice%slow_pelist)
         call slow_ice_chksum('coupler_end', 0, Ice, Ocean_ice_boundary)
@@ -1512,17 +1515,17 @@ contains
 !> \brief This subroutine sets the ID for clocks used in coupler_main
   subroutine coupler_set_clock_ids(coupler_clocks, Atm, Land, Ice, Ocean, ensemble_pelist,&
                                    slow_ice_ocean_pelist, ensemble_id)
-
+    
     implicit none
-
+    
     type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
-    type(atmos_data_type),   intent(in) :: Atm   !< Atm
-    type(land_data_type),    intent(in) :: Land  !< Land
-    type(ocean_public_type), intent(in) :: Ocean !< Ocean
-    type(ice_data_type),     intent(in) :: Ice   !< Ice
-    integer, dimension(:),   intent(in) :: slow_ice_ocean_pelist !< slow_ice_ocean_pelist
+    type(atmos_data_type),   intent(in) :: Atm   !< Atm, required to retrieve pe information
+    type(land_data_type),    intent(in) :: Land  !< Land, required to retrieve pe information
+    type(ocean_public_type), intent(in) :: Ocean !< Ocean, required to retrieve pe information
+    type(ice_data_type),     intent(in) :: Ice   !< Ice, required to retrieve pe information
+    integer, dimension(:),   intent(in) :: slow_ice_ocean_pelist !< slow_ice_oean_pelist
     integer, dimension(:,:), intent(in) :: ensemble_pelist       !< ensemble_pelist
-    integer, intent(in) :: ensemble_id  !< ensemble_id
+    integer, intent(in) :: ensemble_id !< ensemble_id used as index in ensemble_pelist
 
     !> initialization clock
     if (Atm%pe) then
@@ -1535,8 +1538,8 @@ contains
     endif
     if (Ice%pe) then
       if (Ice%shared_slow_fast_PEs) then ; call fms_mpp_set_current_pelist(Ice%pelist)
-      elseif (Ice%fast_ice_pe)      then ;  call fms_mpp_set_current_pelist(Ice%fast_pelist)
-      elseif (Ice%slow_ice_pe)      then ;  call fms_mpp_set_current_pelist(Ice%slow_pelist)
+      elseif (Ice%fast_ice_pe)      then ; call fms_mpp_set_current_pelist(Ice%fast_pelist)
+      elseif (Ice%slow_ice_pe)      then ; call fms_mpp_set_current_pelist(Ice%slow_pelist)
       else ; call fms_mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
       endif
       coupler_clocks%ice_model_init   = fms_mpp_clock_id( '  Init: ice_model_init ' )
@@ -1547,11 +1550,11 @@ contains
     endif
     call fms_mpp_set_current_pelist(ensemble_pelist(ensemble_id,:))
     coupler_clocks%flux_exchange_init = fms_mpp_clock_id( '  Init: flux_exchange_init' )
-
+    
     call fms_mpp_set_current_pelist()
     coupler_clocks%main = fms_mpp_clock_id( 'Main loop' )
     coupler_clocks%termination = fms_mpp_clock_id( 'Termination' )
-
+    
     If(Atm%pe) then
       call fms_mpp_set_current_pelist(Atm%pelist)
       coupler_clocks%generate_sfc_xgrid = fms_mpp_clock_id( 'generate_sfc_xgrid' )
@@ -1570,7 +1573,7 @@ contains
       coupler_clocks%sfc_boundary_layer           = fms_mpp_clock_id( '  A-L: sfc_boundary_layer' )
       coupler_clocks%update_atmos_model_dynamics  = fms_mpp_clock_id( '  A-L: update_atmos_model_dynamics')
       if (.not. do_concurrent_radiation) &
-          coupler_clocks%serial_radiation       = fms_mpp_clock_id( '  A-L: serial radiation' )
+          coupler_clocks%serial_radiation     = fms_mpp_clock_id( '  A-L: serial radiation' )
       coupler_clocks%update_atmos_model_down  = fms_mpp_clock_id( '  A-L: update_atmos_model_down' )
       coupler_clocks%flux_down_from_atmos     = fms_mpp_clock_id( '  A-L: flux_down_from_atmos' )
       coupler_clocks%update_land_model_fast   = fms_mpp_clock_id( '  A-L: update_land_model_fast' )
@@ -1589,33 +1592,33 @@ contains
       if (Ice%fast_ice_pe) call fms_mpp_set_current_pelist(Ice%fast_pelist)
       coupler_clocks%set_ice_surface_fast       = fms_mpp_clock_id( ' Ice: set_ice_surface fast' )
       coupler_clocks%update_ice_model_slow_fast = fms_mpp_clock_id( ' Ice: update_ice_model_slow fast' )
-
+      
       if (Ice%slow_ice_pe) call fms_mpp_set_current_pelist(Ice%slow_pelist)
       coupler_clocks%set_ice_surface_slow       = fms_mpp_clock_id( ' Ice: set_ice_surface slow' )
       coupler_clocks%update_ice_model_slow_slow = fms_mpp_clock_id( ' Ice: update_ice_model_slow slow' )
       coupler_clocks%flux_ice_to_ocean_stocks   = fms_mpp_clock_id( ' Ice: flux_ice_to_ocean_stocks' )
-
+      
       call fms_mpp_set_current_pelist(Ice%pelist)
       coupler_clocks%set_ice_surface_exchange       = fms_mpp_clock_id( ' Ice: set_ice_surface exchange' )
       coupler_clocks%update_ice_model_slow_exchange = fms_mpp_clock_id( ' Ice: update_ice_model_slow exchange' )
-
+      
     endif
     if (Ocean%is_ocean_pe) then
       call fms_mpp_set_current_pelist(Ocean%pelist)
       coupler_clocks%ocean = fms_mpp_clock_id( 'OCN' )
     endif
-
+    
     call fms_mpp_set_current_pelist()
     coupler_clocks%flux_check_stocks       = fms_mpp_clock_id( 'flux_check_stocks' )
     coupler_clocks%intermediate_restart    = fms_mpp_clock_id( 'intermediate restart' )
     coupler_clocks%final_flux_check_stocks = fms_mpp_clock_id( 'final flux_check_stocks' )
-
+      
 end subroutine coupler_set_clock_ids
 
 !> \brief This subroutine calls coupler_chksum as well as atmos_ice_land_chksum and ocean_chksum
   subroutine coupler_atmos_ice_land_ocean_chksum(id, timestep, Atm, Land, Ice, Land_ice_atmos_boundary,&
       Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary, Ocean_ice_boundary)
-
+    
     implicit none
     
     character(len=*), intent(in) :: id           !< ID labelling the set of checksums
@@ -1641,12 +1644,12 @@ end subroutine coupler_set_clock_ids
     endif
 
     call fms_mpp_set_current_pelist()
-
+    
   end subroutine coupler_atmos_ice_land_ocean_chksum
 
 !> \brief This subroutine calls flux_init_stocks or does the final call to flux_check_stocks
   subroutine coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
-      coupler_clocks, init_stocks, finish_stocks)
+      coupler_clocks, init_stocks, finish_stocks) 
 
     implicit none
     
@@ -1659,12 +1662,15 @@ end subroutine coupler_set_clock_ids
     logical, optional, intent(in) :: init_stocks, finish_stocks  !< control flags to either call flux_init_stocks or
                                                                  !! the final flux_check_stocks
 
-    logical :: init, finish
+    logical :: init, finish !< control flags set to False. by default and takes on the value of init_stocks and
+                            !! finish_stocks if these optional arguments are provided.
+                            !! If true, either flux_init_stocks or
+                            !! final flux_check_stocks will be called.
 
     init=.False.   ; if(present(init_stocks)) init=init_stocks
     finish=.False. ; if(present(finish_stocks)) finish=finish_stocks
 
-    if(init) then
+    if(init) then 
       call fms_mpp_set_current_pelist()
       call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
     else if(finish) then
@@ -1678,7 +1684,7 @@ end subroutine coupler_set_clock_ids
     else
       call fms_mpp_error(FATAL, 'coupler_flux_init_finish_stocks: either init or finish needs to be .True.')
     end if
-
+    
   end subroutine coupler_flux_init_finish_stocks
 
 !> \brief This subroutine calls flux_check_stocks
@@ -1695,14 +1701,14 @@ end subroutine coupler_set_clock_ids
     type(coupler_clock_type), intent(inout)        :: coupler_clocks !< coupler_clocks
     
     call fms_mpp_clock_begin(coupler_clocks%flux_check_stocks)
-    if (check_stocks*((nc-1)/check_stocks) == nc-1 .AND. nc > 1) then
+    if (check_stocks*((nc-1)/check_stocks) == nc-1 .AND. nc > 1) then      
       call fms_mpp_set_current_pelist()
       call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
     endif
     call fms_mpp_clock_end(coupler_clocks%flux_check_stocks)
-
+    
   end subroutine coupler_flux_check_stocks
-
+  
   !> \brief This subroutine calls flux_ocean_to_ice
   subroutine coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, coupler_clocks, slow_ice_ocean_pelist)
 
@@ -1739,7 +1745,7 @@ end subroutine coupler_set_clock_ids
     type(coupler_clock_type),      intent(inout) :: coupler_clocks      !< coupler_clocks
     integer, dimension(:), optional, intent(in) :: slow_ice_ocean_pelist  !< slow_ice_ocean_pelist
     !> if true, will call mpp_set_current_pelist(slow_ice_ocean_pelist)
-    logical,               optional, intent(in) :: set_current_slow_ice_ocean_pelist 
+    logical,               optional, intent(in) :: set_current_slow_ice_ocean_pelist
                                                       
     logical :: set_current_slow_ice_ocean_pelist_in !< .F. by default; set to equal set_current_slow_ice_ocean_pelist
 
