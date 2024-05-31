@@ -102,6 +102,7 @@ module full_coupler_mod
   public :: update_land_model_fast, update_land_model_slow
   public :: update_ice_model_fast, set_ice_surface_fields
   public :: unpack_ocean_ice_boundary, exchange_slow_to_fast_ice
+  public :: unpack_ocean_ice_boundary_calved_shelf_bergs
   public :: ice_model_fast_cleanup, unpack_land_ice_boundary
   public :: exchange_fast_to_slow_ice, update_ice_model_slow
   public :: update_ocean_model, update_slow_ice_and_ocean
@@ -219,7 +220,7 @@ module full_coupler_mod
   logical, public :: do_debug=.FALSE.!< If .TRUE. print additional debugging messages.
   integer, public :: check_stocks = 0 !< -1: never 0: at end of run only n>0: every n coupled steps
   logical, public :: use_hyper_thread = .false.
-  logical :: calve_ice_shelf_bergs = .false. !< If true, flux through a static ice front is converted
+  logical, public :: calve_ice_shelf_bergs = .false. !< If true, flux through a static ice front is converted
                                              !!to point bergs
 
   namelist /coupler_nml/ current_date, calendar, force_date_from_namelist,         &
