@@ -1087,7 +1087,7 @@ contains
     ! Call to daig_grid_end to free up memory used during regional
     ! output setup
     CALL fms_diag_grid_end()
-    
+
 !-----------------------------------------------------------------------
     if ( do_endpoint_chksum ) then
       call coupler_atmos_ice_land_ocean_chksum('coupler_init+', 0, Atm, Land, Ice, &
