@@ -415,7 +415,7 @@ program coupler_main
 
   call fms_mpp_init()
 
-  !this clock is on the global pelist
+  !these clock are on the global pelist
   coupler_clocks%initialization = fms_mpp_clock_id( 'Initialization' )
   call fms_mpp_clock_begin(coupler_clocks%initialization)
 
