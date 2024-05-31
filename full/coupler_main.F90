@@ -443,8 +443,6 @@ program coupler_main
       coupler_clocks, init_stocks=.True.)
 
   do nc = 1, num_cpld_calls
-    if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
-    call fms_mpp_set_current_pelist()
 
     if (do_chksum) then      
       call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)    
