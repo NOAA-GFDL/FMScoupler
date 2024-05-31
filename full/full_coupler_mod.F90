@@ -271,6 +271,50 @@ module full_coupler_mod
     integer :: flux_exchange_init
   end type coupler_clock_type
 
+  !> coupler_clock_type derived type consist of all clock ids that will be set and used
+  !! in full coupler_main.
+  type coupler_clock_type 
+    integer :: initialization
+    integer :: main
+    integer :: generate_sfc_xgrid
+    integer :: flux_ocean_to_ice
+    integer :: flux_ice_to_ocean
+    integer :: atm
+    integer :: atmos_loop
+    integer :: atmos_tracer_driver_gather_data
+    integer :: sfc_boundary_layer
+    integer :: update_atmos_model_dynamics
+    integer :: serial_radiation
+    integer :: update_atmos_model_down
+    integer :: flux_down_from_atmos
+    integer :: update_land_model_fast
+    integer :: update_ice_model_fast
+    integer :: flux_up_to_atmos
+    integer :: update_atmos_model_up
+    integer :: concurrent_radiation
+    integer :: concurrent_atmos
+    integer :: update_atmos_model_state
+    integer :: update_land_model_slow
+    integer :: flux_land_to_ice
+    integer :: set_ice_surface_fast
+    integer :: update_ice_model_slow_fast
+    integer :: set_ice_surface_slow
+    integer :: update_ice_model_slow_slow
+    integer :: flux_ice_to_ocean_stocks
+    integer :: set_ice_surface_exchange
+    integer :: update_ice_model_slow_exchange
+    integer :: ocean
+    integer :: flux_check_stocks
+    integer :: intermediate_restart
+    integer :: final_flux_check_stocks
+    integer :: termination
+    integer :: atmos_model_init
+    integer :: land_model_init
+    integer :: ice_model_init
+    integer :: ocean_model_init
+    integer :: flux_exchange_init
+  end type coupler_clock_type
+
   character(len=80) :: text
   character(len=48), parameter :: mod_name = 'coupler_main_mod'
 
@@ -1515,14 +1559,15 @@ contains
 
     implicit none
 
+
     type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
-    type(atmos_data_type),   intent(in) :: Atm   !< Atm
-    type(land_data_type),    intent(in) :: Land  !< Land
-    type(ocean_public_type), intent(in) :: Ocean !< Ocean
-    type(ice_data_type),     intent(in) :: Ice   !< Ice
-    integer, dimension(:),   intent(in) :: slow_ice_ocean_pelist !< slow_ice_ocean_pelist
+    type(atmos_data_type),   intent(in) :: Atm   !< Atm, required to retrieve pe information
+    type(land_data_type),    intent(in) :: Land  !< Land, required to retrieve pe information
+    type(ocean_public_type), intent(in) :: Ocean !< Ocean, required to retrieve pe information
+    type(ice_data_type),     intent(in) :: Ice   !< Ice, required to retrieve pe information
+    integer, dimension(:),   intent(in) :: slow_ice_ocean_pelist !< slow_ice_oean_pelist
     integer, dimension(:,:), intent(in) :: ensemble_pelist       !< ensemble_pelist
-    integer, intent(in) :: ensemble_id  !< ensemble_id
+    integer, intent(in) :: ensemble_id !< ensemble_id used as index in ensemble_pelist
 
     !> initialization clock
     if (Atm%pe) then
@@ -1535,8 +1580,8 @@ contains
     endif
     if (Ice%pe) then
       if (Ice%shared_slow_fast_PEs) then ; call fms_mpp_set_current_pelist(Ice%pelist)
-      elseif (Ice%fast_ice_pe)      then ;  call fms_mpp_set_current_pelist(Ice%fast_pelist)
-      elseif (Ice%slow_ice_pe)      then ;  call fms_mpp_set_current_pelist(Ice%slow_pelist)
+      elseif (Ice%fast_ice_pe)      then ; call fms_mpp_set_current_pelist(Ice%fast_pelist)
+      elseif (Ice%slow_ice_pe)      then ; call fms_mpp_set_current_pelist(Ice%slow_pelist)
       else ; call fms_mpp_error(FATAL, "All Ice%pes must be a part of Ice%fast_ice_pe or Ice%slow_ice_pe")
       endif
       coupler_clocks%ice_model_init   = fms_mpp_clock_id( '  Init: ice_model_init ' )
@@ -1570,7 +1615,7 @@ contains
       coupler_clocks%sfc_boundary_layer           = fms_mpp_clock_id( '  A-L: sfc_boundary_layer' )
       coupler_clocks%update_atmos_model_dynamics  = fms_mpp_clock_id( '  A-L: update_atmos_model_dynamics')
       if (.not. do_concurrent_radiation) &
-          coupler_clocks%serial_radiation       = fms_mpp_clock_id( '  A-L: serial radiation' )
+          coupler_clocks%serial_radiation     = fms_mpp_clock_id( '  A-L: serial radiation' )
       coupler_clocks%update_atmos_model_down  = fms_mpp_clock_id( '  A-L: update_atmos_model_down' )
       coupler_clocks%flux_down_from_atmos     = fms_mpp_clock_id( '  A-L: flux_down_from_atmos' )
       coupler_clocks%update_land_model_fast   = fms_mpp_clock_id( '  A-L: update_land_model_fast' )
@@ -1609,7 +1654,7 @@ contains
     coupler_clocks%flux_check_stocks       = fms_mpp_clock_id( 'flux_check_stocks' )
     coupler_clocks%intermediate_restart    = fms_mpp_clock_id( 'intermediate restart' )
     coupler_clocks%final_flux_check_stocks = fms_mpp_clock_id( 'final flux_check_stocks' )
-    
+      
 end subroutine coupler_set_clock_ids
 
 !> \brief This subroutine calls coupler_chksum as well as atmos_ice_land_chksum and ocean_chksum
