@@ -1860,10 +1860,4 @@ contains
 
   end subroutine coupler_generate_sfc_xgrid
 
-
-=======
-
-  end subroutine coupler_flux_check_stocks
-
->>>>>>> fms/main
 end module full_coupler_mod
