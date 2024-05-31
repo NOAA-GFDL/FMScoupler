@@ -1662,7 +1662,10 @@ end subroutine coupler_set_clock_ids
     logical, optional, intent(in) :: init_stocks, finish_stocks  !< control flags to either call flux_init_stocks or
                                                                  !! the final flux_check_stocks
 
-    logical :: init, finish
+    logical :: init, finish !< control flags set to False. by default and takes on the value of init_stocks and
+                            !! finish_stocks if these optional arguments are provided.
+                            !! If true, either flux_init_stocks or
+                            !! final flux_check_stocks will be called.
 
     init=.False.   ; if(present(init_stocks)) init=init_stocks
     finish=.False. ; if(present(finish_stocks)) finish=finish_stocks
