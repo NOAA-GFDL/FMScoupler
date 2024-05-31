@@ -615,7 +615,7 @@ contains
     !> The pelists need to be set before initializing the clocks
     call coupler_set_clock_ids(coupler_clocks, Atm, Land, Ice, Ocean, ensemble_pelist, &
                                slow_ice_ocean_pelist, ensemble_id)
-    
+
     !Write out messages on root PEs
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
       write( text,'(a,2i6,a,i2.2)' )'Atmos PE range: ', Atm%pelist(1)  , Atm%pelist(atmos_npes)  ,&
@@ -874,7 +874,6 @@ contains
         call fms_mpp_clock_begin(coupler_clocks%atmos_model_init)
         call atmos_model_init( Atm, Time_init, Time, Time_step_atmos, &
                                do_concurrent_radiation)
-
         call fms_mpp_clock_end(coupler_clocks%atmos_model_init)
 
         if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
@@ -1517,7 +1516,7 @@ contains
                                    slow_ice_ocean_pelist, ensemble_id)
     
     implicit none
-    
+
     type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
     type(atmos_data_type),   intent(in) :: Atm   !< Atm, required to retrieve pe information
     type(land_data_type),    intent(in) :: Land  !< Land, required to retrieve pe information
