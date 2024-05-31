@@ -455,7 +455,7 @@ program coupler_main
     ! points when running concurrently. The calls are placed next to each other in
     ! concurrent mode to avoid multiple synchronizations within the main loop.
     ! With concurrent_ice, these only occur on the ocean PEs.
-    if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then      
+    if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
 
       !Redistribute quantities from Ocean to Ocean_ice_boundary
       call coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, coupler_clocks, slow_ice_ocean_pelist)
