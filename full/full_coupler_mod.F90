@@ -1686,7 +1686,8 @@ end subroutine coupler_set_clock_ids
 
   end subroutine coupler_flux_init_finish_stocks
 
-!> \brief This subroutine calls flux_check_stocks
+  !> \brief This subroutine calls flux_check_stocks.  Clocks and pelists are set before and after
+  !! call to flux_check_stocks.
   subroutine coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
 
     implicit none
@@ -1708,7 +1709,8 @@ end subroutine coupler_set_clock_ids
 
   end subroutine coupler_flux_check_stocks
 
-  !> \brief This subroutine calls flux_ocean_to_ice
+  !> \brief This subroutine calls flux_ocean_to_ice.
+  !! Clocks and pelists are set before and after call flux_ocean_to_ice
   subroutine coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, coupler_clocks, slow_ice_ocean_pelist)
 
     implicit none
@@ -1732,7 +1734,9 @@ end subroutine coupler_set_clock_ids
 
   end subroutine coupler_flux_ocean_to_ice
 
-!> \brief This subroutine calls flux_ocean_to_ice
+  !> \brief This subroutine calls flux_ocean_to_ice
+  !! Clocks are set before and after call flux_ice_to_ocean. Current pelist is set when optional
+  !! arguments are present and set_current_slow_ice_ocean_pelist=.True.
   subroutine coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, coupler_clocks,&
                                        slow_ice_ocean_pelist, set_current_slow_ice_ocean_pelist)
 
