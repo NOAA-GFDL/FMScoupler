@@ -371,7 +371,7 @@ program coupler_main
   character(len=32) :: timestamp
 
   type(coupler_clock_type) :: coupler_clocks
-  
+
   integer :: outunit
   character(len=80) :: text
   integer, allocatable :: ensemble_pelist(:, :)
@@ -443,8 +443,6 @@ program coupler_main
                                                               coupler_clocks, init_stocks=.True.)
 
   do nc = 1, num_cpld_calls
-    if (do_chksum) call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
-    call fms_mpp_set_current_pelist()
 
     if (do_chksum) then
       call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
@@ -458,8 +456,12 @@ program coupler_main
     ! concurrent mode to avoid multiple synchronizations within the main loop.
     ! With concurrent_ice, these only occur on the ocean PEs.
     if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
+
+      !Redistribute quantities from Ocean to Ocean_ice_boundary
       call coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, coupler_clocks, slow_ice_ocean_pelist)
       Time_flux_ocean_to_ice = Time
+
+      ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
 
       if(use_lag_fluxes) then
         call coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, coupler_clocks)
@@ -838,6 +840,7 @@ program coupler_main
                                                               coupler_clocks, finish_stocks=.True.)
 
   !-----------------------------------------------------------------------
+
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%main)
   call fms_mpp_clock_begin(coupler_clocks%termination)
