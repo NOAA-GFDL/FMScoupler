@@ -876,10 +876,8 @@ contains
         endif
 
         call fms_mpp_clock_begin(coupler_clocks%atmos_model_init)
-
         call atmos_model_init( Atm, Time_init, Time, Time_step_atmos, &
                                do_concurrent_radiation)
-
         call fms_mpp_clock_end(coupler_clocks%atmos_model_init)
 
         if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
@@ -1104,6 +1102,7 @@ contains
       end if
     end if
 
+    call fms_mpp_set_current_pelist()
     call fms_memutils_print_memuse_stats('coupler_init')
 
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then
@@ -1597,6 +1596,7 @@ contains
       if (Ice%fast_ice_pe) call fms_mpp_set_current_pelist(Ice%fast_pelist)
       coupler_clocks%set_ice_surface_fast       = fms_mpp_clock_id( ' Ice: set_ice_surface fast' )
       coupler_clocks%update_ice_model_slow_fast = fms_mpp_clock_id( ' Ice: update_ice_model_slow fast' )
+
       if (Ice%slow_ice_pe) call fms_mpp_set_current_pelist(Ice%slow_pelist)
       coupler_clocks%set_ice_surface_slow       = fms_mpp_clock_id( ' Ice: set_ice_surface slow' )
       coupler_clocks%update_ice_model_slow_slow = fms_mpp_clock_id( ' Ice: update_ice_model_slow slow' )
@@ -1605,6 +1605,7 @@ contains
       call fms_mpp_set_current_pelist(Ice%pelist)
       coupler_clocks%set_ice_surface_exchange       = fms_mpp_clock_id( ' Ice: set_ice_surface exchange' )
       coupler_clocks%update_ice_model_slow_exchange = fms_mpp_clock_id( ' Ice: update_ice_model_slow exchange' )
+
     endif
     if (Ocean%is_ocean_pe) then
       call fms_mpp_set_current_pelist(Ocean%pelist)
@@ -1690,7 +1691,8 @@ contains
 
   end subroutine coupler_flux_init_finish_stocks
 
-!> \brief This subroutine calls flux_check_stocks
+  !> \brief This subroutine calls flux_check_stocks.  Clocks and pelists are set before and after
+  !! call to flux_check_stocks.
   subroutine coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
 
     implicit none
@@ -1712,7 +1714,8 @@ contains
 
   end subroutine coupler_flux_check_stocks
 
-  !> \brief This subroutine calls flux_ocean_to_ice
+  !> \brief This subroutine calls flux_ocean_to_ice.
+  !! Clocks and pelists are set before and after call flux_ocean_to_ice
   subroutine coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, coupler_clocks, slow_ice_ocean_pelist)
 
     implicit none
@@ -1736,7 +1739,9 @@ contains
 
   end subroutine coupler_flux_ocean_to_ice
 
-!> \brief This subroutine calls flux_ocean_to_ice
+  !> \brief This subroutine calls flux_ocean_to_ice
+  !! Clocks are set before and after call flux_ice_to_ocean. Current pelist is set when optional
+  !! arguments are present and set_current_slow_ice_ocean_pelist=.True.
   subroutine coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, coupler_clocks,&
                                        slow_ice_ocean_pelist, set_current_slow_ice_ocean_pelist)
 
@@ -1773,7 +1778,8 @@ contains
 
   end subroutine coupler_flux_ice_to_ocean
 
-!> \brief This subroutine calls flux_ocean_to_ice_finish and unpack_ocean_ice_boundary
+  !> \brief This subroutine calls flux_ocean_to_ice_finish and unpack_ocean_ice_boundary.
+  !! Clocks and pelists are set before/after the calls.  Checksum is computed if do_chksum=.True.
   subroutine coupler_unpack_ocean_ice_boundary(nc, Time_flux_ocean_to_ice, Ice, Ocean_ice_boundary, coupler_clocks)
 
     implicit none
@@ -1796,7 +1802,8 @@ contains
 
   end subroutine coupler_unpack_ocean_ice_boundary
 
-!> This subroutine calls exchange_slow_to_fast_ice
+  !> This subroutine calls exchange_slow_to_fast_ice
+  !! Clocks and pelists are set before/after the calls.
   subroutine coupler_exchange_slow_to_fast_ice(Ice, coupler_clocks)
 
     implicit none
@@ -1812,7 +1819,8 @@ contains
 
   end subroutine coupler_exchange_slow_to_fast_ice
 
-!> \brief This subroutine calls exchange_fast_to_slow_ice
+  !> \brief This subroutine calls exchange_fast_to_slow_ice.  Clocks are set before and after the call.
+  !! The current pelist is set if the optional argument set_ice_current_pelist is set to true.
   subroutine coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks, set_ice_current_pelist)
 
     implicit none
@@ -1832,7 +1840,7 @@ contains
 
   end subroutine coupler_exchange_fast_to_slow_ice
 
-!> \brief This subroutine calls set_ice_surface_fields
+!> \brief This subroutine calls set_ice_surface_fields.  Clocks and pelist are set before/after the call.
   subroutine coupler_set_ice_surface_fields(Ice, coupler_clocks)
 
     implicit none
@@ -1846,7 +1854,7 @@ contains
 
   end subroutine coupler_set_ice_surface_fields
 
-!> \brief This subroutine calls generate_sfc_xgrid
+!> \brief This subroutine calls generate_sfc_xgrid.  Clocks are set and before the call
   subroutine coupler_generate_sfc_xgrid(Land, Ice, coupler_clocks)
 
     implicit none
