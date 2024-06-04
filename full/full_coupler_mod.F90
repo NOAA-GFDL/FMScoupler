@@ -103,7 +103,7 @@ module full_coupler_mod
   public :: ice_model_fast_cleanup, unpack_land_ice_boundary
   public :: update_ice_model_slow
   public :: update_ocean_model, update_slow_ice_and_ocean
-  public :: sfc_boundary_layer, generate_sfc_xgrid, send_ice_mask_sic
+  public :: sfc_boundary_layer, send_ice_mask_sic
   public :: flux_down_from_atmos, flux_up_to_atmos
   public :: flux_land_to_ice
   public :: flux_ice_to_ocean_finish
@@ -131,11 +131,9 @@ module full_coupler_mod
   public :: coupler_unpack_ocean_ice_boundary, coupler_exchange_slow_to_fast_ice, &
             coupler_exchange_fast_to_slow_ice, coupler_set_ice_surface_fields
 
-!-----------------------------------------------------------------------
+  public :: coupler_generate_sfc_xgrid
 
   public :: coupler_clock_type
-
-!-----------------------------------------------------------------------
 
 #include <file_version.fh>
 
@@ -1617,7 +1615,7 @@ contains
     coupler_clocks%intermediate_restart    = fms_mpp_clock_id( 'intermediate restart' )
     coupler_clocks%final_flux_check_stocks = fms_mpp_clock_id( 'final flux_check_stocks' )
 
-end subroutine coupler_set_clock_ids
+  end subroutine coupler_set_clock_ids
 
 !> \brief This subroutine calls coupler_chksum as well as atmos_ice_land_chksum and ocean_chksum
   subroutine coupler_atmos_ice_land_ocean_chksum(id, timestep, Atm, Land, Ice, Land_ice_atmos_boundary,&
@@ -1853,5 +1851,19 @@ end subroutine coupler_set_clock_ids
     call fms_mpp_clock_end(coupler_clocks%set_ice_surface_fast)
 
   end subroutine coupler_set_ice_surface_fields
+
+!> \brief This subroutine calls generate_sfc_xgrid.  Clocks are set and before the call
+  subroutine coupler_generate_sfc_xgrid(Land, Ice, coupler_clocks)
+
+    implicit none
+    type(land_data_type), intent(inout) :: Land   !< Land
+    type(ice_data_type),  intent(inout) :: Ice    !< Ice
+    type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
+
+    call fms_mpp_clock_begin(coupler_clocks%generate_sfc_xgrid)
+    call generate_sfc_xgrid( Land, Ice )
+    call fms_mpp_clock_end(coupler_clocks%generate_sfc_xgrid)
+
+  end subroutine coupler_generate_sfc_xgrid
 
 end module full_coupler_mod
