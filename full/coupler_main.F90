@@ -462,7 +462,6 @@ program coupler_main
       Time_flux_ocean_to_ice = Time
 
       ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
-
       if(use_lag_fluxes) then
         call coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, coupler_clocks)
         Time_flux_ice_to_ocean = Time
@@ -838,9 +837,7 @@ program coupler_main
 
   if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, finish_stocks=.True.)
-
   !-----------------------------------------------------------------------
-
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%main)
   call fms_mpp_clock_begin(coupler_clocks%termination)
