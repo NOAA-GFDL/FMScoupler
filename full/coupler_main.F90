@@ -371,7 +371,7 @@ program coupler_main
   character(len=32) :: timestamp
 
   type(coupler_clock_type) :: coupler_clocks
-  
+
   integer :: outunit
   character(len=80) :: text
   integer, allocatable :: ensemble_pelist(:, :)
@@ -440,12 +440,12 @@ program coupler_main
 !------ ocean/slow-ice integration loop ------
 
   if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
-      coupler_clocks, init_stocks=.True.)
+                                                              coupler_clocks, init_stocks=.True.)
 
   do nc = 1, num_cpld_calls
 
-    if (do_chksum) then      
-      call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)    
+    if (do_chksum) then
+      call coupler_chksum('top_of_coupled_loop+', nc, Atm, Land, Ice)
       call coupler_atmos_ice_land_ocean_chksum('MAIN_LOOP-', nc, Atm, Land, Ice,&
           Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary,     &
           Ocean, Ice_ocean_boundary)
@@ -456,24 +456,17 @@ program coupler_main
     ! concurrent mode to avoid multiple synchronizations within the main loop.
     ! With concurrent_ice, these only occur on the ocean PEs.
     if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-      ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
-      call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
-      call fms_mpp_clock_begin(coupler_clocks%flux_ocean_to_ice)
+
       !Redistribute quantities from Ocean to Ocean_ice_boundary
-      !Ice intent is In.
-      !Ice is used only for accessing Ice%area and knowing if we are on an Ice pe
-      call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
+      call coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, coupler_clocks, slow_ice_ocean_pelist)
       Time_flux_ocean_to_ice = Time
-      call fms_mpp_clock_end(coupler_clocks%flux_ocean_to_ice)
 
       ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
-      if (use_lag_fluxes) then
-        call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean)
-        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
+      if(use_lag_fluxes) then
+        call coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, coupler_clocks)
         Time_flux_ice_to_ocean = Time
-        call fms_mpp_clock_end(coupler_clocks%flux_ice_to_ocean)
-      endif
-    endif
+      end if
+    end if
 
     if (do_chksum) then
       call coupler_chksum('flux_ocn2ice+', nc, Atm, Land, Ice)
@@ -481,7 +474,7 @@ program coupler_main
           Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary,         &
           Ocean, Ice_ocean_boundary)
     end if
-    
+
     ! needs to sit here rather than at the end of the coupler loop.
     if (check_stocks > 0) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
 
@@ -788,19 +781,12 @@ program coupler_main
      endif
 
     ! Update Ice_ocean_boundary using the newly calculated fluxes.
-    if ((concurrent_ice .OR. .NOT.use_lag_fluxes) .and. .not.combined_ice_and_ocean) then
+    if ((concurrent_ice .or. .not.use_lag_fluxes) .and. .not.combined_ice_and_ocean) then
       !this could serialize unless slow_ice_with_ocean is true.
-      if ((.not.do_ice) .or. (.not.slow_ice_with_ocean)) &
-        call fms_mpp_set_current_pelist()
-
-      if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-        ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
-        call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
-        call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean)
-        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
-        Time_flux_ice_to_ocean = Time
-        call fms_mpp_clock_end(coupler_clocks%flux_ice_to_ocean)
-      endif
+      if ((.not.do_ice) .or. (.not.slow_ice_with_ocean)) call fms_mpp_set_current_pelist()
+      call coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, coupler_clocks, &
+        slow_ice_ocean_pelist=slow_ice_ocean_pelist, set_current_slow_ice_ocean_pelist=.True.)
+      Time_flux_ice_to_ocean = Time
     endif
 
     if (Ocean%is_ocean_pe) then
@@ -874,10 +860,9 @@ program coupler_main
 102 FORMAT(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
 
   if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
-      coupler_clocks, finish_stocks=.True.)
-  
-  call fms_mpp_set_current_pelist()
+                                                              coupler_clocks, finish_stocks=.True.)
 !-----------------------------------------------------------------------
+  call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%main)
   call fms_mpp_clock_begin(coupler_clocks%termination)
 
