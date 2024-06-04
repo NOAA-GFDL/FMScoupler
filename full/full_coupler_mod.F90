@@ -133,9 +133,9 @@ module full_coupler_mod
 
   public :: coupler_generate_sfc_xgrid
 
-  public :: coupler_clock_type
-
 !-----------------------------------------------------------------------
+
+  public :: coupler_clock_type
 
 #include <file_version.fh>
 
