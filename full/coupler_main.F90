@@ -567,9 +567,9 @@ program coupler_main
 
           !      ---- SERIAL atmosphere radiation ----
           if (.not.do_concurrent_radiation) then
-            call fms_mpp_clock_begin(coupler_clocks%concurrent_radiation)
+            call fms_mpp_clock_begin(coupler_clocks%serial_radiation)
             call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
-            call fms_mpp_clock_end(coupler_clocks%concurrent_radiation)
+            call fms_mpp_clock_end(coupler_clocks%serial_radiation)
           endif
           if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(ser)', (nc-1)*num_atmos_calls+na, &
                  Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
