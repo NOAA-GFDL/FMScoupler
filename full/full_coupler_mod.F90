@@ -1889,10 +1889,10 @@ contains
     type(atmos_data_type), intent(inout) :: Atm  !< Atm
     type(land_data_type), intent(inout)  :: Land !< Land
     type(ice_data_type), intent(inout)   :: Ice  !< Ice
-    type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary
-    type(atmos_ice_boundary_type), intent(inout) :: Atmos_ice_boundary  !<Required for chksum
-    type(atmo_land_boundary), intent(inout)      :: Atmos_land_boundary !<Required for chksum
-    type(FmsTimeType), intent(in) :: Time_atmos            !< Atmos time
+    type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary !< Land_ice_atmos_boundary
+    type(atmos_ice_boundary_type), intent(inout)  :: Atmos_ice_boundary  !<Required for chksum
+    type(atmos_land_boundary_type), intent(inout) :: Atmos_land_boundary !<Required for chksum
+    type(FmsTime_type), intent(in) :: Time_atmos           !< Atmos time
     integer, intent(in)           :: current_time_step     !< (nc-1)*num_atmos_cal + na
     type(coupler_clock_type), intent(in) :: coupler_clocks !< coupler_clocks
                                                                                 
