@@ -103,13 +103,12 @@ module full_coupler_mod
   public :: ice_model_fast_cleanup, unpack_land_ice_boundary
   public :: update_ice_model_slow
   public :: update_ocean_model, update_slow_ice_and_ocean
-  public :: sfc_boundary_layer, send_ice_mask_sic
+  public :: send_ice_mask_sic
   public :: flux_down_from_atmos, flux_up_to_atmos
   public :: flux_land_to_ice
   public :: flux_ice_to_ocean_finish
   public :: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
   public :: flux_atmos_to_ocean, flux_ex_arrays_dealloc
-  public :: atmos_tracer_driver_gather_data
 
   public :: atmos_model_restart, land_model_restart, ice_model_restart, ocean_model_restart
 
@@ -132,7 +131,8 @@ module full_coupler_mod
             coupler_exchange_fast_to_slow_ice, coupler_set_ice_surface_fields
 
   public :: coupler_generate_sfc_xgrid
-
+  public :: coupler_atmos_tracer_driver_gather_data, coupler_sfc_boundary_layer
+  
   public :: coupler_clock_type
 
 #include <file_version.fh>
@@ -1866,4 +1866,43 @@ contains
 
   end subroutine coupler_generate_sfc_xgrid
 
+  !> \brief This subroutine calls atmo_tracer_driver_gather_data.
+  !! Clocks are set before and after the call.
+  subroutine coupler_atmos_tracer_driver_gather_data(Atm, coupler_clocks)
+
+    implicit none
+    
+    type(atmos_data_type), intent(inout)    :: Atm !< Atm 
+    type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
+    call fms_mpp_clock_begin(coupler_clocks%atmos_tracer_driver_gather_data)
+    call atmos_tracer_driver_gather_data(Atm%fields, Atm%tr_bot)
+    call fms_mpp_clock_end(coupler_clocks%atmos_tracer_driver_gather_data)
+
+  end subroutine coupler_atmos_tracer_driver_gather_data
+
+  !> \brief This subroutine calls coupler_sfc_boundary_layer.  Chksums are computed
+  !! if do_chksum = .True.  Clocks are set for runtime statistics.
+  subroutine coupler_sfc_boundary_layer(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary,&
+      Atmos_land_boundary, Time_atmos, current_time_step, coupler_clocks)
+
+    implicit none
+    type(atmos_data_type), intent(inout) :: Atm  !< Atm
+    type(land_data_type), intent(inout)  :: Land !< Land
+    type(ice_data_type), intent(inout)   :: Ice  !< Ice
+    type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary
+    type(atmos_ice_boundary_type), intent(inout) :: Atmos_ice_boundary  !<Required for chksum
+    type(atmo_land_boundary), intent(inout)      :: Atmos_land_boundary !<Required for chksum
+    type(FmsTimeType), intent(in) :: Time_atmos            !< Atmos time
+    integer, intent(in)           :: current_time_step     !< (nc-1)*num_atmos_cal + na
+    type(coupler_clock_type), intent(in) :: coupler_clocks !< coupler_clocks
+                                                                                
+    call fms_mpp_clock_begin(coupler_clocks%sfc_boundary_layer)
+    call sfc_boundary_layer( dt_atmos, Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary )
+    if (do_chksum)  call atmos_ice_land_chksum('sfc+', current_time_step, Atm, Land, Ice, &
+                                               Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+    call fms_mpp_clock_end(coupler_clocks%sfc_boundary_layer)
+
+  end subroutine coupler_sfc_boundary_layer
+  
+  
 end module full_coupler_mod

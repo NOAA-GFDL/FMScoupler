@@ -512,25 +512,15 @@ program coupler_main
       call fms_mpp_clock_begin(coupler_clocks%atmos_loop)
       do na = 1, num_atmos_calls
         if (do_chksum) call atmos_ice_land_chksum('top_of_atmos_loop-', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+                                                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
 
         Time_atmos = Time_atmos + Time_step_atmos
 
-        if (do_atmos) then
-          call fms_mpp_clock_begin(coupler_clocks%atmos_tracer_driver_gather_data)
-          call atmos_tracer_driver_gather_data(Atm%fields, Atm%tr_bot)
-          call fms_mpp_clock_end(coupler_clocks%atmos_tracer_driver_gather_data)
-        endif
+        if (do_atmos) call coupler_atmos_tracer_driver_gather_data(Atm, coupler_clocks)
 
-        if (do_flux) then
-          call fms_mpp_clock_begin(coupler_clocks%sfc_boundary_layer)
-          call sfc_boundary_layer( REAL(dt_atmos), Time_atmos, &
-               Atm, Land, Ice, Land_ice_atmos_boundary )
-          if (do_chksum)  call atmos_ice_land_chksum('sfc+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-          call fms_mpp_clock_end(coupler_clocks%sfc_boundary_layer)
-        endif
-
+        if (do_flux) call coupler_sfc_boundary_layer(Atm, Land, Ice, Land_ice_atmos_boundary, &
+            Atmos_ice_boundary,Atmos_land_boundary, Time_atmos, (nc-1)*num_atmos_calls+na, coupler_clocks)
+        
 !$OMP   PARALLEL  &
 !$OMP&    NUM_THREADS(conc_nthreads)  &
 !$OMP&    DEFAULT(NONE)  &
