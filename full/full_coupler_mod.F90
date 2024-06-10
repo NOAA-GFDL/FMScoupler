@@ -1897,7 +1897,7 @@ contains
     type(coupler_clock_type), intent(in) :: coupler_clocks !< coupler_clocks
                                                                                 
     call fms_mpp_clock_begin(coupler_clocks%sfc_boundary_layer)
-    call sfc_boundary_layer( dt_atmos, Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary )
+    call sfc_boundary_layer( real(dt_atmos), Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary )
     if (do_chksum)  call atmos_ice_land_chksum('sfc+', current_time_step, Atm, Land, Ice, &
                                                Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
     call fms_mpp_clock_end(coupler_clocks%sfc_boundary_layer)
