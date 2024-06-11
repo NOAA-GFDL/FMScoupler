@@ -339,21 +339,22 @@ program coupler_main
   use iso_fortran_env
   implicit none
 
-  !> model defined types
-  type (atmos_data_type) :: Atm
-  type  (land_data_type) :: Land
-  type   (ice_data_type) :: Ice
+  !> model defined types.
+  !! Targets to pointers in coupler_chksum_obj
+  type (atmos_data_type), target :: Atm
+  type  (land_data_type), target :: Land
+  type   (ice_data_type), target :: Ice
   ! allow members of ocean type to be aliased (ap)
-  type (ocean_public_type), target  :: Ocean
+  type (ocean_public_type), target  :: Ocean 
   type (ocean_state_type),  pointer :: Ocean_state => NULL()
 
-  type(atmos_land_boundary_type) :: Atmos_land_boundary
-  type(atmos_ice_boundary_type)  :: Atmos_ice_boundary
-  type(land_ice_atmos_boundary_type)  :: Land_ice_atmos_boundary
-  type(land_ice_boundary_type)  :: Land_ice_boundary
-  type(ice_ocean_boundary_type) :: Ice_ocean_boundary
-  type(ocean_ice_boundary_type) :: Ocean_ice_boundary
-  type(ice_ocean_driver_type), pointer :: ice_ocean_driver_CS => NULL()
+  type(atmos_land_boundary_type), target :: Atmos_land_boundary
+  type(atmos_ice_boundary_type), target  :: Atmos_ice_boundary
+  type(land_ice_atmos_boundary_type), target  :: Land_ice_atmos_boundary
+  type(land_ice_boundary_type), target  :: Land_ice_boundary
+  type(ice_ocean_boundary_type), target :: Ice_ocean_boundary
+  type(ocean_ice_boundary_type), target :: Ocean_ice_boundary
+  type(ice_ocean_driver_type), pointer  :: ice_ocean_driver_CS => NULL()
 
   type(FmsTime_type) :: Time
   type(FmsTime_type) :: Time_step_atmos, Time_step_cpld
@@ -371,6 +372,7 @@ program coupler_main
   character(len=32) :: timestamp
 
   type(coupler_clock_type) :: coupler_clocks
+  class(coupler_chksum_type) :: coupler_chksum_obj
 
   integer :: outunit
   character(len=80) :: text
@@ -426,7 +428,7 @@ program coupler_main
   call coupler_init(Atm, Ocean, Land, Ice, Ocean_state, Atmos_land_boundary, Atmos_ice_boundary, &
     Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary,          &
     Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, &
-    conc_nthreads, coupler_clocks, Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean,      &
+    conc_nthreads, coupler_clocks, coupler_chksum_obj, Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, &
     num_cpld_calls, num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
 
   if (do_chksum) call coupler_chksum('coupler_init+', 0, Atm, Land, Ice)

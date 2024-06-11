@@ -276,6 +276,29 @@ module full_coupler_mod
     integer :: ocean_model_init
     integer :: flux_exchange_init
   end type coupler_clock_type
+  
+  type coupler_chksum_type
+    integer :: current_time_step
+    character(128) :: id
+    type(atmos_data_type), pointer :: Atm    
+    type(land_data_type),  pointer :: Land
+    type(ice_data_type),   pointer :: Ice
+    type(ocean_public_type), pointer :: Ocean
+    type(atmos_land_boundary_type), pointer :: Atmos_land_boundary
+    type(atmos_ice_boundary_type),  pointer :: Atmos_ice_boundary
+    type(land_ice_atmos_boundary_type), pointer :: Land_ice_boundary
+    type(ice_ocean_boundary_type), pointer :: Ice_ocean_boundary
+    type(ocean_ice_boundary_type), pointer :: Ocean_ice_boundary
+    contains 
+      procedure :: coupler_atmos_ice_land_ocean_chksum
+      procedure :: coupler_atmos_ice_land_chksum
+      procedure :: slow_ice_chksum
+      procedure :: ocean_chksum
+      procedure :: set_coupler_chksum_obj
+    end type coupler_chksum_type
+      
+  end type coupler_chksum_type
+
 
   character(len=80) :: text
   character(len=48), parameter :: mod_name = 'coupler_main_mod'
@@ -293,7 +316,7 @@ contains
   subroutine coupler_init(Atm, Ocean, Land, Ice, Ocean_state, Atmos_land_boundary, Atmos_ice_boundary, &
       Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary,              &
       Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, conc_nthreads, &
-      coupler_clocks, Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, &
+      coupler_clocks, coupler_chksum_obj, Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, &
       num_cpld_calls, num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
 
     implicit none
@@ -317,6 +340,7 @@ contains
     integer, allocatable, dimension(:),   intent(inout) :: slow_ice_ocean_pelist
 
     type(coupler_clock_type) :: coupler_clocks
+    class(coupler_chksum_type) :: coupler_chksum_obj
 
     type(FMSTime_type), intent(inout) :: Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean
     type(FMSTime_type), intent(inout) :: Time, Time_start, Time_end, Time_restart, Time_restart_current
@@ -1091,6 +1115,18 @@ contains
     CALL fms_diag_grid_end()
 
 !-----------------------------------------------------------------------
+
+    !> Initialize coupler_chksum_obj
+    coupler_chksum_obj%Atm => Atm
+    coupler_chksum_obj%Land => Land
+    coupler_chksum_obj%Ice => Ice
+    coupler_chksum_obj%Ocean => Ocean
+    coupler_chksum_obj%Atmos_land_boundary => Atmos_land_boundary
+    coupler_chksum_obj%Atmos_ice_boundary => Atmos_ice_boundary
+    coupler_chksum_obj%Land_ice_boundary => Land_ice_boundary
+    coupler_chksum_obj%Ice_ocean_boundary => Ice_ocean_boundary
+    coupler_chksum_obj%Ocean_ice_boundary => Ocean_ice_boundary   
+
     if ( do_endpoint_chksum ) then
       call coupler_atmos_ice_land_ocean_chksum('coupler_init+', 0, Atm, Land, Ice, &
           Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
@@ -1298,7 +1334,22 @@ contains
   end subroutine coupler_restart
 
 !--------------------------------------------------------------------------
+  
+  !> \brief This function sets the current_type_step and id in the coupler_chksum_type
+  !! It returns itself
+  function set_coupler_chksum_obj(self, current_time_step, id) return(self)
+    implicit none
+    class(coupler_chksum_type), intent(inout) :: self
+    integer, intent(in) :: current_time_step
+    character(:), intent(in) :: id
 
+    self%current_time_step = current_time_step
+    self%id = id
+
+    return self    
+
+  end function set_coupler_chksum_obj
+  
 !> \brief Print out checksums for several atm, land and ice variables
   subroutine coupler_chksum(id, timestep, Atm, Land, Ice)
 
