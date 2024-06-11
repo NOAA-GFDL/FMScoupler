@@ -372,7 +372,7 @@ program coupler_main
   character(len=32) :: timestamp
 
   type(coupler_clock_type) :: coupler_clocks
-  class(coupler_chksum_type) :: coupler_chksum_obj
+  class(coupler_chksum_type) :: coupler_chksum_ojb
 
   integer :: outunit
   character(len=80) :: text
@@ -550,7 +550,7 @@ program coupler_main
           !      ---- atmosphere dynamics ----
           if (do_atmos) then
             call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_dynamics)
-            call update_atmos_model_dynamics( Atm )
+            call update_atmos_model_dynamics( Atm, chksum%set_id('id', timestep ))
             call fms_mpp_clock_end(coupler_clocks%update_atmos_model_dynamics)
           endif
           if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_dynamics', (nc-1)*num_atmos_calls+na, &
