@@ -345,7 +345,7 @@ program coupler_main
   type  (land_data_type), target :: Land
   type   (ice_data_type), target :: Ice
   ! allow members of ocean type to be aliased (ap)
-  type (ocean_public_type), target  :: Ocean 
+  type (ocean_public_type), target  :: Ocean
   type (ocean_state_type),  pointer :: Ocean_state => NULL()
 
   type(atmos_land_boundary_type), target :: Atmos_land_boundary
@@ -439,7 +439,7 @@ program coupler_main
   call fms_mpp_clock_begin(coupler_clocks%main)         !begin main loop
 
 !-----------------------------------------------------------------------
-!> ocean/slow-ice integration loop 
+!> ocean/slow-ice integration loop
 
   if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, init_stocks=.True.)
@@ -510,7 +510,7 @@ program coupler_main
 
       !-----------------------------------------------------------------------
 
-      !> atmos/fast-land/fast-ice integration loop 
+      !> atmos/fast-land/fast-ice integration loop
 
       call fms_mpp_clock_begin(coupler_clocks%atmos_loop)
       fast_integration_loop : do na = 1, num_atmos_calls
@@ -526,7 +526,7 @@ program coupler_main
         if (do_flux) call coupler_sfc_boundary_layer(Atm, Land, Ice, Land_ice_atmos_boundary, &
                                                      Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
 
-        
+
 !$OMP   PARALLEL  &
 !$OMP&    NUM_THREADS(conc_nthreads)  &
 !$OMP&    DEFAULT(NONE)  &
@@ -569,7 +569,7 @@ program coupler_main
 
           !--------------------------------------------------------------
 
-          !> land model 
+          !> land model
           if (do_land .AND. land%pe) call coupler_update_land_model_fast(Land, Atmos_land_boundary, Atm%pelist, &
                                      current_timestep, coupler_chksum_obj, coupler_clocks)
 
@@ -579,10 +579,10 @@ program coupler_main
 
           !--------------------------------------------------------------
 
-          !> atmosphere up 
+          !> atmosphere up
           call coupler_flux_up_to_atmos(Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary,&
                                         Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
-          
+
           if (do_atmos) call coupler_update_atmos_model_up(Atm, Land_ice_atmos_boundary, current_timestep, &
                                                            coupler_chksum_obj, coupler_clocks)
 
@@ -617,7 +617,7 @@ program coupler_main
 !$      call omp_set_num_threads(atmos_nthreads+(conc_nthreads-1)*radiation_nthreads)
 
         call coupler_update_atmos_model_state(Atm, current_timestep, coupler_chksum_obj, coupler_clocks )
-        
+
       enddo fast_integration_loop ! end of na (fast loop)
 
       call fms_mpp_clock_end(coupler_clocks%atmos_loop)

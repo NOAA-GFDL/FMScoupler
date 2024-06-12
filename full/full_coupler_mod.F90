@@ -133,7 +133,7 @@ module full_coupler_mod
   public :: coupler_update_land_model_fast, coupler_update_ice_model_fast
   public :: coupler_flux_up_to_atmos, coupler_update_atmos_model_up
   public :: coupler_flux_atmos_to_ocean, coupler_update_atmos_model_state
-  
+
   public :: coupler_clock_type, coupler_chksum_type
 
 #include <file_version.fh>
@@ -276,9 +276,9 @@ module full_coupler_mod
     integer :: ocean_model_init
     integer :: flux_exchange_init
   end type coupler_clock_type
-  
+
   type coupler_chksum_type
-    type(atmos_data_type), pointer :: Atm    
+    type(atmos_data_type), pointer :: Atm
     type(land_data_type),  pointer :: Land
     type(ice_data_type),   pointer :: Ice
     type(ocean_public_type), pointer :: Ocean
@@ -291,7 +291,7 @@ module full_coupler_mod
   contains
     procedure :: coupler_chksum_obj_init
   end type coupler_chksum_type
-  
+
   character(len=80) :: text
   character(len=48), parameter :: mod_name = 'coupler_main_mod'
 
@@ -1148,7 +1148,7 @@ contains
     type(land_ice_boundary_type),   target, intent(in) :: Land_ice_boundary
     type(ice_ocean_boundary_type),  target, intent(in) :: Ice_ocean_boundary
     type(ocean_ice_boundary_type),  target, intent(in) :: Ocean_ice_boundary
-    
+
     self%Atm => Atm
     self%Land => Land
     self%Ice => Ice
@@ -1158,11 +1158,11 @@ contains
     self%Atmos_ice_boundary => Atmos_ice_boundary
     self%Land_ice_boundary => Land_ice_boundary
     self%Ice_ocean_boundary => Ice_ocean_boundary
-    self%Ocean_ice_boundary => Ocean_ice_boundary   
+    self%Ocean_ice_boundary => Ocean_ice_boundary
 
   end subroutine coupler_chksum_obj_init
 
-  
+
   subroutine coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
                          Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, &
                          Ice_bc_restart, Time, Time_start, Time_end, Time_restart_current)
@@ -1349,7 +1349,7 @@ contains
   end subroutine coupler_restart
 
 !--------------------------------------------------------------------------
-  
+
 !> \brief Print out checksums for several atm, land and ice variables
   subroutine coupler_chksum(id, timestep, Atm, Land, Ice)
 
@@ -1922,8 +1922,8 @@ contains
   subroutine coupler_atmos_tracer_driver_gather_data(Atm, coupler_clocks)
 
     implicit none
-    
-    type(atmos_data_type), intent(inout)    :: Atm !< Atm 
+
+    type(atmos_data_type), intent(inout)    :: Atm !< Atm
     type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
     call fms_mpp_clock_begin(coupler_clocks%atmos_tracer_driver_gather_data)
     call atmos_tracer_driver_gather_data(Atm%fields, Atm%tr_bot)
@@ -1945,16 +1945,16 @@ contains
     integer, intent(in)            :: current_timestep !< (nc-1)*num_atmos_cal + na
     type(coupler_chksum_type), intent(in)   :: coupler_chksum_obj
     type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
-                                                                                
+
     call fms_mpp_clock_begin(coupler_clocks%sfc_boundary_layer)
 
     call sfc_boundary_layer( real(dt_atmos), Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary )
     if (do_chksum)  call atmos_ice_land_chksum('sfc+', current_timestep, Atm, Land, Ice, &
         Land_ice_atmos_boundary, coupler_chksum_obj%Atmos_ice_boundary,                  &
         coupler_chksum_obj%Atmos_land_boundary)
-    
+
     call fms_mpp_clock_end(coupler_clocks%sfc_boundary_layer)
-    
+
   end subroutine coupler_sfc_boundary_layer
 
   !> This subroutine calls update_atmos_model_dynamics.  Clocks are set for runtime statistics.  Chksums
@@ -1963,10 +1963,10 @@ contains
 
     implicit none
     type(atmos_data_type), intent(inout) :: Atm !< Atm
-    integer,                   intent(in) :: current_timestep   !< Current timestep 
+    integer,                   intent(in) :: current_timestep   !< Current timestep
     type(coupler_chksum_type), intent(in) :: coupler_chksum_obj !< coupler_chksum_obj pointing to component types
     type(coupler_clock_type),  intent(inout) :: coupler_clocks  !< coupler_clocks
-    
+
     call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_dynamics)
     call update_atmos_model_dynamics(Atm)
     call fms_mpp_clock_end(coupler_clocks%update_atmos_model_dynamics)
@@ -1976,7 +1976,7 @@ contains
         coupler_chksum_obj%Atmos_ice_boundary, coupler_chksum_obj%Atmos_land_boundary)
 
     if (do_debug)  call fms_memutils_print_memuse_stats( 'update dyn')
-    
+
   end subroutine coupler_update_atmos_model_dynamics
 
   !> This subroutine calls update_atmos_model_radiation.  Clocks are set for runtime statistics.
@@ -1990,11 +1990,11 @@ contains
     type(atmos_data_type), intent(inout) :: Atm
     type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary
     type(coupler_clock_type),         intent(inout) :: coupler_clocks     !< coupler_clocks
-    integer,                   optional, intent(in) :: current_timestep   !< Current timestep 
+    integer,                   optional, intent(in) :: current_timestep   !< Current timestep
     type(coupler_chksum_type), optional, intent(in) :: coupler_chksum_obj !< points to component types
 
     character(128) :: memuse_stats_id = 'update serial rad'
-    
+
     call fms_mpp_clock_begin(coupler_clocks%radiation)
     call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
     call fms_mpp_clock_end(coupler_clocks%radiation)
@@ -2006,7 +2006,7 @@ contains
                                        Atm, coupler_chksum_obj%Land, coupler_chksum_obj%Ice, Land_ice_atmos_boundary,  &
                                        coupler_chksum_obj%Atmos_ice_boundary, coupler_chksum_obj%Atmos_land_boundary)
     end if
-    
+
     if (do_debug) then
       if(do_concurrent_radiation) memuse_stats_id = 'update concurrent rad'
       call fms_memutils_print_memuse_stats(trim(memuse_stats_id))
@@ -2022,7 +2022,7 @@ contains
     implicit none
     type(atmos_data_type), intent(inout) :: Atm  !< Atm
     type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary !<Land ice_atmos_boundary
-    integer,                   intent(in) :: current_timestep   !< Current timestep 
+    integer,                   intent(in) :: current_timestep   !< Current timestep
     type(coupler_chksum_type), intent(in) :: coupler_chksum_obj !< coupler_chksum_obj pointing to component types
     type(coupler_clock_type),  intent(inout) :: coupler_clocks  !< coupler_clocks
 
@@ -2053,7 +2053,7 @@ contains
     type(FmsTime_type), intent(in) :: Time_atmos       !<Time_atmos FmsTime_type containing time in seconds
     integer,            intent(in) :: current_timestep !< current_timestep
     type(coupler_clock_type), intent(inout) :: coupler_clocks !<coupler_clocks
-    
+
     call fms_mpp_clock_begin(coupler_clocks%flux_down_from_atmos)
     call flux_down_from_atmos(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, &
                               Atmos_land_boundary, Atmos_ice_boundary )
@@ -2061,7 +2061,7 @@ contains
 
     if (do_chksum) call atmos_ice_land_chksum('flux_down_from_atmos+', current_timestep, Atm, Land, &
                    Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-          
+
   end subroutine coupler_flux_down_from_atmos
 
   !> This subroutine calls update_land_model_fast.  Clocks are set for runtime statistics.  Chksums
@@ -2079,17 +2079,17 @@ contains
 
     call fms_mpp_clock_begin(coupler_clocks%update_land_model_fast) !< current pelist=Atm%pelist
     if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Land%pelist)
-    
+
     call update_land_model_fast( Atmos_land_boundary, Land )
 
     if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(atm_pelist)
     call fms_mpp_clock_end(coupler_clocks%update_land_model_fast)
-    
+
     if (do_chksum) call atmos_ice_land_chksum('update_land_fast+', current_timestep, coupler_chksum_obj%Atm, Land, &
         coupler_chksum_obj%Ice, coupler_chksum_obj%Land_ice_atmos_boundary, coupler_chksum_obj%Atmos_ice_boundary, &
         coupler_chksum_obj%Atmos_land_boundary)
     if (do_debug)  call fms_memutils_print_memuse_stats( 'update land')
-    
+
   end subroutine coupler_update_land_model_fast
 
   !> This subroutine calls update_ice_model_fast.  Clocks are set for runtime statistics.  Chksums
@@ -2109,7 +2109,7 @@ contains
     if (ice_npes .NE. atmos_npes)call fms_mpp_set_current_pelist(Ice%fast_pelist)
 
     call update_ice_model_fast( Atmos_ice_boundary, Ice )
-    
+
     if (ice_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(atm_pelist)
     call fms_mpp_clock_end(coupler_clocks%update_ice_model_fast)
 
@@ -2124,7 +2124,7 @@ contains
   !! are computed if do_chksum is .True.
   subroutine coupler_flux_up_to_atmos(Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary,&
                                       Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
-    
+
     implicit none
     type(land_data_type), intent(inout) :: Land !< Land
     type(ice_data_type),  intent(inout) :: Ice  !< Ice
@@ -2141,8 +2141,8 @@ contains
     call fms_mpp_clock_end(coupler_clocks%flux_up_to_atmos)
 
     if (do_chksum) call atmos_ice_land_chksum('flux_up2atmos+', current_timestep, coupler_chksum_obj%Atm, &
-                   Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)   
-    
+                   Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+
   end subroutine coupler_flux_up_to_atmos
 
   !> This subroutine calls update_atmos_model_up.  Clocks are set for runtime statistics.  Chksums
@@ -2156,7 +2156,7 @@ contains
     integer,                  intent(in) :: current_timestep   !< current_timestep
     type(coupler_chksum_type),intent(in) :: coupler_chksum_obj !< points to component types
     type(coupler_clock_type), intent(inout) :: coupler_clocks  !< coupler_clocks
-    
+
     call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_up)
     call update_atmos_model_up(Land_ice_atmos_boundary, Atm)
     call fms_mpp_clock_end(coupler_clocks%update_atmos_model_up)
@@ -2164,8 +2164,8 @@ contains
     if (do_chksum) call atmos_ice_land_chksum('update_atmos_up+', current_timestep, Atm, coupler_chksum_obj%Land, &
                    coupler_chksum_obj%Ice, Land_ice_atmos_boundary, &
                    coupler_chksum_obj%Atmos_ice_boundary, coupler_chksum_obj%Atmos_land_boundary)
-    if (do_debug) call fms_memutils_print_memuse_stats( 'update up')    
-    
+    if (do_debug) call fms_memutils_print_memuse_stats( 'update up')
+
   end subroutine coupler_update_atmos_model_up
 
   !> This subroutine calls flux_atmos_to_ocean and calls flux_ex_arrays_dealloc
@@ -2179,7 +2179,7 @@ contains
 
     call flux_atmos_to_ocean(Time_atmos, Atm, Atmos_ice_boundary, Ice)
     call flux_ex_arrays_dealloc
-    
+
   end subroutine coupler_flux_atmos_to_ocean
 
   subroutine coupler_update_atmos_model_state(Atm, current_timestep, coupler_chksum_obj, coupler_clocks)
@@ -2193,12 +2193,12 @@ contains
     call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_state)
     call update_atmos_model_state( Atm )
     call fms_mpp_clock_end(coupler_clocks%update_atmos_model_state)
-    
+
     if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_state+', current_timestep, Atm,    &
                    coupler_chksum_obj%Land, coupler_chksum_obj%Ice, coupler_chksum_obj%Land_ice_atmos_boundary, &
                    coupler_chksum_obj%Atmos_ice_boundary, coupler_chksum_obj%Atmos_land_boundary)
     if (do_debug)  call fms_memutils_print_memuse_stats( 'update state')
-    
+
   end subroutine coupler_update_atmos_model_state
-  
+
 end module full_coupler_mod
