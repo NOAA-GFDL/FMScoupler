@@ -363,6 +363,7 @@ program coupler_main
 
   integer :: num_atmos_calls, na
   integer :: num_cpld_calls, nc
+  integer :: current_timestep
 
   type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ice_bc_restart => NULL()
   type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ocn_bc_restart => NULL()
@@ -372,7 +373,7 @@ program coupler_main
   character(len=32) :: timestamp
 
   type(coupler_clock_type) :: coupler_clocks
-  class(coupler_chksum_type) :: coupler_chksum_ojb
+  type(coupler_chksum_type) :: coupler_chksum_obj
 
   integer :: outunit
   character(len=80) :: text
@@ -513,15 +514,18 @@ program coupler_main
 
       call fms_mpp_clock_begin(coupler_clocks%atmos_loop)
       do na = 1, num_atmos_calls
-        if (do_chksum) call atmos_ice_land_chksum('top_of_atmos_loop-', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                                                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
 
         Time_atmos = Time_atmos + Time_step_atmos
+        current_timestep = (nc-1)*num_atmos_calls+na
+
+        if (do_chksum) call atmos_ice_land_chksum('top_of_atmos_loop-', current_timestep, Atm, Land, Ice, &
+                                                  Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
 
         if (do_atmos) call coupler_atmos_tracer_driver_gather_data(Atm, coupler_clocks)
 
         if (do_flux) call coupler_sfc_boundary_layer(Atm, Land, Ice, Land_ice_atmos_boundary, &
-            Atmos_ice_boundary,Atmos_land_boundary, Time_atmos, (nc-1)*num_atmos_calls+na, coupler_clocks)
+                                                     Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
+
         
 !$OMP   PARALLEL  &
 !$OMP&    NUM_THREADS(conc_nthreads)  &
@@ -550,7 +554,7 @@ program coupler_main
           !      ---- atmosphere dynamics ----
           if (do_atmos) then
             call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_dynamics)
-            call update_atmos_model_dynamics( Atm, chksum%set_id('id', timestep ))
+            call update_atmos_model_dynamics(Atm)
             call fms_mpp_clock_end(coupler_clocks%update_atmos_model_dynamics)
           endif
           if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_dynamics', (nc-1)*num_atmos_calls+na, &
