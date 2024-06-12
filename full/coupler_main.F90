@@ -345,7 +345,7 @@ program coupler_main
   type  (land_data_type), target :: Land
   type   (ice_data_type), target :: Ice
   ! allow members of ocean type to be aliased (ap)
-  type (ocean_public_type), target  :: Ocean 
+  type (ocean_public_type), target  :: Ocean
   type (ocean_state_type),  pointer :: Ocean_state => NULL()
 
   type(atmos_land_boundary_type), target :: Atmos_land_boundary
@@ -526,7 +526,7 @@ program coupler_main
         if (do_flux) call coupler_sfc_boundary_layer(Atm, Land, Ice, Land_ice_atmos_boundary, &
                                                      Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
 
-        
+
 !$OMP   PARALLEL  &
 !$OMP&    NUM_THREADS(conc_nthreads)  &
 !$OMP&    DEFAULT(NONE)  &

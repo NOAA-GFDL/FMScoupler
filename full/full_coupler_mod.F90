@@ -132,7 +132,7 @@ module full_coupler_mod
 
   public :: coupler_generate_sfc_xgrid
   public :: coupler_atmos_tracer_driver_gather_data, coupler_sfc_boundary_layer
-  
+
   public :: coupler_clock_type, coupler_chksum_type
 
 #include <file_version.fh>
@@ -276,9 +276,9 @@ module full_coupler_mod
     integer :: ocean_model_init
     integer :: flux_exchange_init
   end type coupler_clock_type
-  
+
   type coupler_chksum_type
-    type(atmos_data_type), pointer :: Atm    
+    type(atmos_data_type), pointer :: Atm
     type(land_data_type),  pointer :: Land
     type(ice_data_type),   pointer :: Ice
     type(ocean_public_type), pointer :: Ocean
@@ -291,7 +291,7 @@ module full_coupler_mod
   contains
     procedure :: coupler_chksum_obj_init
   end type coupler_chksum_type
-  
+
   character(len=80) :: text
   character(len=48), parameter :: mod_name = 'coupler_main_mod'
 
@@ -1149,7 +1149,7 @@ contains
     type(land_ice_boundary_type),   target, intent(in) :: Land_ice_boundary
     type(ice_ocean_boundary_type),  target, intent(in) :: Ice_ocean_boundary
     type(ocean_ice_boundary_type),  target, intent(in) :: Ocean_ice_boundary
-    
+
     self%Atm => Atm
     self%Land => Land
     self%Ice => Ice
@@ -1159,11 +1159,11 @@ contains
     self%Atmos_ice_boundary => Atmos_ice_boundary
     self%Land_ice_boundary => Land_ice_boundary
     self%Ice_ocean_boundary => Ice_ocean_boundary
-    self%Ocean_ice_boundary => Ocean_ice_boundary   
+    self%Ocean_ice_boundary => Ocean_ice_boundary
 
   end subroutine coupler_chksum_obj_init
 
-  
+
   subroutine coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
                          Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, &
                          Ice_bc_restart, Time, Time_start, Time_end, Time_restart_current)
@@ -1350,7 +1350,7 @@ contains
   end subroutine coupler_restart
 
 !--------------------------------------------------------------------------
-  
+
 !> \brief Print out checksums for several atm, land and ice variables
   subroutine coupler_chksum(id, timestep, Atm, Land, Ice)
 
@@ -1923,8 +1923,8 @@ contains
   subroutine coupler_atmos_tracer_driver_gather_data(Atm, coupler_clocks)
 
     implicit none
-    
-    type(atmos_data_type), intent(inout)    :: Atm !< Atm 
+
+    type(atmos_data_type), intent(inout)    :: Atm !< Atm
     type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
     call fms_mpp_clock_begin(coupler_clocks%atmos_tracer_driver_gather_data)
     call atmos_tracer_driver_gather_data(Atm%fields, Atm%tr_bot)
@@ -1946,17 +1946,17 @@ contains
     integer, intent(in)            :: current_time_step    !< (nc-1)*num_atmos_cal + na
     type(coupler_chksum_type), intent(in)   :: coupler_chksum_obj
     type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
-                                                                                
+
     call fms_mpp_clock_begin(coupler_clocks%sfc_boundary_layer)
 
     call sfc_boundary_layer( real(dt_atmos), Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary )
     call atmos_ice_land_chksum('sfc+', current_time_step, Atm, Land, Ice, &
         Land_ice_atmos_boundary, coupler_chksum_obj%Atmos_ice_boundary,                   &
         coupler_chksum_obj%Atmos_land_boundary)
-    
+
     call fms_mpp_clock_end(coupler_clocks%sfc_boundary_layer)
-    
+
   end subroutine coupler_sfc_boundary_layer
-  
-  
+
+
 end module full_coupler_mod
