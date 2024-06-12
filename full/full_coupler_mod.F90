@@ -1934,28 +1934,49 @@ contains
   !> \brief This subroutine calls coupler_sfc_boundary_layer.  Chksums are computed
   !! if do_chksum = .True.  Clocks are set for runtime statistics.
   subroutine coupler_sfc_boundary_layer(Atm, Land, Ice, Land_ice_atmos_boundary, &
-                                        Time_atmos, current_time_step, coupler_chksum_obj, coupler_clocks)
+                                        Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
 
     implicit none
     type(atmos_data_type), intent(inout) :: Atm  !< Atm
     type(land_data_type), intent(inout)  :: Land !< Land
     type(ice_data_type), intent(inout)   :: Ice  !< Ice
     type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary !< Land_ice_atmos_boundary
-    type(FmsTime_type), intent(in) :: Time_atmos           !< Atmos time
-    integer, intent(in)            :: current_time_step    !< (nc-1)*num_atmos_cal + na
+    type(FmsTime_type), intent(in) :: Time_atmos       !< Atmos time
+    integer, intent(in)            :: current_timestep !< (nc-1)*num_atmos_cal + na
     type(coupler_chksum_type), intent(in)   :: coupler_chksum_obj
     type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
                                                                                 
     call fms_mpp_clock_begin(coupler_clocks%sfc_boundary_layer)
 
     call sfc_boundary_layer( real(dt_atmos), Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary )
-    if (do_chksum)  call atmos_ice_land_chksum('sfc+', current_time_step, Atm, Land, Ice, &
-        Land_ice_atmos_boundary, coupler_chksum_obj%Atmos_ice_boundary,                   &
+    if (do_chksum)  call atmos_ice_land_chksum('sfc+', current_timestep, Atm, Land, Ice, &
+        Land_ice_atmos_boundary, coupler_chksum_obj%Atmos_ice_boundary,                  &
         coupler_chksum_obj%Atmos_land_boundary)
     
     call fms_mpp_clock_end(coupler_clocks%sfc_boundary_layer)
     
   end subroutine coupler_sfc_boundary_layer
-  
+
+  !> This subroutine calls update_atmos_model_dynamics.  Clocks are set for runtime statistics.  Chksums
+  !! and memory usage are computed if do_chksum and do_debug are .True.
+  subroutine coupler_update_atmos_model_dynamics(Atm, current_timestep, coupler_chksum_obj, coupler_clocks)
+
+    implicit none
+    type(atmos_data_type), intent(inout) :: Atm !< Atm
+    integer, intent(in) :: current_timestep     !< Current timestep 
+    type(coupler_chksum_type), intent(in) :: coupler_chksum_obj !< coupler_chksum_obj pointing to component types
+    type(coupler_clock_type),  intent(in) :: coupler_clocks     !< coupler_clocks
+    
+    call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_dynamics)
+    call update_atmos_model_dynamics(Atm)
+    call fms_mpp_clock_end(coupler_clocks%update_atmos_model_dynamics)
+
+    if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_dynamics', current_timestep, &
+        Atm, coupler_chksum_obj%Land, coupler_chksum_obj%Ice, coupler_chksum_obj%Land_ice_atmos_boundary, &
+        coupler_chksum_obj%Atmos_ice_boundary, coupler_chksum_obj%Atmos_land_boundary)
+
+    if (do_debug)  call fms_memutils_print_memuse_stats( 'update dyn')
+    
+  end subroutine coupler_update_atmos_model_dynamics
   
 end module full_coupler_mod

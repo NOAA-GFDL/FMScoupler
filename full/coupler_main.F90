@@ -535,7 +535,7 @@ program coupler_main
 !$OMP&    SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&    SHARED(Ocean_ice_boundary) &
 !$OMP&    SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&    SHARED(coupler_clocks)
+!$OMP&    SHARED(coupler_clocks, coupler_chksum_obj)
 !$      if (omp_get_thread_num() == 0) then
 !$OMP     PARALLEL &
 !$OMP&      NUM_THREADS(1) &
@@ -545,21 +545,15 @@ program coupler_main
 !$OMP&      SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&      SHARED(Ocean_ice_boundary) &
 !$OMP&      SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&      SHARED(coupler_clocks)
+!$OMP&      SHARED(coupler_clocks, coupler_chksum_obj)
 !$        call omp_set_num_threads(atmos_nthreads)
 !$        dsec=omp_get_wtime()
 
           if (do_concurrent_radiation) call fms_mpp_clock_begin(coupler_clocks%concurrent_atmos)
 
           !      ---- atmosphere dynamics ----
-          if (do_atmos) then
-            call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_dynamics)
-            call update_atmos_model_dynamics(Atm)
-            call fms_mpp_clock_end(coupler_clocks%update_atmos_model_dynamics)
-          endif
-          if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_dynamics', (nc-1)*num_atmos_calls+na, &
-                 Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-          if (do_debug)  call fms_memutils_print_memuse_stats( 'update dyn')
+          if (do_atmos) call coupler_update_atmos_model_dynamics(Atm, current_timestep, &
+                                                                 coupler_chksum_obj, coupler_clocks)
 
           !      ---- SERIAL atmosphere radiation ----
           if (.not.do_concurrent_radiation) then
