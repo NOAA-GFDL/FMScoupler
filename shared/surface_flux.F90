@@ -118,6 +118,8 @@ module surface_flux_mod
 use FMS
 use FMSconstants, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
 use ocean_rough_mod, only: cal_z0_hwrf17, cal_zt_hwrf17, read_ocean_rough_scheme  
+use constants_mod, only: vonkarm
+
 
 implicit none
 private
@@ -174,8 +176,10 @@ logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent f
                                            !! heat.  This option is available for legacy purposes, and is not recommended for
                                            !! new experiments.
 logical :: ncar_ocean_flux_multilevel  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.
-logical :: do_iter_monin_obukhov       = .false. !< A flag controls if iterates monin obukhov to update cd, ch, b_star, u_star 
-                                                 ! Note that so far it is only effective for the rough_scheme_ocean = 'hwrf17'
+logical :: do_iter_monin_obukhov       = .false. !< If .TRUE,  call monin obukhov funtions a couple of times to update 
+                                                 !! rough_mom, rough_heat, rough_moist, cd, ch, b_star, u_star 
+logical :: use_u10_neutral             = .false. !< If .TRUE., use 10m neutral wind rather than the standard 10m wind 
+                                                 !! to obtain rough_mom, rough_heat, rough_moist
 real :: bulk_zu = 10.                      !< Reference height for wind speed (meters)
 real :: bulk_zt = 10.                      !< Reference height for atm temperature (meters)
 real :: bulk_zq = 10.                      !< Reference height for atm humidity (meters)
@@ -200,6 +204,7 @@ namelist /surface_flux_nml/ no_neg_q,                   &
                             raoult_sat_vap,             &
                             do_simple,                  &
                             do_iter_monin_obukhov,      &
+                            use_u10_neutral,            &
                             niter
 
 contains
@@ -381,17 +386,11 @@ subroutine surface_flux_1d (                                           &
   ! - the following fields, cd_m, cd_g, cd_q, u_star, b_star will be overrideen
   ! - only effective when the rough_scheme_ocean is hwrf17
   if (do_iter_monin_obukhov) then
-    do i = 1, niter
-     do j = 1, size(avail)
-      if (avail(j) .and. seawater(j)) then 
-       call iter_monin_obukhov_ocean (                                      &
-          z_atm(j), u_atm(j), v_atm(j), w_atm(j), thv_atm(j), q_atm(j),     &
-          u_surf(j), v_surf(j), thv_surf(j), q_surf0(j),                    &
-          rough_mom(j), rough_heat(j), rough_moist(j),                      &
-          cd_m(j), cd_t(j), cd_q(j), u_star(j), b_star(j) )
-       endif
-     enddo
-    enddo
+   call iter_monin_obukhov_ocean (                                        &
+        z_atm, u_atm, v_atm, w_atm, thv_atm, q_atm,                       &
+        u_surf, v_surf, thv_surf, q_surf0,                                &
+        rough_mom, rough_heat, rough_moist,                               &
+        cd_m, cd_t, cd_q, u_star, b_star, avail, seawater )
   endif
 
   ! override with ocean fluxes from NCAR calculation
@@ -1029,57 +1028,70 @@ subroutine iter_monin_obukhov_ocean (                      &
            z_atm, u_atm, v_atm, w_atm, thv_atm, q_atm,     &
            u_surf, v_surf, thv_surf, q_surf0,              &
            rough_mom, rough_heat, rough_moist,             &
-           cd_m, cd_t, cd_q, u_star, b_star)
+           cd_m, cd_t, cd_q, u_star, b_star, avail, seawater)
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
 !  Right now, it  is only effective when ocean_rough = 'hwrf17', but this
 !  can be expanded if necessarily to incorporate other roughness schemies
 !  contact: Kun.Gao@noaa.gov; Baoqiang.Xiang@noaa.gov
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
 
-  real   , intent(in) ::                                   &
+  real   , intent(in), dimension(:)    ::                  &
            z_atm, u_atm, v_atm, w_atm, thv_atm, q_atm,     &
            u_surf, v_surf, thv_surf, q_surf0
 
-  real   , intent(inout) ::                                &
+  real   , intent(inout), dimension(:) ::                  &
            rough_mom, rough_heat, rough_moist,             &
            cd_m, cd_t, cd_q, u_star, b_star
+  logical, intent(in), dimension(:)    ::                  &
+           avail, seawater
 
   ! local var
-  real                 ::                                  &
+  real, dimension(size(z_atm(:)))      ::                  &
            flux_q, q_star,                                 &
            ref_u, ref_v, u10, del_m, del_h, del_q,         &         
            rough_mom1, rough_heat1, rough_moist1
-  integer i
+  integer i, j
 
-  ! get q_star (not important but required by mo_profile)
-  flux_q = cd_q * w_atm * (q_surf0 - q_atm)
-  q_star = flux_q / u_star
+  do i = 1, niter                              
+   do j = 1, size(avail)
+    if (avail(j) .and. seawater(j)) then
+
+   ! get q_star (not important but required by mo_profile)
+    flux_q(j) = cd_q(j) * w_atm(j) * (q_surf0(j) - q_atm(j))
+    q_star(j) = flux_q(j) / u_star(j)
 
   ! get del_m for diagnosing u10
   ! this step can be skipped if using neutral wind to calculate z0/zt
-  call fms_monin_obukhov_mo_profile ( 10., 2., z_atm,      &
-       rough_mom, rough_heat, rough_moist,                 &
-       u_star, b_star, q_star,                             &
-       del_m, del_h, del_q )
+    call fms_monin_obukhov_mo_profile ( 10., 2., z_atm(j),            &
+         rough_mom(j), rough_heat(j), rough_moist(j),                 &
+         u_star(j), b_star(j), q_star(j),                             &
+         del_m(j), del_h(j), del_q(j) )
 
   ! get 10m wind and then use it to get z0/zt
-  u10 = 0.
-  ref_u = u_surf + (u_atm-u_surf) * del_m
-  ref_v = v_surf + (v_atm-v_surf) * del_m
-  u10 = sqrt(ref_u**2 + ref_v**2)
+    if (use_u10_neutral) then
+     u10(j) = u_star(j)/vonkarm*log(10./rough_mom(j))
+    else
+     u10(j)   = 0.
+     ref_u(j) = u_surf(j) + (u_atm(j)-u_surf(j)) * del_m(j)
+     ref_v(j) = v_surf(j) + (v_atm(j)-v_surf(j)) * del_m(j)
+     u10(j)   = sqrt(ref_u(j)**2 + ref_v(j)**2)
+    endif
 
   ! can expand below for other z0/zt options
-  if (rough_scheme_ocean == 'hwrf17') then
-    call cal_z0_hwrf17(u10, rough_mom1)
-    call cal_zt_hwrf17(u10, rough_heat1)
-    rough_mom = rough_mom1
-    rough_heat = rough_heat1
-    rough_moist = rough_heat
-  endif
+    if (rough_scheme_ocean == 'hwrf17') then
+     call cal_z0_hwrf17(u10(j), rough_mom1(j))
+     call cal_zt_hwrf17(u10(j), rough_heat1(j))
+     rough_mom(j)   = rough_mom1(j)
+     rough_heat(j)  = rough_heat1(j)
+     rough_moist(j) = rough_heat(j)
+    endif
   !
-  call fms_monin_obukhov_mo_drag (thv_atm, thv_surf, z_atm, &
-       rough_mom, rough_heat, rough_moist, w_atm,              &
-       cd_m, cd_t, cd_q, u_star, b_star )
+    call fms_monin_obukhov_mo_drag (thv_atm(j), thv_surf(j), z_atm(j), &
+         rough_mom(j), rough_heat(j), rough_moist(j), w_atm(j),        &
+         cd_m(j), cd_t(j), cd_q(j), u_star(j), b_star(j) )
+   endif
+  enddo
+ enddo
 
 end subroutine iter_monin_obukhov_ocean
 
