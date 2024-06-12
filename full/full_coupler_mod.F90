@@ -96,7 +96,6 @@ module full_coupler_mod
   public :: land_ice_boundary_type, ice_ocean_boundary_type, ocean_ice_boundary_type, ice_ocean_driver_type
 
   public :: fmsconstants_init
-  public :: update_atmos_model_state
   public :: update_land_model_slow
   public :: set_ice_surface_fields
   public :: ice_model_fast_cleanup, unpack_land_ice_boundary
@@ -133,7 +132,7 @@ module full_coupler_mod
   public :: coupler_update_atmos_model_radiation, coupler_flux_down_from_atmos
   public :: coupler_update_land_model_fast, coupler_update_ice_model_fast
   public :: coupler_flux_up_to_atmos, coupler_update_atmos_model_up
-  public :: coupler_flux_atmos_to_ocean
+  public :: coupler_flux_atmos_to_ocean, coupler_update_atmos_model_state
   
   public :: coupler_clock_type, coupler_chksum_type
 
@@ -2182,5 +2181,24 @@ contains
     call flux_ex_arrays_dealloc
     
   end subroutine coupler_flux_atmos_to_ocean
+
+  subroutine coupler_update_atmos_model_state(Atm, current_timestep, coupler_chksum_obj, coupler_clocks)
+
+    implicit none
+    type(atmos_data_type), intent(inout) :: Atm
+    integer,               intent(in)     :: current_timestep
+    type(coupler_chksum_type), intent(in)    :: coupler_chksum_obj
+    type(coupler_clock_type),  intent(inout) :: coupler_clocks
+
+    call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_state)
+    call update_atmos_model_state( Atm )
+    call fms_mpp_clock_end(coupler_clocks%update_atmos_model_state)
+    
+    if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_state+', current_timestep, Atm,    &
+                   coupler_chksum_obj%Land, coupler_chksum_obj%Ice, coupler_chksum_obj%Land_ice_atmos_boundary, &
+                   coupler_chksum_obj%Atmos_ice_boundary, coupler_chksum_obj%Atmos_land_boundary)
+    if (do_debug)  call fms_memutils_print_memuse_stats( 'update state')
+    
+  end subroutine coupler_update_atmos_model_state
   
 end module full_coupler_mod

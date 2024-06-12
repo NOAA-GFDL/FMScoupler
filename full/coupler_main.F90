@@ -513,7 +513,7 @@ program coupler_main
       !> atmos/fast-land/fast-ice integration loop 
 
       call fms_mpp_clock_begin(coupler_clocks%atmos_loop)
-      do na = 1, num_atmos_calls
+      fast_integration_loop : do na = 1, num_atmos_calls
 
         Time_atmos = Time_atmos + Time_step_atmos
         current_timestep = (nc-1)*num_atmos_calls+na
@@ -616,14 +616,9 @@ program coupler_main
 !$      if (do_concurrent_radiation) imb_sec(2) = imb_sec(2) + omp_get_wtime()
 !$      call omp_set_num_threads(atmos_nthreads+(conc_nthreads-1)*radiation_nthreads)
 
-        call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_state)
-        call update_atmos_model_state( Atm )
-        if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_state+', (nc-1)*num_atmos_calls+na, Atm, Land, &
-                  Ice,Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-        if (do_debug)  call fms_memutils_print_memuse_stats( 'update state')
-        call fms_mpp_clock_end(coupler_clocks%update_atmos_model_state)
-
-      enddo ! end of na (fast loop)
+        call coupler_update_atmos_model_state(Atm, current_timestep, coupler_chksum_obj, coupler_clocks )
+        
+      enddo fast_integration_loop ! end of na (fast loop)
 
       call fms_mpp_clock_end(coupler_clocks%atmos_loop)
 
