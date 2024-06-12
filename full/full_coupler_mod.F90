@@ -96,7 +96,7 @@ module full_coupler_mod
   public :: land_ice_boundary_type, ice_ocean_boundary_type, ocean_ice_boundary_type, ice_ocean_driver_type
 
   public :: fmsconstants_init
-  public :: update_atmos_model_radiation, update_atmos_model_state
+  public :: update_atmos_model_state, update_atmos_model_up
   public :: update_land_model_fast, update_land_model_slow
   public :: update_ice_model_fast, set_ice_surface_fields
   public :: ice_model_fast_cleanup, unpack_land_ice_boundary
@@ -132,7 +132,7 @@ module full_coupler_mod
   public :: coupler_generate_sfc_xgrid
   public :: coupler_atmos_tracer_driver_gather_data, coupler_sfc_boundary_layer
   public :: coupler_update_atmos_model_dynamics, coupler_update_atmos_model_down
-  public :: coupler_update_atmos_model_up, coupler_flux_down_from_atmos, 
+  public :: coupler_update_atmos_model_radiation, coupler_flux_down_from_atmos
 
   public :: coupler_clock_type, coupler_chksum_type
 
@@ -247,14 +247,13 @@ module full_coupler_mod
     integer :: atmos_tracer_driver_gather_data
     integer :: sfc_boundary_layer
     integer :: update_atmos_model_dynamics
-    integer :: serial_radiation
     integer :: update_atmos_model_down
     integer :: flux_down_from_atmos
     integer :: update_land_model_fast
     integer :: update_ice_model_fast
     integer :: flux_up_to_atmos
     integer :: update_atmos_model_up
-    integer :: concurrent_radiation
+    integer :: radiation
     integer :: concurrent_atmos
     integer :: update_atmos_model_state
     integer :: update_land_model_slow
@@ -1627,7 +1626,7 @@ contains
       coupler_clocks%sfc_boundary_layer           = fms_mpp_clock_id( '  A-L: sfc_boundary_layer' )
       coupler_clocks%update_atmos_model_dynamics  = fms_mpp_clock_id( '  A-L: update_atmos_model_dynamics')
       if (.not. do_concurrent_radiation) &
-          coupler_clocks%serial_radiation     = fms_mpp_clock_id( '  A-L: serial radiation' )
+          coupler_clocks%radiation            = fms_mpp_clock_id( '  A-L: serial radiation' )
       coupler_clocks%update_atmos_model_down  = fms_mpp_clock_id( '  A-L: update_atmos_model_down' )
       coupler_clocks%flux_down_from_atmos     = fms_mpp_clock_id( '  A-L: flux_down_from_atmos' )
       coupler_clocks%update_land_model_fast   = fms_mpp_clock_id( '  A-L: update_land_model_fast' )
@@ -1635,7 +1634,7 @@ contains
       coupler_clocks%flux_up_to_atmos         = fms_mpp_clock_id( '  A-L: flux_up_to_atmos' )
       coupler_clocks%update_atmos_model_up    = fms_mpp_clock_id( '  A-L: update_atmos_model_up' )
       if (do_concurrent_radiation) then
-        coupler_clocks%concurrent_radiation  = fms_mpp_clock_id( '  A-L: concurrent radiation' )
+        coupler_clocks%radiation             = fms_mpp_clock_id( '  A-L: concurrent radiation' )
         coupler_clocks%concurrent_atmos      = fms_mpp_clock_id( '  A-L: concurrent atmos' )
       endif
       coupler_clocks%update_atmos_model_state  = fms_mpp_clock_id( '  A-L: update_atmos_model_state')
@@ -1980,28 +1979,38 @@ contains
     
   end subroutine coupler_update_atmos_model_dynamics
 
-  !> This subroutine calls update_atmos_model_radiation.  Clocks are set for runtime statistics.  Chksums
-  !! and memory usage are computed if do_chksum and do_debug are .True.
-  subroutine coupler_update_atmos_model_radiation(Atm, Land_ice_atmos_boundary, current_timestep, &
-                                                  coupler_chksum_obj, coupler_clocks)
+  !> This subroutine calls update_atmos_model_radiation.  Clocks are set for runtime statistics.
+  !! Chksums are computed if do_chksum is .True. and do_concurrent_radiation is .False..  Memory
+  !! usage is computed if do_debug is .True.
+  subroutine coupler_update_atmos_model_radiation(Atm, Land_ice_atmos_boundary, coupler_clocks, &
+                                                  current_timestep, coupler_chksum_obj)
 
     implicit none
 
     type(atmos_data_type), intent(inout) :: Atm
     type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary
-    integer,                   intent(in) :: current_timestep   !< Current timestep 
-    type(coupler_chksum_type), intent(in) :: coupler_chksum_obj !< coupler_chksum_obj pointing to component types
-    type(coupler_clock_type),  intent(inout) :: coupler_clocks  !< coupler_clocks
+    type(coupler_clock_type),         intent(inout) :: coupler_clocks     !< coupler_clocks
+    integer,                   optional, intent(in) :: current_timestep   !< Current timestep 
+    type(coupler_chksum_type), optional, intent(in) :: coupler_chksum_obj !< points to component types
 
-    call fms_mpp_clock_begin(coupler_clocks%serial_radiation)
+    character(128) :: memuse_stats_id = 'update serial rad'
+    
+    call fms_mpp_clock_begin(coupler_clocks%radiation)
     call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
-    call fms_mpp_clock_end(coupler_clocks%serial_radiation)
+    call fms_mpp_clock_end(coupler_clocks%radiation)
 
-    if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(ser)', current_timestep, &
-                   Atm, coupler_chksum_obj%Land, coupler_chksum_obj%Ice, Land_ice_atmos_boundary,    &
-                   coupler_chksum_obj%Atmos_ice_boundary, coupler_chksum_obj%Atmos_land_boundary)
-
-    if (do_debug)  call fms_memutils_print_memuse_stats( 'update serial rad')
+    if(do_chksum) then
+      !> cannot put mpp_chksum for concurrent_radiation as it requires the ability to have two different OpenMP threads
+      !! inside of MPI at the same time which is not currently allowed
+      if(.not.do_concurrent_radiation) call atmos_ice_land_chksum('update_atmos_model_radiation(ser)',current_timestep,&
+                                       Atm, coupler_chksum_obj%Land, coupler_chksum_obj%Ice, Land_ice_atmos_boundary,  &
+                                       coupler_chksum_obj%Atmos_ice_boundary, coupler_chksum_obj%Atmos_land_boundary)
+    end if
+    
+    if (do_debug) then
+      if(do_concurrent_radiation) memuse_stats_id = 'update concurrent rad'
+      call fms_memutils_print_memuse_stats(trim(memuse_stats_id))
+    end if
 
   end subroutine coupler_update_atmos_model_radiation
 
@@ -2037,8 +2046,10 @@ contains
     implicit none
     type(atmos_data_type), intent(inout) :: Atm  !< Atm
     type(land_data_type),  intent(inout) :: Land !< Land
+    type(ice_data_type),   intent(inout) :: Ice
     type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary !< Land_ice_atmos_boundary
-    type(atmos_land_boundary_type),     intent(inout) :: Atmos_ice_boundary      !< Atmos_ice_boundary
+    type(atmos_land_boundary_type),     intent(inout) :: Atmos_land_boundary     !< Atmos_land_boundary
+    type(atmos_ice_boundary_type),      intent(inout) :: Atmos_ice_boundary      !< Atmos_ice_boundary
     type(FmsTime_type), intent(in) :: Time_atmos       !<Time_atmos FmsTime_type containing time in seconds
     integer,            intent(in) :: current_timestep !< current_timestep
     type(coupler_clock_type), intent(inout) :: coupler_clocks !<coupler_clocks

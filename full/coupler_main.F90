@@ -534,7 +534,7 @@ program coupler_main
 !$OMP&    SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&    SHARED(Ocean_ice_boundary) &
 !$OMP&    SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&    SHARED(coupler_clocks, coupler_chksum_obj)
+!$OMP&    SHARED(coupler_clocks, coupler_chksum_obj, current_timestep)
 !$      if (omp_get_thread_num() == 0) then
 !$OMP     PARALLEL &
 !$OMP&      NUM_THREADS(1) &
@@ -544,7 +544,7 @@ program coupler_main
 !$OMP&      SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&      SHARED(Ocean_ice_boundary) &
 !$OMP&      SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
-!$OMP&      SHARED(coupler_clocks, coupler_chksum_obj)
+!$OMP&      SHARED(coupler_clocks, coupler_chksum_obj, current_timestep)
 !$        call omp_set_num_threads(atmos_nthreads)
 !$        dsec=omp_get_wtime()
 
@@ -556,7 +556,7 @@ program coupler_main
 
           !> SERIAL atmosphere radiation
           if (.not.do_concurrent_radiation) call coupler_update_atmos_model_radiation(Atm, Land_ice_atmos_boundary, &
-                                                 current_timestep, coupler_chksum_obj, coupler_clocks)
+                                            coupler_clocks, current_timestep, coupler_chksum_obj)
 
           !> atmosphere down
           if (do_atmos) call coupler_update_atmos_model_down(Atm, Land_ice_atmos_boundary, &
@@ -629,16 +629,8 @@ program coupler_main
 !$OMP&      SHARED(coupler_clocks)
 !$          call omp_set_num_threads(radiation_nthreads)
 !$          dsec=omp_get_wtime()
-
-            call fms_mpp_clock_begin(coupler_clocks%concurrent_radiation)
-            call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
-            call fms_mpp_clock_end(coupler_clocks%concurrent_radiation)
+            call coupler_update_atmos_model_radiation(Atm, Land_ice_atmos_boundary, coupler_clocks)
 !$          omp_sec(2) = omp_sec(2) + (omp_get_wtime() - dsec)
-!---CANNOT PUT AN MPP_CHKSUM HERE AS IT REQUIRES THE ABILITY TO HAVE TWO DIFFERENT OPENMP THREADS
-!---INSIDE OF MPI AT THE SAME TIME WHICH IS NOT CURRENTLY ALLOWED
-!           if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(conc)', (nc-1)*num_atmos_calls+na, &
-!                   Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-            if (do_debug)  call fms_memutils_print_memuse_stats( 'update concurrent rad')
 !$OMP END PARALLEL
           endif
 !$      endif
