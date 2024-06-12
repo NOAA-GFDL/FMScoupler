@@ -570,12 +570,12 @@ program coupler_main
           !--------------------------------------------------------------
 
           !> land model 
-          if (do_land .AND. land%pe) call update_land_model_fast(Land, Atmos_land_boundary, current_timestep,&
-                                                                 coupler_chksum_obj, coupler_clocks)
+          if (do_land .AND. land%pe) call coupler_update_land_model_fast(Land, Atmos_land_boundary, Atm%pelist, &
+                                     current_timestep, coupler_chksum_obj, coupler_clocks)
 
           !> ice model
-          if (do_ice .AND. Ice%fast_ice_pe) call update_ice_model_fast(Ice, Atmos_ice_boundary, current_timestep,&
-                                                                       coupler_chksum_obj, coupler_clocks)
+          if (do_ice .AND. Ice%fast_ice_pe) call coupler_update_ice_model_fast(Ice, Atmos_ice_boundary, Atm%pelist, &
+                                            current_timestep, coupler_chksum_obj, coupler_clocks)
 
           !--------------------------------------------------------------
 

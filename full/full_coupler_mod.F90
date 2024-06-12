@@ -2067,11 +2067,13 @@ contains
 
   !> This subroutine calls update_land_model_fast.  Clocks are set for runtime statistics.  Chksums
   !! and memory usage are computed if do_chksum and do_debug are .True.
-  subroutine coupler_update_land_model_fast(Land, Atmos_land_boundary, current_timestep, coupler_chksum_obj, coupler_clocks)
+  subroutine coupler_update_land_model_fast(Land, Atmos_land_boundary, atm_pelist, current_timestep, &
+                                            coupler_chksum_obj, coupler_clocks)
 
     implicit none
-    type(land_data_type),      intent(inout) :: Land                !< Land
-    type(atmos_land_boundary), intent(inout) :: Atmos_land_boundary !< Atmos_land_boundary
+    type(land_data_type),           intent(inout) :: Land !< Land
+    type(atmos_land_boundary_type), intent(inout) :: Atmos_land_boundary !< Atmos_land_boundary
+    integer, dimension(:), intent(in) :: atm_pelist !< Atm%pelist to reset the pelist to Atm%pelist
     integer,                   intent(in) :: current_timestep       !< current timestep
     type(coupler_chksum_type), intent(in) :: coupler_chksum_obj     !< points to component types
     type(coupler_clock_type),  intent(inout) :: coupler_clocks      !< coupler_clocks
@@ -2081,7 +2083,7 @@ contains
     
     call update_land_model_fast( Atmos_land_boundary, Land )
 
-    if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Atm%pelist)
+    if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(atm_pelist)
     call fms_mpp_clock_end(coupler_clocks%update_land_model_fast)
     
     if (do_chksum) call atmos_ice_land_chksum('update_land_fast+', current_timestep, coupler_chksum_obj%Atm, Land, &
@@ -2093,11 +2095,13 @@ contains
 
   !> This subroutine calls update_ice_model_fast.  Clocks are set for runtime statistics.  Chksums
   !! and memory usage are computed if do_chksum and do_debug are .True.
-  subroutine coupler_update_ice_model_fast(Ice, Atmos_ice_boundary, current_timestep, coupler_chksum_obj, coupler_clocks)
+  subroutine coupler_update_ice_model_fast(Ice, Atmos_ice_boundary, atm_pelist, current_timestep, &
+                                           coupler_chksum_obj, coupler_clocks)
 
     implicit none
-    type(ice_data_type),      intent(inout) :: Ice                !< Ice
-    type(Atmos_ice_boundary), intent(inout) :: Atmos_ice_boundary !< Atmos_ice_boundary
+    type(ice_data_type),           intent(inout) :: Ice                !< Ice
+    type(Atmos_ice_boundary_type), intent(inout) :: Atmos_ice_boundary !< Atmos_ice_boundary
+    integer, dimension(:), intent(in) :: atm_pelist !< Atm%pelist to reset the pelist to Atm%pelist
     integer,                     intent(in) :: current_timestep   !< current_timestep
     type(coupler_chksum_type),   intent(in) :: coupler_chksum_obj !< points to component types
     type(coupler_clock_type), intent(inout) :: coupler_clocks     !< coupler_clocks
@@ -2107,7 +2111,7 @@ contains
 
     call update_ice_model_fast( Atmos_ice_boundary, Ice )
     
-    if (ice_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Atm%pelist)
+    if (ice_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(atm_pelist)
     call fms_mpp_clock_end(coupler_clocks%update_ice_model_fast)
 
     if (do_chksum) call atmos_ice_land_chksum('update_ice_fast+', current_timestep, coupler_chksum_obj%Atm,&
@@ -2148,8 +2152,8 @@ contains
                                            coupler_chksum_obj, coupler_clocks)
 
     implicit none
-    type(atmos_data_type),         intent(inout) :: Atm                     !< Atm
-    type(land_ice_atmos_boundary), intent(inout) :: Land_ice_atmos_boundary  !< Land_ice_atmos_boundary
+    type(atmos_data_type),              intent(inout) :: Atm                      !< Atm
+    type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary  !< Land_ice_atmos_boundary
     integer,                  intent(in) :: current_timestep   !< current_timestep
     type(coupler_chksum_type),intent(in) :: coupler_chksum_obj !< points to component types
     type(coupler_clock_type), intent(inout) :: coupler_clocks  !< coupler_clocks
