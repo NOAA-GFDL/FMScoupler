@@ -1113,6 +1113,7 @@ contains
                                                     Atmos_land_boundary,Atmos_ice_boundary, Land_ice_boundary, &
                                                     Ice_ocean_boundary, Ocean_ice_boundary)
 
+    do_endpoint_chksum = .False.
     if ( do_endpoint_chksum ) then
       call coupler_atmos_ice_land_ocean_chksum('coupler_init+', 0, Atm, Land, Ice, &
           Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary, Ocean, Ice_ocean_boundary)
@@ -1949,7 +1950,7 @@ contains
     call fms_mpp_clock_begin(coupler_clocks%sfc_boundary_layer)
 
     call sfc_boundary_layer( real(dt_atmos), Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary )
-    if (do_chksum)  call atmos_ice_land_chksum('sfc+', current_time_step, Atm, Land, Ice, &
+    call atmos_ice_land_chksum('sfc+', current_time_step, Atm, Land, Ice, &
         Land_ice_atmos_boundary, coupler_chksum_obj%Atmos_ice_boundary,                   &
         coupler_chksum_obj%Atmos_land_boundary)
     
