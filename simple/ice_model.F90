@@ -1110,7 +1110,7 @@ print *, 'pe,count(ice,all,ocean)=',fms_mpp_pe(),count(Ice%ice_mask),count(Ice%m
 ! this perturbation may be useful in accessing model sensitivities
 
   if ( abs(sst_anom) > 0.0001 ) then
-    Ice%t_surf(:,:) = Ice%t_surf(:,:) + fms_amip_interp_sst_anom
+    Ice%t_surf(:,:) = Ice%t_surf(:,:) + sst_anom
   endif
 
 !----------------------------------------------------------
