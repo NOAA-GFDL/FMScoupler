@@ -509,6 +509,7 @@ program coupler_main
       call send_ice_mask_sic(Time)
 
       !-----------------------------------------------------------------------
+
       !> atmos/fast-land/fast-ice integration loop 
 
       call fms_mpp_clock_begin(coupler_clocks%atmos_loop)
@@ -566,51 +567,26 @@ program coupler_main
           call coupler_flux_down_from_atmos(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, &
                                             Atmos_ice_boundary, Time_atmos, current_timestep, coupler_clocks)
 
-          !      --------------------------------------------------------------
-          !      ---- land model ----
-          call fms_mpp_clock_begin(coupler_clocks%update_land_model_fast)
-          if (do_land .AND. land%pe) then
-            if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Land%pelist)
-            call update_land_model_fast( Atmos_land_boundary, Land )
-          endif
-          if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Atm%pelist)
-          call fms_mpp_clock_end(coupler_clocks%update_land_model_fast)
-          if (do_chksum) call atmos_ice_land_chksum('update_land_fast+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-          if (do_debug)  call fms_memutils_print_memuse_stats( 'update land')
+          !--------------------------------------------------------------
 
-          !      ---- ice model ----
-          call fms_mpp_clock_begin(coupler_clocks%update_ice_model_fast)
-          if (do_ice .AND. Ice%fast_ice_pe) then
-            if (ice_npes .NE. atmos_npes)call fms_mpp_set_current_pelist(Ice%fast_pelist)
-            call update_ice_model_fast( Atmos_ice_boundary, Ice )
-          endif
-          if (ice_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Atm%pelist)
-          call fms_mpp_clock_end(coupler_clocks%update_ice_model_fast)
-          if (do_chksum) call atmos_ice_land_chksum('update_ice_fast+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-          if (do_debug)  call fms_memutils_print_memuse_stats( 'update ice')
+          !> land model 
+          if (do_land .AND. land%pe) call update_land_model_fast(Land, Atmos_land_boundary, current_timestep,&
+                                                                 coupler_chksum_obj, coupler_clocks)
 
-          !      --------------------------------------------------------------
-          !      ---- atmosphere up ----
-          call fms_mpp_clock_begin(coupler_clocks%flux_up_to_atmos)
-          call flux_up_to_atmos( Time_atmos, Land, Ice, Land_ice_atmos_boundary, &
-                                 Atmos_land_boundary, Atmos_ice_boundary )
-          call fms_mpp_clock_end(coupler_clocks%flux_up_to_atmos)
-          if (do_chksum) call atmos_ice_land_chksum('flux_up2atmos+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
+          !> ice model
+          if (do_ice .AND. Ice%fast_ice_pe) call update_ice_model_fast(Ice, Atmos_ice_boundary, current_timestep,&
+                                                                       coupler_chksum_obj, coupler_clocks)
 
-          call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_up)
-          if (do_atmos) &
-            call update_atmos_model_up( Land_ice_atmos_boundary, Atm)
-          call fms_mpp_clock_end(coupler_clocks%update_atmos_model_up)
-          if (do_chksum) call atmos_ice_land_chksum('update_atmos_up+', (nc-1)*num_atmos_calls+na, Atm, Land, Ice, &
-                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-          if (do_debug)  call fms_memutils_print_memuse_stats( 'update up')
+          !--------------------------------------------------------------
 
-          call flux_atmos_to_ocean(Time_atmos, Atm, Atmos_ice_boundary, Ice)
+          !> atmosphere up 
+          call coupler_flux_up_to_atmos(Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary,&
+                                        Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
+          
+          if (do_atmos) call coupler_update_atmos_model_up(Atm, Land_ice_atmos_boundary, current_timestep, &
+                                                           coupler_chksum_obj, coupler_clocks)
 
-          call flux_ex_arrays_dealloc
+          call coupler_flux_atmos_to_ocean(Atm, Atmos_ice_boundary, Ice, Time_atmos)
 
           !--------------
           if (do_concurrent_radiation) call fms_mpp_clock_end(coupler_clocks%concurrent_atmos)
