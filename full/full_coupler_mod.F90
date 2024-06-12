@@ -331,8 +331,8 @@ contains
     integer, allocatable, dimension(:,:), intent(inout) :: ensemble_pelist
     integer, allocatable, dimension(:),   intent(inout) :: slow_ice_ocean_pelist
 
-    type(coupler_clock_type) :: coupler_clocks
-    type(coupler_chksum_type) :: coupler_chksum_obj
+    type(coupler_clock_type), intent(inout)  :: coupler_clocks
+    type(coupler_chksum_type), intent(inout) :: coupler_chksum_obj
 
     type(FMSTime_type), intent(inout) :: Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean
     type(FMSTime_type), intent(inout) :: Time, Time_start, Time_end, Time_restart, Time_restart_current
