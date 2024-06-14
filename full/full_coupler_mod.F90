@@ -297,7 +297,7 @@ module full_coupler_mod
   !! The members of this type point to the model components
   type coupler_chksum_type
     private
-    type(coupler_components_type) :: components
+    type(coupler_components_type), pointer :: components
   contains
     procedure, public :: initialize_coupler_chksum_obj !< associates the pointers above to model components
     procedure, public :: get_components_obj !< subroutine to retrieve the requested component of an object of this type
@@ -1252,9 +1252,9 @@ contains
 
     implicit none
     class(coupler_chksum_type), intent(inout) :: this
-    type(coupler_components_type), intent(in) :: components_obj
+    type(coupler_components_type), target, intent(in) :: components_obj
 
-    this%components = components_obj
+    this%components => components_obj
 
   end subroutine initialize_coupler_chksum_obj
 
