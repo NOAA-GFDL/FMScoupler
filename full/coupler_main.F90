@@ -340,7 +340,7 @@ program coupler_main
   implicit none
 
   !> model defined types.
-  !! Targets to pointers in coupler_chksum_obj
+  !! Targets to pointers in coupler_components_obj
   type (atmos_data_type), target :: Atm
   type  (land_data_type), target :: Land
   type   (ice_data_type), target :: Ice
@@ -372,8 +372,9 @@ program coupler_main
   type(FmsTime_type) :: Time_restart_current
   character(len=32) :: timestamp
 
-  type(coupler_clock_type) :: coupler_clocks
-  type(coupler_chksum_type) :: coupler_chksum_obj
+  type(coupler_clock_type)      :: coupler_clocks
+  type(coupler_components_type) :: coupler_components_obj
+  type(coupler_chksum_type)     :: coupler_chksum_obj
 
   integer :: outunit
   character(len=80) :: text
@@ -429,10 +430,11 @@ program coupler_main
   call coupler_init(Atm, Ocean, Land, Ice, Ocean_state, Atmos_land_boundary, Atmos_ice_boundary, &
     Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary,          &
     Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, &
-    conc_nthreads, coupler_clocks, coupler_chksum_obj, Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, &
-    num_cpld_calls, num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
+    conc_nthreads, coupler_clocks, coupler_components_obj, coupler_chksum_obj, &
+    Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, num_cpld_calls,   &
+    num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
 
-  if (do_chksum) call coupler_chksum('coupler_init+', 0, coupler_chksum_obj)
+  if (do_chksum) call coupler_chksum_obj%coupler_chksum('coupler_init+', 0)
 
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%initialization) !end initialization
@@ -448,8 +450,8 @@ program coupler_main
   do nc = 1, num_cpld_calls
 
     if (do_chksum) then
-      call coupler_chksum('top_of_coupled_loop+', nc, coupler_chksum_obj)
-      call coupler_atmos_ice_land_ocean_chksum('MAIN_LOOP-', nc, coupler_chksum_obj)
+      call coupler_chksum_obj%coupler_chksum('top_of_coupled_loop+', nc)
+      call coupler_chksum_obj%coupler_atmos_ice_land_ocean_chksum('MAIN_LOOP-', nc)
     end if
 
     ! Calls to flux_ocean_to_ice and flux_ice_to_ocean are all PE communication
@@ -470,8 +472,8 @@ program coupler_main
     end if
 
     if (do_chksum) then
-      call coupler_chksum('flux_ocn2ice+', nc, coupler_chksum_obj)
-      call coupler_atmos_ice_land_ocean_chksum('flux_ocn2ice+', nc, coupler_chksum_obj)
+      call coupler_chksum_obj%coupler_chksum('flux_ocn2ice+', nc)
+      call coupler_chksum_obj%coupler_atmos_ice_land_ocean_chksum('flux_ocn2ice+', nc)
     end if
 
     ! needs to sit here rather than at the end of the coupler loop.
@@ -497,7 +499,7 @@ program coupler_main
 
       if (.NOT.(do_ice.and.Ice%pe) .OR. (ice_npes.NE.atmos_npes)) call fms_mpp_set_current_pelist(Atm%pelist)
 
-      if(do_chksum) call atmos_ice_land_chksum('set_ice_surface+', nc, coupler_chksum_obj)
+      if(do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('set_ice_surface+', nc)
 
       call fms_mpp_clock_begin(coupler_clocks%atm)
 
@@ -513,7 +515,7 @@ program coupler_main
         Time_atmos = Time_atmos + Time_step_atmos
         current_timestep = (nc-1)*num_atmos_calls+na
 
-        if (do_chksum) call atmos_ice_land_chksum('top_of_atmos_loop-', current_timestep, coupler_chksum_obj)
+        if (do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('top_of_atmos_loop-', current_timestep)
 
         if (do_atmos) call coupler_atmos_tracer_driver_gather_data(Atm, coupler_clocks)
 
@@ -551,8 +553,7 @@ program coupler_main
             call update_atmos_model_dynamics(Atm)
             call fms_mpp_clock_end(coupler_clocks%update_atmos_model_dynamics)
           endif
-          if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_dynamics', (nc-1)*num_atmos_calls+na, &
-                                                    coupler_chksum_obj)
+          if (do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('update_atmos_model_dynamics', current_timestep)
           if (do_debug)  call fms_memutils_print_memuse_stats( 'update dyn')
 
           !      ---- SERIAL atmosphere radiation ----
@@ -561,8 +562,8 @@ program coupler_main
             call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
             call fms_mpp_clock_end(coupler_clocks%serial_radiation)
           endif
-          if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(ser)', (nc-1)*num_atmos_calls+na, &
-                                                    coupler_chksum_obj)
+          if (do_chksum) &
+              call coupler_chksum_obj%atmos_ice_land_chksum('update_atmos_model_radiation(ser)', current_timestep)
           if (do_debug)  call fms_memutils_print_memuse_stats( 'update serial rad')
 
           !      ---- atmosphere down ----
@@ -571,8 +572,7 @@ program coupler_main
             call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
             call fms_mpp_clock_end(coupler_clocks%update_atmos_model_down)
           endif
-          if (do_chksum) call atmos_ice_land_chksum('update_atmos_down+', (nc-1)*num_atmos_calls+na, &
-                                                    coupler_chksum_obj)
+          if (do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('update_atmos_down+', current_timestep)
           if (do_debug)  call fms_memutils_print_memuse_stats( 'update down')
 
           call fms_mpp_clock_begin(coupler_clocks%flux_down_from_atmos)
@@ -581,8 +581,7 @@ program coupler_main
                                      Atmos_land_boundary, &
                                      Atmos_ice_boundary )
           call fms_mpp_clock_end(coupler_clocks%flux_down_from_atmos)
-          if (do_chksum) call atmos_ice_land_chksum('flux_down_from_atmos+', (nc-1)*num_atmos_calls+na,&
-                                                    coupler_chksum_obj)
+          if (do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('flux_down_from_atmos+', current_timestep)
 
           !      --------------------------------------------------------------
           !      ---- land model ----
@@ -593,8 +592,7 @@ program coupler_main
           endif
           if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Atm%pelist)
           call fms_mpp_clock_end(coupler_clocks%update_land_model_fast)
-          if (do_chksum) call atmos_ice_land_chksum('update_land_fast+', (nc-1)*num_atmos_calls+na, &
-                                                    coupler_chksum_obj)
+          if (do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('update_land_fast+', current_timestep)
           if (do_debug)  call fms_memutils_print_memuse_stats( 'update land')
 
           !      ---- ice model ----
@@ -605,8 +603,7 @@ program coupler_main
           endif
           if (ice_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Atm%pelist)
           call fms_mpp_clock_end(coupler_clocks%update_ice_model_fast)
-          if (do_chksum) call atmos_ice_land_chksum('update_ice_fast+', (nc-1)*num_atmos_calls+na,&
-                                                    coupler_chksum_obj)
+          if (do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('update_ice_fast+', current_timestep)
           if (do_debug)  call fms_memutils_print_memuse_stats( 'update ice')
 
           !      --------------------------------------------------------------
@@ -615,14 +612,13 @@ program coupler_main
           call flux_up_to_atmos( Time_atmos, Land, Ice, Land_ice_atmos_boundary, &
                                  Atmos_land_boundary, Atmos_ice_boundary )
           call fms_mpp_clock_end(coupler_clocks%flux_up_to_atmos)
-          if (do_chksum) call atmos_ice_land_chksum('flux_up2atmos+', (nc-1)*num_atmos_calls+na,coupler_chksum_obj)
+          if (do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('flux_up2atmos+', current_timestep)
 
           call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_up)
           if (do_atmos) &
             call update_atmos_model_up( Land_ice_atmos_boundary, Atm)
           call fms_mpp_clock_end(coupler_clocks%update_atmos_model_up)
-          if (do_chksum) call atmos_ice_land_chksum('update_atmos_up+', (nc-1)*num_atmos_calls+na, &
-                                                    coupler_chksum_obj)
+          if (do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('update_atmos_up+', current_timestep)
           if (do_debug)  call fms_memutils_print_memuse_stats( 'update up')
 
           call flux_atmos_to_ocean(Time_atmos, Atm, Atmos_ice_boundary, Ice)
@@ -667,8 +663,7 @@ program coupler_main
 
         call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_state)
         call update_atmos_model_state( Atm )
-        if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_state+', (nc-1)*num_atmos_calls+na,&
-                                                  coupler_chksum_obj)
+        if (do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('update_atmos_model_state+', current_timestep)
         if (do_debug)  call fms_memutils_print_memuse_stats( 'update state')
         call fms_mpp_clock_end(coupler_clocks%update_atmos_model_state)
 
@@ -685,15 +680,15 @@ program coupler_main
       if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Atm%pelist)
       !-----------------------------------------------------------------------
       call fms_mpp_clock_end(coupler_clocks%update_land_model_slow)
-      if (do_chksum) call atmos_ice_land_chksum('update_land_slow+', nc, coupler_chksum_obj)
-
+      if (do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('update_land_slow+', nc)
+      
       !
       !     need flux call to put runoff and p_surf on ice grid
       !
       call fms_mpp_clock_begin(coupler_clocks%flux_land_to_ice)
       call flux_land_to_ice( Time, Land, Ice, Land_ice_boundary )
       call fms_mpp_clock_end(coupler_clocks%flux_land_to_ice)
-      if (do_chksum) call atmos_ice_land_chksum('fluxlnd2ice+', nc, coupler_chksum_obj)
+      if (do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('fluxlnd2ice+', nc)
 
       Atmos_ice_boundary%p = 0.0 ! call flux_atmos_to_ice_slow ?
       Time = Time_atmos
@@ -734,7 +729,7 @@ program coupler_main
         call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_slow)
       endif
 
-      if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, coupler_chksum_obj)
+      if (do_chksum) call coupler_chksum_obj%slow_ice_chksum('update_ice_slow+', nc)
      endif  ! End of Ice%pe block
 
      if(Atm%pe) then
@@ -771,7 +766,7 @@ program coupler_main
                                  Time_ocean, Time_step_cpld )
       endif
 
-      if (do_chksum) call ocean_chksum('update_ocean_model+', nc, coupler_chksum_obj)
+      if (do_chksum) call coupler_chksum_obj%ocean_chksum('update_ocean_model+', nc)
       ! Get stocks from "Ice_ocean_boundary" and add them to Ocean stocks.
       ! This call is just for record keeping of stocks transfer and
       ! does not modify either Ocean or Ice_ocean_boundary
@@ -828,7 +823,7 @@ program coupler_main
   call fms_mpp_clock_end(coupler_clocks%main)
   call fms_mpp_clock_begin(coupler_clocks%termination)
 
-  if (do_chksum) call coupler_chksum('coupler_end-', nc, coupler_chksum_obj)
+  if (do_chksum) call coupler_chksum_obj%coupler_chksum('coupler_end-', nc)
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
       Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
       Time, Time_start, Time_end, Time_restart_current, coupler_chksum_obj)
