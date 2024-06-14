@@ -120,9 +120,6 @@ module full_coupler_mod
   public :: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
 
   public :: coupler_init, coupler_end, coupler_restart
-  public :: coupler_chksum, atmos_ice_land_chksum, slow_ice_chksum, ocean_chksum
-
-  public :: coupler_atmos_ice_land_ocean_chksum
 
   public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
   public :: coupler_flux_ocean_to_ice, coupler_flux_ice_to_ocean
@@ -133,7 +130,7 @@ module full_coupler_mod
   public :: coupler_generate_sfc_xgrid
   public :: coupler_atmos_tracer_driver_gather_data, coupler_sfc_boundary_layer
 
-  public :: coupler_clock_type, coupler_chksum_type
+  public :: coupler_clock_type, coupler_components_type, coupler_chksum_type
 
 #include <file_version.fh>
 
@@ -303,11 +300,11 @@ module full_coupler_mod
   contains
     procedure, public :: coupler_chksum_obj_init !< associates the pointers above to model components
     procedure, public :: get_components_obj !< subroutine to retrieve the requested component of an object of this type
-    procedure, public :: coupler_atmos_ice_land_ocean_chksum !< subroutine to compute chksums for atmos - ocean
-    procedure, public :: atmos_ice_land_chksum !< subroutine to compute chksums for atmos_ice_land
-    procedure, public :: slow_ice_chksum       !< subroutine to compute chskums for slow_ice
-    procedure, public :: ocean_chksum          !< subroutine to compute chksums for ocean
-    procedure, public :: coupler_chksum        !< subroutine to compute chksums for select fields
+    procedure, public :: get_atmos_ice_land_ocean_chksums !< subroutine to compute chksums for atmos - ocean
+    procedure, public :: get_atmos_ice_land_chksums !< subroutine to compute chksums for atmos_ice_land
+    procedure, public :: get_slow_ice_chksums       !< subroutine to compute chskums for slow_ice
+    procedure, public :: get_ocean_chksums          !< subroutine to compute chksums for ocean
+    procedure, public :: get_coupler_chksums        !< subroutine to compute chksums for select fields
   end type coupler_chksum_type
 
   character(len=80) :: text
@@ -1135,10 +1132,10 @@ contains
     call coupler_chksum_obj%coupler_chksum_obj_init(coupler_components_obj)
 
     if ( do_endpoint_chksum ) then
-      call coupler_chksum_obj%coupler_atmos_ice_land_ocean_chksum('coupler_init+', 0)
+      call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('coupler_init+', 0)
       if (Ice%slow_ice_PE) then
         call fms_mpp_set_current_pelist(Ice%slow_pelist)
-        call coupler_chksum_obj%slow_ice_chksum('coupler_init+', 0)
+        call coupler_chksum_obj%get_slow_ice_chksums('coupler_init+', 0)
       end if
     end if
 
@@ -1159,7 +1156,7 @@ contains
                                          Atmos_ice_boundary, Land_ice_boundary, Ice_ocean_boundary, Ocean_ice_boundary)
 
     implicit none
-    class(coupler_chksum_type), intent(inout) :: this !< self
+    class(coupler_components_type), intent(inout) :: this !< self
     type(atmos_data_type), target, intent(in) :: Atm  !< Atm
     type(land_data_type),  target, intent(in) :: Land !< Land
     type(ice_data_type),   target, intent(in) :: Ice  !< Ice
@@ -1191,7 +1188,7 @@ contains
 
     implicit none
     class(coupler_components_type), intent(in) :: this !< the coupler_components_type object 
-    class(*), intent(iut) :: retrieve_component  !< requested component to be retrieve.
+    class(*), intent(out) :: retrieve_component  !< requested component to be retrieve.
                              !! retrieve_component can be of type atmos_data_type, land_data_type, ice_data_type,
                              !! ocean_public_type, land_ice_atmos_boundary_type, atmos_land_boundary_type,
                              !! atmos_ice_boundary_type, land_ice_boundary_type, ice_ocean_boundary_type,
@@ -1219,49 +1216,9 @@ contains
   subroutine coupler_chksum_obj_init(this, components_obj)
 
     implicit none
-    type(coupler_chksum_type), intent(inout) :: this
+    class(coupler_chksum_type), intent(inout) :: this
     type(coupler_components_type), intent(in) :: components_obj
 
-    type(atmos_data_type) :: Atm  !< Atm
-    type(land_data_type)  :: Land !< Land
-    type(ice_data_type)   :: Ice  !< Ice
-    type(ocean_public_tpe) :: Ocean !< Ocean
-    type(land_ice_atmos_boundary_type) :: Land_ice_atmos_boundary !< Land_ice_atmos_boundary
-    type(atmos_land_boundary_type) :: Atmos_land_boundary !< Atmos_land_boundary
-    type(atmos_ice_boundary_type)  :: Atmos_ice_boundary  !< Atmos_ice_boundary
-    type(land_ice_boundary_type)   :: Land_ice_boundary   !< Land_ice_boundary
-    type(ice_ocean_boundary_type)  :: Ice_ocean_boundary  !< Ice_ocean_boundary
-    type(ocean_ice_boundary_type)  :: Ocean_ice_boundary  !< Ocean_ice_boundary
-
-    integer :: not_associated_count=0 !< number of components that not are not associated
-
-    !> get model components in components_obj
-    call components_obj.get_component(Atm)   
-    call components_obj.get_component(Land)  
-    call components_obj.get_component(Ice)   
-    call components_obj.get_component(Ocean) 
-    call components_obj.get_component(Land_ice_atmos_boundary) 
-    call components_obj.get_component(Atmos_land_boundary) 
-    call components_obj.get_component(Atmos_ice_boundary)
-    call components_obj.get_component(Land_ice_boundary)
-    call components_obj.get_component(Ice_ocean_boundary)
-    call components_obj.get_component(Ocean_ice_boundary)   
-
-    !> check to see if components in components_obj are associated
-    if(.not.associated(Atm))   not_associated_count += 1
-    if(.not.associated(Land))  not_associated_count += 1
-    if(.not.associated(Ice))   not_associated_count += 1
-    if(.not.associated(ocean)) not_associated_count += 1
-    if(.not.associated(Land_ice_atmos_boundary)) not_associated_count += 1    
-    if(.not.associated(Atmos_land_boundary)) not_associated_count += 1        
-    if(.not.associated(Atmos_ice_boundary))  not_associated_count += 1    
-    if(.not.associated(Land_ice_boundary))   not_associated_count += 1    
-    if(.not.associated(Ice_ocean_boundary))  not_associated_count += 1
-    if(.not.associated(Ocean_ice_boundary))  not_associated_count += 1
-
-    if(not_associated_count > 0 ) &
-        call mpp_error(FATAL, 'model components required for CHECKSUM computations have not been set')
-    
     this%components = components_obj
     
   end subroutine coupler_chksum_obj_init
@@ -1271,10 +1228,10 @@ contains
 
     implicit none
     
-    type(coupler_chksum_type), intent(in)      :: this  !< coupler_chksum_type
+    class(coupler_chksum_type), intent(in)     :: this  !< coupler_chksum_type
     type(coupler_components_type), intent(out) :: components_obj !< coupler_components_type to be returned
 
-    components_obj = this%components_obj
+    components_obj = this%components
     
   end subroutine get_components_obj
 
@@ -1304,10 +1261,10 @@ contains
     integer :: num_ice_bc_restart, num_ocn_bc_restart
 
     if ( do_endpoint_chksum ) then
-      call coupler_chksum_obj%coupler_atmos_ice_land_ocean_chksum('coupler_end', 0)
+      call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('coupler_end', 0)
       if (Ice%slow_ice_PE) then
         call fms_mpp_set_current_pelist(Ice%slow_pelist)
-        call coupler_chksum_obj%%slow_ice_chksum('coupler_end', 0)
+        call coupler_chksum_obj%get_slow_ice_chksums('coupler_end', 0)
       end if
     endif
     call fms_mpp_set_current_pelist()
@@ -1468,13 +1425,13 @@ contains
 !--------------------------------------------------------------------------
 
 !> \brief Print out checksums for several atm, land and ice variables
-  subroutine coupler_chksum(this, id, timestep)
+  subroutine get_coupler_chksums(this, id, timestep)
 
     implicit none
-
-    type(coupler_chksum_type), intent(in) :: this !< self
-    character(:), intent(in) :: id        !< id to label CHECKSUMS in stdout
-    integer     , intent(in) :: timestep  !< timestep
+    
+    class(coupler_chksum_type), intent(in) :: this !< self
+    character(len=*), intent(in) :: id        !< id to label CHECKSUMS in stdout
+    integer         , intent(in) :: timestep  !< timestep
 
     type :: tracer_ind_type
       integer :: atm, ice, lnd ! indices of the tracer in the respective models
@@ -1486,8 +1443,6 @@ contains
     type(tracer_ind_type), allocatable :: tr_table(:)
     character(32) :: tr_name
 
-    call coupler_chksum_obj%get_components_obj(c)
-    
     call fms_tracer_manager_get_number_tracers (MODEL_ATMOS, num_tracers=n_atm_tr_tot, num_prog=n_atm_tr)
     call fms_tracer_manager_get_number_tracers (MODEL_LAND, num_tracers=n_lnd_tr_tot, num_prog=n_lnd_tr)
 
@@ -1508,8 +1463,8 @@ contains
 100 FORMAT("CHECKSUM::",A32," = ",Z20)
 101 FORMAT("CHECKSUM::",A16,a,'%',a," = ",Z20)
 
-    if (coupler_chksum_obj%Atm%pe) then
-      call fms_mpp_set_current_pelist(coupler_chksum_obj%Atm%pelist)
+    if (this%components%Atm%pe) then
+      call fms_mpp_set_current_pelist(this%components%Atm%pelist)
 
       outunit = fms_mpp_stdout()
       write(outunit,*) 'BEGIN CHECKSUM(Atm):: ', id, timestep
@@ -1525,8 +1480,8 @@ contains
          if (n /= NO_TRACER) then
             call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, tr_name )
             write(outunit,100) 'atm%'//trim(tr_name), fms_mpp_chksum(this%components%Atm%tr_bot(:,:,n))
-         endif
-      enddo
+          endif
+       enddo
 
       write(outunit,100) 'land%t_surf', fms_mpp_chksum(this%components%Land%t_surf)
       write(outunit,100) 'land%t_ca',   fms_mpp_chksum(this%components%Land%t_ca)
@@ -1565,31 +1520,31 @@ contains
 
     call fms_mpp_set_current_pelist()
 
-  end subroutine coupler_chksum
+  end subroutine get_coupler_chksums
 
   !#######################################################################
 
 !> \brief This subroutine calls coupler_chksum as well as atmos_ice_land_chksum and ocean_chksum
-  subroutine coupler_atmos_ice_land_ocean_chksum(this, id, timestep)
+  subroutine get_atmos_ice_land_ocean_chksums(this, id, timestep)
 
     implicit none
 
-    type(coupler_chksum_type), intent(in) :: this !< self
-    character(:), intent(in) :: id       !< ID labelling the set of checksums
-    integer     , intent(in) :: timestep !< timestep
+    class(coupler_chksum_type), intent(in) :: this !< self
+    character(len=*), intent(in) :: id       !< ID labelling the set of checksums
+    integer         , intent(in) :: timestep !< timestep
     
     if (this%components%Atm%pe) then
       call fms_mpp_set_current_pelist(this%components%Atm%pelist)
-      call atmos_ice_land_chksum(trim(id), timestep, coupler_chksum_obj)
+      call this%get_atmos_ice_land_chksums(trim(id), timestep)
     endif
     if (this%components%Ocean%is_ocean_pe) then
       call fms_mpp_set_current_pelist(this%components%Ocean%pelist)
-      call ocean_chksum(trim(id), timestep, coupler_chksum_obj)
+      call this%get_ocean_chksums(trim(id), timestep)
     endif
 
     call fms_mpp_set_current_pelist()
 
-  end subroutine coupler_atmos_ice_land_ocean_chksum
+  end subroutine get_coupler_atmos_ice_land_ocean_chksums
   
 !> \brief This subroutine calls subroutine that will print out checksums of the elements
 !! of the appropriate type.
@@ -1608,11 +1563,11 @@ contains
 !! call mpp_set_current_pelist()
 !! ~~~~~~~~~~
 !! after you exit. This is only necessary if you need to return to the global pelist.
-  subroutine atmos_ice_land_chksum(this, id, timestep)
+  subroutine get_atmos_ice_land_chksums(this, id, timestep)
 
-    type(coupler_chksum_type), intent(in) :: this !< self
-    character(:), intent(in) :: id       !< id to label CHECKSUMS in stdout
-    integer     , intent(in) :: timestep !< timestep
+    class(coupler_chksum_type), intent(in) :: this !< self
+    character(len=*), intent(in) :: id       !< id to label CHECKSUMS in stdout
+    integer         , intent(in) :: timestep !< timestep
 
     call atmos_data_type_chksum(     id, timestep, this%components%Atm)
     call lnd_ice_atm_bnd_type_chksum(id, timestep, this%components%Land_ice_atmos_boundary)
@@ -1630,7 +1585,7 @@ contains
 
     call fms_mpp_set_current_pelist(this%components%Atm%pelist)
 
-  end subroutine atmos_ice_land_chksum
+  end subroutine get_atmos_ice_land_chksums
 
 !> \brief This subroutine calls subroutine that will print out checksums of the elements
 !! of the appropriate type.
@@ -1649,16 +1604,16 @@ contains
 !! call mpp_set_current_pelist()
 !! ~~~~~~~~~~
 !! after you exit. This is only necessary if you need to return to the global pelist.
-  subroutine slow_ice_chksum(this, id, timestep)
+  subroutine get_slow_ice_chksums(this, id, timestep)
 
-    type(coupler_chksum_type), intent(in) :: this !< self
-    character(:), intent(in) :: id       !<id to label CHECKSUMS in stdout
-    integer     , intent(in) :: timestep !< timestep
+    class(coupler_chksum_type), intent(in) :: this !< self
+    character(len=*), intent(in) :: id       !<id to label CHECKSUMS in stdout
+    integer         , intent(in) :: timestep !< timestep
 
     call ice_data_type_chksum(    id, timestep, this%components%Ice)
     call ocn_ice_bnd_type_chksum( id, timestep, this%components%Ocean_ice_boundary)
 
-  end subroutine slow_ice_chksum
+  end subroutine get_slow_ice_chksums
 
 
 !> \brief This subroutine calls subroutine that will print out checksums of the elements
@@ -1678,16 +1633,16 @@ contains
 !! call mpp_set_current_pelist()
 !! ~~~~~~~~~~
 !! after you exit. This is only necessary if you need to return to the global pelist.
-  subroutine ocean_chksum(this, id, timestep)
+  subroutine get_ocean_chksums(this, id, timestep)
 
-    type(coupler_chksum_type), intent(in) :: this !< self
-    character(:), intent(in) :: id       !< ID labelling the set of CHECKSUMS
-    integer     , intent(in) :: timestep !< Timestep
+    class(coupler_chksum_type), intent(in) :: this !< self
+    character(len=*), intent(in) :: id       !< ID labelling the set of CHECKSUMS
+    integer         , intent(in) :: timestep !< Timestep
 
     call ocean_public_type_chksum(id, timestep, this%components%Ocean)
     call ice_ocn_bnd_type_chksum( id, timestep, this%components%Ice_ocean_boundary)
 
-  end subroutine ocean_chksum
+  end subroutine get_ocean_chksums
 
 !> \brief This subroutine sets the ID for clocks used in coupler_main
   subroutine coupler_set_clock_ids(coupler_clocks, Atm, Land, Ice, Ocean, ensemble_pelist,&
@@ -1939,7 +1894,7 @@ contains
     ! This may do data override or diagnostics on Ice_ocean_boundary.
     call flux_ocean_to_ice_finish( Time_flux_ocean_to_ice, Ice, Ocean_Ice_Boundary )
     call unpack_ocean_ice_boundary( Ocean_ice_boundary, Ice )
-    if (do_chksum) call coupler_chksum_obj%slow_ice_chksum('update_ice_slow+', nc)
+    if (do_chksum) call coupler_chksum_obj%get_slow_ice_chksums('update_ice_slow+', nc)
 
     call fms_mpp_clock_end(coupler_clocks%set_ice_surface_slow)
 
@@ -2043,7 +1998,7 @@ contains
     call fms_mpp_clock_begin(coupler_clocks%sfc_boundary_layer)
 
     call sfc_boundary_layer( real(dt_atmos), Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary )
-    if(do_chksum) call coupler_chksum_obj%atmos_ice_land_chksum('sfc+', current_time_step)
+    if(do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('sfc+', current_time_step)
 
     call fms_mpp_clock_end(coupler_clocks%sfc_boundary_layer)
 
