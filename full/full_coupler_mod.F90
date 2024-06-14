@@ -297,7 +297,7 @@ module full_coupler_mod
   !! The members of this type point to the model components
   type coupler_chksum_type
     private
-    type(coupler_components_type), pointer :: components
+    type(coupler_components_type) :: components
   contains
     procedure, public :: initialize_coupler_chksum_obj !< associates the pointers above to model components
     procedure, public :: get_components_obj !< subroutine to retrieve the requested component of an object of this type
