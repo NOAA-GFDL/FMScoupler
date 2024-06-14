@@ -440,7 +440,7 @@ program coupler_main
 !------ ocean/slow-ice integration loop ------
 
   if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
-      coupler_clocks, init_stocks=.True.)
+                                                              coupler_clocks, init_stocks=.True.)
 
   do nc = 1, num_cpld_calls
 
@@ -456,24 +456,17 @@ program coupler_main
     ! concurrent mode to avoid multiple synchronizations within the main loop.
     ! With concurrent_ice, these only occur on the ocean PEs.
     if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-      ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
-      call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
-      call fms_mpp_clock_begin(coupler_clocks%flux_ocean_to_ice)
+
       !Redistribute quantities from Ocean to Ocean_ice_boundary
-      !Ice intent is In.
-      !Ice is used only for accessing Ice%area and knowing if we are on an Ice pe
-      call flux_ocean_to_ice( Time, Ocean, Ice, Ocean_ice_boundary )
+      call coupler_flux_ocean_to_ice(Ocean, Ice, Ocean_ice_boundary, coupler_clocks, slow_ice_ocean_pelist)
       Time_flux_ocean_to_ice = Time
-      call fms_mpp_clock_end(coupler_clocks%flux_ocean_to_ice)
 
       ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
-      if (use_lag_fluxes) then
-        call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean)
-        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
+      if(use_lag_fluxes) then
+        call coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, coupler_clocks)
         Time_flux_ice_to_ocean = Time
-        call fms_mpp_clock_end(coupler_clocks%flux_ice_to_ocean)
-      endif
-    endif
+      end if
+    end if
 
     if (do_chksum) then
       call coupler_chksum('flux_ocn2ice+', nc, Atm, Land, Ice)
@@ -486,55 +479,37 @@ program coupler_main
     if (check_stocks > 0) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
 
     if (do_ice .and. Ice%pe) then
-      if (Ice%slow_ice_pe) then
-        call fms_mpp_set_current_pelist(Ice%slow_pelist)
-        call fms_mpp_clock_begin(coupler_clocks%set_ice_surface_slow)
-
-        ! This may do data override or diagnostics on Ice_ocean_boundary.
-        call flux_ocean_to_ice_finish( Time_flux_ocean_to_ice, Ice, Ocean_Ice_Boundary )
-
-        call unpack_ocean_ice_boundary( Ocean_ice_boundary, Ice )
-        if (do_chksum) call slow_ice_chksum('update_ice_slow+', nc, Ice, Ocean_ice_boundary)
-        call fms_mpp_clock_end(coupler_clocks%set_ice_surface_slow)
-      endif
+      if (Ice%slow_ice_pe) &
+        call coupler_unpack_ocean_ice_boundary(nc, Time_flux_ocean_to_ice, Ice, Ocean_ice_boundary, coupler_clocks)
 
       ! This could be a point where the model is serialized if the fast and
-      ! slow ice are on different PEs.
-      if (.not.Ice%shared_slow_fast_PEs) call fms_mpp_set_current_pelist(Ice%pelist)
-      call fms_mpp_clock_begin(coupler_clocks%set_ice_surface_exchange)
-      call exchange_slow_to_fast_ice(Ice)
-      call fms_mpp_clock_end(coupler_clocks%set_ice_surface_exchange)
+      ! slow ice are on different PEs.  call fms_mpp_set_current_pelist(Ice%pelist)
+      ! is called if(.not.Ice%shared_slow_fast_PEs)
+      call coupler_exchange_slow_to_fast_ice(Ice, coupler_clocks)
 
+      ! This call occurs all ice PEs.
       if (concurrent_ice) then
-        ! This call occurs all ice PEs.
-        call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_exchange)
-        call exchange_fast_to_slow_ice(Ice)
-        call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_exchange)
+        call coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks)
         call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_fast)
         if (Ice%slow_ice_pe .and. calve_ice_shelf_bergs) &
           call unpack_ocean_ice_boundary_calved_shelf_bergs(Ice, Ocean_ice_boundary)
         call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
       endif
 
-      if (Ice%fast_ice_pe) then
-        if (.not.Ice%shared_slow_fast_PEs) call fms_mpp_set_current_pelist(Ice%fast_pelist)
-        call fms_mpp_clock_begin(coupler_clocks%set_ice_surface_fast)
-        call set_ice_surface_fields(Ice)
-        call fms_mpp_clock_end(coupler_clocks%set_ice_surface_fast)
-      endif
+      ! call fms_mpp_set_current_pelist(Ice%pelist) is called if(.not.Ice%shared_slow_fast_PEs)
+      if (Ice%fast_ice_pe) call coupler_set_ice_surface_fields(Ice, coupler_clocks)
     endif
 
     if (Atm%pe) then
-      if (.NOT.(do_ice .and. Ice%pe) .OR. (ice_npes .NE. atmos_npes)) &
-         call fms_mpp_set_current_pelist(Atm%pelist)
+
+      if (.NOT.(do_ice.and.Ice%pe) .OR. (ice_npes.NE.atmos_npes)) call fms_mpp_set_current_pelist(Atm%pelist)
+
+      if(do_chksum) call atmos_ice_land_chksum('set_ice_surface+', nc, Atm, Land, Ice, &
+                                               Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
 
       call fms_mpp_clock_begin(coupler_clocks%atm)
-      if (do_chksum) call atmos_ice_land_chksum('set_ice_surface+', nc, Atm, Land, Ice, &
-                 Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-      call fms_mpp_clock_begin(coupler_clocks%generate_sfc_xgrid)
-      call generate_sfc_xgrid( Land, Ice )
-      call fms_mpp_clock_end(coupler_clocks%generate_sfc_xgrid)
 
+      call coupler_generate_sfc_xgrid(Land, Ice, coupler_clocks)
       call send_ice_mask_sic(Time)
 
       !-----------------------------------------------------------------------
@@ -598,9 +573,9 @@ program coupler_main
 
           !      ---- SERIAL atmosphere radiation ----
           if (.not.do_concurrent_radiation) then
-            call fms_mpp_clock_begin(coupler_clocks%concurrent_radiation)
+            call fms_mpp_clock_begin(coupler_clocks%serial_radiation)
             call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
-            call fms_mpp_clock_end(coupler_clocks%concurrent_radiation)
+            call fms_mpp_clock_end(coupler_clocks%serial_radiation)
           endif
           if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(ser)', (nc-1)*num_atmos_calls+na, &
                  Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
@@ -760,14 +735,9 @@ program coupler_main
         call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
       endif
 
+      ! This could be a point where the model is serialized; This calls on all ice PEs
       if (.not.concurrent_ice) then
-        ! This could be a point where the model is serialized.
-        if (.not.Ice%shared_slow_fast_PEs) call fms_mpp_set_current_pelist(Ice%pelist)
-        ! This call occurs all ice PEs.
-        call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_exchange)
-        call exchange_fast_to_slow_ice(Ice)
-        call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_exchange)
-        call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_fast)
+        call coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks, set_ice_current_pelist=.True.)
         if (Ice%slow_ice_pe .and. calve_ice_shelf_bergs) &
           call unpack_ocean_ice_boundary_calved_shelf_bergs(Ice, Ocean_ice_boundary)
         call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
@@ -796,19 +766,12 @@ program coupler_main
      endif
 
     ! Update Ice_ocean_boundary using the newly calculated fluxes.
-    if ((concurrent_ice .OR. .NOT.use_lag_fluxes) .and. .not.combined_ice_and_ocean) then
+    if ((concurrent_ice .or. .not.use_lag_fluxes) .and. .not.combined_ice_and_ocean) then
       !this could serialize unless slow_ice_with_ocean is true.
-      if ((.not.do_ice) .or. (.not.slow_ice_with_ocean)) &
-        call fms_mpp_set_current_pelist()
-
-      if (Ice%slow_ice_PE .or. Ocean%is_ocean_pe) then
-        ! If the slow ice is on a subset of the ocean PEs, use the ocean PElist.
-        call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
-        call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean)
-        call flux_ice_to_ocean( Time, Ice, Ocean, Ice_ocean_boundary )
-        Time_flux_ice_to_ocean = Time
-        call fms_mpp_clock_end(coupler_clocks%flux_ice_to_ocean)
-      endif
+      if ((.not.do_ice) .or. (.not.slow_ice_with_ocean)) call fms_mpp_set_current_pelist()
+      call coupler_flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary, coupler_clocks, &
+        slow_ice_ocean_pelist=slow_ice_ocean_pelist, set_current_slow_ice_ocean_pelist=.True.)
+      Time_flux_ice_to_ocean = Time
     endif
 
     if (Ocean%is_ocean_pe) then
@@ -882,10 +845,9 @@ program coupler_main
 102 FORMAT(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
 
   if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
-      coupler_clocks, finish_stocks=.True.)
-  
+                                                              coupler_clocks, finish_stocks=.True.)
+  !-----------------------------------------------------------------------
   call fms_mpp_set_current_pelist()
-!-----------------------------------------------------------------------
   call fms_mpp_clock_end(coupler_clocks%main)
   call fms_mpp_clock_begin(coupler_clocks%termination)
 
