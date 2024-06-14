@@ -682,7 +682,7 @@ program coupler_main
       !-----------------------------------------------------------------------
       call fms_mpp_clock_end(coupler_clocks%update_land_model_slow)
       if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('update_land_slow+', nc)
-      
+
       !
       !     need flux call to put runoff and p_surf on ice grid
       !
