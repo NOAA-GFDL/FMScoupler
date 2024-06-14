@@ -434,7 +434,9 @@ program coupler_main
     Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, num_cpld_calls,   &
     num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
 
-  if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('coupler_init+', 0)
+  do_chksum = .True.
+  
+  !if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('coupler_init+', 0)
 
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%initialization) !end initialization
@@ -450,7 +452,7 @@ program coupler_main
   do nc = 1, num_cpld_calls
 
     if (do_chksum) then
-      call coupler_chksum_obj%get_coupler_chksums('top_of_coupled_loop+', nc)
+      !call coupler_chksum_obj%get_coupler_chksums('top_of_coupled_loop+', nc)
       call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('MAIN_LOOP-', nc)
     end if
 
@@ -472,7 +474,7 @@ program coupler_main
     end if
 
     if (do_chksum) then
-      call coupler_chksum_obj%get_coupler_chksums('flux_ocn2ice+', nc)
+      !call coupler_chksum_obj%get_coupler_chksums('flux_ocn2ice+', nc)
       call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('flux_ocn2ice+', nc)
     end if
 
@@ -802,7 +804,7 @@ program coupler_main
     endif
 
     !--------------
-    if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('MAIN_LOOP+', nc)
+    !if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('MAIN_LOOP+', nc)
     write( text,'(a,i6)' )'Main loop at coupling timestep=', nc
     call fms_memutils_print_memuse_stats(text)
     outunit= fms_mpp_stdout()
@@ -814,6 +816,8 @@ program coupler_main
     imb_sec(:)=0.
     call flush(outunit)
 
+    stop
+    
   enddo
 102 FORMAT(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
 
