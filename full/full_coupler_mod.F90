@@ -1544,7 +1544,7 @@ contains
 
     call fms_mpp_set_current_pelist()
 
-  end subroutine get_coupler_atmos_ice_land_ocean_chksums
+  end subroutine get_atmos_ice_land_ocean_chksums
   
 !> \brief This subroutine calls subroutine that will print out checksums of the elements
 !! of the appropriate type.
