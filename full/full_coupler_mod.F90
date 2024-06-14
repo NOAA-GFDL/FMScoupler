@@ -277,21 +277,24 @@ module full_coupler_mod
     integer :: flux_exchange_init
   end type coupler_clock_type
 
+  !> The purpose of objects of coupler_chksum_type is to simplify the list
+  !! of arguments required for chksum related subroutines in full_coupler_mod.
+  !! The members of this type point to the model components 
   type coupler_chksum_type
     private
-    type(atmos_data_type), pointer :: Atm
-    type(land_data_type),  pointer :: Land
-    type(ice_data_type),   pointer :: Ice
-    type(ocean_public_type), pointer :: Ocean
-    type(land_ice_atmos_boundary_type), pointer :: Land_ice_atmos_boundary
-    type(atmos_land_boundary_type), pointer :: Atmos_land_boundary
-    type(atmos_ice_boundary_type),  pointer :: Atmos_ice_boundary
-    type(land_ice_boundary_type),   pointer :: Land_ice_boundary
-    type(ice_ocean_boundary_type),  pointer :: Ice_ocean_boundary
-    type(ocean_ice_boundary_type),  pointer :: Ocean_ice_boundary
+    type(atmos_data_type), pointer :: Atm  !< pointer to Atm 
+    type(land_data_type),  pointer :: Land !< pointer to Land
+    type(ice_data_type),   pointer :: Ice  !< pointer to Ice
+    type(ocean_public_type), pointer :: Ocean  !< pointer to Ocean
+    type(land_ice_atmos_boundary_type), pointer :: Land_ice_atmos_boundary !< pointer to Land_ice_atmos_boundary
+    type(atmos_land_boundary_type), pointer :: Atmos_land_boundary !< pointer to Atmos_land_boundary
+    type(atmos_ice_boundary_type),  pointer :: Atmos_ice_boundary  !< pointer to Atmos_ice_boundary
+    type(land_ice_boundary_type),   pointer :: Land_ice_boundary   !< pointer to Land_ice_boundary
+    type(ice_ocean_boundary_type),  pointer :: Ice_ocean_boundary  !< pointer to Ice_ocean_boundary
+    type(ocean_ice_boundary_type),  pointer :: Ocean_ice_boundary  !< pointer to Ocean_ice_boundary
   contains
-    procedure, public :: coupler_chksum_obj_init
-    procedure, public :: get_component
+    procedure, public :: coupler_chksum_obj_init !< associates the pointers above to model components
+    procedure, public :: get_component  !< subroutine to retrieve the requested component of an object of this type
   end type coupler_chksum_type
 
   character(len=80) :: text
@@ -1134,21 +1137,23 @@ contains
   end subroutine coupler_init
 
 !#######################################################################
+
+  !> This subroutine associates the pointer in an object of coupler_chksum_type to the component models 
   subroutine coupler_chksum_obj_init(this, Atm, Land, Ice, Ocean, Land_ice_atmos_boundary, Atmos_land_boundary, &
                                      Atmos_ice_boundary, Land_ice_boundary, Ice_ocean_boundary, Ocean_ice_boundary)
 
     implicit none
-    class(coupler_chksum_type), intent(inout) :: this
-    type(atmos_data_type), target, intent(in) :: Atm
-    type(land_data_type),  target, intent(in) :: Land
-    type(ice_data_type),   target, intent(in) :: Ice
-    type(ocean_public_type), target, intent(in) :: Ocean
-    type(land_ice_atmos_boundary_type), target, intent(in) :: Land_ice_atmos_boundary
-    type(atmos_land_boundary_type), target, intent(in) :: Atmos_land_boundary
-    type(atmos_ice_boundary_type),  target, intent(in) :: Atmos_ice_boundary
-    type(land_ice_boundary_type),   target, intent(in) :: Land_ice_boundary
-    type(ice_ocean_boundary_type),  target, intent(in) :: Ice_ocean_boundary
-    type(ocean_ice_boundary_type),  target, intent(in) :: Ocean_ice_boundary
+    class(coupler_chksum_type), intent(inout) :: this !< self
+    type(atmos_data_type), target, intent(in) :: Atm  !< Atm
+    type(land_data_type),  target, intent(in) :: Land !< Land
+    type(ice_data_type),   target, intent(in) :: Ice  !< Ice
+    type(ocean_public_type), target, intent(in) :: Ocean !< Ocean
+    type(land_ice_atmos_boundary_type), target, intent(in) :: Land_ice_atmos_boundary !< Land_ice_atmos_boundary
+    type(atmos_land_boundary_type), target, intent(in) :: Atmos_land_boundary !< Atmos_land_boundary
+    type(atmos_ice_boundary_type),  target, intent(in) :: Atmos_ice_boundary  !< Atmos_ice_boundary
+    type(land_ice_boundary_type),   target, intent(in) :: Land_ice_boundary   !< Land_ice_boundary
+    type(ice_ocean_boundary_type),  target, intent(in) :: Ice_ocean_boundary  !< Ice_ocean_boundary
+    type(ocean_ice_boundary_type),  target, intent(in) :: Ocean_ice_boundary  !< Ocean_ice_boundary
 
     this%Atm => Atm
     this%Land => Land
