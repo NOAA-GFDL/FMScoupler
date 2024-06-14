@@ -287,7 +287,7 @@ module full_coupler_mod
     type(ice_ocean_boundary_type),  pointer :: Ice_ocean_boundary  !< pointer to Ice_ocean_boundary
     type(ocean_ice_boundary_type),  pointer :: Ocean_ice_boundary  !< pointer to Ocean_ice_boundary
   contains
-    procedure, public :: coupler_components_obj_init
+    procedure, public :: initialize_coupler_components_obj
     procedure, public :: get_component  !< subroutine to retrieve the requested component of an object of this type
     procedure, public :: set_component  !< subroutine to set requested component of an object of this type
   end type coupler_components_type
@@ -299,7 +299,7 @@ module full_coupler_mod
     private
     type(coupler_components_type), pointer :: components
   contains
-    procedure, public :: coupler_chksum_obj_init !< associates the pointers above to model components
+    procedure, public :: initialize_coupler_chksum_obj !< associates the pointers above to model components
     procedure, public :: get_components_obj !< subroutine to retrieve the requested component of an object of this type
     procedure, public :: set_components_obj !< subroutine to set components object
     procedure, public :: get_atmos_ice_land_ocean_chksums !< subroutine to compute chksums for atmos - ocean
@@ -1127,11 +1127,11 @@ contains
 !-----------------------------------------------------------------------
 
     !> Initialize coupler_components_obj memebers to point to model components
-    call coupler_components_obj%coupler_components_obj_init(Atm, Land, Ice, Ocean, Land_ice_atmos_boundary, &
+    call coupler_components_obj%initialize_coupler_components_obj(Atm, Land, Ice, Ocean, Land_ice_atmos_boundary,&
         Atmos_land_boundary, Atmos_ice_boundary, Land_ice_boundary, Ice_ocean_boundary, Ocean_ice_boundary)
 
     !> Initialize coupler_chksum_obj
-    call coupler_chksum_obj%coupler_chksum_obj_init(coupler_components_obj)
+    call coupler_chksum_obj%initialize_coupler_chksum_obj(coupler_components_obj)
 
     if ( do_endpoint_chksum ) then
       call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('coupler_init+', 0)
@@ -1154,8 +1154,8 @@ contains
 !#######################################################################
 
   !> This subroutine associates the pointer in an object of coupler_components_type to the model components
-  subroutine coupler_components_obj_init(this, Atm, Land, Ice, Ocean, Land_ice_atmos_boundary, Atmos_land_boundary, &
-                                         Atmos_ice_boundary, Land_ice_boundary, Ice_ocean_boundary, Ocean_ice_boundary)
+  subroutine initialize_coupler_components_obj(this, Atm, Land, Ice, Ocean, Land_ice_atmos_boundary, &
+      Atmos_land_boundary, Atmos_ice_boundary, Land_ice_boundary, Ice_ocean_boundary, Ocean_ice_boundary)
 
     implicit none
     class(coupler_components_type), intent(inout) :: this !< self
@@ -1181,7 +1181,7 @@ contains
     this%Ice_ocean_boundary => Ice_ocean_boundary
     this%Ocean_ice_boundary => Ocean_ice_boundary
 
-  end subroutine coupler_components_obj_init
+  end subroutine initialize_coupler_components_obj
 
   !> Function get_component returns the requested component in the coupler_components_type object
   !! Users are required to provide the component to be retrieved as an input argument.  For example,
@@ -1246,7 +1246,7 @@ contains
   end subroutine set_component
 
   !> This subroutine associates the pointer in an object of coupler_chksum_type to the component models
-  subroutine coupler_chksum_obj_init(this, components_obj)
+  subroutine initialize_coupler_chksum_obj(this, components_obj)
 
     implicit none
     class(coupler_chksum_type), intent(inout) :: this
@@ -1254,7 +1254,7 @@ contains
 
     this%components = components_obj
 
-  end subroutine coupler_chksum_obj_init
+  end subroutine initialize_coupler_chksum_obj
 
   !> This subroutine retrieves coupler_chksum_obj%components_obj
   subroutine get_components_obj(this, components_obj)
