@@ -289,7 +289,6 @@ module full_coupler_mod
   contains
     procedure, public :: initialize_coupler_components_obj
     procedure, public :: get_component  !< subroutine to retrieve the requested component of an object of this type
-    procedure, public :: set_component  !< subroutine to set requested component of an object of this type
   end type coupler_components_type
 
   !> The purpose of objects of coupler_chksum_type is to simplify the list
@@ -301,7 +300,6 @@ module full_coupler_mod
   contains
     procedure, public :: initialize_coupler_chksum_obj !< associates the pointers above to model components
     procedure, public :: get_components_obj !< subroutine to retrieve the requested component of an object of this type
-    procedure, public :: set_components_obj !< subroutine to set components object
     procedure, public :: get_atmos_ice_land_ocean_chksums !< subroutine to compute chksums for atmos - ocean
     procedure, public :: get_atmos_ice_land_chksums !< subroutine to compute chksums for atmos_ice_land
     procedure, public :: get_slow_ice_chksums       !< subroutine to compute chskums for slow_ice
@@ -1216,37 +1214,6 @@ contains
 
   end subroutine get_component
 
-  !> Function set_component sets the requested component in the coupler_components_type object
-  !! Users are required to provide the component to be set as an input argument.  For example,
-  !! coupler_components_obj%get_component(Atm) will set coupler_components_obj%Atm = Atm
-  subroutine set_component(this, set_this_component )
-
-    implicit none
-    class(coupler_components_type), intent(inout) :: this !< the coupler_components_type object
-    class(*), intent(in) :: set_this_component  !< requested component to be be set.
-                            !! set_this_component can be of type atmos_data_type, land_data_type, ice_data_type,
-                            !! ocean_public_type, land_ice_atmos_boundary_type, atmos_land_boundary_type,
-                            !! atmos_ice_boundary_type, land_ice_boundary_type, ice_ocean_boundary_type,
-                            !! ocean_ice_boundary_type
-
-    select type(set_this_component)
-    type is(atmos_data_type)   ; this%Atm  = set_this_component
-    type is(land_data_type)    ; this%Land = set_this_component
-    type is(ice_data_type)     ; this%Ice  = set_this_component
-    type is(ocean_public_type) ; this%Ocean = set_this_component
-    type is(land_ice_atmos_boundary_type) ; this%Land_ice_atmos_boundary = set_this_component
-    type is(atmos_land_boundary_type) ; this%Atmos_land_boundary = set_this_component
-    type is(atmos_ice_boundary_type)  ; this%Atmos_ice_boundary = set_this_component
-    type is(land_ice_boundary_type)   ; this%Land_ice_boundary  = set_this_component
-    type is(ice_ocean_boundary_type)  ; this%Ice_ocean_boundary = set_this_component
-    type is(ocean_ice_boundary_type)  ; this%Ocean_ice_boundary = set_this_component
-    class default
-      call fms_mpp_error(FATAL, "failure setting component in coupler_components_type object, &
-                         cannot recognize the type of requested component")
-    end select
-
-  end subroutine set_component
-
   !> This subroutine associates the pointer in an object of coupler_chksum_type to the component models
   subroutine initialize_coupler_chksum_obj(this, components_obj)
 
@@ -1269,18 +1236,6 @@ contains
     components_obj = this%components
 
   end subroutine get_components_obj
-
-  !> This subroutine set coupler_chksum_obj%components_obj
-  subroutine set_components_obj(this, components_obj)
-
-    implicit none
-
-    class(coupler_chksum_type), intent(inout) :: this  !< coupler_chksum_type
-    type(coupler_components_type), intent(in) :: components_obj !< coupler_components_type to be used
-
-    this%components = components_obj
-
-  end subroutine set_components_obj
 
   !> This subroutine finalizes the run
   subroutine coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
