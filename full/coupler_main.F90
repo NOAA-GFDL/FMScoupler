@@ -814,8 +814,6 @@ program coupler_main
     imb_sec(:)=0.
     call flush(outunit)
 
-    stop
-    
   enddo
 102 FORMAT(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
 
