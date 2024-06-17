@@ -373,7 +373,7 @@ program coupler_main
   character(len=32) :: timestamp
 
   type(coupler_clock_type)      :: coupler_clocks
-  type(coupler_components_type) :: coupler_components_obj
+  type(coupler_components_type), target :: coupler_components_obj
   type(coupler_chksum_type)     :: coupler_chksum_obj
 
   integer :: outunit
