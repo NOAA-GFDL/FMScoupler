@@ -1156,7 +1156,7 @@ contains
       Atmos_land_boundary, Atmos_ice_boundary, Land_ice_boundary, Ice_ocean_boundary, Ocean_ice_boundary)
 
     implicit none
-    class(coupler_chksum_type), intent(inout) :: self
+    class(coupler_chksum_type), intent(inout) :: this
     type(atmos_data_type), target, intent(in) :: Atm
     type(land_data_type),  target, intent(in) :: Land
     type(ice_data_type),   target, intent(in) :: Ice
@@ -1168,16 +1168,16 @@ contains
     type(ice_ocean_boundary_type),  target, intent(in) :: Ice_ocean_boundary
     type(ocean_ice_boundary_type),  target, intent(in) :: Ocean_ice_boundary
 
-    self%Atm => Atm
-    self%Land => Land
-    self%Ice => Ice
-    self%Ocean => Ocean
-    self%Land_ice_atmos_boundary => Land_ice_atmos_boundary
-    self%Atmos_land_boundary => Atmos_land_boundary
-    self%Atmos_ice_boundary => Atmos_ice_boundary
-    self%Land_ice_boundary => Land_ice_boundary
-    self%Ice_ocean_boundary => Ice_ocean_boundary
-    self%Ocean_ice_boundary => Ocean_ice_boundary
+    this%Atm => Atm
+    this%Land => Land
+    this%Ice => Ice
+    this%Ocean => Ocean
+    this%Land_ice_atmos_boundary => Land_ice_atmos_boundary
+    this%Atmos_land_boundary => Atmos_land_boundary
+    this%Atmos_ice_boundary => Atmos_ice_boundary
+    this%Land_ice_boundary => Land_ice_boundary
+    this%Ice_ocean_boundary => Ice_ocean_boundary
+    this%Ocean_ice_boundary => Ocean_ice_boundary
 
     this%Atm => Atm
     this%Land => Land
