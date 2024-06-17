@@ -557,7 +557,7 @@ program coupler_main
 
           !> checksums are computed if do_chksum=.True.
           call coupler_flux_down_from_atmos(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, &
-                                            Atmos_ice_boundary, Time_atmos, current_timestep, coupler_clocks)
+               Atmos_ice_boundary, Time_atmos, current_timestep, coupler_clocks, coupler_chksum_obj)
 
           !--------------------------------------------------------------
 
@@ -634,7 +634,9 @@ program coupler_main
 
     !> Ice is still using ATM pelist and need to be included in ATM clock
     !> ATM clock is used for load-balancing the coupled models
-    start_atm_clock2: if(Atm%pe) call fms_mpp_clock_begin(coupler_clocks%atm)
+    start_atm_clock2: if(Atm%pe) then
+      call fms_mpp_clock_begin(coupler_clocks%atm)
+    end if start_atm_clock2
 
     if (do_ice .and. Ice%pe) then
       if (Ice%fast_ice_PE) call coupler_unpack_land_ice_boundary(Ice, Land_ice_boundary, coupler_clocks)

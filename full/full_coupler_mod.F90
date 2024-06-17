@@ -99,8 +99,8 @@ module full_coupler_mod
   public :: set_ice_surface_fields
   public :: update_ocean_model, update_slow_ice_and_ocean
   public :: send_ice_mask_sic
-  public :: flux_ice_to_ocean_finish
-  public :: flux_ocean_from_ice_stocks
+  public :: flux_ice_to_ocean_finish, flux_ice_to_ocean_stocks
+  public :: flux_ocean_from_ice_stocks, coupler_flux_ice_to_ocean
 
   public :: atmos_model_restart, land_model_restart, ice_model_restart, ocean_model_restart
 
@@ -114,7 +114,7 @@ module full_coupler_mod
   public :: coupler_init, coupler_end, coupler_restart
 
   public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
-  public :: coupler_flux_ocean_to_ice, coupler_flux_ice_to_ocean
+  public :: coupler_flux_ocean_to_ice 
   public :: coupler_unpack_ocean_ice_boundary, coupler_exchange_slow_to_fast_ice
   public :: coupler_exchange_fast_to_slow_ice, coupler_set_ice_surface_fields
 
@@ -126,9 +126,9 @@ module full_coupler_mod
   public :: coupler_flux_up_to_atmos, coupler_update_atmos_model_up
   public :: coupler_flux_atmos_to_ocean, coupler_update_atmos_model_state
 
-  public :: coupler_update_land_mocel_slow, coupler_flux_land_to_ice
-  public :: coupler_ice_model_fast_cleanup, coupler_unpack_land_ice_boundary
-  public :: coupler_update_ice_model_slow, coupler_flux_ice_to_ocean_stocks
+  public :: coupler_update_land_model_slow, coupler_flux_land_to_ice
+  public :: coupler_unpack_land_ice_boundary
+  public :: coupler_update_ice_model_slow_and_stocks
   
   public :: coupler_clock_type, coupler_components_type, coupler_chksum_type
 
@@ -1155,7 +1155,7 @@ contains
       Atmos_land_boundary, Atmos_ice_boundary, Land_ice_boundary, Ice_ocean_boundary, Ocean_ice_boundary)
 
     implicit none
-    class(coupler_chksum_type), intent(inout) :: self
+    class(coupler_components_type), intent(inout) :: this
     type(atmos_data_type), target, intent(in) :: Atm
     type(land_data_type),  target, intent(in) :: Land
     type(ice_data_type),   target, intent(in) :: Ice
@@ -1167,16 +1167,16 @@ contains
     type(ice_ocean_boundary_type),  target, intent(in) :: Ice_ocean_boundary
     type(ocean_ice_boundary_type),  target, intent(in) :: Ocean_ice_boundary
 
-    self%Atm => Atm
-    self%Land => Land
-    self%Ice => Ice
-    self%Ocean => Ocean
-    self%Land_ice_atmos_boundary => Land_ice_atmos_boundary
-    self%Atmos_land_boundary => Atmos_land_boundary
-    self%Atmos_ice_boundary => Atmos_ice_boundary
-    self%Land_ice_boundary => Land_ice_boundary
-    self%Ice_ocean_boundary => Ice_ocean_boundary
-    self%Ocean_ice_boundary => Ocean_ice_boundary
+    this%Atm => Atm
+    this%Land => Land
+    this%Ice => Ice
+    this%Ocean => Ocean
+    this%Land_ice_atmos_boundary => Land_ice_atmos_boundary
+    this%Atmos_land_boundary => Atmos_land_boundary
+    this%Atmos_ice_boundary => Atmos_ice_boundary
+    this%Land_ice_boundary => Land_ice_boundary
+    this%Ice_ocean_boundary => Ice_ocean_boundary
+    this%Ocean_ice_boundary => Ocean_ice_boundary
 
     this%Atm => Atm
     this%Land => Land
@@ -2008,7 +2008,7 @@ contains
     call fms_mpp_clock_begin(coupler_clocks%sfc_boundary_layer)
 
     call sfc_boundary_layer( real(dt_atmos), Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary )
-    if(do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('sfc+', current_time_step)
+    if(do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('sfc+', current_timestep)
 
     call fms_mpp_clock_end(coupler_clocks%sfc_boundary_layer)
 
@@ -2254,6 +2254,7 @@ contains
     type(land_data_type),           intent(inout) :: Land                 !< Land
     type(atmos_land_boundary_type), intent(inout) :: Atmos_land_boundary  !< Atmos_land_boundary
     integer, dimension(:), intent(in) :: atm_pelist                !< atm_pelist used for clocks
+    integer, intent(in) :: current_timestep
     type(coupler_chksum_type), intent(in)    :: coupler_chksum_obj !< coupler_chksum_obj for chksum computation
     type(coupler_clock_type),  intent(inout) :: coupler_clocks     !< coupler_clocks
 
@@ -2264,7 +2265,7 @@ contains
       call update_land_model_slow(Atmos_land_boundary,Land)
     endif
 
-    if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Atm%pelist)
+    if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(atm_pelist)
     call fms_mpp_clock_end(coupler_clocks%update_land_model_slow)
 
     if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('update_land_slow+', current_timestep)
@@ -2287,7 +2288,7 @@ contains
     call fms_mpp_clock_begin(coupler_clocks%flux_land_to_ice)
     call flux_land_to_ice( Time, Land, Ice, Land_ice_boundary )
     call fms_mpp_clock_end(coupler_clocks%flux_land_to_ice)
-    if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('fluxlnd2ice+', nc)
+    if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('fluxlnd2ice+', current_timestep)
     
   end subroutine coupler_flux_land_to_ice
 
@@ -2328,6 +2329,6 @@ contains
 
     call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_slow)
     
-  end subroutine coupler_update_ice_model_slow
+  end subroutine coupler_update_ice_model_slow_and_stocks
   
 end module full_coupler_mod
