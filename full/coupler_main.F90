@@ -560,7 +560,7 @@ program coupler_main
 
           !> checksums are computed if do_chksum=.True.
           call coupler_flux_down_from_atmos(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, &
-                                            Atmos_ice_boundary, Time_atmos, current_timestep, coupler_clocks)
+              Atmos_ice_boundary, Time_atmos, current_timestep, coupler_clocks, coupler_chksum_obj)
 
           !--------------------------------------------------------------
 

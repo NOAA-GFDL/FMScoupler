@@ -1156,7 +1156,7 @@ contains
       Atmos_land_boundary, Atmos_ice_boundary, Land_ice_boundary, Ice_ocean_boundary, Ocean_ice_boundary)
 
     implicit none
-    class(coupler_chksum_type), intent(inout) :: this
+    class(coupler_components_type), intent(inout) :: this
     type(atmos_data_type), target, intent(in) :: Atm
     type(land_data_type),  target, intent(in) :: Land
     type(ice_data_type),   target, intent(in) :: Ice
@@ -2009,7 +2009,7 @@ contains
     call fms_mpp_clock_begin(coupler_clocks%sfc_boundary_layer)
 
     call sfc_boundary_layer( real(dt_atmos), Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary )
-    if(do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('sfc+', current_time_step)
+    if(do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('sfc+', current_timestep)
 
     call fms_mpp_clock_end(coupler_clocks%sfc_boundary_layer)
 
@@ -2029,8 +2029,7 @@ contains
     call update_atmos_model_dynamics(Atm)
     call fms_mpp_clock_end(coupler_clocks%update_atmos_model_dynamics)
 
-    if (do_chksum) &
-        call coupler_chksum_obj%get_atmos_ice_land_chksums('update_atmos_model_dynamics', current_timestep)
+    if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('update_atmos_model_dynamics', current_timestep)
     if (do_debug)  call fms_memutils_print_memuse_stats( 'update dyn')
 
   end subroutine coupler_update_atmos_model_dynamics
@@ -2056,10 +2055,10 @@ contains
     call fms_mpp_clock_end(coupler_clocks%radiation)
 
     if(do_chksum) then
-      !> cannot put mpp_chksum for concurrent_radiation as it requires the ability to have
-      !! two different OpenMP threads inside of MPI at the same time which is not currently allowed
+      !> cannot put mpp_chksum for concurrent_radiation as it requires the ability to have two different OpenMP threads
+      !! inside of MPI at the same time which is not currently allowed
       if(.not.do_concurrent_radiation) &
-          call coupler_chksum_obj%get_atmos_ice_land_chksums('update_atmos_model_radiation(ser)', current_timestep)
+          call coupler_chksum_obj%get_atmos_ice_land_chksums('update_atmos_model_radiation(ser)',current_timestep)
     end if
     
     if (do_debug) then
@@ -2113,6 +2112,7 @@ contains
     call fms_mpp_clock_end(coupler_clocks%flux_down_from_atmos)
 
     if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('flux_down_from_atmos+', current_timestep)
+
   end subroutine coupler_flux_down_from_atmos
 
   !> This subroutine calls update_land_model_fast.  Clocks are set for runtime statistics.  Chksums
