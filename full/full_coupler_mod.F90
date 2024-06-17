@@ -1131,6 +1131,8 @@ contains
     !> Initialize coupler_chksum_obj
     call coupler_chksum_obj%initialize_coupler_chksum_obj(coupler_components_obj)
 
+    do_chksum = .True.
+    
     if ( do_endpoint_chksum ) then
       call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('coupler_init+', 0)
       if (Ice%slow_ice_PE) then

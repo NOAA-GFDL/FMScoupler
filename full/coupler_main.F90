@@ -373,7 +373,7 @@ program coupler_main
   character(len=32) :: timestamp
 
   type(coupler_clock_type)      :: coupler_clocks
-  type(coupler_components_type) :: coupler_components_obj
+  type(coupler_components_type), target :: coupler_components_obj
   type(coupler_chksum_type)     :: coupler_chksum_obj
 
   integer :: outunit
@@ -814,6 +814,8 @@ program coupler_main
     imb_sec(:)=0.
     call flush(outunit)
 
+    stop
+    
   enddo
 102 FORMAT(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
 
