@@ -96,11 +96,9 @@ module full_coupler_mod
   public :: land_ice_boundary_type, ice_ocean_boundary_type, ocean_ice_boundary_type, ice_ocean_driver_type
 
   public :: fmsconstants_init
-  public :: set_ice_surface_fields
-  public :: update_ocean_model, update_slow_ice_and_ocean
+  public :: update_slow_ice_and_ocean
   public :: send_ice_mask_sic
-  public :: flux_ice_to_ocean_finish, flux_ice_to_ocean_stocks
-  public :: flux_ocean_from_ice_stocks, coupler_flux_ice_to_ocean
+  public :: flux_ice_to_ocean_finish, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
 
   public :: atmos_model_restart, land_model_restart, ice_model_restart, ocean_model_restart
 
@@ -127,8 +125,8 @@ module full_coupler_mod
   public :: coupler_flux_atmos_to_ocean, coupler_update_atmos_model_state
 
   public :: coupler_update_land_model_slow, coupler_flux_land_to_ice
-  public :: coupler_unpack_land_ice_boundary
-  public :: coupler_update_ice_model_slow_and_stocks
+  public :: coupler_unpack_land_ice_boundary, coupler_flux_ice_to_ocean
+  public :: coupler_update_ice_model_slow_and_stocks, coupler_update_ocean_model
   
   public :: coupler_clock_type, coupler_components_type, coupler_chksum_type
 
@@ -1872,11 +1870,7 @@ contains
 
     ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
 
-    if(set_current_slow_ice_ocean_pelist_in) then
-      if(.not.present(slow_ice_ocean_pelist)) call fms_mpp_error(FATAL, 'coupler_flux_ice_to_ocean tried&
-                       &to set_current_pelist(slow_ice_ocean_pelist) but slow_ice_ocean_pelist is unknown')
-      call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
-    end if
+    if(set_current_slow_ice_ocean_pelist_in) call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
 
     call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean)
     call flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary)
@@ -2330,5 +2324,22 @@ contains
     call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_slow)
     
   end subroutine coupler_update_ice_model_slow_and_stocks
-  
+
+  subroutine coupler_update_ocean_model(Ocean, Ocean_state, Ice_ocean_boundary, &
+                                        Time_ocean, Time_step_cpld, current_timestep, coupler_chksum_obj)
+
+    implicit none
+    type(ocean_public_type), intent(inout) :: Ocean
+    type(ocean_state_type), pointer, intent(inout) :: Ocean_state
+    type(Ice_ocean_boundary_type), intent(inout) :: Ice_ocean_boundary
+    type(FmsTime_type), intent(inout) :: Time_ocean
+    type(FmsTime_type), intent(in) :: Time_step_cpld
+    integer, intent(in) :: current_timestep
+    type(coupler_chksum_type), intent(in) :: coupler_chksum_obj
+    
+    call update_ocean_model(Ice_ocean_boundary, Ocean_state,  Ocean, Time_ocean, Time_step_cpld)
+    if (do_chksum) call coupler_chksum_obj%get_ocean_chksums('update_ocean_model+', current_timestep)
+
+  end subroutine coupler_update_ocean_model
+    
 end module full_coupler_mod
