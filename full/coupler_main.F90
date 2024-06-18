@@ -440,9 +440,6 @@ program coupler_main
 
   !> ocean/slow-ice integration loop
 
-  if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
-                                                              coupler_clocks, init_stocks=.True.)
-
   slow_integration_loop : do nc = 1, num_cpld_calls
 
     if (do_chksum) then
@@ -675,8 +672,8 @@ program coupler_main
         if (do_chksum) call coupler_chksum_obj%get_ocean_chksums('update_ocean_model-', nc)
         
         ! update_ocean_model since fluxes don't change here        
-        if (do_ocean) call coupler_update_ocean_model(Ice_ocean_boundary, Ocean_state,  Ocean, &
-                      Time_ocean, Time_step_cpld, current_timestep, coupler_chksum_type)
+        if (do_ocean) call coupler_update_ocean_model(Ocean, Ocean_state, Ice_ocean_boundary, &
+                      Time_ocean, Time_step_cpld, current_timestep, coupler_chksum_obj)
 
       end if
         
@@ -694,27 +691,23 @@ program coupler_main
 
     !> write out intermediate restart file when needead.
     if (Time >= Time_restart) &
-        call coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_bc_restart, Ice_bc_restart, Time, Time_restart)
+        call coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_state, Ocn_bc_restart, Ice_bc_restart, &
+                                          Time, Time_restart, Time_start)
 
-    !--------------
-    call coupler_summarize_timestep(current_timestep, coupler_chksum_obj, Atm%pe, omp_sec, imb_sec)
+    !-------------- call coupler_summarize_timestep(current_timestep, num_cpld_calls, coupler_chksum_obj, Atm%pe, omp_sec, imb_sec)
     omp_sec(:)=0.
     imb_sec(:)=0.
 
   enddo slow_integration_loop
   
-
-  if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
-                                                              coupler_clocks, finish_stocks=.True.)
   !-----------------------------------------------------------------------
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%main)
   call fms_mpp_clock_begin(coupler_clocks%termination)
 
-  if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('coupler_end-', nc)
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
       Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
-      Time, Time_start, Time_end, coupler_chksum_obj)
+      nc, Time, Time_start, Time_end, coupler_chksum_obj, coupler_clocks)
 
   call fms_mpp_clock_end(coupler_clocks%termination)
 

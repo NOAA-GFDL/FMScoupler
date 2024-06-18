@@ -109,9 +109,9 @@ module full_coupler_mod
   public :: atm_ice_bnd_type_chksum,  lnd_ice_bnd_type_chksum
   public :: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
 
-  public :: coupler_init, coupler_end, coupler_restart
+  public :: coupler_init, coupler_end, coupler_restart, coupler_intermediate_restart
 
-  public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
+  public :: coupler_flux_check_stocks
   public :: coupler_flux_ocean_to_ice 
   public :: coupler_unpack_ocean_ice_boundary, coupler_exchange_slow_to_fast_ice
   public :: coupler_exchange_fast_to_slow_ice, coupler_set_ice_surface_fields
@@ -1126,7 +1126,7 @@ contains
 
     !> Initialize coupler_chksum_obj
     call coupler_chksum_obj%initialize_coupler_chksum_obj(coupler_components_obj)
-
+    
     if ( do_endpoint_chksum ) then
       call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('coupler_init+', 0)
       if (Ice%slow_ice_PE) then
@@ -1134,6 +1134,9 @@ contains
         call coupler_chksum_obj%get_slow_ice_chksums('coupler_init+', 0)
       end if
     end if
+
+    call fms_mpp_set_current_pelist()
+    call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)   
 
     call fms_mpp_set_current_pelist()
     call fms_memutils_print_memuse_stats('coupler_init')
@@ -1245,7 +1248,8 @@ contains
   !> This subroutine finalizes the run
   subroutine coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
                          Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, &
-                         Ice_bc_restart, Time, Time_start, Time_end, coupler_chksum_obj)
+                         Ice_bc_restart, current_timestep, Time, Time_start, Time_end,                &
+                         coupler_chksum_obj, coupler_clocks)
 
     implicit none
 
@@ -1261,12 +1265,14 @@ contains
     type(ocean_ice_boundary_type),  intent(inout) :: Ocean_ice_boundary
     type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ocn_bc_restart
     type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ice_bc_restart
-
+    integer, intent(in) :: current_timestep
+    type(coupler_clock_type), intent(in) :: coupler_clocks
     type(coupler_chksum_type), intent(in) :: coupler_chksum_obj
 
     type(FmsTime_type), intent(in) :: Time, Time_start, Time_end
     integer :: num_ice_bc_restart, num_ocn_bc_restart
 
+    if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('coupler_end-', current_timestep)   
     if ( do_endpoint_chksum ) then
       call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('coupler_end', 0)
       if (Ice%slow_ice_PE) then
@@ -1308,8 +1314,16 @@ contains
 
     !----- write restart file ------
     call coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
-                         Time, Time_start, Time_end)
-
+                         Time, Time_start)
+    
+    call fms_mpp_set_current_pelist()
+    call fms_mpp_clock_begin(coupler_clocks%final_flux_check_stocks)
+    if (check_stocks >= 0) then
+      call fms_mpp_set_current_pelist()
+      call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
+    endif
+    call fms_mpp_clock_end(coupler_clocks%final_flux_check_stocks)
+    
     call fms_diag_end (Time)
 #ifdef use_deprecated_io
     call fms_io_exit
@@ -1341,7 +1355,7 @@ contains
 
   !> \brief Writing restart file that contains running time and restart file writing time.
   subroutine coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
-                             Time, Time_start, Time_end, time_stamp)
+                             Time, Time_start, time_stamp)
 
     implicit none
 
@@ -1352,7 +1366,7 @@ contains
     type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ocn_bc_restart
     type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ice_bc_restart
 
-    type(FmsTime_type),  intent(in)  :: Time, Time_start, Time_end
+    type(FmsTime_type),  intent(in)  :: Time, Time_start
     character(len=*), intent(in),  optional :: time_stamp
 
     character(len=128) :: file_run, file_res
@@ -1750,46 +1764,6 @@ contains
     coupler_clocks%final_flux_check_stocks = fms_mpp_clock_id( 'final flux_check_stocks' )
 
   end subroutine coupler_set_clock_ids
-
-!> \brief This subroutine calls flux_init_stocks or does the final call to flux_check_stocks
-  subroutine coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
-                                             coupler_clocks, init_stocks, finish_stocks)
-
-    implicit none
-
-    type(FmsTime_type),    intent(in) :: Time    !< current Time
-    type(atmos_data_type), intent(inout) :: Atm  !< Atm
-    type(land_data_type),  intent(inout) :: Land !< Land
-    type(ice_data_type),   intent(inout) :: Ice  !< Ice
-    type(ocean_state_type), pointer, intent(inout) :: Ocean_state    !< Ocean_state
-    type(coupler_clock_type), intent(inout)        :: coupler_clocks !< coupler_clocks
-    logical, optional, intent(in) :: init_stocks, finish_stocks  !< control flags to either call flux_init_stocks or
-                                                                 !! the final flux_check_stocks
-
-    logical :: init, finish !< control flags set to False. by default and takes on the value of init_stocks and
-                            !! finish_stocks if these optional arguments are provided.
-                            !! If true, either flux_init_stocks or
-                            !! final flux_check_stocks will be called.
-
-    init=.False.   ; if(present(init_stocks)) init=init_stocks
-    finish=.False. ; if(present(finish_stocks)) finish=finish_stocks
-
-    if(init) then
-      call fms_mpp_set_current_pelist()
-      call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
-    else if(finish) then
-      call fms_mpp_set_current_pelist()
-      call fms_mpp_clock_begin(coupler_clocks%final_flux_check_stocks)
-      if (check_stocks >= 0) then
-        call fms_mpp_set_current_pelist()
-        call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
-      endif
-      call fms_mpp_clock_end(coupler_clocks%final_flux_check_stocks)
-    else
-      call fms_mpp_error(FATAL, 'coupler_flux_init_finish_stocks: either init or finish needs to be .True.')
-    end if
-
-  end subroutine coupler_flux_init_finish_stocks
 
   !> \brief This subroutine calls flux_check_stocks.  Clocks and pelists are set before and after
   !! call to flux_check_stocks.
@@ -2338,18 +2312,20 @@ contains
 
   end subroutine coupler_update_ocean_model
 
-  subroutine coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_bc_restart, Ice_bc_restart, Time, Time_restart)
+  subroutine coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_state, Ocn_bc_restart, Ice_bc_restart,&
+                                          Time, Time_restart, Time_start)
 
     implicit none
-    type(atm_data_type), intent(in) :: Atm
-    type(ice_data_type), intent(in) :: Ice
-    type(ocean_public_type), intent(in) ::  Ocean
-    type(FmsNetcdfDomainFile_t), intent(in) :: Ocean_bc_restart
-    type(FmsNetcdfDomainFile_t), intent(in) :: Ice_bc_restart
-    type(FmsTime_type), intent(in) :: Time
+    type(atmos_data_type),   intent(inout) :: Atm
+    type(ice_data_type),     intent(inout) :: Ice
+    type(ocean_public_type), intent(inout) ::  Ocean
+    type(ocean_state_type),      pointer, intent(inout) :: Ocean_state
+    type(FmsNetcdfDomainFile_t), pointer, intent(inout) :: Ocn_bc_restart(:)
+    type(FmsNetcdfDomainFile_t), pointer, intent(inout) :: Ice_bc_restart(:)
+    type(FmsTime_type), intent(in) :: Time, Time_start
     type(FmsTime_type), intent(inout) :: Time_restart
-
     character(len=32) :: timestamp
+    integer :: outunit
     
     timestamp = fms_time_manager_date_to_string(Time)
     outunit= fms_mpp_stdout()
@@ -2363,17 +2339,18 @@ contains
     if (Ocean%is_ocean_pe) call ocean_model_restart(Ocean_state, timestamp)
 
     call coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
-                         Time, Time_start, Time_end, timestamp)
+                         Time, Time_start, timestamp)
 
     Time_restart = fms_time_manager_increment_date(Time, restart_interval(1), restart_interval(2), &
         restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
 
   end subroutine coupler_intermediate_restart
 
-  subroutine coupler_summarize_timestep(current_timestep, coupler_chksum_obj, is_atmos_pe, omp_sec, imb_sec)
+  subroutine coupler_summarize_timestep(current_timestep, num_cpld_calls, coupler_chksum_obj, is_atmos_pe, omp_sec, imb_sec)
 
     implicit none
-    integer, intent(in)                   :: current_timestep    !< current_timestep, nc
+    integer, intent(in) :: current_timestep  !< current_timestep, nc
+    integer, intent(in) :: num_cpld_calls    !< total number of outerloop timestep
     type(coupler_chksum_type), intent(in) :: coupler_chksum_obj  !< coupler_chksum_obj 
     logical, intent(in)               :: is_atmos_pe             !< Atm%pe
     real, dimension(:), intent(inout) :: omp_sec, imb_sec        !< from omp computation
@@ -2381,13 +2358,13 @@ contains
     integer :: outunit
     character(len=80) :: text
     
-    if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('MAIN_LOOP+', nc)
+    if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('MAIN_LOOP+', current_timestep)
     write( text,'(a,i6)' )'Main loop at coupling timestep=', current_timestep
     call fms_memutils_print_memuse_stats(text)
     outunit= fms_mpp_stdout()
 
-    if (fms_mpp_pe() == fms_mpp_root_pe() .and. Atm%pe .and. do_concurrent_radiation) &
-        write(outunit,102) 'At coupling step ', nc,' of ',num_cpld_calls, ' Atm & Rad (imbalance): ', &
+    if (fms_mpp_pe() == fms_mpp_root_pe() .and. is_atmos_pe .and. do_concurrent_radiation) &
+        write(outunit,102) 'At coupling step ', current_timestep,' of ',num_cpld_calls, ' Atm & Rad (imbalance): ', &
                             omp_sec(1),' (',imb_sec(1),')  ',omp_sec(2),' (',imb_sec(2),')'
 
     call flush(outunit)
