@@ -694,7 +694,7 @@ program coupler_main
         call coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_state, Ocn_bc_restart, Ice_bc_restart, &
                                           Time, Time_restart, Time_start)
 
-    !-------------- call coupler_summarize_timestep(current_timestep, num_cpld_calls, coupler_chksum_obj, Atm%pe, omp_sec, imb_sec)
+    call coupler_summarize_timestep(current_timestep, num_cpld_calls, coupler_chksum_obj, Atm%pe, omp_sec, imb_sec)
     omp_sec(:)=0.
     imb_sec(:)=0.
 
@@ -703,13 +703,10 @@ program coupler_main
   !-----------------------------------------------------------------------
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%main)
-  call fms_mpp_clock_begin(coupler_clocks%termination)
 
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
       Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
       nc, Time, Time_start, Time_end, coupler_chksum_obj, coupler_clocks)
-
-  call fms_mpp_clock_end(coupler_clocks%termination)
 
   call fms_memutils_print_memuse_stats( 'Memory HiWaterMark', always=.True. )
   call fms_end

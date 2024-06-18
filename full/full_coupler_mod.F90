@@ -1272,6 +1272,8 @@ contains
     type(FmsTime_type), intent(in) :: Time, Time_start, Time_end
     integer :: num_ice_bc_restart, num_ocn_bc_restart
 
+    call fms_mpp_clock_begin(coupler_clocks%termination)
+    
     if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('coupler_end-', current_timestep)   
     if ( do_endpoint_chksum ) then
       call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('coupler_end', 0)
@@ -1328,8 +1330,9 @@ contains
 #ifdef use_deprecated_io
     call fms_io_exit
 #endif
-    call fms_mpp_set_current_pelist()
 
+    call fms_mpp_set_current_pelist()
+    call fms_mpp_clock_end(coupler_clocks%termination)
 
 !-----------------------------------------------------------------------
 
