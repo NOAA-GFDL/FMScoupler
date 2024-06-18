@@ -1147,6 +1147,7 @@ contains
       write(errunit,*) 'Exiting coupler_init at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
+    
   end subroutine coupler_init
 
 !#######################################################################
@@ -1318,14 +1319,6 @@ contains
     !----- write restart file ------
     call coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
                          Time, Time_start)
-    
-    call fms_mpp_set_current_pelist()
-    call fms_mpp_clock_begin(coupler_clocks%final_flux_check_stocks)
-    if (check_stocks >= 0) then
-      call fms_mpp_set_current_pelist()
-      call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
-    endif
-    call fms_mpp_clock_end(coupler_clocks%final_flux_check_stocks)
     
     call fms_diag_end (Time)
 #ifdef use_deprecated_io
