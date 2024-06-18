@@ -490,10 +490,11 @@ program coupler_main
       ! This call occurs all ice PEs.
       if (concurrent_ice) then
         call coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks)
-        call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_fast)
-        if (Ice%slow_ice_pe .and. calve_ice_shelf_bergs) &
+        if (Ice%slow_ice_pe .and. calve_ice_shelf_bergs) then
+          call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_fast)
           call unpack_ocean_ice_boundary_calved_shelf_bergs(Ice, Ocean_ice_boundary)
-        call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
+          call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
+        endif
       endif
 
       ! call fms_mpp_set_current_pelist(Ice%pelist) is called if(.not.Ice%shared_slow_fast_PEs)
@@ -738,9 +739,11 @@ program coupler_main
       ! This could be a point where the model is serialized; This calls on all ice PEs
       if (.not.concurrent_ice) then
         call coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks, set_ice_current_pelist=.True.)
-        if (Ice%slow_ice_pe .and. calve_ice_shelf_bergs) &
+        if (Ice%slow_ice_pe .and. calve_ice_shelf_bergs) then
+          call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_fast)
           call unpack_ocean_ice_boundary_calved_shelf_bergs(Ice, Ocean_ice_boundary)
-        call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
+          call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
+        endif
       endif
 
       !   ------ slow-ice model ------
