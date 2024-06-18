@@ -110,6 +110,7 @@ module full_coupler_mod
   public :: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
 
   public :: coupler_init, coupler_end, coupler_restart, coupler_intermediate_restart
+  public :: coupler_summarize_timestep
 
   public :: coupler_flux_check_stocks
   public :: coupler_flux_ocean_to_ice 
