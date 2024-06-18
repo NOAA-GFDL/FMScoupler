@@ -676,12 +676,11 @@ program coupler_main
         call update_slow_ice_and_ocean(ice_ocean_driver_CS, Ice, Ocean_state, Ocean, &
                                        Ice_ocean_boundary, Time_ocean, Time_step_cpld )
       else
-        if (do_chksum) call coupler_chksum_obj%get_ocean_chksums('update_ocean_model-', nc)
-        
+        if (do_chksum) call coupler_chksum_obj%get_ocean_chksums('update_ocean_model-', nc)        
         ! update_ocean_model since fluxes don't change here        
-        if (do_ocean) call coupler_update_ocean_model(Ice_ocean_boundary, Ocean_state,  Ocean, &
-                      Time_ocean, Time_step_cpld, current_timestep, coupler_chksum_type)
-        
+        if (do_ocean) call coupler_update_ocean_model(Ocean, Ocean_state, Ice_ocean_boundary,&
+                      Time_ocean, Time_step_cpld, current_timestep, coupler_chksum_obj)
+      end if
         ! Get stocks from "Ice_ocean_boundary" and add them to Ocean stocks.
         ! This call is just for record keeping of stocks transfer and
         ! does not modify either Ocean or Ice_ocean_boundary
@@ -692,7 +691,7 @@ program coupler_main
         Time = Time_ocean
         
         call fms_mpp_clock_end(coupler_clocks%ocean)
-    endif
+      end if
 
     !--- write out intermediate restart file when needed.
     if (Time >= Time_restart) then
