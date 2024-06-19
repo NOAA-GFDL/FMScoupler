@@ -59,6 +59,7 @@ integer :: id_drag_moist,  id_drag_heat,  id_drag_mom,              &
            id_u_star, id_b_star, id_q_star, id_u_flux, id_v_flux,   &
            id_t_surf, id_t_flux, id_q_flux, id_r_flux,              &
            id_t_atm,  id_u_atm,  id_v_atm,  id_wind,                &
+           id_thv_atm, id_thv_surf,                                 &
            id_t_ref,  id_rh_ref, id_u_ref,  id_v_ref,  id_q_ref,    &
            id_del_h,  id_del_m,  id_del_q, id_albedo,  id_gust,     &
            id_t_ca,   id_q_surf, id_q_atm, id_z_atm, id_p_atm,      &
@@ -140,7 +141,7 @@ contains
  subroutine sfc_boundary_layer ( dt, Time, Atm, Land, Ice, Boundary )
 
  real,                   intent(in)  :: dt  !< Time step
- type       (time_type), intent(in)  :: Time !< Current time
+ type       (FmsTime_type), intent(in)  :: Time !< Current time
  type (atmos_data_type), intent(in)  :: Atm  !< A derived data type to specify atmospheric boundary data
  type(land_data_type),  intent(inout)  :: Land !< A derived data type to specify land boundary data
  type(ice_data_type),   intent(inout)  :: Ice !< A derived data type to specify ice boundary data
@@ -152,7 +153,8 @@ real, dimension(is:ie,js:je) :: u_surf, v_surf, rough_heat, rough_moist, &
                                 albedo, albedo_vis_dir, albedo_nir_dir,  &
                                 albedo_vis_dif, albedo_nir_dif,          &
                                 del_m, del_h, del_q, land_frac,          &
-                                ref, ref2, t_ref, qs_ref, qs_ref_cmip
+                                ref, ref2, t_ref, qs_ref, qs_ref_cmip,   &
+                                thv_atm, thv_surf
 
 logical, dimension(is:ie,js:je) :: mask, seawater, avail
 real :: zrefm, zrefh
@@ -256,6 +258,7 @@ real :: zrefm, zrefh
                       flux_t, flux_q, flux_lw, flux_u, flux_v,           &
                       cd_m,   cd_t, cd_q, wind,                          &
                       u_star, b_star, q_star,                            &
+                      thv_atm, thv_surf,                                 &
                       dhdt_surf, dedt_surf, dedq_surf, drdt_surf,        &
                       dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,     &
                       dt, Land%mask(:,:,1), seawater, avail              )
@@ -282,41 +285,51 @@ real :: zrefm, zrefh
    Boundary%b_star    = b_star
    Boundary%q_star    = q_star
 
+ ! additional boundary variables for use in ncep-edmf
+   Boundary%shflx     = flux_t
+   Boundary%lhflx     = flux_q
+   Boundary%wind      = wind
+   Boundary%thv_atm   = thv_atm
+   Boundary%thv_surf  = thv_surf
+
+
 !=======================================================================
 !-------------------- diagnostics section ------------------------------
 
  if (first_static) then
-   if ( id_land_mask   > 0 ) used = send_data ( id_land_mask,   Boundary%land_frac, Time )
+   if ( id_land_mask   > 0 ) used = fms_diag_send_data ( id_land_mask,   Boundary%land_frac, Time )
    ! near-surface heights
-   if ( id_height2m  > 0) used = send_data ( id_height2m, z_ref_heat, Time )
-   if ( id_height10m > 0) used = send_data ( id_height10m, z_ref_mom, Time )
+   if ( id_height2m  > 0) used = fms_diag_send_data ( id_height2m, z_ref_heat, Time )
+   if ( id_height10m > 0) used = fms_diag_send_data ( id_height10m, z_ref_mom, Time )
 
    first_static = .false.
  endif
-   if ( id_wind        > 0 ) used = send_data ( id_wind,        wind,         Time )
-   if ( id_drag_moist  > 0 ) used = send_data ( id_drag_moist,  cd_q,         Time )
-   if ( id_drag_heat   > 0 ) used = send_data ( id_drag_heat,   cd_t,         Time )
-   if ( id_drag_mom    > 0 ) used = send_data ( id_drag_mom,    cd_m,         Time )
-   if ( id_rough_moist > 0 ) used = send_data ( id_rough_moist, rough_moist,  Time )
-   if ( id_rough_heat  > 0 ) used = send_data ( id_rough_heat,  rough_heat,   Time )
-   if ( id_rough_mom   > 0 ) used = send_data ( id_rough_mom,   rough_mom,    Time )
-   if ( id_u_star      > 0 ) used = send_data ( id_u_star,      u_star,       Time )
-   if ( id_b_star      > 0 ) used = send_data ( id_b_star,      b_star,       Time )
-   if ( id_q_star      > 0 ) used = send_data ( id_q_star,      q_star,       Time )
-   if ( id_t_atm       > 0 ) used = send_data ( id_t_atm,       Atm%t_bot,    Time )
-   if ( id_u_atm       > 0 ) used = send_data ( id_u_atm,       Atm%u_bot,    Time )
-   if ( id_v_atm       > 0 ) used = send_data ( id_v_atm,       Atm%v_bot,    Time )
-   if ( id_q_atm       > 0 ) used = send_data ( id_q_atm,       Atm%tr_bot(:,:,isphum),    Time )
-   if ( id_p_atm       > 0 ) used = send_data ( id_p_atm,       Atm%p_bot,    Time )
-   if ( id_z_atm       > 0 ) used = send_data ( id_z_atm,       Atm%z_bot,    Time )
-   if ( id_gust        > 0 ) used = send_data ( id_gust,        Atm%gust,     Time )
-   if ( id_u_flux      > 0 ) used = send_data ( id_u_flux,      flux_u,       Time )
-   if ( id_v_flux      > 0 ) used = send_data ( id_v_flux,      flux_v,       Time )
-   if ( id_albedo      > 0 ) used = send_data ( id_albedo,      albedo,       Time )
-   if ( id_albedo_vis_dir > 0 ) used = send_data ( id_albedo_vis_dir, albedo_vis_dir, Time )
-   if ( id_albedo_nir_dir > 0 ) used = send_data ( id_albedo_nir_dir, albedo_nir_dir, Time )
-   if ( id_albedo_vis_dif > 0 ) used = send_data ( id_albedo_vis_dif, albedo_vis_dif, Time )
-   if ( id_albedo_nir_dif > 0 ) used = send_data ( id_albedo_nir_dif, albedo_nir_dif, Time )
+   if ( id_wind        > 0 ) used = fms_diag_send_data ( id_wind,        wind,         Time )
+   if ( id_drag_moist  > 0 ) used = fms_diag_send_data ( id_drag_moist,  cd_q,         Time )
+   if ( id_drag_heat   > 0 ) used = fms_diag_send_data ( id_drag_heat,   cd_t,         Time )
+   if ( id_drag_mom    > 0 ) used = fms_diag_send_data ( id_drag_mom,    cd_m,         Time )
+   if ( id_rough_moist > 0 ) used = fms_diag_send_data ( id_rough_moist, rough_moist,  Time )
+   if ( id_rough_heat  > 0 ) used = fms_diag_send_data ( id_rough_heat,  rough_heat,   Time )
+   if ( id_rough_mom   > 0 ) used = fms_diag_send_data ( id_rough_mom,   rough_mom,    Time )
+   if ( id_u_star      > 0 ) used = fms_diag_send_data ( id_u_star,      u_star,       Time )
+   if ( id_b_star      > 0 ) used = fms_diag_send_data ( id_b_star,      b_star,       Time )
+   if ( id_q_star      > 0 ) used = fms_diag_send_data ( id_q_star,      q_star,       Time )
+   if ( id_thv_atm     > 0 ) used = fms_diag_send_data ( id_thv_atm,     thv_atm,      Time )
+   if ( id_thv_surf    > 0 ) used = fms_diag_send_data ( id_thv_surf,    thv_surf,     Time )
+   if ( id_t_atm       > 0 ) used = fms_diag_send_data ( id_t_atm,       Atm%t_bot,    Time )
+   if ( id_u_atm       > 0 ) used = fms_diag_send_data ( id_u_atm,       Atm%u_bot,    Time )
+   if ( id_v_atm       > 0 ) used = fms_diag_send_data ( id_v_atm,       Atm%v_bot,    Time )
+   if ( id_q_atm       > 0 ) used = fms_diag_send_data ( id_q_atm,       Atm%tr_bot(:,:,isphum),    Time )
+   if ( id_p_atm       > 0 ) used = fms_diag_send_data ( id_p_atm,       Atm%p_bot,    Time )
+   if ( id_z_atm       > 0 ) used = fms_diag_send_data ( id_z_atm,       Atm%z_bot,    Time )
+   if ( id_gust        > 0 ) used = fms_diag_send_data ( id_gust,        Atm%gust,     Time )
+   if ( id_u_flux      > 0 ) used = fms_diag_send_data ( id_u_flux,      flux_u,       Time )
+   if ( id_v_flux      > 0 ) used = fms_diag_send_data ( id_v_flux,      flux_v,       Time )
+   if ( id_albedo      > 0 ) used = fms_diag_send_data ( id_albedo,      albedo,       Time )
+   if ( id_albedo_vis_dir > 0 ) used = fms_diag_send_data ( id_albedo_vis_dir, albedo_vis_dir, Time )
+   if ( id_albedo_nir_dir > 0 ) used = fms_diag_send_data ( id_albedo_nir_dir, albedo_nir_dir, Time )
+   if ( id_albedo_vis_dif > 0 ) used = fms_diag_send_data ( id_albedo_vis_dif, albedo_vis_dif, Time )
+   if ( id_albedo_nir_dif > 0 ) used = fms_diag_send_data ( id_albedo_nir_dif, albedo_nir_dif, Time )
 
 !---- ice fraction ----
    if ( id_ice_mask > 0 ) then
@@ -325,7 +338,7 @@ real :: zrefm, zrefh
        elsewhere
           ref = 0.0
        endwhere
-       used = send_data ( id_ice_mask, ref, Time )
+       used = fms_diag_send_data ( id_ice_mask, ref, Time )
    endif
 
  ! diagnostics for fields at reference level
@@ -339,7 +352,7 @@ real :: zrefm, zrefh
        !---- optimize calculation ----
         if ( id_t_ref <= 0 ) zrefh = zrefm
 
-         call mo_profile ( zrefm, zrefh, Atm%z_bot,           &
+         call fms_monin_obukhov_mo_profile ( zrefm, zrefh, Atm%z_bot,           &
                           rough_mom, rough_heat, rough_moist, &
                           u_star, b_star, q_star,             &
                           del_m, del_h, del_q                 )
@@ -347,68 +360,68 @@ real :: zrefm, zrefh
      !---- reference relative humidity ----
       if ( id_rh_ref > 0 .or.  id_q_ref > 0 .or. id_hurs > 0 .or. id_huss > 0) then
          ref   = q_surf + (Atm%tr_bot(:,:,isphum)-q_surf) * del_q
-         if (id_q_ref > 0) used = send_data ( id_q_ref, ref, Time )
-         if (id_huss  > 0) used = send_data (id_huss,ref,Time)
+         if (id_q_ref > 0) used = fms_diag_send_data ( id_q_ref, ref, Time )
+         if (id_huss  > 0) used = fms_diag_send_data (id_huss,ref,Time)
 
          t_ref = t_ca + (Atm%t_bot-t_ca) * del_h
          !call escomp (t_ref, qs_ref)
-         call compute_qs (t_ref, p_surf, qs_ref, q = ref)
-         call compute_qs (t_ref, p_surf, qs_ref_cmip,  &
+         call fms_sat_vapor_pres_compute_qs (t_ref, p_surf, qs_ref, q = ref)
+         call fms_sat_vapor_pres_compute_qs (t_ref, p_surf, qs_ref_cmip,  &
             q = ref, es_over_liq_and_ice = .true.)
          qs_ref = d622*qs_ref/(p_surf-d378*qs_ref)
 
          ref    = 100.*ref/qs_ref
          ref2   = 100.*ref/qs_ref_cmip
 
-         if (id_rh_ref > 0) used = send_data ( id_rh_ref, ref, Time )
-         if (id_hurs   > 0) used = send_data ( id_hurs, ref2, Time )
+         if (id_rh_ref > 0) used = fms_diag_send_data ( id_rh_ref, ref, Time )
+         if (id_hurs   > 0) used = fms_diag_send_data ( id_hurs, ref2, Time )
       endif
 
      !---- reference temperature ----
       if ( id_t_ref > 0 ) then
          ref = t_ca + (Atm%t_bot-t_ca) * del_h
-         used = send_data ( id_t_ref, ref, Time )
+         used = fms_diag_send_data ( id_t_ref, ref, Time )
       endif
 
      !---- reference u comp ----
       if ( id_u_ref > 0 .or. id_uas > 0) then
          ref = u_surf + (Atm%u_bot-u_surf) * del_m
-         used = send_data ( id_u_ref, ref, Time )
+         used = fms_diag_send_data ( id_u_ref, ref, Time )
       endif
-      if ( id_uas > 0 ) used = send_data ( id_uas, ref, Time )
+      if ( id_uas > 0 ) used = fms_diag_send_data ( id_uas, ref, Time )
 
      !---- reference v comp ----
       if ( id_v_ref > 0 .or. id_vas > 0) then
          ref = v_surf + (Atm%v_bot-v_surf) * del_m
-         used = send_data ( id_v_ref, ref, Time )
+         used = fms_diag_send_data ( id_v_ref, ref, Time )
       endif
-      if ( id_vas > 0 ) used = send_data ( id_vas, ref, Time )
+      if ( id_vas > 0 ) used = fms_diag_send_data ( id_vas, ref, Time )
 
       !    ------- reference-level absolute wind -----------
       if ( id_sfcWind > 0 ) then
               ref = sqrt((u_surf + (Atm%u_bot-u_surf) * del_m)**2 &
               +(v_surf + (Atm%v_bot-v_surf) * del_m)**2)
-         if ( id_sfcWind  > 0 ) used = send_data ( id_sfcWind, ref , Time )
+         if ( id_sfcWind  > 0 ) used = fms_diag_send_data ( id_sfcWind, ref , Time )
       endif
 
 
      !---- interp factors ----
-      if ( id_del_h > 0 )  used = send_data ( id_del_h, del_h, Time )
-      if ( id_del_m > 0 )  used = send_data ( id_del_m, del_m, Time )
-      if ( id_del_q > 0 )  used = send_data ( id_del_q, del_q, Time )
+      if ( id_del_h > 0 )  used = fms_diag_send_data ( id_del_h, del_h, Time )
+      if ( id_del_m > 0 )  used = fms_diag_send_data ( id_del_m, del_m, Time )
+      if ( id_del_q > 0 )  used = fms_diag_send_data ( id_del_q, del_q, Time )
 
    endif
 
   ! topographic roughness scale
    if (id_rough_scale > 0) then
      ref = (log(Atm%z_bot/rough_mom+1)/log(Atm%z_bot/rough_scale+1))**2
-     used = send_data(id_rough_scale, ref, Time)
+     used = fms_diag_send_data(id_rough_scale, ref, Time)
   endif
 
 ! lgs line below is from atm_land_ice_flux_exchange.F90  what should diag_atm be?
-!   if ( id_tas         > 0 ) used = send_data ( id_tas, diag_atm, Time )
-   if ( id_tas > 0 ) used = send_data ( id_tas, t_ref, Time )
-   if ( id_psl > 0 ) used = send_data ( id_psl, Atm%slp , Time )
+!   if ( id_tas         > 0 ) used = fms_diag_send_data ( id_tas, diag_atm, Time )
+   if ( id_tas > 0 ) used = fms_diag_send_data ( id_tas, t_ref, Time )
+   if ( id_psl > 0 ) used = fms_diag_send_data ( id_psl, Atm%slp , Time )
 
 
 !=======================================================================
@@ -420,7 +433,7 @@ real :: zrefm, zrefh
 subroutine flux_down_from_atmos (Time, Atm, Land, Ice,  &
                          Atmos_boundary, Land_boundary, Ice_boundary )
 
-type       (time_type), intent(in)  :: Time
+type       (FmsTime_type), intent(in)  :: Time
 type (atmos_data_type), intent(in)  :: Atm
 type  (land_data_type), intent(in)  :: Land
 type   (ice_data_type), intent(in)  :: Ice
@@ -543,10 +556,10 @@ real, dimension(is:ie,js:je) :: gamma, dtmass, delta_t, delta_q, &
 !-----------------------------------------------------------------------
 !-------------------- diagnostics section ------------------------------
 
-if ( id_u_flux > 0 ) used = send_data ( id_u_flux, Atmos_boundary%u_flux, Time )
-if ( id_tauu > 0 )   used = send_data ( id_tauu,  -Atmos_boundary%u_flux, Time )
-if ( id_v_flux > 0 ) used = send_data ( id_v_flux, Atmos_boundary%v_flux, Time )
-if ( id_tauv > 0 )   used = send_data ( id_tauv,  -Atmos_boundary%v_flux, Time )
+if ( id_u_flux > 0 ) used = fms_diag_send_data ( id_u_flux, Atmos_boundary%u_flux, Time )
+if ( id_tauu > 0 )   used = fms_diag_send_data ( id_tauu,  -Atmos_boundary%u_flux, Time )
+if ( id_v_flux > 0 ) used = fms_diag_send_data ( id_v_flux, Atmos_boundary%v_flux, Time )
+if ( id_tauv > 0 )   used = fms_diag_send_data ( id_tauv,  -Atmos_boundary%v_flux, Time )
 
 !-----------------------------------------------------------------------
 
@@ -556,7 +569,7 @@ end subroutine flux_down_from_atmos
 
 subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 
- type(time_type),      intent(in)  :: Time
+ type(FmsTime_type),      intent(in)  :: Time
  type(land_data_type), intent(inout)  :: Land
  type(ice_data_type),  intent(inout)  :: Ice
  type(land_ice_atmos_boundary_type), intent(inout) :: Boundary
@@ -578,7 +591,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
   endwhere
 
  !??????? should this be done in land model ??????
-  call escomp (t_surf_new, q_surf_new)
+  call fms_sat_vapor_pres_escomp (t_surf_new, q_surf_new)
   where (Land%mask(:,:,1))
      q_surf_new = Land%tr(:,:,1,1)
   elsewhere
@@ -604,26 +617,26 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
      Boundary%dt_tr(:,:,isphum) = f_q_delt_n  + dt_t_surf*e_q_n
   endwhere
 
-!print *, 'PE,dt_t(L)(mn,mx)=',mpp_pe(),minval(Boundary%dt_t,mask=Land%mask(:,:,1)),maxval(Boundary%dt_t,mask=Land%mask(:,:,1))
-!print *, 'PE,dt_q(L)(mn,mx)=',mpp_pe(),minval(Boundary%dt_q,mask=Land%mask(:,:,1)),maxval(Boundary%dt_q,mask=Land%mask(:,:,1))
-!print *, 'PE,dt_t(I)(mn,mx)=',mpp_pe(),minval(Boundary%dt_t,mask=Ice%mask),maxval(Boundary%dt_t,mask=Ice%mask)
-!print *, 'PE,dt_q(I)(mn,mx)=',mpp_pe(),minval(Boundary%dt_q,mask=Ice%mask),maxval(Boundary%dt_q,mask=Ice%mask)
+!print *, 'PE,dt_t(L)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_t,mask=Land%mask(:,:,1)),maxval(Boundary%dt_t,mask=Land%mask(:,:,1))
+!print *, 'PE,dt_q(L)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_q,mask=Land%mask(:,:,1)),maxval(Boundary%dt_q,mask=Land%mask(:,:,1))
+!print *, 'PE,dt_t(I)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_t,mask=Ice%mask),maxval(Boundary%dt_t,mask=Ice%mask)
+!print *, 'PE,dt_q(I)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_q,mask=Ice%mask),maxval(Boundary%dt_q,mask=Ice%mask)
 
 !=======================================================================
 !-------------------- diagnostics section ------------------------------
 
-   if ( id_t_surf > 0 ) used = send_data ( id_t_surf, t_surf_new, Time )
-   if ( id_t_ca   > 0 ) used = send_data ( id_t_ca,   t_ca_new,   Time )
-   if ( id_q_surf > 0 ) used = send_data ( id_q_surf, q_surf_new, Time )
-   if ( id_t_flux > 0 ) used = send_data ( id_t_flux, flux_t,     Time )
-   if ( id_r_flux > 0 ) used = send_data ( id_r_flux, flux_lw,    Time )
-   if ( id_q_flux > 0 ) used = send_data ( id_q_flux, flux_q,     Time )
-   if ( id_evspsbl> 0 ) used = send_data ( id_evspsbl, flux_q,    Time )
-   if ( id_hfls   > 0 ) used = send_data ( id_hfls,   HLV*flux_q, Time )
-   if ( id_hfss   > 0 ) used = send_data ( id_hfss,   flux_t,     Time )
-   if ( id_ts     > 0 ) used = send_data ( id_ts,     t_surf_new, Time )
+   if ( id_t_surf > 0 ) used = fms_diag_send_data ( id_t_surf, t_surf_new, Time )
+   if ( id_t_ca   > 0 ) used = fms_diag_send_data ( id_t_ca,   t_ca_new,   Time )
+   if ( id_q_surf > 0 ) used = fms_diag_send_data ( id_q_surf, q_surf_new, Time )
+   if ( id_t_flux > 0 ) used = fms_diag_send_data ( id_t_flux, flux_t,     Time )
+   if ( id_r_flux > 0 ) used = fms_diag_send_data ( id_r_flux, flux_lw,    Time )
+   if ( id_q_flux > 0 ) used = fms_diag_send_data ( id_q_flux, flux_q,     Time )
+   if ( id_evspsbl> 0 ) used = fms_diag_send_data ( id_evspsbl, flux_q,    Time )
+   if ( id_hfls   > 0 ) used = fms_diag_send_data ( id_hfls,   HLV*flux_q, Time )
+   if ( id_hfss   > 0 ) used = fms_diag_send_data ( id_hfss,   flux_t,     Time )
+   if ( id_ts     > 0 ) used = fms_diag_send_data ( id_ts,     t_surf_new, Time )
 
-   call sum_diag_integral_field ('evap', flux_q*86400.)
+   call fms_sum_diag_integral_field ('evap', flux_q*86400.)
 
 !=======================================================================
 !---- deallocate module storage ----
@@ -647,7 +660,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
                                  atmos_ice_boundary,     &
                                  land_ice_atmos_boundary )
 
- type       (time_type), intent(in)  :: Time
+ type       (FmsTime_type), intent(in)  :: Time
  type (atmos_data_type), intent(in)  :: Atm
  type  (land_data_type), intent(in)  :: Land
  type   (ice_data_type), intent(in)  :: Ice
@@ -668,28 +681,28 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 !-----------------------------------------------------------------------
 !----- save the grid indices -----
 
-   call mpp_get_compute_domain (Atm%Domain, is, ie, js, je )
+   call fms_mpp_domains_get_compute_domain (Atm%Domain, is, ie, js, je )
 
 !--------- write version number and namelist ------------------
 
-   call write_version_number (version, tag)
-   if ( mpp_pe() == mpp_root_pe() ) write (stdlog(), nml=flux_exchange_nml)
+   call fms_write_version_number (version, tag)
+   if ( fms_mpp_pe() == fms_mpp_root_pe() ) write (fms_mpp_stdlog(), nml=flux_exchange_nml)
 
 
-   call diag_integral_field_init ('evap', 'f6.3')
+   call fms_diag_integral_field_init ('evap', 'f6.3')
    call diag_field_init ( Time, Atm%axes(1:2) )
 
 !----- find out number of atmospheric prognostic tracers and index of specific
 !      humidity in the tracer table
-   call get_number_tracers (MODEL_ATMOS, num_tracers=n_atm_tr_tot, &
+   call fms_tracer_manager_get_number_tracers (MODEL_ATMOS, num_tracers=n_atm_tr_tot, &
                             num_prog=n_atm_tr)
-   isphum = get_tracer_index( MODEL_ATMOS, 'sphum' )
+   isphum = fms_tracer_manager_get_tracer_index( MODEL_ATMOS, 'sphum' )
    if (isphum==NO_TRACER) &
       call error_mesg('flux_exchange_mod', 'Cannot find water vapor in ATM tracer table', FATAL)
 !-----------------------------------------------------------------------
 !------ allocate atmos_land_boundary ------
 
-   call mpp_get_compute_domain ( Land%Domain, isc, iec, jsc, jec )
+   call fms_mpp_domains_get_compute_domain ( Land%Domain, isc, iec, jsc, jec )
    if (isc /= is .or. iec /= ie .or. jsc /= js .or. jec /= je ) &
          call error_mesg ('flux_exchange_init', 'land model '// &
                 'domain does not match atmosphere domain', FATAL)
@@ -733,7 +746,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 !-----------------------------------------------------------------------
 !------ allocate atmos ice boundary ------
 
-   call mpp_get_compute_domain ( Ice%Domain, isc, iec, jsc, jec )
+   call fms_mpp_domains_get_compute_domain ( Ice%Domain, isc, iec, jsc, jec )
    if (isc /= is .or. iec /= ie .or. jsc /= js .or. jec /= je ) &
           call error_mesg ('flux_exchange_init', 'ice model '// &
                 'domain does not match atmosphere domain', FATAL)
@@ -791,6 +804,9 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
         allocate( land_ice_atmos_boundary%shflx(is:ie,js:je) )!miz
         allocate( land_ice_atmos_boundary%lhflx(is:ie,js:je) )!miz
 #endif
+   allocate( land_ice_atmos_boundary%wind(is:ie,js:je) )
+   allocate( land_ice_atmos_boundary%thv_atm(is:ie,js:je) )
+   allocate( land_ice_atmos_boundary%thv_surf(is:ie,js:je) )
    allocate( land_ice_atmos_boundary%rough_mom(is:ie,js:je) )
    allocate( land_ice_atmos_boundary%frac_open_sea(is:ie,js:je) )
 
@@ -818,6 +834,9 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
    land_ice_atmos_boundary%shflx=0.0
    land_ice_atmos_boundary%lhflx=0.0
 #endif
+   land_ice_atmos_boundary%wind=0.0
+   land_ice_atmos_boundary%thv_atm=0.0
+   land_ice_atmos_boundary%thv_surf=0.0
    land_ice_atmos_boundary%rough_mom=0.01
    land_ice_atmos_boundary%frac_open_sea=0.0
 
@@ -836,7 +855,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 
  integer :: ierr, io
 
-   read (input_nml_file, nml=flux_exchange_nml, iostat=io)
+   read (fms_mpp_input_nml_file, nml=flux_exchange_nml, iostat=io)
    ierr = check_nml_error(io, 'flux_exchange_nml')
 
    do_read_nml = .false.
@@ -847,7 +866,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 
 subroutine diag_field_init ( Time, atmos_axes )
 
-  type(time_type), intent(in) :: Time
+  type(FmsTime_type), intent(in) :: Time
   integer,         intent(in) :: atmos_axes(2)
 
   integer :: iref
@@ -887,175 +906,183 @@ subroutine diag_field_init ( Time, atmos_axes )
  !--------- initialize static diagnostic fields --------------------
 
   id_land_mask = &
-       register_static_field ( mod_name, 'land_mask', atmos_axes,  &
+      fms_diag_register_static_field ( mod_name, 'land_mask', atmos_axes,  &
        'fractional amount of land', 'none', &
        range=frange )
 
  !--------- initialize diagnostic fields --------------------
 
   id_ice_mask = &
-       register_diag_field ( mod_name, 'ice_mask', atmos_axes, Time, &
+       fms_diag_register_diag_field ( mod_name, 'ice_mask', atmos_axes, Time, &
        'fractional amount of sea ice', 'none',  &
        range=frange )
 
    id_wind = &
-   register_diag_field ( mod_name, 'wind', atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'wind', atmos_axes, Time, &
                         'wind speed for flux calculations', 'm/s', &
                          range=(/0.,vrange(2)/) )
 
    id_drag_moist = &
-   register_diag_field ( mod_name, 'drag_moist', atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'drag_moist', atmos_axes, Time, &
                         'drag coeff for moisture',    'none'     )
 
    id_drag_heat  = &
-   register_diag_field ( mod_name, 'drag_heat', atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'drag_heat', atmos_axes, Time, &
                         'drag coeff for heat',    'none'     )
 
    id_drag_mom   = &
-   register_diag_field ( mod_name, 'drag_mom',  atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'drag_mom',  atmos_axes, Time, &
                         'drag coeff for momentum',     'none'     )
 
    id_rough_moist = &
-   register_diag_field ( mod_name, 'rough_moist', atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'rough_moist', atmos_axes, Time, &
                         'surface roughness for moisture',  'm'  )
 
    id_rough_heat = &
-   register_diag_field ( mod_name, 'rough_heat', atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'rough_heat', atmos_axes, Time, &
                         'surface roughness for heat',  'm'  )
 
    id_rough_mom  = &
-   register_diag_field ( mod_name, 'rough_mom',  atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'rough_mom',  atmos_axes, Time, &
                         'surface roughness for momentum',  'm'  )
 
    id_u_star     = &
-   register_diag_field ( mod_name, 'u_star',     atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'u_star',     atmos_axes, Time, &
                         'friction velocity',   'm/s'   )
 
    id_b_star     = &
-   register_diag_field ( mod_name, 'b_star',     atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'b_star',     atmos_axes, Time, &
                         'buoyancy scale',      'm/s2'   )
 
-  id_q_star     = &
-       register_diag_field ( mod_name, 'q_star',     atmos_axes, Time, &
+   id_q_star     = &
+   fms_diag_register_diag_field ( mod_name, 'q_star',     atmos_axes, Time, &
        'moisture scale',      'kg water/kg air'   )
 
+   id_thv_atm = &
+   fms_diag_register_diag_field ( mod_name, 'thv_atm', atmos_axes, Time, &
+       'surface air virtual potential temperature', 'K')
+
+   id_thv_surf = &
+   fms_diag_register_diag_field ( mod_name, 'thv_surf', atmos_axes, Time, &
+       'surface virtual potential temperature', 'K')
+
    id_u_flux     = &
-   register_diag_field ( mod_name, 'tau_x',      atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'tau_x',      atmos_axes, Time, &
                         'zonal wind stress',     'pa'   )
 
    id_v_flux     = &
-   register_diag_field ( mod_name, 'tau_y',      atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'tau_y',      atmos_axes, Time, &
                         'meridional wind stress',     'pa'   )
 
    id_t_surf     = &
-   register_diag_field ( mod_name, 't_surf',     atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 't_surf',     atmos_axes, Time, &
                         'surface temperature',    'deg_k', &
                         range=trange    )
 
   id_t_ca       = &
-       register_diag_field ( mod_name, 't_ca',     atmos_axes, Time, &
+       fms_diag_register_diag_field ( mod_name, 't_ca',     atmos_axes, Time, &
        'canopy air temperature',    'deg_k', &
        range=trange    )
 
   id_q_atm     = &
-       register_diag_field ( mod_name, 'q_atm',     atmos_axes, Time, &
+       fms_diag_register_diag_field ( mod_name, 'q_atm',     atmos_axes, Time, &
        'specific humidity at btm level',    'kg/kg')
 
   id_q_surf     = &
-       register_diag_field ( mod_name, 'q_surf',     atmos_axes, Time, &
+       fms_diag_register_diag_field ( mod_name, 'q_surf',     atmos_axes, Time, &
        'surface specific humidity',    'kg/kg')
 
   id_z_atm      = &
-       register_diag_field ( mod_name, 'z_atm',     atmos_axes, Time, &
+       fms_diag_register_diag_field ( mod_name, 'z_atm',     atmos_axes, Time, &
        'height of btm level',    'm')
 
   id_p_atm      = &
-       register_diag_field ( mod_name, 'p_atm',     atmos_axes, Time, &
+       fms_diag_register_diag_field ( mod_name, 'p_atm',     atmos_axes, Time, &
        'pressure at btm level',    'pa')
 
   id_gust       = &
-       register_diag_field ( mod_name, 'gust',     atmos_axes, Time, &
+       fms_diag_register_diag_field ( mod_name, 'gust',     atmos_axes, Time, &
        'gust scale',    'm/s')
 
    id_t_flux     = &
-   register_diag_field ( mod_name, 'shflx',      atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'shflx',      atmos_axes, Time, &
                         'sensible heat flux',     'w/m2'    )
 
    id_q_flux     = &
-   register_diag_field ( mod_name, 'evap',       atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'evap',       atmos_axes, Time, &
                         'evaporation rate',        'kg/m2/s'  )
 
    id_r_flux     = &
-   register_diag_field ( mod_name, 'lwflx',      atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'lwflx',      atmos_axes, Time, &
                         'net (down-up) longwave flux',   'w/m2'    )
 
    id_t_atm      = &
-   register_diag_field ( mod_name, 't_atm',      atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 't_atm',      atmos_axes, Time, &
                         'temperature at btm level',    'deg_k', &
                         range=trange     )
 
    id_u_atm      = &
-   register_diag_field ( mod_name, 'u_atm',      atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'u_atm',      atmos_axes, Time, &
                         'u wind component at btm level',  'm/s', &
                         range=vrange    )
 
    id_v_atm      = &
-   register_diag_field ( mod_name, 'v_atm',      atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'v_atm',      atmos_axes, Time, &
                         'v wind component at btm level',  'm/s', &
                         range=vrange    )
 
    id_t_ref      = &
-   register_diag_field ( mod_name, 't_ref',      atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 't_ref',      atmos_axes, Time, &
                         'temperature at '//label_zh, 'deg_k' , &
                         range=trange      )
 
    id_rh_ref     = &
-   register_diag_field ( mod_name, 'rh_ref',     atmos_axes, Time,   &
+   fms_diag_register_diag_field ( mod_name, 'rh_ref',     atmos_axes, Time,   &
                         'relative humidity at '//label_zh, 'percent' )
 
    id_u_ref      = &
-   register_diag_field ( mod_name, 'u_ref',      atmos_axes, Time, &
+   fms_diag_register_diag_field ( mod_name, 'u_ref',      atmos_axes, Time, &
                         'zonal wind component at '//label_zm,  'm/s', &
                         range=vrange )
 
    id_v_ref      = &
-   register_diag_field ( mod_name, 'v_ref',      atmos_axes, Time,     &
+   fms_diag_register_diag_field ( mod_name, 'v_ref',      atmos_axes, Time,     &
                       'meridional wind component at '//label_zm, 'm/s', &
                         range=vrange )
    id_q_ref = &
-       register_diag_field ( mod_name, 'q_ref', atmos_axes, Time,     &
+       fms_diag_register_diag_field ( mod_name, 'q_ref', atmos_axes, Time,     &
        'specific humidity at '//trim(label_zh), 'kg/kg', missing_value=-1.0)
 
    id_del_h      = &
-   register_diag_field ( mod_name, 'del_h',      atmos_axes, Time,  &
+   fms_diag_register_diag_field ( mod_name, 'del_h',      atmos_axes, Time,  &
                         'ref height interp factor for heat', 'none' )
    id_del_m      = &
-   register_diag_field ( mod_name, 'del_m',      atmos_axes, Time,     &
+   fms_diag_register_diag_field ( mod_name, 'del_m',      atmos_axes, Time,     &
                         'ref height interp factor for momentum','none' )
    id_del_q      = &
-   register_diag_field ( mod_name, 'del_q',      atmos_axes, Time,     &
+   fms_diag_register_diag_field ( mod_name, 'del_q',      atmos_axes, Time,     &
                         'ref height interp factor for moisture','none' )
    id_albedo      = &
-   register_diag_field ( mod_name, 'albedo',      atmos_axes, Time,     &
+   fms_diag_register_diag_field ( mod_name, 'albedo',      atmos_axes, Time,     &
                         'surface albedo','none' )
    id_albedo_vis_dir = &
-   register_diag_field ( mod_name, 'albedo_vis_dir', atmos_axes, Time,     &
+   fms_diag_register_diag_field ( mod_name, 'albedo_vis_dir', atmos_axes, Time,     &
                         'VIS direct surface albedo','none' )
    id_albedo_nir_dir = &
-   register_diag_field ( mod_name, 'albedo_nir_dir', atmos_axes, Time,     &
+   fms_diag_register_diag_field ( mod_name, 'albedo_nir_dir', atmos_axes, Time,     &
                         'NIR direct surface albedo','none' )
    id_albedo_vis_dif = &
-   register_diag_field ( mod_name, 'albedo_vis_dif', atmos_axes, Time,     &
+   fms_diag_register_diag_field ( mod_name, 'albedo_vis_dif', atmos_axes, Time,     &
                         'VIS diffuse surface albedo','none' )
    id_albedo_nir_dif = &
-   register_diag_field ( mod_name, 'albedo_nir_dif', atmos_axes, Time,     &
+   fms_diag_register_diag_field ( mod_name, 'albedo_nir_dif', atmos_axes, Time,     &
                         'NIR diffuse surface albedo','none' )
 
     !--------------------------------------------------------------------
     !    retrieve the diag_manager id for the area diagnostic,
     !    needed for cmorizing various diagnostics.
     !--------------------------------------------------------------------
-    area_id = get_diag_field_id ('dynamics', 'area')
+    area_id = fms_diag_get_field_id ('dynamics', 'area')
     if (area_id .eq. DIAG_FIELD_NOT_FOUND) call error_mesg &
          ('diag_field_init in atm_land_ice_flux_exchange_mod', &
          'diagnostic field "dynamics", "area" is not in the diag_table', NOTE)
@@ -1067,7 +1094,7 @@ subroutine diag_field_init ( Time, atmos_axes )
                             'Near-Surface Air Temperature', 'K' , &
                              standard_name='air_temperature' )
     if ( id_tas > 0 .and. id_height2m > 0) &
-       call diag_field_add_attribute( id_tas, 'coordinates', 'height2m' )
+       call fms_diag_field_add_attribute( id_tas, 'coordinates', 'height2m' )
 ! in diag table include height2m wherever tas is included
 
     id_evspsbl = register_cmip_diag_field_2d ( mod_name, 'evspsbl', Time, &
@@ -1078,31 +1105,31 @@ subroutine diag_field_init ( Time, atmos_axes )
                            'Eastward Near-Surface Wind', 'm s-1', &
                             standard_name='eastward_wind' )
     if ( id_uas > 0 .and. id_height10m > 0) &
-       call diag_field_add_attribute( id_uas, 'coordinates', 'height10m' )
+       call fms_diag_field_add_attribute( id_uas, 'coordinates', 'height10m' )
 
     id_vas = register_cmip_diag_field_2d ( mod_name, 'vas', Time, &
                           'Northward Near-Surface Wind', 'm s-1', &
                            standard_name='northward_wind' )
     if ( id_vas > 0 .and. id_height10m > 0 ) &
-       call diag_field_add_attribute( id_vas, 'coordinates', 'height10m' )
+       call fms_diag_field_add_attribute( id_vas, 'coordinates', 'height10m' )
 
     id_sfcWind = register_cmip_diag_field_2d ( mod_name, 'sfcWind', Time, &
                                       'Near-Surface Wind Speed', 'm s-1', &
                                        standard_name='wind_speed' )
     if ( id_sfcWind > 0 .and. id_height10m > 0 ) &
-       call diag_field_add_attribute( id_sfcWind, 'coordinates', 'height10m' )
+       call fms_diag_field_add_attribute( id_sfcWind, 'coordinates', 'height10m' )
 
     id_huss = register_cmip_diag_field_2d ( mod_name, 'huss', Time, &
                            'Near-Surface Specific Humidity', '1.0', &
                             standard_name='specific_humidity' )
     if ( id_huss > 0 .and. id_height2m > 0 ) &
-       call diag_field_add_attribute( id_huss, 'coordinates', 'height2m' )
+       call fms_diag_field_add_attribute( id_huss, 'coordinates', 'height2m' )
 
     id_hurs = register_cmip_diag_field_2d ( mod_name, 'hurs', Time, &
                              'Near-Surface Relative Humidity', '%', &
                               standard_name='relative_humidity' )
     if ( id_hurs > 0 .and. id_height2m > 0 ) &
-       call diag_field_add_attribute( id_hurs, 'coordinates', 'height2m' )
+       call fms_diag_field_add_attribute( id_hurs, 'coordinates', 'height2m' )
 
     id_ts = register_cmip_diag_field_2d ( mod_name, 'ts', Time, &
                                     'Surface Temperature', 'K', &
@@ -1124,7 +1151,7 @@ subroutine diag_field_init ( Time, atmos_axes )
                         'Surface Upward Latent Heat Flux', 'W m-2', &
                     standard_name='surface_upward_latent_heat_flux' )
     if ( id_hfls > 0 ) &
-       call diag_field_add_attribute( id_hfls, 'comment', 'Lv*evap' )
+       call fms_diag_field_add_attribute( id_hfls, 'comment', 'Lv*evap' )
 
     id_hfss = register_cmip_diag_field_2d ( mod_name, 'hfss', Time, &
                       'Surface Upward Sensible Heat Flux', 'W m-2', &
@@ -1156,6 +1183,7 @@ subroutine surface_flux_2d (                                           &
      flux_t,    flux_q,     flux_r,    flux_u,    flux_v,              &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
+     thv_atm,   thv_surf,                                              &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
      dt,        land,       seawater,  avail  )
@@ -1173,6 +1201,7 @@ subroutine surface_flux_2d (                                           &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
        dhdt_atm,  dedq_atm,   dtaudu_atm,dtaudv_atm,         &
        w_atm,     u_star,     b_star,    q_star,             &
+       thv_atm,   thv_surf,                                  &
        cd_m,      cd_t,       cd_q
   real, intent(inout), dimension(:,:) :: q_surf
   real, intent(in) :: dt
@@ -1189,6 +1218,7 @@ subroutine surface_flux_2d (                                           &
           flux_t(:,j),    flux_q(:,j),     flux_r(:,j),    flux_u(:,j),    flux_v(:,j),             &
           cd_m(:,j),      cd_t(:,j),       cd_q(:,j),                                               &
           w_atm(:,j),     u_star(:,j),     b_star(:,j),     q_star(:,j),                            &
+          thv_atm(:,j),   thv_surf(:,j),                                                            &
           dhdt_surf(:,j), dedt_surf(:,j),  dedq_surf(:,j),  drdt_surf(:,j),                         &
           dhdt_atm(:,j),  dedq_atm(:,j),   dtaudu_atm(:,j), dtaudv_atm(:,j),                        &
           dt,             land(:,j),       seawater(:,j),  avail(:,j)  )

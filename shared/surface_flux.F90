@@ -173,9 +173,9 @@ logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent f
                                            !! heat.  This option is available for legacy purposes, and is not recommended for
                                            !! new experiments.
 logical :: ncar_ocean_flux_multilevel  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.
-real :: bulk_zu                           !< Reference height for wind speed
-real :: bulk_zt                           !< Reference height for atm temperature
-real :: bulk_zq                           !< Reference height for atm humidity
+real :: bulk_zu = 10.                      !< Reference height for wind speed (meters)
+real :: bulk_zt = 10.                      !< Reference height for atm temperature (meters)
+real :: bulk_zq = 10.                      !< Reference height for atm humidity (meters)
 logical :: raoult_sat_vap        = .false. !< Reduce saturation vapor pressure to account for seawater
 logical :: do_simple             = .false.
 
@@ -210,6 +210,7 @@ subroutine surface_flux_1d (                                           &
      flux_t, flux_q, flux_r, flux_u, flux_v,                           &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
+     thv_atm,   thv_surf,                                              &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
      dt,        land,      seawater,     avail  )
@@ -250,6 +251,8 @@ subroutine surface_flux_1d (                                           &
                                      u_star, & !< Turbulent velocity scale
                                      b_star, & !< Turbulent buoyant scale
                                      q_star, & !< Turbulent moisture scale
+                                     thv_atm, &   ! Surface air theta_v
+                                     thv_surf, &  ! Surface theta_v
                                      cd_m, & !< Momentum exchange coefficient
                                      cd_t, & ! Heat exchange coefficient
                                      cd_q !< Moisture exchange coefficient
@@ -262,7 +265,7 @@ subroutine surface_flux_1d (                                           &
 
   ! ---- local vars ----------------------------------------------------------
   real, dimension(size(t_atm(:))) ::                          &
-       thv_atm,  th_atm,   tv_atm,    thv_surf,            &
+       th_atm,   tv_atm,   &  ! thv_atm and thv_surf are moved to output
        e_sat,    e_sat1,   q_sat,     q_sat1,    p_ratio,  &
        t_surf0,  t_surf1,  u_dif,     v_dif,               &
        rho_drag, drag_t,   drag_m,    drag_q,    rho,      &
@@ -273,7 +276,7 @@ subroutine surface_flux_1d (                                           &
 
 
   if (.not. module_is_initialized) &
-     call mpp_error(FATAL, "surface_flux_1d: surface_flux_init is not called")
+     call fms_mpp_error(FATAL, "surface_flux_1d: surface_flux_init is not called")
 
   !---- use local value of surf temp ----
 
@@ -288,8 +291,8 @@ subroutine surface_flux_1d (                                           &
 
   t_surf1 = t_surf0 + del_temp
 
-  call escomp ( t_surf0, e_sat  )  ! saturation vapor pressure
-  call escomp ( t_surf1, e_sat1 )  ! perturbed  vapor pressure
+  call fms_sat_vapor_pres_escomp ( t_surf0, e_sat  )  ! saturation vapor pressure
+  call fms_sat_vapor_pres_escomp ( t_surf1, e_sat1 )  ! perturbed  vapor pressure
 
   if(use_mixing_ratio) then
     ! surface mixing ratio at saturation
@@ -366,7 +369,7 @@ subroutine surface_flux_1d (                                           &
   endif
 
   !  monin-obukhov similarity theory
-  call mo_drag (thv_atm, thv_surf, z_atm,                  &
+  call fms_monin_obukhov_mo_drag (thv_atm, thv_surf, z_atm,                  &
        rough_mom, rough_heat, rough_moist, w_atm,          &
        cd_m, cd_t, cd_q, u_star, b_star, avail             )
 
@@ -448,6 +451,8 @@ subroutine surface_flux_1d (                                           &
      q_star     = 0.0
      q_surf     = 0.0
      w_atm      = 0.0
+     thv_atm    = 0.0
+     thv_surf   = 0.0
   endwhere
 
   ! calculate d(stress component)/d(atmos wind component)
@@ -477,6 +482,7 @@ subroutine surface_flux_0d (                                                 &
      flux_t_0,    flux_q_0,     flux_r_0,    flux_u_0,  flux_v_0,            &
      cd_m_0,      cd_t_0,       cd_q_0,                                      &
      w_atm_0,     u_star_0,     b_star_0,     q_star_0,                      &
+     thv_atm_0,   thv_surf_0,                                                &
      dhdt_surf_0, dedt_surf_0,  dedq_surf_0,  drdt_surf_0,                   &
      dhdt_atm_0,  dedq_atm_0,   dtaudu_atm_0, dtaudv_atm_0,                  &
      dt,          land_0,       seawater_0,  avail_0  )
@@ -518,6 +524,8 @@ subroutine surface_flux_0d (                                                 &
                        u_star_0, & !< Turbulent velocity scale
                        b_star_0, & !< Turbulent buoyant scale
                        q_star_0, & !< Turbulent moisture scale
+                       thv_atm_0, &   ! Surface air theta_v
+                       thv_surf_0, &  ! Surface theta_v
                        cd_m_0, & !< Momentum exchange coefficient
                        cd_t_0, & ! Heat exchange coefficient
                        cd_q_0 !< Moisture exchange coefficient
@@ -536,6 +544,7 @@ subroutine surface_flux_0d (                                                 &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
        dhdt_atm,  dedq_atm,   dtaudu_atm,dtaudv_atm,         &
        w_atm,     u_star,     b_star,    q_star,             &
+       thv_atm,   thv_surf, &
        cd_m,      cd_t,       cd_q
   real, dimension(1) :: q_surf
 
@@ -571,6 +580,7 @@ subroutine surface_flux_0d (                                                 &
        flux_t, flux_q, flux_r, flux_u, flux_v,                           &
        cd_m,      cd_t,       cd_q,                                      &
        w_atm,     u_star,     b_star,     q_star,                        &
+       thv_atm,   thv_surf,                                              &
        dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
        dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
        dt,        land,      seawater, avail  )
@@ -593,6 +603,8 @@ subroutine surface_flux_0d (                                                 &
   b_star_0     = b_star(1)
   q_star_0     = q_star(1)
   q_surf_0     = q_surf(1)
+  thv_atm_0    = thv_atm(1)
+  thv_surf_0   = thv_surf(1)
   cd_m_0       = cd_m(1)
   cd_t_0       = cd_t(1)
   cd_q_0       = cd_q(1)
@@ -607,6 +619,7 @@ subroutine surface_flux_2d (                                           &
      flux_t,    flux_q,     flux_r,    flux_u,    flux_v,              &
      cd_m,      cd_t,       cd_q,                                      &
      w_atm,     u_star,     b_star,     q_star,                        &
+     thv_atm,   thv_surf,                                              &
      dhdt_surf, dedt_surf,  dedq_surf,  drdt_surf,                     &
      dhdt_atm,  dedq_atm,   dtaudu_atm, dtaudv_atm,                    &
      dt,        land,       seawater,  avail  )
@@ -648,6 +661,8 @@ subroutine surface_flux_2d (                                           &
                                        u_star, & !< Turbulent velocity scale
                                        b_star, & !< Turbulent buoyant scale
                                        q_star, & !< Turbulent moisture scale
+                                       thv_atm, &   ! Surface air theta_v
+                                       thv_surf, &  ! Surface theta_v
                                        cd_m, & !< Momentum exchange coefficient
                                        cd_t, & ! Heat exchange coefficient
                                        cd_q !< Moisture exchange coefficient
@@ -666,6 +681,7 @@ subroutine surface_flux_2d (                                           &
           flux_t(:,j),    flux_q(:,j),     flux_r(:,j),    flux_u(:,j),    flux_v(:,j),                   &
           cd_m(:,j),      cd_t(:,j),       cd_q(:,j),                                                     &
           w_atm(:,j),     u_star(:,j),     b_star(:,j),     q_star(:,j),                                  &
+          thv_atm(:,j),   thv_surf(:,j),                                                                  &
           dhdt_surf(:,j), dedt_surf(:,j),  dedq_surf(:,j),  drdt_surf(:,j),                               &
           dhdt_atm(:,j),  dedq_atm(:,j),   dtaudu_atm(:,j), dtaudv_atm(:,j),                              &
           dt,             land(:,j),       seawater(:,j),  avail(:,j)  )
@@ -681,18 +697,18 @@ subroutine surface_flux_init
   integer :: unit, ierr, io
 
   ! read namelist
-  read (input_nml_file, surface_flux_nml, iostat=io)
+  read (fms_mpp_input_nml_file, surface_flux_nml, iostat=io)
   ierr = check_nml_error(io,'surface_flux_nml')
 
   ! write version number
-  call write_version_number(version, tagname)
+  call fms_write_version_number(version, tagname)
 
-  unit = stdlog()
-  if ( mpp_pe() == mpp_root_pe() )  write (unit, nml=surface_flux_nml)
+  unit = fms_mpp_stdlog()
+  if ( fms_mpp_pe() == fms_mpp_root_pe() )  write (unit, nml=surface_flux_nml)
 
   if(.not. use_virtual_temp) d608 = 0.0
 
-  call monin_obukhov_init()
+  call fms_monin_obukhov_init()
 
   module_is_initialized = .true.
 

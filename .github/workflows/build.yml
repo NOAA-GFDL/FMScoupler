@@ -6,7 +6,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: underwoo/ubuntu_libfms_gnu
+      image: ghcr.io/noaa-gfdl/fms/fms-ci-rocky-gnu:13.2.0
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.github_token }}
       env: 
         CC: mpicc
         FC: mpif90

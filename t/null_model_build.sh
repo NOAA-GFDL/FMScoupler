@@ -24,7 +24,12 @@ export PATH=${PATH}:${bld_dir}/mkmf/bin
 mk_template=${bld_dir}/mkmf/templates/linux-ubuntu-xenial-gnu.mk
 
 # FMS
-git clone https://github.com/NOAA-GFDL/FMS.git $src_dir/FMS
+if [ "$1" = "--local-fms" ]; then
+  test -d "../../../FMS" || echo "Error: --local-fms specified but FMS src not found in parent directory" 1>&2
+  cp -r ../../../FMS $src_dir/FMS
+else
+  git clone https://github.com/NOAA-GFDL/FMS.git $src_dir/FMS
+fi
 
 # ocean_null
 git clone https://github.com/NOAA-GFDL/ocean_null.git $src_dir/ocean_null
@@ -94,7 +99,7 @@ EOF
 mkdir -p $bld_dir/fms
 list_paths -o $bld_dir/fms/pathnames_fms $src_dir/FMS
 cd $bld_dir/fms
-mkmf -m Makefile -a $src_dir -b $bld_dir -p libfms.a -t $mkmf_template -g -c "-Duse_netCDF -Duse_libMPI -DMAXFIELDS_=200 -DMAXFIELDMETHODS_=200 -DINTERNAL_FILE_NML" -IFMS/include -IFMS/mpp/include $bld_dir/fms/pathnames_fms
+mkmf -m Makefile -a $src_dir -b $bld_dir -p libfms.a -t $mkmf_template -g -c "-Duse_netCDF -Duse_libMPI -DMAXFIELDS_=200 -DMAXFIELDMETHODS_=200 -DINTERNAL_FILE_NML -DHAVE_GETTID" -o "-fallow-argument-mismatch" -IFMS/include -IFMS/mpp/include $bld_dir/fms/pathnames_fms
 cd $bld_dir
 
 # libocean_null
@@ -152,9 +157,9 @@ make -j NETCDF=3 DEBUG=on coupler_full_test.x
 # Report on the status of the build
 if [ $? -eq 0 ]
 then
-  echo "<NOTE> : make succeeded - full coupler."
+  echo "::note title=Build Succeeded:: null model with full coupler built successfully."
 else
-  echo "<NOTE> : make failed - full coupler."
+  echo "::error title=Build Failed:: null model with full coupler failed compilation."
   exit 1
 fi
 
@@ -164,13 +169,11 @@ make -j NETCDF=3 DEBUG=on coupler_simple_test.x
 # Report on the status of the build
 if [ $? -eq 0 ]
 then
-  echo "<NOTE> : make succeeded - simple coupler."
+  echo "::note title=Build Succeeded:: null model with simple coupler built successfully."
 else
-  echo "<NOTE> : make failed - simple coupler."
+  echo "::error title=Build Failed:: null model with simple coupler failed compilation."
   exit 1
 fi
-### 17FEB2021 exit 0 to prevent model running.  This is temporary
-exit 0
 # Run the null models test
 # Setup the run directory
 mkdir ${bld_dir}/run
@@ -178,21 +181,23 @@ cd ${bld_dir}/run
 mkdir RESTART
 # Get the data files required for the run
 tarFile=coupler_null_test_data_full_simple.tar.gz
-wget ftp://ftp.gfdl.noaa.gov/perm/GFDL_pubrelease/test_data/${tarFile}
+curl -O ftp://ftp.gfdl.noaa.gov/perm/GFDL_pubrelease/test_data/${tarFile}
 tar zxf ${tarFile}
+
+# add an io layout to the full nml
+sed -i '22i  io_layout = 1, 1' input-full.nml
 
 # Get the full namelist
 ln -s input-full.nml input.nml
 # Run the null model with the full coupler
-### 17FEB2021 commented out the run because it crashes
-#mpiexec -n 1 ${bld_dir}/coupler_full_test.x
+mpiexec -n 1 ${bld_dir}/coupler_full_test.x
 
 # Report on the status of the run with the full coupler
 if [ $? -eq 0 ]
 then
-  echo "<NOTE> : run succeeded - full coupler."
+  echo "::note title=Run Succeeded - full coupler:: Full coupler null model ran successfully."
 else
-  echo "<NOTE> : run failed - full coupler."
+  echo "::error title=Run Failed - full coupler:: Full coupler null model run failed execution."
   exit 1
 fi
 
@@ -204,6 +209,13 @@ mkdir RESTART
 rm input.nml
 ln -s input-simple.nml input.nml
 # Run the null simple coupler test
-### 17FEB2021 commented out the run because it crashes
-#mpiexec -n 1 ${bld_dir}/coupler_simple_test.x
+mpiexec -n 1 ${bld_dir}/coupler_simple_test.x
 
+# Report on the status of the run with the simple coupler
+if [ $? -eq 0 ]
+then
+  echo "::note title=Run Succeeded - simple coupler:: simple coupler null model ran successfully"
+else
+  echo "::error title=Run Failed - simple coupler:: simple coupler null model run failed execution."
+  exit 1
+fi

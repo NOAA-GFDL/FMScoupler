@@ -6,6 +6,72 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2024.01] - 2024-05-03
+
+### Added
+- Adds option to run SHiELD with a gregorian calender (#105)
+- Adds a `diag_send_complete` call for FMS diag_manager rewrite(#101)
+- Adds documentation for the exchange grid (#98)
+
+### Tag Commit Hashes
+- 2024.01-alpha1 6442d387153064644325c96a5e9e2935139d5e3c
+- 2024.01-alpha2 6442d387153064644325c96a5e9e2935139d5e3c
+- 2024.01-alpha3 f4782c2c033df086eeac29fbbefb4a0bdac1649f
+- 2024.01-beta1  f4782c2c033df086eeac29fbbefb4a0bdac1649f
+- 2024.01-beta2  f4782c2c033df086eeac29fbbefb4a0bdac1649f
+- 2024.01-beta3  d15c35a92ac4f04c57c539eaa56301c8f70d53cf
+- 2024.01-alpha4 d15c35a92ac4f04c57c539eaa56301c8f70d53cf
+- 2024.01-alpha5 d15c35a92ac4f04c57c539eaa56301c8f70d53cf
+- 2024.01-alpha6 4dc9b0f2a85d34b0fdc8477625b91794a77ac747
+- 2024.01-beta4  4dc9b0f2a85d34b0fdc8477625b91794a77ac747
+- 2024.01-beta5  4dc9b0f2a85d34b0fdc8477625b91794a77ac747
+
+## [2023.04] - 2023-12-04
+### Added
+- Adds additional output arguments `thv_atm` amd `thv_surf` to the `surface_flux` interface, as well as calls to xgrid and send data in order to use a new atmosphere boundary layer scheme.
+
+### Changed
+- Routines using the `data` argument name explicictly have been updated to match corresponding FMS updates
+
+### Tag Commit Hashes
+2023.04-beta1 93ce3642a7951eb11d7d39441911717923dfc768
+
+
+## [2023.02] - 2023-07-27
+### Fixed
+- SHARED: Fixes crashes due to uninitialized namelist variables.
+
+### Changed
+- Routines/variables from FMS have been updated to include a prefixes containing fms and the subdirectory/module name. This was necessitated by aliases being added to the 'global' libFMS.F90 module in FMS.
+- FULL: Adds logic for PE assignment in order to allow for a data atmosphere to be used alongside the combined ice-ocean driver.
+
+### Removed
+- Usage of fms_io and mpp_io has been deprecated. If using these modules in a model, you must compile both FMS and FMScoupler with the -Duse_deprecated_io CPP flag.
+
+### Tag Commit Hashes
+2023.02-alpha1 9da2d61f74671ccee775553a36439260c9241383
+2023.02-alpha2 9da2d61f74671ccee775553a36439260c9241383
+2023.02-alpha3 4ca21a7f3dc3649f934ad7b34e1a61b63e589712
+2023.02-beta1  78c438457cd49a82f6eaec2d57638ffc5084c688
+
+
+## [2023.01] - 2023-04-03
+### Fixed
+- Fixed IO domain related failures coming from ice model for the null model test
+### Added
+- Added clock optimizations to the SHiELD coupler
+
+### Tag Commit Hashes
+2023.01-alpha1 7c47be33b4049a96bbce3d9b4cc165dbb147e751
+2023.01-alpha2 7c47be33b4049a96bbce3d9b4cc165dbb147e751
+2023.01-alpha3 7c47be33b4049a96bbce3d9b4cc165dbb147e751
+2023.01-alpha4 7c47be33b4049a96bbce3d9b4cc165dbb147e751
+2023.01-beta1  2571fc016866898255559355b92347cd354082ce
+2023.01-beta2  2571fc016866898255559355b92347cd354082ce
+2023.01-beta3  2571fc016866898255559355b92347cd354082ce
+2023.01-beta4  2571fc016866898255559355b92347cd354082ce
+2023.01-beta5  2571fc016866898255559355b92347cd354082ce
+
 ## [2022.03] - 2022-08-01
 ### Added
 - Added doxygen comments for the simple and shield couplers, and general layout improvements for the generated site. It is now updated upon releases and hosted at noaa-gfdl.github.io/FMScoupler
