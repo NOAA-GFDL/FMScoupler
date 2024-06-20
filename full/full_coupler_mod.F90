@@ -96,15 +96,10 @@ module full_coupler_mod
   public :: land_ice_boundary_type, ice_ocean_boundary_type, ocean_ice_boundary_type, ice_ocean_driver_type
 
   public :: fmsconstants_init
-  public :: update_land_model_slow
-  public :: set_ice_surface_fields
-  public :: ice_model_fast_cleanup, unpack_land_ice_boundary
-  public :: update_ice_model_slow
-  public :: update_ocean_model, update_slow_ice_and_ocean
+
+  public :: update_slow_ice_and_ocean
   public :: send_ice_mask_sic
-  public :: flux_land_to_ice
-  public :: flux_ice_to_ocean_finish
-  public :: flux_ocean_from_ice_stocks, flux_ice_to_ocean_stocks
+  public :: flux_ice_to_ocean_finish, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
 
   public :: atmos_model_restart, land_model_restart, ice_model_restart, ocean_model_restart
 
@@ -118,10 +113,9 @@ module full_coupler_mod
   public :: coupler_init, coupler_end, coupler_restart
 
   public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
-  public :: coupler_flux_ocean_to_ice, coupler_flux_ice_to_ocean
-
-  public :: coupler_unpack_ocean_ice_boundary, coupler_exchange_slow_to_fast_ice, &
-            coupler_exchange_fast_to_slow_ice, coupler_set_ice_surface_fields
+  public :: coupler_flux_ocean_to_ice
+  public :: coupler_unpack_ocean_ice_boundary, coupler_exchange_slow_to_fast_ice
+  public :: coupler_exchange_fast_to_slow_ice, coupler_set_ice_surface_fields
 
   public :: coupler_generate_sfc_xgrid
   public :: coupler_atmos_tracer_driver_gather_data, coupler_sfc_boundary_layer
@@ -130,6 +124,10 @@ module full_coupler_mod
   public :: coupler_update_land_model_fast, coupler_update_ice_model_fast
   public :: coupler_flux_up_to_atmos, coupler_update_atmos_model_up
   public :: coupler_flux_atmos_to_ocean, coupler_update_atmos_model_state
+
+  public :: coupler_update_land_model_slow, coupler_flux_land_to_ice
+  public :: coupler_unpack_land_ice_boundary, coupler_flux_ice_to_ocean
+  public :: coupler_update_ice_model_slow_and_stocks, coupler_update_ocean_model
 
   public :: coupler_clock_type, coupler_components_type, coupler_chksum_type
 
@@ -1862,11 +1860,7 @@ contains
 
     ! Update Ice_ocean_boundary; the first iteration is supplied by restarts
 
-    if(set_current_slow_ice_ocean_pelist_in) then
-      if(.not.present(slow_ice_ocean_pelist)) call fms_mpp_error(FATAL, 'coupler_flux_ice_to_ocean tried&
-                       &to set_current_pelist(slow_ice_ocean_pelist) but slow_ice_ocean_pelist is unknown')
-      call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
-    end if
+    if(set_current_slow_ice_ocean_pelist_in) call fms_mpp_set_current_pelist(slow_ice_ocean_pelist)
 
     call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean)
     call flux_ice_to_ocean(Ice, Ocean, Ice_ocean_boundary)
@@ -2234,5 +2228,110 @@ contains
     if (do_debug)  call fms_memutils_print_memuse_stats( 'update state')
 
   end subroutine coupler_update_atmos_model_state
+
+  !> In this subroutine, update_land model_slow is called by the Land%pes.  The atm_pelist are
+  !! only required to set the clocks.  Chksums are computed if do_chksum = .True.
+  subroutine coupler_update_land_model_slow(Land, Atmos_land_boundary, atm_pelist, current_timestep, &
+                                            coupler_chksum_obj, coupler_clocks)
+
+    implicit none
+    type(land_data_type),           intent(inout) :: Land                 !< Land
+    type(atmos_land_boundary_type), intent(inout) :: Atmos_land_boundary  !< Atmos_land_boundary
+    integer, dimension(:), intent(in) :: atm_pelist                !< atm_pelist used for clocks
+    integer, intent(in) :: current_timestep                        !< current timestep
+    type(coupler_chksum_type), intent(in)    :: coupler_chksum_obj !< coupler_chksum_obj for chksum computation
+    type(coupler_clock_type),  intent(inout) :: coupler_clocks     !< coupler_clocks
+
+    call fms_mpp_clock_begin(coupler_clocks%update_land_model_slow)
+
+    if (Land%pe) then
+      if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Land%pelist)
+      call update_land_model_slow(Atmos_land_boundary,Land)
+    endif
+
+    if (land_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(atm_pelist)
+    call fms_mpp_clock_end(coupler_clocks%update_land_model_slow)
+
+    if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('update_land_slow+', current_timestep)
+
+  end subroutine coupler_update_land_model_slow
+
+  !> This subroutine calls flux_land_to_ice.  Chksums are computed if do_chksum = .True.
+  subroutine coupler_flux_land_to_ice(Land, Ice, Land_ice_boundary, Time, current_timestep, &
+                                      coupler_chksum_obj, coupler_clocks)
+
+    implicit none
+    type(land_data_type), intent(inout) :: Land !< Land
+    type(ice_data_type),  intent(inout) :: Ice  !< Ice
+    type(land_ice_boundary_type), intent(inout) :: Land_ice_boundary !< Land_ice_boundary
+    type(FmsTime_type), intent(in) :: Time         !< Time (in seconds)
+    integer, intent(in)       :: current_timestep  !< current timestep
+    type(coupler_chksum_type), intent(in)    :: coupler_chksum_obj !< coupler_chksum_obj to compute chksums
+    type(coupler_clock_type),  intent(inout) :: coupler_clocks      !< coupler_clocks
+
+    call fms_mpp_clock_begin(coupler_clocks%flux_land_to_ice)
+    call flux_land_to_ice( Time, Land, Ice, Land_ice_boundary )
+    call fms_mpp_clock_end(coupler_clocks%flux_land_to_ice)
+
+    if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('fluxlnd2ice+', current_timestep)
+
+  end subroutine coupler_flux_land_to_ice
+
+  !> This subroutine calls ice_model_fast_cleanup and unpack_land_ice_boundary
+  subroutine coupler_unpack_land_ice_boundary(Ice, Land_ice_boundary, coupler_clocks)
+
+    implicit none
+    type(ice_data_type),          intent(inout) :: Ice               !< Ice
+    type(land_ice_boundary_type), intent(inout) :: Land_ice_boundary !< Land_ice_boundary
+    type(coupler_clock_type), intent(inout) :: coupler_clocks        !< coupler_clocks
+
+    if (ice_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Ice%fast_pelist)
+    call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_fast)
+
+    !> These two calls occur on whichever PEs handle the fast ice processess.
+    call ice_model_fast_cleanup(Ice)
+    call unpack_land_ice_boundary(Ice, Land_ice_boundary)
+
+    call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
+
+  end subroutine coupler_unpack_land_ice_boundary
+
+  !> This subroutine calls update_ice_model_slow and flux_ice_to_ocean_stocks
+  subroutine coupler_update_ice_model_slow_and_stocks(Ice, coupler_clocks)
+
+    implicit none
+    type(ice_data_type), intent(inout) :: Ice    !< Ice
+    type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
+
+    if (slow_ice_with_ocean) call fms_mpp_set_current_pelist(Ice%slow_pelist)
+    call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_slow)
+
+    call update_ice_model_slow(Ice)
+
+    call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean_stocks)
+    call flux_ice_to_ocean_stocks(Ice)
+    call fms_mpp_clock_end(coupler_clocks%flux_ice_to_ocean_stocks)
+
+    call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_slow)
+
+  end subroutine coupler_update_ice_model_slow_and_stocks
+
+  !> This subroutine calls update_ocean_model.  Chksums are computed if do_chksum = .True.
+  subroutine coupler_update_ocean_model(Ocean, Ocean_state, Ice_ocean_boundary, &
+                                        Time_ocean, Time_step_cpld, current_timestep, coupler_chksum_obj)
+
+    implicit none
+    type(ocean_public_type),         intent(inout) :: Ocean               !< Ocean
+    type(ocean_state_type), pointer, intent(inout) :: Ocean_state         !< Ocean_state
+    type(Ice_ocean_boundary_type),   intent(inout) :: Ice_ocean_boundary  !< Ice_ocean_boundary
+    type(FmsTime_type), intent(inout) :: Time_ocean   !< Time_ocean
+    type(FmsTime_type), intent(in) :: Time_step_cpld  !< total number of timesteps
+    integer, intent(in) :: current_timestep           !< current timestep
+    type(coupler_chksum_type), intent(in) :: coupler_chksum_obj !< used for checksum computation
+
+    call update_ocean_model(Ice_ocean_boundary, Ocean_state,  Ocean, Time_ocean, Time_step_cpld)
+    if (do_chksum) call coupler_chksum_obj%get_ocean_chksums('update_ocean_model+', current_timestep)
+
+  end subroutine coupler_update_ocean_model
 
 end module full_coupler_mod
