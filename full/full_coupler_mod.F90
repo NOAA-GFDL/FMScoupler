@@ -1983,22 +1983,22 @@ contains
   !> \brief This subroutine calls coupler_sfc_boundary_layer.  Chksums are computed
   !! if do_chksum = .True.  Clocks are set for runtime statistics.
   subroutine coupler_sfc_boundary_layer(Atm, Land, Ice, Land_ice_atmos_boundary, &
-                                        Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
+                                        Time_atmos, current_time_step, coupler_chksum_obj, coupler_clocks)
 
     implicit none
     type(atmos_data_type), intent(inout) :: Atm  !< Atm
     type(land_data_type), intent(inout)  :: Land !< Land
     type(ice_data_type), intent(inout)   :: Ice  !< Ice
     type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary !< Land_ice_atmos_boundary
-    type(FmsTime_type), intent(in) :: Time_atmos       !< Atmos time
-    integer, intent(in)            :: current_timestep !< (nc-1)*num_atmos_cal + na
+    type(FmsTime_type), intent(in) :: Time_atmos           !< Atmos time
+    integer, intent(in)            :: current_time_step    !< (nc-1)*num_atmos_cal + na
     type(coupler_chksum_type), intent(in)   :: coupler_chksum_obj
     type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
 
     call fms_mpp_clock_begin(coupler_clocks%sfc_boundary_layer)
 
     call sfc_boundary_layer( real(dt_atmos), Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary )
-    if(do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('sfc+', current_timestep)
+    if(do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('sfc+', current_time_step)
 
     call fms_mpp_clock_end(coupler_clocks%sfc_boundary_layer)
 
@@ -2086,7 +2086,7 @@ contains
     implicit none
     type(atmos_data_type), intent(inout) :: Atm  !< Atm
     type(land_data_type),  intent(inout) :: Land !< Land
-    type(ice_data_type),   intent(inout) :: Ice
+    type(ice_data_type),   intent(inout) :: Ice  !< Ice
     type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary !< Land_ice_atmos_boundary
     type(atmos_land_boundary_type),     intent(inout) :: Atmos_land_boundary     !< Atmos_land_boundary
     type(atmos_ice_boundary_type),      intent(inout) :: Atmos_ice_boundary      !< Atmos_ice_boundary
