@@ -1399,7 +1399,7 @@ contains
     if (Time_restart_current > Time_start) then
       if ( fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         open(newunit = restart_unit, file=file_res, status='replace', form='formatted')
-        call fms_time_manager_get_date(Time_current_restart, yr,mon,day,hr,min,sec)
+        call fms_time_manager_get_date(Time_restart_current, yr,mon,day,hr,min,sec)
         write(restart_unit, '(6i6,8x,a)' )yr,mon,day,hr,min,sec, &
              'Current intermediate restart time: year, month, day, hour, minute, second'
         close(restart_unit)
@@ -2371,9 +2371,9 @@ contains
     character(len=32) :: timestamp !< Time in string
     integer :: outunit             !< stdout
 
-    Time_restart_current = Time
+    Time_restart_current = Time_current
     
-    timestamp = fms_time_manager_date_to_string(Time)
+    timestamp = fms_time_manager_date_to_string(Time_restart_current)
     outunit= fms_mpp_stdout()
     write(outunit,*) '=> NOTE from program coupler: intermediate restart file is written and ', &
                       trim(timestamp),' is appended as prefix to each restart file name'
@@ -2385,9 +2385,9 @@ contains
     if (Ocean%is_ocean_pe) call ocean_model_restart(Ocean_state, timestamp)
 
     call coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
-                         Time, Time_restart_current, Time_start, timestamp)
+                         Time_current, Time_restart_current, Time_start, timestamp)
 
-    Time_restart = fms_time_manager_increment_date(Time, restart_interval(1), restart_interval(2), &
+    Time_restart = fms_time_manager_increment_date(Time_current, restart_interval(1), restart_interval(2), &
                    restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
 
   end subroutine coupler_intermediate_restart
