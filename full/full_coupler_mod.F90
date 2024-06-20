@@ -2031,13 +2031,13 @@ contains
 
     implicit none
 
-    type(atmos_data_type), intent(inout) :: Atm
-    type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary
+    type(atmos_data_type), intent(inout) :: Atm !< Atm
+    type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary !< Land_ice_atmos_boundary
     type(coupler_clock_type),         intent(inout) :: coupler_clocks     !< coupler_clocks
     integer,                   optional, intent(in) :: current_timestep   !< Current timestep
     type(coupler_chksum_type), optional, intent(in) :: coupler_chksum_obj !< points to component types
 
-    character(128) :: memuse_stats_id = 'update serial rad'
+    character(128) :: memuse_stats_id = 'update serial rad' !< used to label mem usage
 
     call fms_mpp_clock_begin(coupler_clocks%radiation)
     call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
@@ -2093,7 +2093,7 @@ contains
     type(FmsTime_type), intent(in) :: Time_atmos       !<Time_atmos FmsTime_type containing time in seconds
     integer,            intent(in) :: current_timestep !< current_timestep
     type(coupler_clock_type), intent(inout) :: coupler_clocks !<coupler_clocks
-    type(coupler_chksum_type), intent(in)   :: coupler_chksum_obj
+    type(coupler_chksum_type), intent(in)   :: coupler_chksum_obj !< used to compute chksum
 
     call fms_mpp_clock_begin(coupler_clocks%flux_down_from_atmos)
     call flux_down_from_atmos(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, &
