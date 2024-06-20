@@ -1983,7 +1983,7 @@ contains
   !> \brief This subroutine calls coupler_sfc_boundary_layer.  Chksums are computed
   !! if do_chksum = .True.  Clocks are set for runtime statistics.
   subroutine coupler_sfc_boundary_layer(Atm, Land, Ice, Land_ice_atmos_boundary, &
-                                        Time_atmos, current_time_step, coupler_chksum_obj, coupler_clocks)
+                                        Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
 
     implicit none
     type(atmos_data_type), intent(inout) :: Atm  !< Atm
@@ -1991,7 +1991,7 @@ contains
     type(ice_data_type), intent(inout)   :: Ice  !< Ice
     type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary !< Land_ice_atmos_boundary
     type(FmsTime_type), intent(in) :: Time_atmos           !< Atmos time
-    integer, intent(in)            :: current_time_step    !< (nc-1)*num_atmos_cal + na
+    integer, intent(in)            :: current_timestep     !< (nc-1)*num_atmos_cal + na
     type(coupler_chksum_type), intent(in)   :: coupler_chksum_obj
     type(coupler_clock_type), intent(inout) :: coupler_clocks !< coupler_clocks
 
