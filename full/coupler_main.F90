@@ -438,11 +438,10 @@ program coupler_main
 
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%initialization) !end initialization
-
-  call fms_mpp_clock_begin(coupler_clocks%main) !begin main loop
+  call fms_mpp_clock_begin(coupler_clocks%main)         !begin main loop
 
 !-----------------------------------------------------------------------
-!------ ocean/slow-ice integration loop ------
+!> ocean/slow-ice integration loop
 
   if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, init_stocks=.True.)
@@ -507,7 +506,7 @@ program coupler_main
       call send_ice_mask_sic(Time)
 
       !-----------------------------------------------------------------------
-      !   ------ atmos/fast-land/fast-ice integration loop -------
+      !> atmos/fast-land/fast-ice integration loop
 
       call fms_mpp_clock_begin(coupler_clocks%atmos_loop)
       do na = 1, num_atmos_calls
@@ -547,42 +546,21 @@ program coupler_main
 
           if (do_concurrent_radiation) call fms_mpp_clock_begin(coupler_clocks%concurrent_atmos)
 
-          !      ---- atmosphere dynamics ----
-          if (do_atmos) then
-            call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_dynamics)
-            call update_atmos_model_dynamics(Atm)
-            call fms_mpp_clock_end(coupler_clocks%update_atmos_model_dynamics)
-          endif
-          if (do_chksum) &
-              call coupler_chksum_obj%get_atmos_ice_land_chksums('update_atmos_model_dynamics', current_timestep)
-          if (do_debug)  call fms_memutils_print_memuse_stats( 'update dyn')
+          !> atmosphere dynamics
+          if (do_atmos) call coupler_update_atmos_model_dynamics(Atm, current_timestep, &
+                                                                 coupler_chksum_obj, coupler_clocks)
 
-          !      ---- SERIAL atmosphere radiation ----
-          if (.not.do_concurrent_radiation) then
-            call fms_mpp_clock_begin(coupler_clocks%serial_radiation)
-            call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
-            call fms_mpp_clock_end(coupler_clocks%serial_radiation)
-          endif
-          if (do_chksum) &
-              call coupler_chksum_obj%get_atmos_ice_land_chksums('update_atmos_model_radiation(ser)', current_timestep)
-          if (do_debug)  call fms_memutils_print_memuse_stats( 'update serial rad')
+          !> SERIAL atmosphere radiation
+          if (.not.do_concurrent_radiation) call coupler_update_atmos_model_radiation(Atm, Land_ice_atmos_boundary, &
+                                            coupler_clocks, current_timestep, coupler_chksum_obj)
 
-          !      ---- atmosphere down ----
-          if (do_atmos) then
-            call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_down)
-            call update_atmos_model_down( Land_ice_atmos_boundary, Atm )
-            call fms_mpp_clock_end(coupler_clocks%update_atmos_model_down)
-          endif
-          if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('update_atmos_down+', current_timestep)
-          if (do_debug)  call fms_memutils_print_memuse_stats( 'update down')
+          !> atmosphere down
+          if (do_atmos) call coupler_update_atmos_model_down(Atm, Land_ice_atmos_boundary, &
+                                                             current_timestep, coupler_chksum_obj, coupler_clocks)
 
-          call fms_mpp_clock_begin(coupler_clocks%flux_down_from_atmos)
-          call flux_down_from_atmos( Time_atmos, Atm, Land, Ice, &
-                                     Land_ice_atmos_boundary, &
-                                     Atmos_land_boundary, &
-                                     Atmos_ice_boundary )
-          call fms_mpp_clock_end(coupler_clocks%flux_down_from_atmos)
-          if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('flux_down_from_atmos+', current_timestep)
+          !> checksums are computed if do_chksum=.True.
+          call coupler_flux_down_from_atmos(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, &
+              Atmos_ice_boundary, Time_atmos, current_timestep, coupler_clocks, coupler_chksum_obj)
 
           !      --------------------------------------------------------------
           !      ---- land model ----
@@ -643,16 +621,8 @@ program coupler_main
 !$OMP&      SHARED(coupler_clocks)
 !$          call omp_set_num_threads(radiation_nthreads)
 !$          dsec=omp_get_wtime()
-
-            call fms_mpp_clock_begin(coupler_clocks%concurrent_radiation)
-            call update_atmos_model_radiation( Land_ice_atmos_boundary, Atm )
-            call fms_mpp_clock_end(coupler_clocks%concurrent_radiation)
+            call coupler_update_atmos_model_radiation(Atm, Land_ice_atmos_boundary, coupler_clocks)
 !$          omp_sec(2) = omp_sec(2) + (omp_get_wtime() - dsec)
-!---CANNOT PUT AN MPP_CHKSUM HERE AS IT REQUIRES THE ABILITY TO HAVE TWO DIFFERENT OPENMP THREADS
-!---INSIDE OF MPI AT THE SAME TIME WHICH IS NOT CURRENTLY ALLOWED
-!           if (do_chksum) call atmos_ice_land_chksum('update_atmos_model_radiation(conc)', (nc-1)*num_atmos_calls+na, &
-!                   Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Atmos_land_boundary)
-            if (do_debug)  call fms_memutils_print_memuse_stats( 'update concurrent rad')
 !$OMP END PARALLEL
           endif
 !$      endif
