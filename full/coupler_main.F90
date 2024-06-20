@@ -702,7 +702,7 @@ program coupler_main
       timestamp = fms_time_manager_date_to_string(time_restart_current)
       outunit= fms_mpp_stdout()
       write(outunit,*) '=> NOTE from program coupler: intermediate restart file is written and ', &
-           trim(timestamp),' is appended as prefix to each restart file name'
+                       trim(timestamp),' is appended as prefix to each restart file name'
       if (Atm%pe) then
         call atmos_model_restart(Atm, timestamp)
         call land_model_restart(timestamp)
