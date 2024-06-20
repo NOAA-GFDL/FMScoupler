@@ -682,17 +682,17 @@ program coupler_main
         if (do_ocean) call coupler_update_ocean_model(Ocean, Ocean_state, Ice_ocean_boundary,&
                       Time_ocean, Time_step_cpld, current_timestep, coupler_chksum_obj)
       end if
-        ! Get stocks from "Ice_ocean_boundary" and add them to Ocean stocks.
-        ! This call is just for record keeping of stocks transfer and
-        ! does not modify either Ocean or Ice_ocean_boundary
-        call flux_ocean_from_ice_stocks(Ocean_state, Ocean, Ice_ocean_boundary)
-
-        call fms_diag_send_complete(Time_step_cpld)
-        Time_ocean = Time_ocean +  Time_step_cpld
-        Time = Time_ocean
-
-        call fms_mpp_clock_end(coupler_clocks%ocean)
-      end if
+      ! Get stocks from "Ice_ocean_boundary" and add them to Ocean stocks.
+      ! This call is just for record keeping of stocks transfer and
+      ! does not modify either Ocean or Ice_ocean_boundary
+      call flux_ocean_from_ice_stocks(Ocean_state, Ocean, Ice_ocean_boundary)
+      
+      call fms_diag_send_complete(Time_step_cpld)
+      Time_ocean = Time_ocean +  Time_step_cpld
+      Time = Time_ocean
+      
+      call fms_mpp_clock_end(coupler_clocks%ocean)
+    end if
 
     !--- write out intermediate restart file when needed.
     if (Time >= Time_restart) then
