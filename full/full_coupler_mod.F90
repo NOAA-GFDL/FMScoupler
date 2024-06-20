@@ -1319,7 +1319,7 @@ contains
 
     !----- write restart file ------
     call coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
-                         Time_restart_current, Time_start)
+                         Time, Time_restart_current, Time_start)
 
     call fms_diag_end (Time)
 #ifdef use_deprecated_io
@@ -1353,7 +1353,7 @@ contains
 
   !> \brief Writing restart file that contains running time and restart file writing time.
   subroutine coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
-                             Time, Time_start, time_stamp)
+                            Time_current, Time_restart_current, Time_start, time_stamp)
 
     implicit none
 
@@ -1364,7 +1364,7 @@ contains
     type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ocn_bc_restart
     type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ice_bc_restart
 
-    type(FmsTime_type),  intent(in)  :: Time, Time_start
+    type(FmsTime_type),  intent(in)  :: Time_current, Time_restart_current, Time_start
     character(len=*), intent(in),  optional :: time_stamp
 
     character(len=128) :: file_run, file_res
@@ -1385,7 +1385,7 @@ contains
     endif
 
     !----- compute current date ------
-    call fms_time_manager_get_date (Time, date(1), date(2), date(3), date(4), date(5), date(6))
+    call fms_time_manager_get_date (Time_current, date(1), date(2), date(3), date(4), date(5), date(6))
     if ( fms_mpp_pe().EQ.fms_mpp_root_pe()) then
        open(newunit = restart_unit, file=file_run, status='replace', form='formatted')
        write(restart_unit, '(i6,8x,a)' ) calendar_type, &
@@ -1396,10 +1396,10 @@ contains
        close(restart_unit)
     endif
 
-    if (Time > Time_start) then
+    if (Time_restart_current > Time_start) then
       if ( fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         open(newunit = restart_unit, file=file_res, status='replace', form='formatted')
-        call fms_time_manager_get_date(Time ,yr,mon,day,hr,min,sec)
+        call fms_time_manager_get_date(Time_current_restart, yr,mon,day,hr,min,sec)
         write(restart_unit, '(6i6,8x,a)' )yr,mon,day,hr,min,sec, &
              'Current intermediate restart time: year, month, day, hour, minute, second'
         close(restart_unit)
@@ -2354,7 +2354,7 @@ contains
   !! is produced in the latter calls.  Time_restart is the next timestep where the intermediate restart
   !! file will be written out.  Time_restart_current records the current restart time.
   subroutine coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_state, Ocn_bc_restart, Ice_bc_restart,&
-                                          Time, Time_restart, Time_restart_current, Time_start)
+                                          Time_current, Time_restart, Time_restart_current, Time_start)
 
     implicit none
     type(atmos_data_type),   intent(inout) :: Atm    !< Atm
@@ -2363,7 +2363,7 @@ contains
     type(ocean_state_type),      pointer, intent(inout) :: Ocean_state       !< Ocean_state
     type(FmsNetcdfDomainFile_t), pointer, intent(inout) :: Ocn_bc_restart(:) !< used for coupler type restarts
     type(FmsNetcdfDomainFile_t), pointer, intent(inout) :: Ice_bc_restart(:) !< used for coupler type restarts
-    type(FmsTime_type), intent(in) :: Time, Time_start  !< current Timestep and model start time
+    type(FmsTime_type), intent(in) :: Time_current, Time_start  !< current Timestep and model start time
     !> Restart files will be written when Time=>Time_restart.  Time_restart is incremented by restart_interval
     !! Time_restart_current records the current timestep the restart file is being written.
     !! Time_restart_current does not necessary = Time_restart.
@@ -2371,6 +2371,8 @@ contains
     character(len=32) :: timestamp !< Time in string
     integer :: outunit             !< stdout
 
+    Time_restart_current = Time
+    
     timestamp = fms_time_manager_date_to_string(Time)
     outunit= fms_mpp_stdout()
     write(outunit,*) '=> NOTE from program coupler: intermediate restart file is written and ', &
@@ -2383,12 +2385,10 @@ contains
     if (Ocean%is_ocean_pe) call ocean_model_restart(Ocean_state, timestamp)
 
     call coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
-                         Time, Time_start, timestamp)
+                         Time, Time_restart_current, Time_start, timestamp)
 
     Time_restart = fms_time_manager_increment_date(Time, restart_interval(1), restart_interval(2), &
                    restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
-
-    Time_restart_current = Time
 
   end subroutine coupler_intermediate_restart
 
