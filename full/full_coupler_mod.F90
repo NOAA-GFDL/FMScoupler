@@ -112,8 +112,8 @@ module full_coupler_mod
   public :: coupler_init, coupler_end, coupler_restart, coupler_intermediate_restart
   public :: coupler_summarize_timestep
 
-  public :: coupler_flux_check_stocks
-  public :: coupler_flux_ocean_to_ice 
+  public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
+  public :: coupler_flux_ocean_to_ice
   public :: coupler_unpack_ocean_ice_boundary, coupler_exchange_slow_to_fast_ice
   public :: coupler_exchange_fast_to_slow_ice, coupler_set_ice_surface_fields
 
@@ -128,7 +128,7 @@ module full_coupler_mod
   public :: coupler_update_land_model_slow, coupler_flux_land_to_ice
   public :: coupler_unpack_land_ice_boundary, coupler_flux_ice_to_ocean
   public :: coupler_update_ice_model_slow_and_stocks, coupler_update_ocean_model
-  
+
   public :: coupler_clock_type, coupler_components_type, coupler_chksum_type
 
 #include <file_version.fh>
@@ -1128,7 +1128,7 @@ contains
 
     !> Initialize coupler_chksum_obj
     call coupler_chksum_obj%initialize_coupler_chksum_obj(coupler_components_obj)
-    
+
     if ( do_endpoint_chksum ) then
       call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('coupler_init+', 0)
       if (Ice%slow_ice_PE) then
@@ -1138,7 +1138,7 @@ contains
     end if
 
     call fms_mpp_set_current_pelist()
-    call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)   
+    call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
 
     call fms_mpp_set_current_pelist()
     call fms_memutils_print_memuse_stats('coupler_init')
@@ -1148,7 +1148,7 @@ contains
       write(errunit,*) 'Exiting coupler_init at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
-    
+
   end subroutine coupler_init
 
 !#######################################################################
@@ -1276,8 +1276,8 @@ contains
     integer :: num_ice_bc_restart, num_ocn_bc_restart
 
     call fms_mpp_clock_begin(coupler_clocks%termination)
-    
-    if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('coupler_end-', current_timestep)   
+
+    if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('coupler_end-', current_timestep)
     if ( do_endpoint_chksum ) then
       call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('coupler_end', 0)
       if (Ice%slow_ice_PE) then
@@ -1320,7 +1320,7 @@ contains
     !----- write restart file ------
     call coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
                          Time_restart_current, Time_start)
-    
+
     call fms_diag_end (Time)
 #ifdef use_deprecated_io
     call fms_io_exit
@@ -1763,6 +1763,46 @@ contains
 
   end subroutine coupler_set_clock_ids
 
+  !> \brief This subroutine calls flux_init_stocks or does the final call to flux_check_stocks
+  subroutine coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
+                                             coupler_clocks, init_stocks, finish_stocks)
+
+    implicit none
+
+    type(FmsTime_type),    intent(in) :: Time    !< current Time
+    type(atmos_data_type), intent(inout) :: Atm  !< Atm
+    type(land_data_type),  intent(inout) :: Land !< Land
+    type(ice_data_type),   intent(inout) :: Ice  !< Ice
+    type(ocean_state_type), pointer, intent(inout) :: Ocean_state    !< Ocean_state
+    type(coupler_clock_type), intent(inout)        :: coupler_clocks !< coupler_clocks
+    logical, optional, intent(in) :: init_stocks, finish_stocks  !< control flags to either call flux_init_stocks or
+                                                                 !! the final flux_check_stocks
+
+    logical :: init, finish !< control flags set to False. by default and takes on the value of init_stocks and
+                            !! finish_stocks if these optional arguments are provided.
+                            !! If true, either flux_init_stocks or
+                            !! final flux_check_stocks will be called.
+
+    init=.False.   ; if(present(init_stocks)) init=init_stocks
+    finish=.False. ; if(present(finish_stocks)) finish=finish_stocks
+
+    if(init) then
+      call fms_mpp_set_current_pelist()
+      call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
+    else if(finish) then
+      call fms_mpp_set_current_pelist()
+      call fms_mpp_clock_begin(coupler_clocks%final_flux_check_stocks)
+      if (check_stocks >= 0) then
+        call fms_mpp_set_current_pelist()
+        call flux_check_stocks(Time=Time, Atm=Atm, Lnd=Land, Ice=Ice, Ocn_state=Ocean_state)
+      endif
+      call fms_mpp_clock_end(coupler_clocks%final_flux_check_stocks)
+    else
+      call fms_mpp_error(FATAL, 'coupler_flux_init_finish_stocks: either init or finish needs to be .True.')
+    end if
+
+  end subroutine coupler_flux_init_finish_stocks
+
   !> \brief This subroutine calls flux_check_stocks.  Clocks and pelists are set before and after
   !! call to flux_check_stocks.
   subroutine coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
@@ -2022,7 +2062,7 @@ contains
       if(.not.do_concurrent_radiation) &
           call coupler_chksum_obj%get_atmos_ice_land_chksums('update_atmos_model_radiation(ser)', current_timestep)
     end if
-    
+
     if (do_debug) then
       if(do_concurrent_radiation) memuse_stats_id = 'update concurrent rad'
       call fms_memutils_print_memuse_stats(trim(memuse_stats_id))
@@ -2204,7 +2244,7 @@ contains
     if (do_chksum) &
         call coupler_chksum_obj%get_atmos_ice_land_chksums('update_atmos_model_state+', current_timestep)
     if (do_debug)  call fms_memutils_print_memuse_stats( 'update state')
-    
+
   end subroutine coupler_update_atmos_model_state
 
   !> In this subroutine, update_land model_slow is called by the Land%pes.  The atm_pelist are
@@ -2233,7 +2273,7 @@ contains
     if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('update_land_slow+', current_timestep)
 
   end subroutine coupler_update_land_model_slow
-  
+
   !> This subroutine calls flux_land_to_ice.  Chksums are computed if do_chksum = .True.
   subroutine coupler_flux_land_to_ice(Land, Ice, Land_ice_boundary, Time, current_timestep, &
                                       coupler_chksum_obj, coupler_clocks)
@@ -2246,12 +2286,12 @@ contains
     integer, intent(in)       :: current_timestep  !< current timestep
     type(coupler_chksum_type), intent(in)    :: coupler_chksum_obj !< coupler_chksum_obj to compute chksums
     type(coupler_clock_type),  intent(inout) :: coupler_clocks      !< coupler_clocks
-   
+
     call fms_mpp_clock_begin(coupler_clocks%flux_land_to_ice)
     call flux_land_to_ice( Time, Land, Ice, Land_ice_boundary )
     call fms_mpp_clock_end(coupler_clocks%flux_land_to_ice)
     if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('fluxlnd2ice+', current_timestep)
-    
+
   end subroutine coupler_flux_land_to_ice
 
   !> This subroutine calls ice_model_fast_cleanup and unpack_land_ice_boundary
@@ -2265,10 +2305,10 @@ contains
     if (ice_npes .NE. atmos_npes) call fms_mpp_set_current_pelist(Ice%fast_pelist)
     call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_fast)
 
-    !> These two calls occur on whichever PEs handle the fast ice processess.       
-    call ice_model_fast_cleanup(Ice)    
+    !> These two calls occur on whichever PEs handle the fast ice processess.
+    call ice_model_fast_cleanup(Ice)
     call unpack_land_ice_boundary(Ice, Land_ice_boundary)
-    
+
     call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
 
   end subroutine coupler_unpack_land_ice_boundary
@@ -2284,13 +2324,13 @@ contains
     call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_slow)
 
     call update_ice_model_slow(Ice)
-    
+
     call fms_mpp_clock_begin(coupler_clocks%flux_ice_to_ocean_stocks)
     call flux_ice_to_ocean_stocks(Ice)
     call fms_mpp_clock_end(coupler_clocks%flux_ice_to_ocean_stocks)
 
     call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_slow)
-    
+
   end subroutine coupler_update_ice_model_slow_and_stocks
 
   subroutine coupler_update_ocean_model(Ocean, Ocean_state, Ice_ocean_boundary, &
@@ -2304,7 +2344,7 @@ contains
     type(FmsTime_type), intent(in) :: Time_step_cpld
     integer, intent(in) :: current_timestep
     type(coupler_chksum_type), intent(in) :: coupler_chksum_obj
-    
+
     call update_ocean_model(Ice_ocean_boundary, Ocean_state,  Ocean, Time_ocean, Time_step_cpld)
     if (do_chksum) call coupler_chksum_obj%get_ocean_chksums('update_ocean_model+', current_timestep)
 
@@ -2327,10 +2367,10 @@ contains
     !> Restart files will be written when Time=>Time_restart.  Time_restart is incremented by restart_interval
     !! Time_restart_current records the current timestep the restart file is being written.
     !! Time_restart_current does not necessary = Time_restart.
-    type(FmsTime_type), intent(inout) :: Time_restart, Time_restart_current 
+    type(FmsTime_type), intent(inout) :: Time_restart, Time_restart_current
     character(len=32) :: timestamp !< Time in string
     integer :: outunit             !< stdout
-    
+
     timestamp = fms_time_manager_date_to_string(Time)
     outunit= fms_mpp_stdout()
     write(outunit,*) '=> NOTE from program coupler: intermediate restart file is written and ', &
@@ -2347,9 +2387,9 @@ contains
 
     Time_restart = fms_time_manager_increment_date(Time, restart_interval(1), restart_interval(2), &
                    restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
- 
+
     Time_restart_current = Time
-    
+
   end subroutine coupler_intermediate_restart
 
   !> This subroutine mainly prints out the current timestep in the stdout.
@@ -2360,13 +2400,13 @@ contains
     implicit none
     integer, intent(in) :: current_timestep  !< current_timestep, nc
     integer, intent(in) :: num_cpld_calls    !< total number of outerloop timestep
-    type(coupler_chksum_type), intent(in) :: coupler_chksum_obj  !< coupler_chksum_obj 
+    type(coupler_chksum_type), intent(in) :: coupler_chksum_obj  !< coupler_chksum_obj
     logical, intent(in)               :: is_atmos_pe             !< Atm%pe
     real, dimension(:), intent(inout) :: omp_sec, imb_sec        !< from omp computation
 
     integer :: outunit        !< stdout
     character(len=80) :: text !< text to be written out to stdout
-    
+
     if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('MAIN_LOOP+', current_timestep)
     write( text,'(a,i6)' )'Main loop at coupling timestep=', current_timestep
     call fms_memutils_print_memuse_stats(text)
@@ -2379,7 +2419,7 @@ contains
     call flush(outunit)
 
 102 format(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
-    
+
   end subroutine coupler_summarize_timestep
-  
+
 end module full_coupler_mod
