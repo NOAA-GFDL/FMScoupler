@@ -2154,7 +2154,7 @@ contains
     if (do_chksum) call coupler_chksum_obj%get_atmos_ice_land_chksums('update_ice_fast+', current_timestep)
     if (do_debug)  call fms_memutils_print_memuse_stats( 'update ice')
 
-  end subroutine
+  end subroutine coupler_update_ice_model_fast
 
   !> This subroutine calls flux_up_to_atmos.  Clocks are set for runtime statistics.  Chksums
   !! are computed if do_chksum is .True.
