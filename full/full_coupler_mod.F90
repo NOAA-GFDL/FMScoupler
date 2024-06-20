@@ -2226,13 +2226,15 @@ contains
 
   end subroutine coupler_flux_atmos_to_ocean
 
+  !> This subroutine calls update_atmos_model_state.  Chksums are mem usage are computed
+  !! if do_chksum and do_debug are .True. respectively
   subroutine coupler_update_atmos_model_state(Atm, current_timestep, coupler_chksum_obj, coupler_clocks)
 
     implicit none
-    type(atmos_data_type), intent(inout) :: Atm
-    integer,               intent(in)     :: current_timestep
-    type(coupler_chksum_type), intent(in)    :: coupler_chksum_obj
-    type(coupler_clock_type),  intent(inout) :: coupler_clocks
+    type(atmos_data_type), intent(inout)  :: Atm               !< Atm
+    integer,               intent(in)     :: current_timestep  !< current_timestep
+    type(coupler_chksum_type), intent(in)    :: coupler_chksum_obj !< used to compute chksums
+    type(coupler_clock_type),  intent(inout) :: coupler_clocks     !< coupler_clocks
 
     call fms_mpp_clock_begin(coupler_clocks%update_atmos_model_state)
     call update_atmos_model_state( Atm )
