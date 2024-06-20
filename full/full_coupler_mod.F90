@@ -349,7 +349,7 @@ contains
     type(coupler_chksum_type), intent(inout)     :: coupler_chksum_obj
 
     type(FMSTime_type), intent(inout) :: Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean
-    type(FMSTime_type), intent(inout) :: Time, Time_start, Time_end, Time_restart
+    type(FMSTime_type), intent(inout) :: Time, Time_start, Time_end, Time_restart, Time_restart_current
 
     integer, intent(inout) :: num_cpld_calls, num_atmos_calls
 !
@@ -1272,7 +1272,7 @@ contains
     type(coupler_clock_type), intent(in) :: coupler_clocks
     type(coupler_chksum_type), intent(in) :: coupler_chksum_obj
 
-    type(FmsTime_type), intent(in) :: Time, Time_start, Time_end
+    type(FmsTime_type), intent(in) :: Time, Time_start, Time_end, Time_restart_current
     integer :: num_ice_bc_restart, num_ocn_bc_restart
 
     call fms_mpp_clock_begin(coupler_clocks%termination)
@@ -2310,20 +2310,26 @@ contains
 
   end subroutine coupler_update_ocean_model
 
+  !> Thie subroutine calls component restarts and coupler_restart where the intermediate restart files
+  !! is produced in the latter calls.  Time_restart is the next timestep where the intermediate restart
+  !! file will be written out.  Time_restart_current records the current restart time.
   subroutine coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_state, Ocn_bc_restart, Ice_bc_restart,&
                                           Time, Time_restart, Time_restart_current, Time_start)
 
     implicit none
-    type(atmos_data_type),   intent(inout) :: Atm
-    type(ice_data_type),     intent(inout) :: Ice
-    type(ocean_public_type), intent(inout) ::  Ocean
-    type(ocean_state_type),      pointer, intent(inout) :: Ocean_state
-    type(FmsNetcdfDomainFile_t), pointer, intent(inout) :: Ocn_bc_restart(:)
-    type(FmsNetcdfDomainFile_t), pointer, intent(inout) :: Ice_bc_restart(:)
-    type(FmsTime_type), intent(in) :: Time, Time_start
-    type(FmsTime_type), intent(inout) :: Time_restart
-    character(len=32) :: timestamp
-    integer :: outunit
+    type(atmos_data_type),   intent(inout) :: Atm    !< Atm
+    type(ice_data_type),     intent(inout) :: Ice    !< Ice
+    type(ocean_public_type), intent(inout) ::  Ocean !< Ocean
+    type(ocean_state_type),      pointer, intent(inout) :: Ocean_state       !< Ocean_state
+    type(FmsNetcdfDomainFile_t), pointer, intent(inout) :: Ocn_bc_restart(:) !< used for coupler type restarts
+    type(FmsNetcdfDomainFile_t), pointer, intent(inout) :: Ice_bc_restart(:) !< used for coupler type restarts
+    type(FmsTime_type), intent(in) :: Time, Time_start  !< current Timestep and model start time
+    !> Restart files will be written when Time=>Time_restart.  Time_restart is incremented by restart_interval
+    !! Time_restart_current records the current timestep the restart file is being written.
+    !! Time_restart_current does not necessary = Time_restart.
+    type(FmsTime_type), intent(inout) :: Time_restart, Time_restart_current 
+    character(len=32) :: timestamp !< Time in string
+    integer :: outunit             !< stdout
     
     timestamp = fms_time_manager_date_to_string(Time)
     outunit= fms_mpp_stdout()
@@ -2346,7 +2352,10 @@ contains
     
   end subroutine coupler_intermediate_restart
 
-  subroutine coupler_summarize_timestep(current_timestep, num_cpld_calls, coupler_chksum_obj, is_atmos_pe, omp_sec, imb_sec)
+  !> This subroutine mainly prints out the current timestep in the stdout.
+  !! Chksum is computed if do_chksum = .True.
+  subroutine coupler_summarize_timestep(current_timestep, num_cpld_calls, coupler_chksum_obj, &
+                                        is_atmos_pe, omp_sec, imb_sec)
 
     implicit none
     integer, intent(in) :: current_timestep  !< current_timestep, nc
@@ -2355,8 +2364,8 @@ contains
     logical, intent(in)               :: is_atmos_pe             !< Atm%pe
     real, dimension(:), intent(inout) :: omp_sec, imb_sec        !< from omp computation
 
-    integer :: outunit
-    character(len=80) :: text
+    integer :: outunit        !< stdout
+    character(len=80) :: text !< text to be written out to stdout
     
     if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('MAIN_LOOP+', current_timestep)
     write( text,'(a,i6)' )'Main loop at coupling timestep=', current_timestep
