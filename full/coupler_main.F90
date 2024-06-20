@@ -368,7 +368,7 @@ program coupler_main
   type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ice_bc_restart => NULL()
   type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ocn_bc_restart => NULL()
 
-  type(FmsTime_type) :: Time_restart, Time_start, Time_end
+  type(FmsTime_type) :: Time_restart, Time_start, Time_end, Time_restart_current
 
   type(coupler_clock_type)      :: coupler_clocks
   type(coupler_components_type), target :: coupler_components_obj
@@ -428,7 +428,7 @@ program coupler_main
     Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, &
     conc_nthreads, coupler_clocks, coupler_components_obj, coupler_chksum_obj, &
     Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, num_cpld_calls,   &
-    num_atmos_calls, Time, Time_start, Time_end, Time_restart)
+    num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
 
   if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('coupler_init+', 0)
 
@@ -692,7 +692,7 @@ program coupler_main
     !> write out intermediate restart file when needead.
     if (Time >= Time_restart) &
         call coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_state, Ocn_bc_restart, Ice_bc_restart, &
-                                          Time, Time_restart, Time_start)
+                                          Time, Time_restart, Time_restart_current, Time_start)
 
     call coupler_summarize_timestep(current_timestep, num_cpld_calls, coupler_chksum_obj, Atm%pe, omp_sec, imb_sec)
     omp_sec(:)=0.
@@ -706,7 +706,7 @@ program coupler_main
 
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
       Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
-      nc, Time, Time_start, Time_end, coupler_chksum_obj, coupler_clocks)
+      nc, Time, Time_start, Time_end, Time_restart_current, coupler_chksum_obj, coupler_clocks)
 
   call fms_memutils_print_memuse_stats( 'Memory HiWaterMark', always=.True. )
   call fms_end
