@@ -701,6 +701,9 @@ program coupler_main
   enddo slow_integration_loop
   
   !-----------------------------------------------------------------------
+  if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
+                                                              coupler_clocks, finish_stocks=.True.)
+
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%main)
 
