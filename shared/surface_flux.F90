@@ -176,7 +176,7 @@ logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent f
                                            !! heat.  This option is available for legacy purposes, and is not recommended for
                                            !! new experiments.
 logical :: ncar_ocean_flux_multilevel  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.
-logical :: do_iter_monin_obukhov       = .false. !< If .TRUE,  call monin obukhov funtions a couple of times to update 
+logical :: do_iter_monin_obukhov       = .false. !< If .TRUE,  call monin obukhov funtcions a couple of times to update 
                                                  !! rough_mom, rough_heat, rough_moist, cd, ch, b_star, u_star 
 logical :: use_u10_neutral             = .false. !< If .TRUE., use 10m neutral wind rather than the standard 10m wind 
                                                  !! to obtain rough_mom, rough_heat, rough_moist
@@ -185,7 +185,7 @@ real :: bulk_zt = 10.                      !< Reference height for atm temperatu
 real :: bulk_zq = 10.                      !< Reference height for atm humidity (meters)
 logical :: raoult_sat_vap        = .false. !< Reduce saturation vapor pressure to account for seawater
 logical :: do_simple             = .false.
-integer :: niter                 = 5       !< iteration times to call iter_monin_obukhov_ocean. Typically 3-5 times should converge
+integer :: niter_monin_obukhov   = 5       !< iteration times to call iter_monin_obukhov_ocean. Typically 3-5 times should converge
 !
 
 namelist /surface_flux_nml/ no_neg_q,                   &
@@ -205,7 +205,7 @@ namelist /surface_flux_nml/ no_neg_q,                   &
                             do_simple,                  &
                             do_iter_monin_obukhov,      &
                             use_u10_neutral,            &
-                            niter
+                            niter_monin_obukhov
 
 contains
 
@@ -1052,7 +1052,7 @@ subroutine iter_monin_obukhov_ocean (                      &
            rough_mom1, rough_heat1, rough_moist1
   integer i, j
 
-  do i = 1, niter                              
+  do i = 1, niter_monin_obukhov                             
    do j = 1, size(avail)
     if (avail(j) .and. seawater(j)) then
 
