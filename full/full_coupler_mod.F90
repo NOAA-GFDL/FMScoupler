@@ -1139,9 +1139,6 @@ contains
     end if
 
     call fms_mpp_set_current_pelist()
-    call flux_init_stocks(Time, Atm, Land, Ice, Ocean_state)
-
-    call fms_mpp_set_current_pelist()
     call fms_memutils_print_memuse_stats('coupler_init')
 
     if (fms_mpp_pe().EQ.fms_mpp_root_pe()) then

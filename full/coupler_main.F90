@@ -676,7 +676,7 @@ program coupler_main
       else
         if (do_chksum) call coupler_chksum_obj%get_ocean_chksums('update_ocean_model-', nc)
         ! update_ocean_model since fluxes don't change here
-        if (do_ocean) call coupler_update_ocean_model(Ocean, Ocean_state, Ice_ocean_boundary, &
+        if (do_ocean) call coupler_update_ocean_model(Ocean, Ocean_state, Ice_ocean_boundary,&
                       Time_ocean, Time_step_cpld, current_timestep, coupler_chksum_obj)
       end if
 
