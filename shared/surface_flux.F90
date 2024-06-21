@@ -281,7 +281,7 @@ subroutine surface_flux_1d (                                           &
        q_atm,    q_surf0,  dw_atmdu,  dw_atmdv,  w_gust,   &
        zu,       zt,       zq
 
-  integer :: i, j, nbad
+  integer :: i, nbad
 
 
   if (.not. module_is_initialized) &
