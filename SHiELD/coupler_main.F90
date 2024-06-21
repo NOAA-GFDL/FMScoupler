@@ -249,6 +249,8 @@ contains
 
 !----- override calendar type with namelist value -----
       select case( fms_mpp_uppercase(trim(calendar)) )
+      case( 'GREGORIAN' )
+          calendar_type = GREGORIAN
       case( 'JULIAN' )
           calendar_type = JULIAN
       case( 'NOLEAP' )
@@ -259,7 +261,7 @@ contains
           calendar_type = NO_CALENDAR
       case default
           call fms_mpp_error ( FATAL, 'COUPLER_MAIN: coupler_nml entry calendar must '// &
-                                  'be one of JULIAN|NOLEAP|THIRTY_DAY|NO_CALENDAR.' )
+                                  'be one of GREGORIAN|JULIAN|NOLEAP|THIRTY_DAY|NO_CALENDAR.' )
       end select
 
     endif
@@ -387,7 +389,7 @@ contains
     call fms_memutils_print_memuse_stats('after atmos model init')
 
 !------ initialize data_override -----
-    if (.NOT.Atm%bounded_domain) call fms_data_override_init (Atm_domain_in  = Atm%domain)
+    call fms_data_override_init (Atm_domain_in  = Atm%domain)
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
