@@ -1262,8 +1262,6 @@ contains
     type(coupler_clock_type), intent(in) :: coupler_clocks
     type(coupler_chksum_type), intent(in) :: coupler_chksum_obj
 
-    type(coupler_chksum_type), intent(in) :: coupler_chksum_obj
-
     type(FmsTime_type), intent(in) :: Time, Time_start, Time_end, Time_restart_current
     integer :: num_ice_bc_restart, num_ocn_bc_restart
 
