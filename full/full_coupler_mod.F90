@@ -1353,11 +1353,9 @@ contains
 
     type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ocn_bc_restart !< required for restarts
     type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ice_bc_restart !< required for restarts
-
-    !> Restart files will be written when Time=>Time_restart.  Time_restart is incremented by restart_interval
-    !! Time_restart_current records the current timestep the restart file is being written.
-    !! Time_restart_current does not necessary = Time_restart.    
-    type(FmsTime_type),  intent(in)  :: Time_current, Time_restart_current, Time_start
+    type(FmsTime_type), intent(in) :: Time_current         !< current model runtime (Time)
+    type(FmsTime_type), intent(in) :: Time_restart_current !< current restart time
+    type(FmsTime_type), intent(in) :: Time_start           !< model start time
     character(len=*), intent(in),  optional :: time_stamp !< time_stamp for restart
 
     character(len=128) :: file_run, file_res
