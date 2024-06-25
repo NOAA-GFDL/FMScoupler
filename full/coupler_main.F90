@@ -443,7 +443,7 @@ program coupler_main
                                                               coupler_clocks, init_stocks=.True.)
 
   !> ocean/slow-ice integration loop
-  slow_integration_loop : do nc = 1, num_cpld_calls
+  coupled_timestep_loop : do nc = 1, num_cpld_calls
 
     if (do_chksum) then
       call coupler_chksum_obj%get_coupler_chksums('top_of_coupled_loop+', nc)
@@ -702,7 +702,7 @@ program coupler_main
     omp_sec(:)=0.
     imb_sec(:)=0.
 
-  enddo slow_integration_loop
+  enddo coupled_timestep_loop
 
   !-----------------------------------------------------------------------
   if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &

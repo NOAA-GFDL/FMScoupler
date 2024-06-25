@@ -1347,18 +1347,20 @@ contains
 
     implicit none
 
-    type(atmos_data_type),   intent(inout) :: Atm
-    type(ice_data_type),     intent(inout) :: Ice
-    type(ocean_public_type), intent(inout) :: Ocean
+    type(atmos_data_type),   intent(inout) :: Atm  !< Atm
+    type(ice_data_type),     intent(inout) :: Ice  !< Ice
+    type(ocean_public_type), intent(inout) :: Ocean !< Ocean
 
-    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ocn_bc_restart
-    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ice_bc_restart
+    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ocn_bc_restart !< required for restarts
+    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ice_bc_restart !< required for restarts
 
+    !> Restart files will be written when Time=>Time_restart.  Time_restart is incremented by restart_interval
+    !! Time_restart_current records the current timestep the restart file is being written.
+    !! Time_restart_current does not necessary = Time_restart.    
     type(FmsTime_type),  intent(in)  :: Time_current, Time_restart_current, Time_start
-    character(len=*), intent(in),  optional :: time_stamp
+    character(len=*), intent(in),  optional :: time_stamp !< time_stamp for restart
 
     character(len=128) :: file_run, file_res
-
     integer :: yr, mon, day, hr, min, sec, date(6), n
     integer ::  num_ice_bc_restart, num_ocn_bc_restart
     integer :: restart_unit !< Unit for the coupler restart file
