@@ -368,16 +368,12 @@ program coupler_main
   type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ice_bc_restart => NULL()
   type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ocn_bc_restart => NULL()
 
-  type(FmsTime_type) :: Time_restart, Time_start, Time_end
-  type(FmsTime_type) :: Time_restart_current
-  character(len=32) :: timestamp
+  type(FmsTime_type) :: Time_restart, Time_start, Time_end, Time_restart_current
 
   type(coupler_clock_type)      :: coupler_clocks
   type(coupler_components_type), target :: coupler_components_obj
   type(coupler_chksum_type)     :: coupler_chksum_obj
 
-  integer :: outunit
-  character(len=80) :: text
   integer, allocatable :: ensemble_pelist(:, :)
   integer, allocatable :: slow_ice_ocean_pelist(:)
   integer :: conc_nthreads = 1
@@ -446,7 +442,8 @@ program coupler_main
   if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, init_stocks=.True.)
 
-  do nc = 1, num_cpld_calls
+  !> ocean/slow-ice integration loop
+  coupled_timestep_loop : do nc = 1, num_cpld_calls
 
     if (do_chksum) then
       call coupler_chksum_obj%get_coupler_chksums('top_of_coupled_loop+', nc)
@@ -682,6 +679,7 @@ program coupler_main
         if (do_ocean) call coupler_update_ocean_model(Ocean, Ocean_state, Ice_ocean_boundary,&
                       Time_ocean, Time_step_cpld, current_timestep, coupler_chksum_obj)
       end if
+
       ! Get stocks from "Ice_ocean_boundary" and add them to Ocean stocks.
       ! This call is just for record keeping of stocks transfer and
       ! does not modify either Ocean or Ice_ocean_boundary
@@ -692,60 +690,32 @@ program coupler_main
       Time = Time_ocean
       
       call fms_mpp_clock_end(coupler_clocks%ocean)
-    end if
-
-    !--- write out intermediate restart file when needed.
-    if (Time >= Time_restart) then
-      Time_restart_current = Time
-      Time_restart = fms_time_manager_increment_date(Time, restart_interval(1), restart_interval(2), &
-           restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
-      timestamp = fms_time_manager_date_to_string(time_restart_current)
-      outunit= fms_mpp_stdout()
-      write(outunit,*) '=> NOTE from program coupler: intermediate restart file is written and ', &
-                       trim(timestamp),' is appended as prefix to each restart file name'
-      if (Atm%pe) then
-        call atmos_model_restart(Atm, timestamp)
-        call land_model_restart(timestamp)
-        call ice_model_restart(Ice, timestamp)
-      endif
-      if (Ocean%is_ocean_pe) then
-        call ocean_model_restart(Ocean_state, timestamp)
-      endif
-      call coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
-                           Time, Time_restart_current, Time_start, Time_end, timestamp)
     endif
 
-    !--------------
-    if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('MAIN_LOOP+', nc)
-    write( text,'(a,i6)' )'Main loop at coupling timestep=', nc
-    call fms_memutils_print_memuse_stats(text)
-    outunit= fms_mpp_stdout()
-    if (fms_mpp_pe() == fms_mpp_root_pe() .and. Atm%pe .and. do_concurrent_radiation) then
-      write(outunit,102) 'At coupling step ', nc,' of ',num_cpld_calls, &
-           ' Atm & Rad (imbalance): ',omp_sec(1),' (',imb_sec(1),')  ',omp_sec(2),' (',imb_sec(2),')'
-    endif
+    !> write out intermediate restart file when needead.
+    if (Time >= Time_restart) &
+        call coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_state, Ocn_bc_restart, Ice_bc_restart, &
+                                          Time, Time_restart, Time_restart_current, Time_start)
+
+    call coupler_summarize_timestep(current_timestep, num_cpld_calls, coupler_chksum_obj, Atm%pe, omp_sec, imb_sec)
+
     omp_sec(:)=0.
     imb_sec(:)=0.
-    call flush(outunit)
 
-  enddo
-102 FORMAT(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
+  enddo coupled_timestep_loop
 
+  !-----------------------------------------------------------------------
   if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, finish_stocks=.True.)
-  !-----------------------------------------------------------------------
+
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%main)
-  call fms_mpp_clock_begin(coupler_clocks%termination)
 
-  if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('coupler_end-', nc)
   call coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
       Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, Ice_bc_restart, &
-      Time, Time_start, Time_end, Time_restart_current, coupler_chksum_obj)
+      nc, Time, Time_start, Time_end, Time_restart_current, coupler_chksum_obj, coupler_clocks)
 
-  call fms_mpp_clock_end(coupler_clocks%termination)
-
-  call fms_memutils_print_memuse_stats( 'Memory HiWaterMark', always=.TRUE. )
+  call fms_memutils_print_memuse_stats( 'Memory HiWaterMark', always=.True. )
   call fms_end
 
 !-----------------------------------------------------------------------
