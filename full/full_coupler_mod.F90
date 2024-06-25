@@ -1361,6 +1361,7 @@ contains
     character(len=*), intent(in),  optional :: time_stamp !< time_stamp for restart
 
     character(len=128) :: file_run, file_res
+
     integer :: yr, mon, day, hr, min, sec, date(6), n
     integer ::  num_ice_bc_restart, num_ocn_bc_restart
     integer :: restart_unit !< Unit for the coupler restart file
