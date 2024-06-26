@@ -119,6 +119,7 @@ use FMS
 use FMSconstants, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
 use ocean_rough_mod, only: cal_z0_hwrf17, cal_zt_hwrf17, read_ocean_rough_scheme  
 use constants_mod, only: vonkarm
+use fms_mod, only: mpp_pe, mpp_root_pe, stdout
 
 
 implicit none
@@ -716,7 +717,9 @@ end subroutine surface_flux_2d
 subroutine surface_flux_init
 
 ! ---- local vars ----------------------------------------------------------
-  integer :: unit, ierr, io
+  integer :: unit, ierr, io, outunit
+
+  outunit = stdout()
 
   ! read namelist
   read (fms_mpp_input_nml_file, surface_flux_nml, iostat=io)
@@ -727,6 +730,11 @@ subroutine surface_flux_init
   ! because the intialization of ocean_rough is later than the surface_flux_init. 
   if (do_iter_monin_obukhov) then
     call read_ocean_rough_scheme(rough_scheme_ocean) 
+    if (mpp_pe() == mpp_root_pe() ) then
+     write (outunit,*) 'ocean roughness scheme: ', rough_scheme_ocean
+     write (outunit,*) 'Warning: if ocean roughness scheme is not hwrf17,           &
+                        iter_monin_obukhov_ocean is not effective'
+    endif 
   endif
 
   ! write version number
@@ -1024,28 +1032,42 @@ real   , intent(out)  , dimension(:) :: bstar        ! turbulent scale for buoya
 
 end subroutine ncar_ocean_fluxes_multilevel
 
+!> \brief Update air-sea flux variables to be consistent with the concurrent atmospheric states
+!! \note Right now, it  is only effective when ocean_rough = 'hwrf17', but this
+!!  can be expanded if necessarily to incorporate other roughness schemies
+!!  contact: Kun.Gao@noaa.gov; Baoqiang.Xiang@noaa.gov
 subroutine iter_monin_obukhov_ocean (                      &
            z_atm, u_atm, v_atm, w_atm, thv_atm, q_atm,     &
            u_surf, v_surf, thv_surf, q_surf0,              &
            rough_mom, rough_heat, rough_moist,             &
            cd_m, cd_t, cd_q, u_star, b_star, avail, seawater)
-!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
-!  Right now, it  is only effective when ocean_rough = 'hwrf17', but this
-!  can be expanded if necessarily to incorporate other roughness schemies
-!  contact: Kun.Gao@noaa.gov; Baoqiang.Xiang@noaa.gov
-!~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~!
 
   real   , intent(in), dimension(:)    ::                  &
-           z_atm, u_atm, v_atm, w_atm, thv_atm, q_atm,     &
-           u_surf, v_surf, thv_surf, q_surf0
+           z_atm,      & !< Height at the lowest atmospheric level
+           u_atm,      & !< Zonal wind velocity at the lowest atmospheric level 
+           v_atm,      & !< Meridional wind velocity at the lowest atmospheric level
+           w_atm,      & !< Absolute wind at the lowest atmospheric level
+           thv_atm,    & !< Surface air theta_v
+           q_atm,      & !< Mixing ratio at lowest atmospheric level (kg/kg)
+           u_surf,     & !< Zonal wind velocity at the Earth's surface
+           v_surf,     & !< Meridional wind velocity at the Earth's surface
+           thv_surf,   & !< Surface theta_v
+           q_surf0       !< Surface air humidity
 
   real   , intent(inout), dimension(:) ::                  &
-           rough_mom, rough_heat, rough_moist,             &
-           cd_m, cd_t, cd_q, u_star, b_star
+           rough_mom,  & !< Momentum roughness length
+           rough_heat, & !< Heat roughness length
+           rough_moist,& !< Moisture roughness length
+           cd_m,       & !< Momentum exchange coefficient
+           cd_t,       & !< Heat exchange coefficient
+           cd_q,       & !< Moisture exchange coefficient
+           u_star,     & !< Turbulent velocity scale
+           b_star        !< Turbulent buoyant scale
   logical, intent(in), dimension(:)    ::                  &
-           avail, seawater
+           avail,      & !< .TRUE. where the exchange cell is active
+           seawater      !< Indicates where liquid ocean water exists (.TRUE. if exchange cell is on liquid ocean water)
 
-  ! local var
+  ! ---- local vars -----------------------------------------------------------
   real, dimension(size(z_atm(:)))      ::                  &
            flux_q, q_star,                                 &
            ref_u, ref_v, u10, del_m, del_h, del_q,         &         
