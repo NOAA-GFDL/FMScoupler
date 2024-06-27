@@ -1195,7 +1195,7 @@ subroutine surface_flux_2d (                                           &
        t_atm,     q_atm_in,   u_atm,     v_atm,              &
        p_atm,     z_atm,      t_ca,                          &
        p_surf,    t_surf,     u_surf,    v_surf,             &
-       rough_mom, rough_heat, rough_moist, rough_scale, gust
+       rough_scale, gust
   real, intent(out), dimension(:,:) :: &
        flux_t,    flux_q,     flux_r,    flux_u,  flux_v,    &
        dhdt_surf, dedt_surf,  dedq_surf, drdt_surf,          &
@@ -1203,7 +1203,8 @@ subroutine surface_flux_2d (                                           &
        w_atm,     u_star,     b_star,    q_star,             &
        thv_atm,   thv_surf,                                  &
        cd_m,      cd_t,       cd_q
-  real, intent(inout), dimension(:,:) :: q_surf
+  real, intent(inout), dimension(:,:) :: q_surf, rough_mom,  &
+       rough_heat, rough_moist 
   real, intent(in) :: dt
 
   ! ---- local vars -----------------------------------------------------------
