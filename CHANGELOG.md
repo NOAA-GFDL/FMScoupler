@@ -26,6 +26,13 @@ sequential patch number (starting from `01`).
 - 2024.01-beta4  4dc9b0f2a85d34b0fdc8477625b91794a77ac747
 - 2024.01-beta5  4dc9b0f2a85d34b0fdc8477625b91794a77ac747
 
+## [2023.04.01] - 2024-06-20
+### Fixed
+- SIMPLE COUPLER: Fixed issue where the `sst_anom` value used was not the correct value read in from the namelist. (#122)
+
+### Tag Commit Hashes
+- 2023.04 6b4f8b5207483eb7a7839a29909a415253a05db8
+
 ## [2023.04] - 2023-12-04
 ### Added
 - Adds additional output arguments `thv_atm` amd `thv_surf` to the `surface_flux` interface, as well as calls to xgrid and send data in order to use a new atmosphere boundary layer scheme.

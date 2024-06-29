@@ -112,7 +112,8 @@ module full_coupler_mod
   public :: atm_ice_bnd_type_chksum,  lnd_ice_bnd_type_chksum
   public :: ocean_public_type_chksum, ice_ocn_bnd_type_chksum
 
-  public :: coupler_init, coupler_end, coupler_restart
+  public :: coupler_init, coupler_end, coupler_restart, coupler_intermediate_restart
+  public :: coupler_summarize_timestep
 
   public :: coupler_flux_init_finish_stocks, coupler_flux_check_stocks
   public :: coupler_flux_ocean_to_ice
@@ -1078,7 +1079,7 @@ contains
       call fms_coupler_type_register_restarts(Ice%ocean_fluxes, Ice_bc_restart, &
              num_ice_bc_restart, Ice%slow_domain_NH, to_read=.true., ocean_restart=.false., directory="INPUT/")
 
-          ! Restore the fields from the restart files
+      ! Restore the fields from the restart files
       do l = 1, num_ice_bc_restart
          if(fms2_io_check_if_open(Ice_bc_restart(l))) call fms2_io_read_restart(Ice_bc_restart(l))
       enddo
@@ -1088,7 +1089,7 @@ contains
               test_by_field=.true.)
 
       do l = 1, num_ice_bc_restart
-         if(fms2_io_check_if_open(Ice_bc_restart(l))) call fms2_io_close_file(Ice_bc_restart(l))
+        if(fms2_io_check_if_open(Ice_bc_restart(l))) call fms2_io_close_file(Ice_bc_restart(l))
       enddo
     endif !< ( Ice%slow_ice_pe )
 
@@ -1151,6 +1152,7 @@ contains
       write(errunit,*) 'Exiting coupler_init at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
+
   end subroutine coupler_init
 
 !#######################################################################
@@ -1239,31 +1241,39 @@ contains
 
   end subroutine get_components_obj
 
-  !> This subroutine finalizes the run
+  !> This subroutine finalizes the run including a final call to get_coupler_chksums if do_chksum = .True.
+  !! Coupler_restart is called for the final time.
   subroutine coupler_end(Atm, Land, Ice, Ocean, Ocean_state, Land_ice_atmos_boundary, Atmos_ice_boundary,&
-                         Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart, &
-                         Ice_bc_restart, Time, Time_start, Time_end, Time_restart_current, coupler_chksum_obj)
+                         Atmos_land_boundary, Ice_ocean_boundary, Ocean_ice_boundary, Ocn_bc_restart,    &
+                         Ice_bc_restart, current_timestep, Time_current, Time_start, Time_end, Time_restart_current,&
+                         coupler_chksum_obj, coupler_clocks)
 
     implicit none
 
-    type(atmos_data_type), intent(inout) :: Atm
-    type(land_data_type),  intent(inout) :: Land
-    type(ice_data_type),   intent(inout) :: Ice
-    type(ocean_public_type),          intent(inout) :: Ocean
-    type(ocean_state_type),  pointer, intent(inout) :: Ocean_state
-    type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary
-    type(atmos_ice_boundary_type),  intent(inout) :: Atmos_ice_boundary
-    type(atmos_land_boundary_type), intent(inout) :: Atmos_land_boundary
-    type(ice_ocean_boundary_type),  intent(inout) :: Ice_ocean_boundary
-    type(ocean_ice_boundary_type),  intent(inout) :: Ocean_ice_boundary
-    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ocn_bc_restart
-    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ice_bc_restart
+    type(atmos_data_type), intent(inout) :: Atm  !< Atm
+    type(land_data_type),  intent(inout) :: Land !< Land
+    type(ice_data_type),   intent(inout) :: Ice  !< Ice
+    type(ocean_public_type),          intent(inout) :: Ocean        !< Ocean
+    type(ocean_state_type),  pointer, intent(inout) :: Ocean_state  !< Ocean_state
+    type(land_ice_atmos_boundary_type), intent(inout) :: Land_ice_atmos_boundary !<Land_ice_boundary
+    type(atmos_ice_boundary_type),  intent(inout) :: Atmos_ice_boundary  !< Atmos_ice_boundary
+    type(atmos_land_boundary_type), intent(inout) :: Atmos_land_boundary !< Atmos_land_boundary
+    type(ice_ocean_boundary_type),  intent(inout) :: Ice_ocean_boundary  !< Ice_ocean_boundary
+    type(ocean_ice_boundary_type),  intent(inout) :: Ocean_ice_boundary  !< Ocean_ice_boundary
+    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ocn_bc_restart !< required for coupler_restart
+    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ice_bc_restart !< required for coupler_restart
+    integer, intent(in) :: current_timestep   !< current_timestep (nc)
+    type(coupler_clock_type), intent(in)  :: coupler_clocks     !< coupler_clocks
+    type(coupler_chksum_type), intent(in) :: coupler_chksum_obj !< required for chksum computations
 
-    type(coupler_chksum_type), intent(in) :: coupler_chksum_obj
+    type(FmsTime_type), intent(in) :: Time_current   !< Current timestep
+    type(FmsTime_type), intent(in) :: Time_start     !< model starting time
+    type(FmsTime_type), intent(in) :: Time_end       !< model run time
+    type(FmsTime_type), intent(in) :: Time_restart_current !< Time corresponding to last restart time
 
-    type(FmsTime_type), intent(in) :: Time, Time_start, Time_end, Time_restart_current
-    integer :: num_ice_bc_restart, num_ocn_bc_restart
+    call fms_mpp_clock_begin(coupler_clocks%termination)
 
+    if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('coupler_end-', current_timestep)
     if ( do_endpoint_chksum ) then
       call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('coupler_end', 0)
       if (Ice%slow_ice_PE) then
@@ -1275,7 +1285,7 @@ contains
 
 !----- check time versus expected ending time ----
 
-    if (Time /= Time_end) call error_mesg ('program coupler',  &
+    if (Time_current /= Time_end) call error_mesg ('program coupler',  &
          'final time does not match expected ending time', WARNING)
 
 !-----------------------------------------------------------------------
@@ -1284,7 +1294,7 @@ contains
 !but will fail on overlapping but unequal pelists
     if (Ocean%is_ocean_pe) then
       call fms_mpp_set_current_pelist(Ocean%pelist)
-      call ocean_model_end (Ocean, Ocean_state, Time)
+      call ocean_model_end (Ocean, Ocean_state, Time_current)
     endif
     if (Atm%pe) then
       call fms_mpp_set_current_pelist(Atm%pelist)
@@ -1305,14 +1315,15 @@ contains
 
     !----- write restart file ------
     call coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
-                         Time, Time_restart_current, Time_start, Time_end)
+                         Time_current, Time_restart_current, Time_start)
 
-    call fms_diag_end (Time)
+    call fms_diag_end (Time_current)
 #ifdef use_deprecated_io
     call fms_io_exit
 #endif
-    call fms_mpp_set_current_pelist()
 
+    call fms_mpp_set_current_pelist()
+    call fms_mpp_clock_end(coupler_clocks%termination)
 
 !-----------------------------------------------------------------------
 
@@ -1338,19 +1349,20 @@ contains
 
   !> \brief Writing restart file that contains running time and restart file writing time.
   subroutine coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
-                             Time_run, Time_res, Time_start, Time_end, time_stamp)
+                            Time_current, Time_restart_current, Time_start, time_stamp)
 
     implicit none
 
-    type(atmos_data_type),   intent(inout) :: Atm
-    type(ice_data_type),     intent(inout) :: Ice
-    type(ocean_public_type), intent(inout) :: Ocean
+    type(atmos_data_type),   intent(inout) :: Atm  !< Atm
+    type(ice_data_type),     intent(inout) :: Ice  !< Ice
+    type(ocean_public_type), intent(inout) :: Ocean !< Ocean
 
-    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ocn_bc_restart
-    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ice_bc_restart
-
-    type(FmsTime_type),  intent(in)  :: Time_run, Time_res, Time_start, Time_end
-    character(len=*), intent(in),  optional :: time_stamp
+    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ocn_bc_restart !< required for restarts
+    type(FmsNetcdfDomainFile_t), dimension(:), pointer, intent(inout) :: Ice_bc_restart !< required for restarts
+    type(FmsTime_type), intent(in) :: Time_current         !< current model runtime (Time)
+    type(FmsTime_type), intent(in) :: Time_restart_current !< current restart time
+    type(FmsTime_type), intent(in) :: Time_start           !< model start time
+    character(len=*), intent(in),  optional :: time_stamp !< time_stamp for restart
 
     character(len=128) :: file_run, file_res
 
@@ -1370,24 +1382,21 @@ contains
     endif
 
     !----- compute current date ------
-    call fms_time_manager_get_date (Time_run, date(1), date(2), date(3),  &
-                   date(4), date(5), date(6))
+    call fms_time_manager_get_date (Time_current, date(1), date(2), date(3), date(4), date(5), date(6))
     if ( fms_mpp_pe().EQ.fms_mpp_root_pe()) then
        open(newunit = restart_unit, file=file_run, status='replace', form='formatted')
-       write(restart_unit, '(i6,8x,a)' )calendar_type, &
+       write(restart_unit, '(i6,8x,a)' ) calendar_type, &
             '(Calendar: no_calendar=0, thirty_day_months=1, julian=2, gregorian=3, noleap=4)'
 
-       write(restart_unit, '(6i6,8x,a)' )date_init, &
-            'Model start time:   year, month, day, hour, minute, second'
-       write(restart_unit, '(6i6,8x,a)' )date, &
-            'Current model time: year, month, day, hour, minute, second'
+       write(restart_unit, '(6i6,8x,a)' )date_init, 'Model start time:   year, month, day, hour, minute, second'
+       write(restart_unit, '(6i6,8x,a)' )date, 'Current model time: year, month, day, hour, minute, second'
        close(restart_unit)
     endif
 
-    if (Time_res > Time_start) then
+    if (Time_restart_current > Time_start) then
       if ( fms_mpp_pe().EQ.fms_mpp_root_pe()) then
         open(newunit = restart_unit, file=file_res, status='replace', form='formatted')
-        call fms_time_manager_get_date(Time_res ,yr,mon,day,hr,min,sec)
+        call fms_time_manager_get_date(Time_restart_current, yr,mon,day,hr,min,sec)
         write(restart_unit, '(6i6,8x,a)' )yr,mon,day,hr,min,sec, &
              'Current intermediate restart time: year, month, day, hour, minute, second'
         close(restart_unit)
@@ -1414,13 +1423,13 @@ contains
 
       if (associated(Ice_bc_restart)) deallocate(Ice_bc_restart)
       call fms_coupler_type_register_restarts(Ice%ocean_fluxes, Ice_bc_restart, &
-               num_ice_bc_restart, Ice%slow_domain_NH, to_read=.false., ocean_restart=.false., directory="RESTART/")
+           num_ice_bc_restart, Ice%slow_domain_NH, to_read=.false., ocean_restart=.false., directory="RESTART/")
       do n = 1, num_ice_bc_restart
-         if (fms2_io_check_if_open(Ice_bc_restart(n))) then
-             call fms2_io_write_restart(Ice_bc_restart(n))
-             call add_domain_dimension_data(Ice_bc_restart(n))
-             call fms2_io_close_file(Ice_bc_restart(n))
-         endif
+        if (fms2_io_check_if_open(Ice_bc_restart(n))) then
+          call fms2_io_write_restart(Ice_bc_restart(n))
+          call add_domain_dimension_data(Ice_bc_restart(n))
+          call fms2_io_close_file(Ice_bc_restart(n))
+        endif
       enddo
     endif !< (Atm%pe)
 
@@ -2339,5 +2348,77 @@ contains
     if (do_chksum) call coupler_chksum_obj%get_ocean_chksums('update_ocean_model+', current_timestep)
 
   end subroutine coupler_update_ocean_model
+
+  !> Thie subroutine calls component restarts and coupler_restart where the intermediate restart files
+  !! is produced in the latter calls.  Time_restart is the next timestep where the intermediate restart
+  !! file will be written out.  Time_restart_current records the current restart time.
+  subroutine coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_state, Ocn_bc_restart, Ice_bc_restart,&
+                                          Time_current, Time_restart, Time_restart_current, Time_start)
+
+    implicit none
+    type(atmos_data_type),   intent(inout) :: Atm    !< Atm
+    type(ice_data_type),     intent(inout) :: Ice    !< Ice
+    type(ocean_public_type), intent(inout) ::  Ocean !< Ocean
+    type(ocean_state_type),      pointer, intent(inout) :: Ocean_state       !< Ocean_state
+    type(FmsNetcdfDomainFile_t), pointer, intent(inout) :: Ocn_bc_restart(:) !< used for coupler type restarts
+    type(FmsNetcdfDomainFile_t), pointer, intent(inout) :: Ice_bc_restart(:) !< used for coupler type restarts
+    type(FmsTime_type), intent(in) :: Time_current, Time_start  !< current Timestep and model start time
+    !> Restart files will be written when Time=>Time_restart.  Time_restart is incremented by restart_interval
+    !! Time_restart_current records the current timestep the restart file is being written.
+    !! Time_restart_current does not necessary = Time_restart.
+    type(FmsTime_type), intent(inout) :: Time_restart, Time_restart_current
+    character(len=32) :: timestamp !< Time in string
+    integer :: outunit             !< stdout
+
+    Time_restart_current = Time_current
+
+    timestamp = fms_time_manager_date_to_string(Time_restart_current)
+    outunit= fms_mpp_stdout()
+    write(outunit,*) '=> NOTE from program coupler: intermediate restart file is written and ', &
+                      trim(timestamp),' is appended as prefix to each restart file name'
+    if (Atm%pe) then
+      call atmos_model_restart(Atm, timestamp)
+      call land_model_restart(timestamp)
+      call ice_model_restart(Ice, timestamp)
+    endif
+    if (Ocean%is_ocean_pe) call ocean_model_restart(Ocean_state, timestamp)
+
+    call coupler_restart(Atm, Ice, Ocean, Ocn_bc_restart, Ice_bc_restart, &
+                         Time_current, Time_restart_current, Time_start, timestamp)
+
+    Time_restart = fms_time_manager_increment_date(Time_current, restart_interval(1), restart_interval(2), &
+                   restart_interval(3), restart_interval(4), restart_interval(5), restart_interval(6) )
+
+  end subroutine coupler_intermediate_restart
+
+  !> This subroutine mainly prints out the current timestep in the stdout.
+  !! Chksum is computed if do_chksum = .True.
+  subroutine coupler_summarize_timestep(current_timestep, num_cpld_calls, coupler_chksum_obj, &
+                                        is_atmos_pe, omp_sec, imb_sec)
+
+    implicit none
+    integer, intent(in) :: current_timestep  !< current_timestep, nc
+    integer, intent(in) :: num_cpld_calls    !< total number of outerloop timestep
+    type(coupler_chksum_type), intent(in) :: coupler_chksum_obj  !< coupler_chksum_obj
+    logical, intent(in)               :: is_atmos_pe             !< Atm%pe
+    real, dimension(:), intent(inout) :: omp_sec, imb_sec        !< from omp computation
+
+    integer :: outunit        !< stdout
+    character(len=80) :: text !< text to be written out to stdout
+
+    if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('MAIN_LOOP+', current_timestep)
+    write( text,'(a,i6)' )'Main loop at coupling timestep=', current_timestep
+    call fms_memutils_print_memuse_stats(text)
+    outunit= fms_mpp_stdout()
+
+    if (fms_mpp_pe() == fms_mpp_root_pe() .and. is_atmos_pe .and. do_concurrent_radiation) &
+        write(outunit,102) 'At coupling step ', current_timestep,' of ',num_cpld_calls, ' Atm & Rad (imbalance): ', &
+                            omp_sec(1),' (',imb_sec(1),')  ',omp_sec(2),' (',imb_sec(2),')'
+
+    call flush(outunit)
+
+102 format(A17,i5,A4,i5,A24,f10.4,A2,f10.4,A3,f10.4,A2,f10.4,A1)
+
+  end subroutine coupler_summarize_timestep
 
 end module full_coupler_mod

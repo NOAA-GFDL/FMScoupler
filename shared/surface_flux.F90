@@ -117,6 +117,10 @@ module surface_flux_mod
 
 use FMS
 use FMSconstants, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
+use ocean_rough_mod, only: cal_z0_hwrf17, cal_zt_hwrf17, read_ocean_rough_scheme  
+use constants_mod, only: vonkarm
+use fms_mod, only: mpp_pe, mpp_root_pe, stdout
+
 
 implicit none
 private
@@ -150,7 +154,7 @@ real, parameter :: kappa  = rdgas/cp_air
 real            :: d608   = d378/d622
       ! d608 set to zero at initialization if the use of
       ! virtual temperatures is turned off in namelist
-
+character(len=32) :: rough_scheme_ocean !< ocean roughness length scheme to be read from ocean_rough_nml
 
 ! ---- namelist with default values ------------------------------------------
 logical :: no_neg_q              = .false. !< If a_atm_in (specific humidity) is negative (because of numerical truncation),
@@ -173,12 +177,17 @@ logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent f
                                            !! heat.  This option is available for legacy purposes, and is not recommended for
                                            !! new experiments.
 logical :: ncar_ocean_flux_multilevel  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.
+logical :: do_iter_monin_obukhov       = .false. !< If .TRUE,  call monin obukhov funtcions a couple of times to update 
+                                                 !! rough_mom, rough_heat, rough_moist, cd, ch, b_star, u_star 
+logical :: use_u10_neutral             = .false. !< If .TRUE., use 10m neutral wind rather than the standard 10m wind 
+                                                 !! to obtain rough_mom, rough_heat, rough_moist
 real :: bulk_zu = 10.                      !< Reference height for wind speed (meters)
 real :: bulk_zt = 10.                      !< Reference height for atm temperature (meters)
 real :: bulk_zq = 10.                      !< Reference height for atm humidity (meters)
 logical :: raoult_sat_vap        = .false. !< Reduce saturation vapor pressure to account for seawater
 logical :: do_simple             = .false.
-
+integer :: niter_monin_obukhov   = 5       !< iteration times to call iter_monin_obukhov_ocean. Typically 3-5 times should converge
+!
 
 namelist /surface_flux_nml/ no_neg_q,                   &
                             use_virtual_temp,           &
@@ -194,9 +203,10 @@ namelist /surface_flux_nml/ no_neg_q,                   &
                             bulk_zt,                    &
                             bulk_zq,                    &
                             raoult_sat_vap,             &
-                            do_simple
-
-
+                            do_simple,                  &
+                            do_iter_monin_obukhov,      &
+                            use_u10_neutral,            &
+                            niter_monin_obukhov
 
 contains
 
@@ -229,9 +239,6 @@ subroutine surface_flux_1d (                                           &
                                      t_surf, & !< Temp at the Earth's surface
                                      u_surf, & !< Zonal wind velocity at the Earth's surface
                                      v_surf, & !< Meridional wind velocity at the Earth's surface
-                                     rough_mom, & !< Momentum roughness length
-                                     rough_heat, & !< Heat roughness length
-                                     rough_moist, & !< Moisture roughness length
                                      rough_scale, & !< Scale factor used to topographic roughness calculation
                                      gust !< Gustiness factor
   real, intent(out), dimension(:) :: flux_t, & !< Sensible heat flux
@@ -256,7 +263,10 @@ subroutine surface_flux_1d (                                           &
                                      cd_m, & !< Momentum exchange coefficient
                                      cd_t, & ! Heat exchange coefficient
                                      cd_q !< Moisture exchange coefficient
-  real, intent(inout), dimension(:) :: q_surf !< Mixing ratio at the Earth's surface (kg/kg)
+  real, intent(inout), dimension(:) :: q_surf,  & !< Mixing ratio at the Earth's surface (kg/kg)
+                                     rough_mom, & !< Momentum roughness length
+                                     rough_heat,& !< Heat roughness length
+                                     rough_moist  !< Moisture roughness length
   real, intent(in) :: dt !< Time step (it is not used presently)
 
   ! ---- local constants -----------------------------------------------------
@@ -369,9 +379,20 @@ subroutine surface_flux_1d (                                           &
   endif
 
   !  monin-obukhov similarity theory
-  call fms_monin_obukhov_mo_drag (thv_atm, thv_surf, z_atm,                  &
-       rough_mom, rough_heat, rough_moist, w_atm,          &
+  call fms_monin_obukhov_mo_drag (thv_atm, thv_surf, z_atm,                 &
+       rough_mom, rough_heat, rough_moist, w_atm,                           &
        cd_m, cd_t, cd_q, u_star, b_star, avail             )
+
+  ! - iterate monin-obukhov over ocean with updated roughness length
+  ! - the following fields, cd_m, cd_g, cd_q, u_star, b_star will be overrideen
+  ! - only effective when the rough_scheme_ocean is hwrf17
+  if (do_iter_monin_obukhov) then
+   call iter_monin_obukhov_ocean (                                        &
+        z_atm, u_atm, v_atm, w_atm, thv_atm, q_atm,                       &
+        u_surf, v_surf, thv_surf, q_surf0,                                &
+        rough_mom, rough_heat, rough_moist,                               &
+        cd_m, cd_t, cd_q, u_star, b_star, avail, seawater )
+  endif
 
   ! override with ocean fluxes from NCAR calculation
   if ((ncar_ocean_flux .or. ncar_ocean_flux_orig) .and. (.not.ncar_ocean_flux_multilevel)) then
@@ -391,7 +412,9 @@ subroutine surface_flux_1d (                                           &
 
   where (avail)
      ! scale momentum drag coefficient on orographic roughness
-     cd_m = cd_m*(log(z_atm/rough_mom+1)/log(z_atm/rough_scale+1))**2
+     where (.not. seawater)
+      cd_m = cd_m*(log(z_atm/rough_mom+1)/log(z_atm/rough_scale+1))**2
+     endwhere
      ! surface layer drag coefficients
      drag_t = cd_t * w_atm
      drag_q = cd_q * w_atm
@@ -529,7 +552,7 @@ subroutine surface_flux_0d (                                                 &
                        cd_m_0, & !< Momentum exchange coefficient
                        cd_t_0, & ! Heat exchange coefficient
                        cd_q_0 !< Moisture exchange coefficient
-  real, intent(inout) :: q_surf_0 !< Mixing ratio at the Earth's surface (kg/kg)
+  real, intent(inout) :: q_surf_0   !< Mixing ratio at the Earth's surface (kg/kg)
   real, intent(in) :: dt !< Time step (it is not used presently)
 
   ! ---- local vars ----------------------------------------------------------
@@ -639,9 +662,6 @@ subroutine surface_flux_2d (                                           &
                                        t_surf, & !< Temp at the Earth's surface
                                        u_surf, & !< Zonal wind velocity at the Earth's surface
                                        v_surf, & !< Meridional wind velocity at the Earth's surface
-                                       rough_mom, & !< Momentum roughness length
-                                       rough_heat, & !< Heat roughness length
-                                       rough_moist, & !< Moisture roughness length
                                        rough_scale, & !< Scale factor used to topographic roughness calculation
                                        gust !< Gustiness factor
   real, intent(out), dimension(:,:) :: flux_t, & !< Sensible heat flux
@@ -666,7 +686,10 @@ subroutine surface_flux_2d (                                           &
                                        cd_m, & !< Momentum exchange coefficient
                                        cd_t, & ! Heat exchange coefficient
                                        cd_q !< Moisture exchange coefficient
-  real, intent(inout), dimension(:,:) :: q_surf !< Mixing ratio at the Earth's surface (kg/kg)
+  real, intent(inout), dimension(:,:) :: q_surf,  & !< Mixing ratio at the Earth's surface (kg/kg)
+                                       rough_mom, & !< Momentum roughness length
+                                       rough_heat,& !< Heat roughness length
+                                       rough_moist  !< Moisture roughness length
   real, intent(in) :: dt !< Time step (it is not used presently)
 
   ! ---- local vars -----------------------------------------------------------
@@ -694,11 +717,25 @@ end subroutine surface_flux_2d
 subroutine surface_flux_init
 
 ! ---- local vars ----------------------------------------------------------
-  integer :: unit, ierr, io
+  integer :: unit, ierr, io, outunit
+
+  outunit = stdout()
 
   ! read namelist
   read (fms_mpp_input_nml_file, surface_flux_nml, iostat=io)
   ierr = check_nml_error(io,'surface_flux_nml')
+
+  ! read rough_scheme_ocean from ocean_rough namelist
+  ! Note that we should not use the variable 'rough_scheme' directly from ocean_rough,
+  ! because the intialization of ocean_rough is later than the surface_flux_init. 
+  if (do_iter_monin_obukhov) then
+    call read_ocean_rough_scheme(rough_scheme_ocean) 
+    if (mpp_pe() == mpp_root_pe() ) then
+     write (outunit,*) 'ocean roughness scheme: ', rough_scheme_ocean
+     write (outunit,*) 'Warning: if ocean roughness scheme is not hwrf17,           &
+                        iter_monin_obukhov_ocean is not effective'
+    endif 
+  endif
 
   ! write version number
   call fms_write_version_number(version, tagname)
@@ -994,5 +1031,90 @@ real   , intent(out)  , dimension(:) :: bstar        ! turbulent scale for buoya
   end do
 
 end subroutine ncar_ocean_fluxes_multilevel
+
+!> \brief Update air-sea flux variables to be consistent with the concurrent atmospheric states
+!! \note Right now, it  is only effective when ocean_rough = 'hwrf17', but this
+!!  can be expanded if necessarily to incorporate other roughness schemies
+!!  contact: Kun.Gao@noaa.gov; Baoqiang.Xiang@noaa.gov
+subroutine iter_monin_obukhov_ocean (                      &
+           z_atm, u_atm, v_atm, w_atm, thv_atm, q_atm,     &
+           u_surf, v_surf, thv_surf, q_surf0,              &
+           rough_mom, rough_heat, rough_moist,             &
+           cd_m, cd_t, cd_q, u_star, b_star, avail, seawater)
+
+  real   , intent(in), dimension(:)    ::                  &
+           z_atm,      & !< Height at the lowest atmospheric level
+           u_atm,      & !< Zonal wind velocity at the lowest atmospheric level 
+           v_atm,      & !< Meridional wind velocity at the lowest atmospheric level
+           w_atm,      & !< Absolute wind at the lowest atmospheric level
+           thv_atm,    & !< Surface air theta_v
+           q_atm,      & !< Mixing ratio at lowest atmospheric level (kg/kg)
+           u_surf,     & !< Zonal wind velocity at the Earth's surface
+           v_surf,     & !< Meridional wind velocity at the Earth's surface
+           thv_surf,   & !< Surface theta_v
+           q_surf0       !< Surface air humidity
+
+  real   , intent(inout), dimension(:) ::                  &
+           rough_mom,  & !< Momentum roughness length
+           rough_heat, & !< Heat roughness length
+           rough_moist,& !< Moisture roughness length
+           cd_m,       & !< Momentum exchange coefficient
+           cd_t,       & !< Heat exchange coefficient
+           cd_q,       & !< Moisture exchange coefficient
+           u_star,     & !< Turbulent velocity scale
+           b_star        !< Turbulent buoyant scale
+  logical, intent(in), dimension(:)    ::                  &
+           avail,      & !< .TRUE. where the exchange cell is active
+           seawater      !< Indicates where liquid ocean water exists (.TRUE. if exchange cell is on liquid ocean water)
+
+  ! ---- local vars -----------------------------------------------------------
+  real, dimension(size(z_atm(:)))      ::                  &
+           flux_q, q_star,                                 &
+           ref_u, ref_v, u10, del_m, del_h, del_q,         &         
+           rough_mom1, rough_heat1, rough_moist1
+  integer i, j
+
+  do i = 1, niter_monin_obukhov                             
+   do j = 1, size(avail)
+    if (avail(j) .and. seawater(j)) then
+
+   ! get q_star (not important but required by mo_profile)
+    flux_q(j) = cd_q(j) * w_atm(j) * (q_surf0(j) - q_atm(j))
+    q_star(j) = flux_q(j) / u_star(j)
+
+  ! get del_m for diagnosing u10
+  ! this step can be skipped if using neutral wind to calculate z0/zt
+    call fms_monin_obukhov_mo_profile ( 10., 2., z_atm(j),            &
+         rough_mom(j), rough_heat(j), rough_moist(j),                 &
+         u_star(j), b_star(j), q_star(j),                             &
+         del_m(j), del_h(j), del_q(j) )
+
+  ! get 10m wind and then use it to get z0/zt
+    if (use_u10_neutral) then
+     u10(j) = u_star(j)/vonkarm*log(10./rough_mom(j))
+    else
+     u10(j)   = 0.
+     ref_u(j) = u_surf(j) + (u_atm(j)-u_surf(j)) * del_m(j)
+     ref_v(j) = v_surf(j) + (v_atm(j)-v_surf(j)) * del_m(j)
+     u10(j)   = sqrt(ref_u(j)**2 + ref_v(j)**2)
+    endif
+
+  ! can expand below for other z0/zt options
+    if (rough_scheme_ocean == 'hwrf17') then
+     call cal_z0_hwrf17(u10(j), rough_mom1(j))
+     call cal_zt_hwrf17(u10(j), rough_heat1(j))
+     rough_mom(j)   = rough_mom1(j)
+     rough_heat(j)  = rough_heat1(j)
+     rough_moist(j) = rough_heat(j)
+    endif
+  !
+    call fms_monin_obukhov_mo_drag (thv_atm(j), thv_surf(j), z_atm(j), &
+         rough_mom(j), rough_heat(j), rough_moist(j), w_atm(j),        &
+         cd_m(j), cd_t(j), cd_q(j), u_star(j), b_star(j) )
+   endif
+  enddo
+ enddo
+
+end subroutine iter_monin_obukhov_ocean
 
 end module surface_flux_mod
