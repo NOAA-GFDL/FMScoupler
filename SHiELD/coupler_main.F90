@@ -31,6 +31,7 @@ use atmos_model_mod, only: atmos_model_init, atmos_model_end,  &
                            update_atmos_radiation_physics,     &
                            update_atmos_model_state,           &
                            atmos_data_type, atmos_model_restart
+use platform_mod,    only: r4_kind, r8_kind
 !--- FMS old io
 #ifdef use_deprecated_io
 use fms_io_mod, only: fms_io_exit!< This can't be removed until fms_io is not used at all
@@ -389,7 +390,8 @@ contains
     call fms_memutils_print_memuse_stats('after atmos model init')
 
 !------ initialize data_override -----
-    call fms_data_override_init (Atm_domain_in  = Atm%domain)
+    call fms_data_override_init (Atm_domain_in  = Atm%domain, mode=r4_kind)
+    call fms_data_override_init (Atm_domain_in  = Atm%domain, mode=r8_kind)
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --
