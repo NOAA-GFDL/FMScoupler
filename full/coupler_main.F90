@@ -468,7 +468,7 @@ program coupler_main
 
     if (do_chksum) then
       call coupler_chksum_obj%get_coupler_chksums('flux_ocn2ice+', nc)
-      call coupler_chksum_obj%get_atmos_ice_land_ocean_chksums('flux_ocn2ice+', nc)
+      call coupler_chksum_obj%get_atmos_ice_land_chksums('flux_ocn2ice+', nc)
     end if
 
     ! needs to sit here rather than at the end of the coupler loop.
