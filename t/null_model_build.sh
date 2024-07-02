@@ -66,28 +66,28 @@ coupler_simple_test.x: coupler_simple/libcoupler_simple.a atmos/libatmos_null.a 
 <TAB>\$(LD) \$^ \$(LDFLAGS) -o \$@ \$(STATIC_LIBS)
 
 fms/libfms.a:  FORCE
-<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=fms \$(@F) 
+<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=fms \$(@F)
 
 ocean/libocean_null.a: fms/libfms.a FORCE
-<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=ocean \$(@F) 
+<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=ocean \$(@F)
 
 atmos/libatmos_null.a: fms/libfms.a FORCE
-<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=atmos \$(@F) 
+<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=atmos \$(@F)
 
 ice_param/libice_param.a: fms/libfms.a FORCE
-<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=ice_param \$(@F) 
+<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=ice_param \$(@F)
 
 ice/libice_null.a: ocean/libocean_null.a ice_param/libice_param.a fms/libfms.a FORCE
-<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=ice \$(@F) 
+<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=ice \$(@F)
 
 land/libland_null.a: fms/libfms.a FORCE
-<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=land \$(@F) 
+<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=land \$(@F)
 
 coupler_full/libcoupler_full.a: atmos/libatmos_null.a ice/libice_null.a ice_param/libice_param.a ocean/libocean_null.a land/libland_null.a fms/libfms.a FORCE
-<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=coupler_full \$(@F) 
+<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=coupler_full \$(@F)
 
 coupler_simple/libcoupler_simple.a: atmos/libatmos_null.a ice/libice_null.a ice_param/libice_param.a ocean/libocean_null.a land/libland_null.a fms/libfms.a FORCE
-<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=coupler_simple \$(@F) 
+<TAB>\$(MAKE) SRCROOT=\$(SRCROOT) BUILDROOT=\$(BUILDROOT) MK_TEMPLATE=\$(MK_TEMPLATE)  --directory=coupler_simple \$(@F)
 
 FORCE:
 

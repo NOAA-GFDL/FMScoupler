@@ -17,7 +17,7 @@
 !* License along with FMS Coupler.
 !* If not, see <http://www.gnu.org/licenses/>.
 !***********************************************************************
-!> \file 
+!> \file
 !> \brief Handles calculation of fluxes on the exchange grids, see module page for more information
 
 !> \page surface_flux_config Surface Flux Configuration
@@ -117,7 +117,7 @@ module surface_flux_mod
 
 use FMS
 use FMSconstants, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
-use ocean_rough_mod, only: cal_z0_hwrf17, cal_zt_hwrf17, read_ocean_rough_scheme  
+use ocean_rough_mod, only: cal_z0_hwrf17, cal_zt_hwrf17, read_ocean_rough_scheme
 use constants_mod, only: vonkarm
 use fms_mod, only: mpp_pe, mpp_root_pe, stdout
 
@@ -177,9 +177,9 @@ logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent f
                                            !! heat.  This option is available for legacy purposes, and is not recommended for
                                            !! new experiments.
 logical :: ncar_ocean_flux_multilevel  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.
-logical :: do_iter_monin_obukhov       = .false. !< If .TRUE,  call monin obukhov funtcions a couple of times to update 
-                                                 !! rough_mom, rough_heat, rough_moist, cd, ch, b_star, u_star 
-logical :: use_u10_neutral             = .false. !< If .TRUE., use 10m neutral wind rather than the standard 10m wind 
+logical :: do_iter_monin_obukhov       = .false. !< If .TRUE,  call monin obukhov funtcions a couple of times to update
+                                                 !! rough_mom, rough_heat, rough_moist, cd, ch, b_star, u_star
+logical :: use_u10_neutral             = .false. !< If .TRUE., use 10m neutral wind rather than the standard 10m wind
                                                  !! to obtain rough_mom, rough_heat, rough_moist
 real :: bulk_zu = 10.                      !< Reference height for wind speed (meters)
 real :: bulk_zt = 10.                      !< Reference height for atm temperature (meters)
@@ -727,14 +727,14 @@ subroutine surface_flux_init
 
   ! read rough_scheme_ocean from ocean_rough namelist
   ! Note that we should not use the variable 'rough_scheme' directly from ocean_rough,
-  ! because the intialization of ocean_rough is later than the surface_flux_init. 
+  ! because the intialization of ocean_rough is later than the surface_flux_init.
   if (do_iter_monin_obukhov) then
-    call read_ocean_rough_scheme(rough_scheme_ocean) 
+    call read_ocean_rough_scheme(rough_scheme_ocean)
     if (mpp_pe() == mpp_root_pe() ) then
      write (outunit,*) 'ocean roughness scheme: ', rough_scheme_ocean
      write (outunit,*) 'Warning: if ocean roughness scheme is not hwrf17,           &
                         iter_monin_obukhov_ocean is not effective'
-    endif 
+    endif
   endif
 
   ! write version number
@@ -1044,7 +1044,7 @@ subroutine iter_monin_obukhov_ocean (                      &
 
   real   , intent(in), dimension(:)    ::                  &
            z_atm,      & !< Height at the lowest atmospheric level
-           u_atm,      & !< Zonal wind velocity at the lowest atmospheric level 
+           u_atm,      & !< Zonal wind velocity at the lowest atmospheric level
            v_atm,      & !< Meridional wind velocity at the lowest atmospheric level
            w_atm,      & !< Absolute wind at the lowest atmospheric level
            thv_atm,    & !< Surface air theta_v
@@ -1070,11 +1070,11 @@ subroutine iter_monin_obukhov_ocean (                      &
   ! ---- local vars -----------------------------------------------------------
   real, dimension(size(z_atm(:)))      ::                  &
            flux_q, q_star,                                 &
-           ref_u, ref_v, u10, del_m, del_h, del_q,         &         
+           ref_u, ref_v, u10, del_m, del_h, del_q,         &
            rough_mom1, rough_heat1, rough_moist1
   integer i, j
 
-  do i = 1, niter_monin_obukhov                             
+  do i = 1, niter_monin_obukhov
    do j = 1, size(avail)
     if (avail(j) .and. seawater(j)) then
 

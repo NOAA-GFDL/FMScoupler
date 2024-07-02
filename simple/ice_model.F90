@@ -58,12 +58,12 @@ logical :: use_climo_sst            = .false.
 logical :: use_annual_sst           = .false.
 character(len=64) :: ice_method = 'prognostic' ! none, uniform, or prognostic
 character(len=64) :: sst_method = 'specified'  ! specified, uniform, or mixed_layer
-                                               ! Additional sst specifications: 'aqua_planet_#' test cases are derived 
-                                               ! from the 2000 paper by Neale and Hoskins, 'A standard test for AGCMs including 
-                                               ! their physical parameterizations: I. The proposal, Atmospheric Science Letters'.   
-                                               ! The 'aqua_planet_1' testcase corresponds to the 'Control' SST test case and 
+                                               ! Additional sst specifications: 'aqua_planet_#' test cases are derived
+                                               ! from the 2000 paper by Neale and Hoskins, 'A standard test for AGCMs including
+                                               ! their physical parameterizations: I. The proposal, Atmospheric Science Letters'.
+                                               ! The 'aqua_planet_1' testcase corresponds to the 'Control' SST test case and
                                                ! provides the pattern which is shifted for the subsequent cases.
-                                               ! The test cases Control, and aqua_planet_5N-aqua_planet_60N were documented and used 
+                                               ! The test cases Control, and aqua_planet_5N-aqua_planet_60N were documented and used
                                                ! in Burnett et al., 2021, GRL,  https://doi.org/10.1029/2020GL091980
                                                !   aqua_planet_1   = Control profile
                                                !   aqua_planet_2   = Peaked
