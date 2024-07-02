@@ -441,8 +441,7 @@ program coupler_main
 
   if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, init_stocks=.True.)
-  do_chksum = .True.
-  
+
   !> ocean/slow-ice integration loop
   coupled_timestep_loop : do nc = 1, num_cpld_calls
 
@@ -685,11 +684,11 @@ program coupler_main
       ! This call is just for record keeping of stocks transfer and
       ! does not modify either Ocean or Ice_ocean_boundary
       call flux_ocean_from_ice_stocks(Ocean_state, Ocean, Ice_ocean_boundary)
-      
+
       call fms_diag_send_complete(Time_step_cpld)
       Time_ocean = Time_ocean +  Time_step_cpld
       Time = Time_ocean
-      
+
       call fms_mpp_clock_end(coupler_clocks%ocean)
     endif
 
