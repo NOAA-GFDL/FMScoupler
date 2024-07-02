@@ -441,7 +441,8 @@ program coupler_main
 
   if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, init_stocks=.True.)
-
+  do_chksum = .True.
+  
   !> ocean/slow-ice integration loop
   coupled_timestep_loop : do nc = 1, num_cpld_calls
 
