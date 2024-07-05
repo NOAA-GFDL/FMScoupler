@@ -113,12 +113,14 @@ implicit none
 
 !-----------------------------------------------------------------------
 
-   integer, dimension(6) :: current_date     = (/ 0, 0, 0, 0, 0, 0 /) !< The date that the current integration starts with.  (See
-                                                                      !! force_date_from_namelist.)
-   character(len=17) :: calendar = '                 ' !< The calendar type used by the current integration.  Valid values are
-                                                       !! consistent with the time_manager module: 'gregorian', 'julian', 'noleap', or 'thirty_day'.
-                                                       !! The value 'no_calendar' cannot be used because the time_manager's date
-                                                       !! functions are used.  All values must be lower case.
+   integer, dimension(6) :: current_date     = (/ 0, 0, 0, 0, 0, 0 /) !< The date that the current integration starts
+                                                                      !! with.  (See force_date_from_namelist.)
+   character(len=17) :: calendar = '                 ' !< The calendar type used by the current integration.
+                                                       !! Valid values are consistent with the time_manager module:
+                                                       !! 'gregorian', 'julian', 'noleap', or 'thirty_day'.
+                                                       !! The value 'no_calendar' cannot be used because the
+                                                       !! time_manager's date functions are used.
+                                                       !! All values must be lower case.
    logical :: force_date_from_namelist = .false.  !> override restart values for date
    integer :: months=0  !< Number of months the current integration will be run
    integer :: days=0    !< Number of days the current integration will be run
@@ -386,7 +388,8 @@ contains
 
 !-----------------------------------------------------------------------
 !----- write time stamps (for start time and end time) ------
-    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) &
+      open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
 
     month = fms_time_manager_month_name(date(2))
     if ( fms_mpp_pe() == fms_mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)

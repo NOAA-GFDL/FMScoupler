@@ -617,10 +617,14 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
      Boundary%dt_tr(:,:,isphum) = f_q_delt_n  + dt_t_surf*e_q_n
   endwhere
 
-!print *, 'PE,dt_t(L)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_t,mask=Land%mask(:,:,1)),maxval(Boundary%dt_t,mask=Land%mask(:,:,1))
-!print *, 'PE,dt_q(L)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_q,mask=Land%mask(:,:,1)),maxval(Boundary%dt_q,mask=Land%mask(:,:,1))
-!print *, 'PE,dt_t(I)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_t,mask=Ice%mask),maxval(Boundary%dt_t,mask=Ice%mask)
-!print *, 'PE,dt_q(I)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_q,mask=Ice%mask),maxval(Boundary%dt_q,mask=Ice%mask)
+#ifdef DEBUG_COUPLER_FLUX_TO_ATMOS
+print *, 'PE,dt_t(L)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_t,mask=Land%mask(:,:,1)), &
+         maxval(Boundary%dt_t,mask=Land%mask(:,:,1))
+print *, 'PE,dt_q(L)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_q,mask=Land%mask(:,:,1)), &
+         maxval(Boundary%dt_q,mask=Land%mask(:,:,1))
+print *, 'PE,dt_t(I)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_t,mask=Ice%mask),maxval(Boundary%dt_t,mask=Ice%mask)
+print *, 'PE,dt_q(I)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_q,mask=Ice%mask),maxval(Boundary%dt_q,mask=Ice%mask)
+#endif
 
 !=======================================================================
 !-------------------- diagnostics section ------------------------------

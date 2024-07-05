@@ -146,14 +146,15 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
   real, allocatable, dimension(:,:) :: frac_precip
 
   !--- the following is from flux_exchange_nml
-  real    :: z_ref_heat =  2. !< Reference height (meters) for temperature and relative humidity diagnostics (t_ref, rh_ref, del_h, del_q)
+  real    :: z_ref_heat =  2. !< Reference height (meters) for temperature and relative humidity diagnostics
+                              !! (t_ref, rh_ref, del_h, del_q)
   real    :: z_ref_mom  = 10. !< Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)
   logical :: do_area_weighted_flux = .FALSE.
   logical :: do_forecast = .false.
   integer :: nblocks = 1
-  logical :: partition_fprec_from_lprec = .FALSE. !< option for ATM override experiments where liquid+frozen precip are combined
-                                                  !! This option will convert liquid precip to snow when t_ref is less than
-                                                  !! tfreeze parameter
+  logical :: partition_fprec_from_lprec = .FALSE. !< option for ATM override experiments where liquid+frozen
+                                                  !! precip are combined. This option will convert liquid precip to snow
+                                                  !! when t_ref is less than tfreeze parameter
   logical :: scale_precip_2d = .false.
 
   integer              :: my_nblocks = 1
@@ -290,9 +291,12 @@ contains
     type(atmos_data_type),             intent(inout) :: Atm  !< A derived data type to specify atmosphere boundary data
     type(land_data_type),              intent(in)    :: Land !< A derived data type to specify land boundary data
     type(ice_data_type),               intent(inout) :: Ice  !< A derived data type to specify ice boundary data
-    type(atmos_ice_boundary_type),     intent(inout) :: atmos_ice_boundary !< A derived data type to specify properties and fluxes passed from atmosphere to ice
-    type(land_ice_atmos_boundary_type),intent(inout) :: land_ice_atmos_boundary !< A derived data type to specify properties and fluxes passed from exchange grid to
-    !! the atmosphere, land and ice
+    type(atmos_ice_boundary_type),     intent(inout) :: atmos_ice_boundary !< A derived data type to specify properties
+                                                                           !! and fluxes passed from atmosphere to ice
+    type(land_ice_atmos_boundary_type),intent(inout) :: land_ice_atmos_boundary !< A derived data type to specify
+                                                                                !! properties and fluxes passed from
+                                                                                !! exchange grid to the atmosphere, land
+                                                                                !! and ice
     real,                 intent(in)    :: Dt_atm_in !< Atmosphere time step in seconds
     real,                 intent(in)    :: Dt_cpl_in !< Coupled time step in seconds
     real,                 intent(in)    :: z_ref_heat_in, z_ref_mom_in
@@ -658,8 +662,9 @@ contains
     type(atmos_data_type), intent(inout)  :: Atm !< A derived data type to specify atmosphere boundary data
     type(land_data_type),  intent(inout)  :: Land !< A derived data type to specify land boundary data
     type(ice_data_type),   intent(inout)  :: Ice !< A derived data type to specify ice boundary data
-    type(land_ice_atmos_boundary_type), intent(inout) :: Land_Ice_Atmos_Boundary !< A derived data type to specify properties and
-                                                                                 !! fluxes passed from exchange grid to the atmosphere,
+    type(land_ice_atmos_boundary_type), intent(inout) :: Land_Ice_Atmos_Boundary !< A derived data type to specify
+                                                                                 !! properties and fluxes passed from
+                                                                                 !! exchange grid to the atmosphere,
                                                                                  !! land and ice
 
     ! ---- local vars ----------------------------------------------------------
@@ -889,12 +894,16 @@ contains
                atm%fields%bc(n)%field(m)%values, Time, override = atm%fields%bc(n)%field(m)%override)
           ex_gas_fields_atm%bc(n)%field(m)%override = atm%fields%bc(n)%field(m)%override
           ! 2017/08/08 jgj add co2_flux_pcair_atm diagnostic
-          if ( atm%fields%bc(n)%field(m)%override .and. fms_mpp_lowercase(trim(atm%fields%bc(n)%field(m)%name)) .eq. 'co2_flux_pcair_atm') then
-             if( id_co2_flux_pcair_atm > 0 ) used = fms_diag_send_data ( id_co2_flux_pcair_atm, atm%fields%bc(n)%field(m)%values, Time )
+          if ( atm%fields%bc(n)%field(m)%override .and. &
+               fms_mpp_lowercase(trim(atm%fields%bc(n)%field(m)%name)) .eq. 'co2_flux_pcair_atm') then
+             if( id_co2_flux_pcair_atm > 0 ) &
+                used = fms_diag_send_data ( id_co2_flux_pcair_atm, atm%fields%bc(n)%field(m)%values, Time )
           endif
           ! 2017/08/15 jgj add o2_flux_pcair_atm diagnostic
-          if ( atm%fields%bc(n)%field(m)%override .and. fms_mpp_lowercase(trim(atm%fields%bc(n)%field(m)%name)) .eq. 'o2_flux_pcair_atm') then
-             if( id_o2_flux_pcair_atm > 0 ) used = fms_diag_send_data ( id_o2_flux_pcair_atm, atm%fields%bc(n)%field(m)%values, Time )
+          if ( atm%fields%bc(n)%field(m)%override .and. &
+               fms_mpp_lowercase(trim(atm%fields%bc(n)%field(m)%name)) .eq. 'o2_flux_pcair_atm') then
+             if( id_o2_flux_pcair_atm > 0 ) &
+                used = fms_diag_send_data ( id_o2_flux_pcair_atm, atm%fields%bc(n)%field(m)%values, Time )
           endif
        enddo  !} m
     enddo  !} n
@@ -1177,7 +1186,7 @@ contains
        is=block_start(l)
        ie=block_end(l)
        call surface_flux (&
-            ex_t_atm(is:ie), ex_tr_atm(is:ie,isphum),  ex_u_atm(is:ie), ex_v_atm(is:ie),  ex_p_atm(is:ie),  ex_z_atm(is:ie),  &
+            ex_t_atm(is:ie), ex_tr_atm(is:ie,isphum), ex_u_atm(is:ie),ex_v_atm(is:ie),ex_p_atm(is:ie),ex_z_atm(is:ie),&
             ex_p_surf(is:ie),ex_t_surf(is:ie), ex_t_ca(is:ie),  ex_tr_surf(is:ie,isphum),                       &
             ex_u_surf(is:ie), ex_v_surf(is:ie),                                           &
             ex_rough_mom(is:ie), ex_rough_heat(is:ie), ex_rough_moist(is:ie), ex_rough_scale(is:ie),    &
@@ -1272,7 +1281,8 @@ contains
       if (ex_gas_fluxes%bc(n)%atm_tr_index .gt. 0) then  !{
          m = tr_table_map(ex_gas_fluxes%bc(n)%atm_tr_index)%exch
          if (id_tr_mol_flux0(m) .gt. 0) then
-            call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux0)%values(:), xmap_sfc)
+            call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux0)%values(:),&
+                                           xmap_sfc)
             used = fms_diag_send_data ( id_tr_mol_flux0(m), diag_atm, Time )
          end if
       end if
@@ -1290,7 +1300,8 @@ contains
        do n = 1, ex_gas_fluxes%num_bcs  !{
           if (ex_gas_fluxes%bc(n)%atm_tr_index .gt. 0) then  !{
              m = tr_table_map(ex_gas_fluxes%bc(n)%atm_tr_index)%exch
-             call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, ex_gas_fluxes%bc(n)%atm_tr_index, tr_name, units=tr_units)
+             call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, ex_gas_fluxes%bc(n)%atm_tr_index, tr_name, &
+                                                       units=tr_units)
              do i = is,ie  !{
                 if (ex_land(i)) cycle  ! over land, don't do anything
                 ! on ocean or ice cells, flux is explicit therefore we zero derivatives.
@@ -1303,7 +1314,8 @@ contains
                            / (1.-ex_tr_atm(i,isphum))
                    else
                    ! jgj: convert to kg co2/m2/sec for atm
-                   ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) * ex_gas_fluxes%bc(n)%mol_wt * 1.0e-03
+                   ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) * &
+                                        ex_gas_fluxes%bc(n)%mol_wt * 1.0e-03
                    end if
                 else
                    ex_flux_tr(i,m) = 0.0 ! pure ice exchange cell
@@ -1434,8 +1446,8 @@ contains
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%b_star,    'ATM', ex_b_star    , xmap_sfc, complete=.false.)
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%q_star,    'ATM', ex_q_star    , xmap_sfc, complete=.true.)
 
-    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%u_ref,     'ATM', ex_ref_u     , xmap_sfc, complete=.false.) !bqx
-    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%v_ref,     'ATM', ex_ref_v     , xmap_sfc, complete=.true.) !bqx
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%u_ref, 'ATM', ex_ref_u     , xmap_sfc, complete=.false.) !bqx
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%v_ref, 'ATM', ex_ref_v     , xmap_sfc, complete=.true.) !bqx
 
 #ifndef use_AM3_physics
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%shflx,     'ATM', ex_flux_t    , xmap_sfc)
@@ -1573,7 +1585,8 @@ contains
     do n = 1, Atm%fields%num_bcs  !{
        do m = 1, Atm%fields%bc(n)%num_fields  !{
           if ( Atm%fields%bc(n)%field(m)%id_diag > 0 ) then  !{
-             if (atm%fields%bc(n)%use_10m_wind_speed .and. m .eq. fms_coupler_ind_u10 .and. .not. Atm%fields%bc(n)%field(m)%override) then  !{
+             if (atm%fields%bc(n)%use_10m_wind_speed .and. m .eq. fms_coupler_ind_u10 .and. &
+                 .not. Atm%fields%bc(n)%field(m)%override) then  !{
                 call fms_xgrid_get_from_xgrid (Atm%fields%bc(n)%field(m)%values, 'ATM',     &
                      ex_gas_fields_atm%bc(n)%field(m)%values, xmap_sfc)
              endif  !}
@@ -1976,12 +1989,13 @@ contains
     type(atmos_data_type), intent(inout) :: Atm  !< A derived data type to specify atmosphere boundary data
     type(land_data_type),  intent(in)    :: Land !< A derived data type to specify land boundary data
     type(ice_data_type),   intent(in)    :: Ice  !< A derived data type to specify ice boundary data
-    type(land_ice_atmos_boundary_type),intent(in) :: Atmos_boundary !< A derived data type to specify properties and fluxes
-                                                                    !! passed from exchange grid to the atmosphere, land and ice
-    type(atmos_land_boundary_type),    intent(inout):: Land_boundary !< A derived data type to specify properties and fluxes
-                                                                     !! passed from atmosphere to land
-    type(atmos_ice_boundary_type),     intent(inout):: Ice_boundary !< A derived data type to specify properties and fluxes passed
-                                                                    !! from atmosphere to ice
+    type(land_ice_atmos_boundary_type),intent(in) :: Atmos_boundary !< A derived data type to specify properties and
+                                                                    !!fluxes passed from exchange grid to the atmosphere
+                                                                    !! land and ice
+    type(atmos_land_boundary_type),    intent(inout):: Land_boundary !< A derived data type to specify properties and
+                                                                     !! fluxes passed from atmosphere to land
+    type(atmos_ice_boundary_type),     intent(inout):: Ice_boundary !< A derived data type to specify properties and
+                                                                    !! fluxes passed from atmosphere to ice
 
     real, dimension(n_xgrid_sfc) :: ex_flux_sw, ex_flux_lwd, &
          ex_flux_sw_dir,  &
@@ -2098,9 +2112,9 @@ contains
     call fms_xgrid_put_to_xgrid (Atm%flux_sw_dif, 'ATM', ex_flux_sw_dif, xmap_sfc, complete=.false.)
     call fms_xgrid_put_to_xgrid (Atm%flux_sw_vis_dif, 'ATM', ex_flux_sw_vis_dif, xmap_sfc, complete=.false.)
     call fms_xgrid_put_to_xgrid (Atm%flux_sw_down_vis_dir, 'ATM', ex_flux_sw_down_vis_dir, xmap_sfc, complete=.false.)
-    call fms_xgrid_put_to_xgrid (Atm%flux_sw_down_total_dir, 'ATM', ex_flux_sw_down_total_dir, xmap_sfc, complete=.false.)
-    call fms_xgrid_put_to_xgrid (Atm%flux_sw_down_vis_dif, 'ATM', ex_flux_sw_down_vis_dif, xmap_sfc, complete=.false.)
-    call fms_xgrid_put_to_xgrid (Atm%flux_sw_down_total_dif, 'ATM', ex_flux_sw_down_total_dif, xmap_sfc, complete=.false.)
+    call fms_xgrid_put_to_xgrid (Atm%flux_sw_down_total_dir,'ATM', ex_flux_sw_down_total_dir, xmap_sfc,complete=.false.)
+    call fms_xgrid_put_to_xgrid (Atm%flux_sw_down_vis_dif,'ATM', ex_flux_sw_down_vis_dif, xmap_sfc,complete=.false.)
+    call fms_xgrid_put_to_xgrid (Atm%flux_sw_down_total_dif, 'ATM',ex_flux_sw_down_total_dif, xmap_sfc,complete=.false.)
 
     !  ccc = conservation_check(Atm%lprec, 'ATM', xmap_sfc)
     !  if (fms_mpp_pe()== fms_mpp_root_pe()) print *,'LPREC', ccc
@@ -2123,8 +2137,10 @@ contains
     ! on exchange grid instead of the stresses themselves so that only the
     ! implicit corrections are filtered through the atmospheric grid not the
     ! stresses themselves
-    call fms_xgrid_put_to_xgrid (Atm%Surf_Diff%delta_u, 'ATM', ex_delta_u, xmap_sfc, remap_method=remap_method, complete=.false.)
-    call fms_xgrid_put_to_xgrid (Atm%Surf_Diff%delta_v, 'ATM', ex_delta_v, xmap_sfc, remap_method=remap_method, complete=.true.)
+    call fms_xgrid_put_to_xgrid (Atm%Surf_Diff%delta_u, 'ATM', ex_delta_u, xmap_sfc, remap_method=remap_method, &
+                                 complete=.false.)
+    call fms_xgrid_put_to_xgrid (Atm%Surf_Diff%delta_v, 'ATM', ex_delta_v, xmap_sfc, remap_method=remap_method, &
+                                 complete=.true.)
 
     ! MOD update stresses using atmos delta's but derivatives on exchange grid
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_flux_u,ex_delta_u, &
@@ -2191,8 +2207,8 @@ contains
 
     do tr = 1,n_exch_tr
        n = tr_table(tr)%atm
-       call fms_xgrid_put_to_xgrid (Atm%Surf_Diff%delta_tr(:,:,n), 'ATM', ex_delta_tr(:,tr), xmap_sfc, complete=.false. )
-       call fms_xgrid_put_to_xgrid (Atm%Surf_Diff%dflux_tr(:,:,n), 'ATM', ex_dflux_tr(:,tr), xmap_sfc, complete=.false. )
+       call fms_xgrid_put_to_xgrid (Atm%Surf_Diff%delta_tr(:,:,n), 'ATM', ex_delta_tr(:,tr), xmap_sfc, complete=.false.)
+       call fms_xgrid_put_to_xgrid (Atm%Surf_Diff%dflux_tr(:,:,n), 'ATM', ex_dflux_tr(:,tr), xmap_sfc, complete=.false.)
     enddo
 
     call fms_xgrid_put_to_xgrid (Atm%Surf_Diff%dtmass , 'ATM', ex_dtmass , xmap_sfc, complete=.false. )
@@ -2278,9 +2294,9 @@ contains
     call fms_xgrid_get_from_xgrid_ug (Land_boundary%t_flux,  'LND', ex_flux_t,    xmap_sfc)
     call fms_xgrid_get_from_xgrid_ug (Land_boundary%sw_flux, 'LND', ex_flux_sw,   xmap_sfc)
     call fms_xgrid_get_from_xgrid_ug (Land_boundary%sw_flux_down_vis_dir, 'LND', ex_flux_sw_down_vis_dir,   xmap_sfc)
-    call fms_xgrid_get_from_xgrid_ug (Land_boundary%sw_flux_down_total_dir, 'LND', ex_flux_sw_down_total_dir,   xmap_sfc)
+    call fms_xgrid_get_from_xgrid_ug (Land_boundary%sw_flux_down_total_dir, 'LND', ex_flux_sw_down_total_dir,  xmap_sfc)
     call fms_xgrid_get_from_xgrid_ug (Land_boundary%sw_flux_down_vis_dif, 'LND', ex_flux_sw_down_vis_dif,   xmap_sfc)
-    call fms_xgrid_get_from_xgrid_ug (Land_boundary%sw_flux_down_total_dif, 'LND', ex_flux_sw_down_total_dif,   xmap_sfc)
+    call fms_xgrid_get_from_xgrid_ug (Land_boundary%sw_flux_down_total_dif, 'LND', ex_flux_sw_down_total_dif,  xmap_sfc)
     call fms_xgrid_get_from_xgrid_ug (Land_boundary%lw_flux, 'LND', ex_flux_lw,   xmap_sfc)
 #ifdef SCM
     if (do_specified_land .and. do_specified_flux) then
@@ -2478,19 +2494,22 @@ contains
     call fms_xgrid_get_from_xgrid (Ice_boundary%q_flux,   'OCN', ex_flux_tr(:,isphum), xmap_sfc)
     call fms_xgrid_get_from_xgrid (Ice_boundary%sw_flux_vis_dir,  'OCN', ex_flux_sw_vis_dir,   xmap_sfc)
     call fms_xgrid_get_from_xgrid (Ice_boundary%sw_flux_nir_dir,  'OCN', ex_flux_sw_dir,xmap_sfc)
-    Ice_boundary%sw_flux_nir_dir = Ice_boundary%sw_flux_nir_dir - Ice_boundary%sw_flux_vis_dir ! ice & ocean use these 4: dir/dif nir/vis
-
+    ! ice & ocean use these 4: dir/dif nir/vis
+    Ice_boundary%sw_flux_nir_dir = Ice_boundary%sw_flux_nir_dir - Ice_boundary%sw_flux_vis_dir
     call fms_xgrid_get_from_xgrid (Ice_boundary%sw_flux_vis_dif,  'OCN', ex_flux_sw_vis_dif,   xmap_sfc)
     call fms_xgrid_get_from_xgrid (Ice_boundary%sw_flux_nir_dif,  'OCN', ex_flux_sw_dif,xmap_sfc)
-    Ice_boundary%sw_flux_nir_dif = Ice_boundary%sw_flux_nir_dif - Ice_boundary%sw_flux_vis_dif ! ice & ocean use these 4: dir/dif nir/vis
+    ! ice & ocean use these 4: dir/dif nir/vis
+    Ice_boundary%sw_flux_nir_dif = Ice_boundary%sw_flux_nir_dif - Ice_boundary%sw_flux_vis_dif
 
     call fms_xgrid_get_from_xgrid (Ice_boundary%sw_down_vis_dir,  'OCN', ex_flux_sw_down_vis_dir,   xmap_sfc)
     call fms_xgrid_get_from_xgrid (Ice_boundary%sw_down_nir_dir,  'OCN', ex_flux_sw_down_total_dir, xmap_sfc)
-    Ice_boundary%sw_down_nir_dir = Ice_boundary%sw_down_nir_dir - Ice_boundary%sw_down_vis_dir ! ice & ocean use these 4: dir/dif nir/vis
+    ! ice & ocean use these 4: dir/dif nir/vis
+    Ice_boundary%sw_down_nir_dir = Ice_boundary%sw_down_nir_dir - Ice_boundary%sw_down_vis_dir
 
     call fms_xgrid_get_from_xgrid (Ice_boundary%sw_down_vis_dif,  'OCN', ex_flux_sw_down_vis_dif,   xmap_sfc)
     call fms_xgrid_get_from_xgrid (Ice_boundary%sw_down_nir_dif,  'OCN', ex_flux_sw_down_total_dif,xmap_sfc)
-    Ice_boundary%sw_down_nir_dif = Ice_boundary%sw_down_nir_dif - Ice_boundary%sw_down_vis_dif ! ice & ocean use these 4: dir/dif nir/vis
+    ! ice & ocean use these 4: dir/dif nir/vis
+    Ice_boundary%sw_down_nir_dif = Ice_boundary%sw_down_nir_dif - Ice_boundary%sw_down_vis_dif
 
     call fms_xgrid_get_from_xgrid (Ice_boundary%lw_flux,  'OCN', ex_flux_lw,   xmap_sfc)
     call fms_xgrid_get_from_xgrid (Ice_boundary%dhdt,     'OCN', ex_dhdt_surf, xmap_sfc)
@@ -2587,7 +2606,8 @@ contains
     call fms_xgrid_stock_move_ug( &
          & FROM = fms_stock_constants_atm_stock(ISTOCK_HEAT),  &
          & TO   = fms_stock_constants_lnd_stock(ISTOCK_HEAT), &
-         & stock_ug_data3d = (-Land_boundary%t_flux + Land_boundary%lw_flux +  Land_boundary%sw_flux - Land_boundary%fprec*HLF), &
+         & stock_ug_data3d = (-Land_boundary%t_flux + Land_boundary%lw_flux +  Land_boundary%sw_flux - &
+                              Land_boundary%fprec*HLF), &
          & grid_index=X1_GRID_LND, &
          & xmap=xmap_sfc, &
          & delta_t=Dt_atm, &
@@ -2608,7 +2628,8 @@ contains
     call fms_xgrid_stock_move( &
          & FROM = fms_stock_constants_atm_stock(ISTOCK_HEAT),  &
          & TO   = fms_stock_constants_lnd_stock(ISTOCK_HEAT), &
-         & stock_data3d = (-Land_boundary%t_flux + Land_boundary%lw_flux +  Land_boundary%sw_flux - Land_boundary%fprec*HLF), &
+         & stock_data3d = (-Land_boundary%t_flux + Land_boundary%lw_flux +  Land_boundary%sw_flux - &
+                            Land_boundary%fprec*HLF), &
          & grid_index=X1_GRID_LND, &
          & xmap=xmap_sfc, &
          & delta_t=Dt_atm, &
@@ -2631,7 +2652,8 @@ contains
     call fms_xgrid_stock_move( &
          & FROM = fms_stock_constants_atm_stock(ISTOCK_HEAT), &
          & TO   = fms_stock_constants_ice_stock(ISTOCK_HEAT), &
-         & stock_data3d = (-Ice_boundary%t_flux + Ice_boundary%lw_flux - Ice_boundary%fprec*HLF + Ice_boundary%sw_flux_vis_dir + &
+         & stock_data3d = (-Ice_boundary%t_flux + Ice_boundary%lw_flux - Ice_boundary%fprec*HLF + &
+                            Ice_boundary%sw_flux_vis_dir + &
          Ice_boundary%sw_flux_vis_dif + Ice_boundary%sw_flux_nir_dir + Ice_boundary%sw_flux_nir_dif), &
          & grid_index=X1_GRID_ICE, &
          & xmap=xmap_sfc, &
@@ -2718,8 +2740,10 @@ contains
     type(FmsTime_type),      intent(in)    :: Time !< Current time
     type(land_data_type), intent(inout) :: Land !< A derived data type to specify ice boundary data
     type(ice_data_type),  intent(inout) :: Ice  !< A derived data type to specify ice boundary data
-    type(land_ice_atmos_boundary_type), intent(inout) :: Land_Ice_Atmos_Boundary !< A derived data type to specify properties and fluxed
-                                                                                 !! passed from exchange grid to the atmosphere, land and ice
+    type(land_ice_atmos_boundary_type), intent(inout) :: Land_Ice_Atmos_Boundary !< A derived data type to specify
+                                                                                 !! properties and fluxes passed from
+                                                                                 !! exchange grid to the atmosphere,
+                                                                                 !! land and ice
     type(atmos_land_boundary_type), intent(inout)     :: Land_boundary
     type(atmos_ice_boundary_type),  intent(inout)     :: Ice_boundary
 
@@ -2746,7 +2770,8 @@ contains
 #ifndef _USE_LEGACY_LAND_
     real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2)) :: data_lnd, diag_land
 #else
-    real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2), size(Land_boundary%lprec,3)) :: data_lnd, diag_land
+    real, dimension(size(Land_boundary%lprec,1), size(Land_boundary%lprec,2), size(Land_boundary%lprec,3)) :: data_lnd,&
+                                                                                                              diag_land
 #endif
     real, dimension(size(Ice_boundary%lprec,1), size(Ice_boundary%lprec,2), size(Ice_boundary%lprec,3)) :: data_ice
     real, dimension(size(Ice%albedo,1),size(Ice%albedo,2),size(Ice%albedo,3)) ::  icegrid
@@ -3050,7 +3075,8 @@ contains
              if (fms_mpp_lowercase(trim(tr_name))=='co2') then
                 call send_tile_data (id_tr_mol_flux_land(tr), diag_land*1000./WTMCO2)
              elseif (fms_mpp_lowercase(trim(tr_units)).eq.'vmr') then
-                call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
+                call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), &
+                                                  xmap_sfc)
                 call send_tile_data (id_tr_mol_flux_land(tr), diag_atm*1000./WTMAIR )
              endif
           endif
@@ -3245,8 +3271,8 @@ contains
   subroutine flux_atmos_to_ocean(Time, Atm, Ice_boundary, Ice)
   type(FmsTime_type),               intent(in)   :: Time         !< Current time
   type(atmos_data_type),         intent(inout):: Atm          !< A derived data type to specify atmosphere boundary data
-  type(atmos_ice_boundary_type), intent(inout):: Ice_boundary !< A derived data type to specify properties and fluxes passed
-                                                                  !! from atmosphere to ice
+  type(atmos_ice_boundary_type), intent(inout):: Ice_boundary !< A derived data type to specify properties and fluxes
+                                                              !! passed from atmosphere to ice
   type(ice_data_type),           intent(inout):: Ice
 
   integer :: n,m
@@ -3282,7 +3308,8 @@ contains
            call fms_data_override('ICE', Ice_boundary%fluxes%bc(n)%field(m)%name,     &
               Ice_boundary%fluxes%bc(n)%field(m)%values, Time)
            if ( Ice_boundary%fluxes%bc(n)%field(m)%id_diag > 0 ) then  !{
-              used = fms_diag_send_data(Ice_boundary%fluxes%bc(n)%field(m)%id_diag, Ice_boundary%fluxes%bc(n)%field(m)%values, Time )
+              used = fms_diag_send_data(Ice_boundary%fluxes%bc(n)%field(m)%id_diag, &
+                                        Ice_boundary%fluxes%bc(n)%field(m)%values, Time )
            endif  !}
         enddo  !} m
      endif
@@ -3608,10 +3635,10 @@ contains
           id_tr_flux_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_flux', Land_axes, Time, &
                'flux of '//trim(longname), trim(units)//' kg air/(m2 s)', missing_value=-1.0 )
           if ( fms_mpp_lowercase(trim(name))=='co2') then
-             id_tr_mol_flux_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_mol_flux', Land_axes, Time, &
+             id_tr_mol_flux_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_mol_flux', Land_axes,Time,&
                   'flux of '//trim(longname), 'mol CO2/(m2 s)', missing_value=-1.0 )
           else
-             id_tr_mol_flux_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_mol_flux', Land_axes, Time, &
+             id_tr_mol_flux_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_mol_flux', Land_axes,Time,&
                   'flux of '//trim(longname), 'mol/(m2 s)', missing_value=-1.0 )
           endif
        enddo
@@ -3657,11 +3684,11 @@ contains
           id_tr_flux_land(tr) = fms_diag_register_diag_field( 'flux_land', trim(name)//'_flux', Land_axes, Time, &
                'flux of '//trim(longname), trim(units)//' kg air/(m2 s)', missing_value=-1.0 )
           if ( fms_mpp_lowercase(trim(name))=='co2') then
-             id_tr_mol_flux_land(tr) = fms_diag_register_diag_field( 'flux_land', trim(name)//'_mol_flux', Land_axes, Time, &
-                  'flux of '//trim(longname), 'mol CO2/(m2 s)', missing_value=-1.0 )
+             id_tr_mol_flux_land(tr) = fms_diag_register_diag_field( 'flux_land', trim(name)//'_mol_flux', Land_axes, &
+                  Time, 'flux of '//trim(longname), 'mol CO2/(m2 s)', missing_value=-1.0 )
           else
-             id_tr_mol_flux_land(tr) = fms_diag_register_diag_field( 'flux_land', trim(name)//'_mol_flux', Land_axes, Time, &
-                  'flux of '//trim(longname), 'mol/(m2 s)', missing_value=-1.0 )
+             id_tr_mol_flux_land(tr) = fms_diag_register_diag_field( 'flux_land', trim(name)//'_mol_flux', Land_axes, &
+                  Time, 'flux of '//trim(longname), 'mol/(m2 s)', missing_value=-1.0 )
           endif
        enddo
 #endif

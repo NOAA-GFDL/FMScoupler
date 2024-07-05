@@ -10,7 +10,7 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.github_token }}
-      env: 
+      env:
         CC: mpicc
         FC: mpif90
         CPPFLAGS: '-I/usr/include -Duse_LARGEFILE -DMAXFIELDMETHODS_=500'
@@ -19,5 +19,5 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Run build test 
+      - name: Run build test
         run: t/null_model_build.sh

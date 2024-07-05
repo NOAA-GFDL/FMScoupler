@@ -157,26 +157,27 @@ real            :: d608   = d378/d622
 character(len=32) :: rough_scheme_ocean !< ocean roughness length scheme to be read from ocean_rough_nml
 
 ! ---- namelist with default values ------------------------------------------
-logical :: no_neg_q              = .false. !< If a_atm_in (specific humidity) is negative (because of numerical truncation),
-                                           !! then override with 0.0
-logical :: use_virtual_temp      = .true.  !< If .TRUE., use virtual potential temp to calculate the stability of the surface
-                                           !! layer.  If .FALSE., use potential temp.
-logical :: alt_gustiness         = .false. !< An alternaive formulation for gustiness calculation.  A minimum bound on the wind
-                                           !! speed used influx calculations, with the bound equal to gust_const
-logical :: old_dtaudv            = .false. !< The derivative of surface wind stress with respect to the zonal wind and meridional
-                                           !! wind are approximated by the same tendency
-logical :: use_mixing_ratio      = .false. !< An option to provide capability to run the Manabe Climate form of the surface flux
-                                           !! (coded for legacy purposes).
+logical :: no_neg_q              = .false. !< If a_atm_in (specific humidity) is negative
+                                           !! (because of numerical truncation), then override with 0.0
+logical :: use_virtual_temp      = .true.  !< If .TRUE., use virtual potential temp to calculate the stability of the
+                                           !! surface layer.  If .FALSE., use potential temp.
+logical :: alt_gustiness         = .false. !< An alternaive formulation for gustiness calculation.  A minimum bound on
+                                           !! the wind speed used influx calculations,with the bound equal to gust_const
+logical :: old_dtaudv            = .false. !< The derivative of surface wind stress with respect to the zonal wind and
+                                           !! meridional wind are approximated by the same tendency
+logical :: use_mixing_ratio      = .false. !< An option to provide capability to run the Manabe Climate form of the
+                                           !! surface flux (coded for legacy purposes).
 real    :: gust_const            =  1.0 !< Constant for alternative gustiness calculation
 real    :: gust_min              =  0.0 !< Minimum gustiness used when alt_gustiness is .FALSE.
-logical :: ncar_ocean_flux       = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager,
-                                           !! NCAR Technical Document, 2004
-logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager,
-                                           !! NCAR Technical Document, 2004, using the original GFDL implementation, which
-                                           !! contains a bug in the specification of the exchange coefficient for the sensible
-                                           !! heat.  This option is available for legacy purposes, and is not recommended for
-                                           !! new experiments.
-logical :: ncar_ocean_flux_multilevel  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.
+logical :: ncar_ocean_flux       = .false. !< Use NCAR climate model turbulent flux calculation described by Large and
+                                           !! Yeager, NCAR Technical Document, 2004
+logical :: ncar_ocean_flux_orig  = .false. !< Use NCAR climate model turbulent flux calculation described by Large and
+                                           !! Yeager, NCAR Technical Document, 2004, using the original GFDL
+                                           !! implementation, which contains a bug in the specification of the exchange
+                                           !! coefficient for the sensible heat.  This option is available for legacy
+                                           !! purposes, and is not recommended for new experiments.
+logical :: ncar_ocean_flux_multilevel  = .false. !< Use NCAR climate model turbulent flux calculation described by Large
+                                      !! and Yeager, allows for different reference height for wind, temp and spec. hum.
 logical :: do_iter_monin_obukhov       = .false. !< If .TRUE,  call monin obukhov funtcions a couple of times to update
                                                  !! rough_mom, rough_heat, rough_moist, cd, ch, b_star, u_star
 logical :: use_u10_neutral             = .false. !< If .TRUE., use 10m neutral wind rather than the standard 10m wind
@@ -186,8 +187,8 @@ real :: bulk_zt = 10.                      !< Reference height for atm temperatu
 real :: bulk_zq = 10.                      !< Reference height for atm humidity (meters)
 logical :: raoult_sat_vap        = .false. !< Reduce saturation vapor pressure to account for seawater
 logical :: do_simple             = .false.
-integer :: niter_monin_obukhov   = 5       !< iteration times to call iter_monin_obukhov_ocean. Typically 3-5 times should converge
-!
+integer :: niter_monin_obukhov   = 5       !< iteration times to call iter_monin_obukhov_ocean.
+                                           !! Typically 3-5 times should converge
 
 namelist /surface_flux_nml/ no_neg_q,                   &
                             use_virtual_temp,           &
@@ -226,7 +227,8 @@ subroutine surface_flux_1d (                                           &
      dt,        land,      seawater,     avail  )
   ! ---- arguments -----------------------------------------------------------
   logical, intent(in), dimension(:) :: land, & !< Indicates where land exists (.TRUE. if exchange cell is on land
-                                       seawater, & !< Indicates where liquid ocean water exists (.TRUE. if exchange cell is on liquid ocean water)
+                                       seawater, & !< Indicates where liquid ocean water exists
+                                                   !! (.TRUE. if exchange cell is on liquid ocean water)
                                        avail !< .TRUE. where the exchange cell is active
   real, intent(in),  dimension(:) :: t_atm, & !< Air temp lowest atmospheric level.
                                      q_atm_in, & !< Mixing ratio at lowest atmospheric level (kg/kg).
@@ -252,8 +254,10 @@ subroutine surface_flux_1d (                                           &
                                      drdt_surf, & !< Radiative energy flux temperature sensitivity
                                      dhdt_atm, & !< Derivative of sensible heat flux over temp at the lowest atmos level
                                      dedq_atm, & !< Derivative of water vapor flux over temp at the lowest atmos level
-                                     dtaudu_atm, & !< Derivative of zonal wind stress with respect to the lowest level zonal wind speed of the atmos
-                                     dtaudv_atm, & !< Derivative of meridional wind stress with respect to the lowest level meridional wind speed of the atmos
+                                     dtaudu_atm, & !< Derivative of zonal wind stress with respect to the lowest level
+                                                   !! zonal wind speed of the atmos
+                                     dtaudv_atm, & !< Derivative of meridional wind stress with respect to the lowest
+                                                   !! level meridional wind speed of the atmos
                                      w_atm, & !< Absolute wind at the lowest atmospheric level
                                      u_star, & !< Turbulent velocity scale
                                      b_star, & !< Turbulent buoyant scale
@@ -512,7 +516,8 @@ subroutine surface_flux_0d (                                                 &
 
   ! ---- arguments -----------------------------------------------------------
   logical, intent(in) :: land_0, & !< Indicates where land exists (.TRUE. if exchange cell is on land
-                         seawater_0, & !< Indicates where liquid ocean water exists (.TRUE. if exchange cell is on liquid ocean water)
+                         seawater_0, & !< Indicates where liquid ocean water exists
+                                       !! (.TRUE. if exchange cell is on liquid ocean water)
                          avail_0 !< .TRUE. where the exchange cell is active
   real, intent(in) :: t_atm_0, & !< Air temp lowest atmospheric level.
                       q_atm_0, & !< Mixing ratio at lowest atmospheric level (kg/kg).
@@ -541,8 +546,10 @@ subroutine surface_flux_0d (                                                 &
                        drdt_surf_0, & !< Radiative energy flux temperature sensitivity
                        dhdt_atm_0, & !< Derivative of sensible heat flux over temp at the lowest atmos level
                        dedq_atm_0, & !< Derivative of water vapor flux over temp at the lowest atmos level
-                       dtaudu_atm_0, & !< Derivative of zonal wind stress with respect to the lowest level zonal wind speed of the atmos
-                       dtaudv_atm_0, & !< Derivative of meridional wind stress with respect to the lowest level meridional wind speed of the atmos
+                       dtaudu_atm_0, & !< Derivative of zonal wind stress with respect to the lowest level zonal wind
+                                       !! speed of the atmos
+                       dtaudv_atm_0, & !< Derivative of meridional wind stress with respect to the lowest level
+                                       !! meridional wind speed of the atmos
                        w_atm_0, & !< Absolute wind at the lowest atmospheric level
                        u_star_0, & !< Turbulent velocity scale
                        b_star_0, & !< Turbulent buoyant scale
@@ -649,7 +656,8 @@ subroutine surface_flux_2d (                                           &
 
   ! ---- arguments -----------------------------------------------------------
   logical, intent(in), dimension(:,:) :: land, & !< Indicates where land exists (.TRUE. if exchange cell is on land
-                                         seawater, & !< Indicates where liquid ocean water exists (.TRUE. if exchange cell is on liquid ocean water)
+                                         seawater, & !< Indicates where liquid ocean water exists
+                                                     !! (.TRUE. if exchange cell is on liquid ocean water)
                                          avail !< .TRUE. where the exchange cell is active
   real, intent(in),  dimension(:,:) :: t_atm, & !< Air temp lowest atmospheric level.
                                        q_atm_in, & !< Mixing ratio at lowest atmospheric level (kg/kg).
@@ -673,10 +681,13 @@ subroutine surface_flux_2d (                                           &
                                        dedt_surf, & !< Moisture flux temperature sensitivity
                                        dedq_surf, & !< Moisture flux humidity sensitivity
                                        drdt_surf, & !< Radiative energy flux temperature sensitivity
-                                       dhdt_atm, & !< Derivative of sensible heat flux over temp at the lowest atmos level
+                                       dhdt_atm, &  !< Derivative of sensible heat flux over temp at the lowest
+                                                    !! atmos level
                                        dedq_atm, & !< Derivative of water vapor flux over temp at the lowest atmos level
-                                       dtaudu_atm, & !< Derivative of zonal wind stress with respect to the lowest level zonal wind speed of the atmos
-                                       dtaudv_atm, & !< Derivative of meridional wind stress with respect to the lowest level meridional wind speed of the atmos
+                                       dtaudu_atm, & !< Derivative of zonal wind stress with respect to the lowest level
+                                                     !! zonal wind speed of the atmos
+                                       dtaudv_atm, & !< Derivative of meridional wind stress with respect to the lowest
+                                                     !! level meridional wind speed of the atmos
                                        w_atm, & !< Absolute wind at the lowest atmospheric level
                                        u_star, & !< Turbulent velocity scale
                                        b_star, & !< Turbulent buoyant scale
@@ -928,7 +939,7 @@ real   , intent(out)  , dimension(:) :: bstar        ! turbulent scale for buoya
 
   do i=1,size(u_del(:))
      if (avail(i)) then
-         u = max(u_del(i), 0.5)                                                       ! 0.5 m/s floor on wind (undocumented NCAR)
+         u = max(u_del(i), 0.5)                                              ! 0.5 m/s floor on wind (undocumented NCAR)
          u10 = u                                                                      ! first guess 10m wind
          t10 = t(i)                                                                   ! first guess: T(z=10) = T(zt)
          q10 = q(i)                                                                   ! first guess: Q(z=10) = Q(zq)
@@ -939,7 +950,7 @@ real   , intent(out)  , dimension(:) :: bstar        ! turbulent scale for buoya
          stab = 0.5 + sign(0.5,t10-ts(i))
          ch_n10 = (18.0*stab+32.7*(1-stab))*cd_n10_rt/1e3                             ! L-Y eqn. 6c
 
-         cd(i) = cd_n10                                                               ! first guess for exchange coeff's at z
+         cd(i) = cd_n10                                                      ! first guess for exchange coeff's at z
          ch(i) = ch_n10
          ce(i) = ce_n10
          do kiter=1,n_itts                                                            ! loop twice

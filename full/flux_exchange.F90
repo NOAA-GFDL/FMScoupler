@@ -349,17 +349,17 @@
 !! ~~~~~~~~~~{.f90}
 !! type (surf_diff_type) :: Atm%Surf_Diff
 !!
-!! real, dimension(:,:) :: Atm%Surf_Diff%dtmass  & ! dt/mass where dt = atmospheric time step ((i+1) = (i-1) for leapfrog) (s)
+!! real, dimension(:,:) :: Atm%Surf_Diff%dtmass  & !dt/mass where dt=atmospheric time step ((i+1)=(i-1) for leapfrog)(s)
 !!                                                 ! mass = mass per unit area of lowest atmosphehic layer  (Kg/m2))
 !!                         Atm%Surf_Diff%delta_t & ! increment ((i+1) = (i-1) for leapfrog) in temperature of
 !!                                                 ! lowest atmospheric layer  (K)
 !!                         Atm%Surf_Diff%delta_q & ! increment ((i+1) = (i-1) for leapfrog) in specific humidity of
 !!                                                 ! lowest atmospheric layer (nondimensional -- Kg/Kg)
-!!                         Atm%Surf_Diff%dflux_t & ! derivative of implicit part of downward temperature flux at top of lowest
-!!                                                 ! atmospheric layer with respect to temperature
+!!                         Atm%Surf_Diff%dflux_t & ! derivative of implicit part of downward temperature flux at top of
+!!                                                 ! lowestatmospheric layer with respect to temperature
 !!                                                 ! of lowest atmospheric layer (Kg/(m2 s))
-!!                         Atm%Surf_Diff%dflux_q   ! derivative of implicit part of downward moisture flux at top of lowest
-!!                                                 ! atmospheric layer with respect to specific humidity of
+!!                         Atm%Surf_Diff%dflux_q   ! derivative of implicit part of downward moisture flux at top of
+!!                                                 ! lowest atmospheric layer with respect to specific humidity of
 !!                                                 ! of lowest atmospheric layer (Kg/(m2 s))
 !! ~~~~~~~~~~
 !!
@@ -551,7 +551,8 @@ module flux_exchange_mod
   real, parameter :: d622 = rdgas/rvgas
   real, parameter :: d378 = 1.0-d622
 
-  real :: z_ref_heat =  2. !< Reference height (meters) for temperature and relative humidity diagnostics (t_ref, rh_ref, del_h, del_q)
+  real :: z_ref_heat =  2. !< Reference height (meters) for temperature and relative humidity diagnostics
+                           !! (t_ref, rh_ref, del_h, del_q)
   real :: z_ref_mom  = 10. !< Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)
   logical :: do_area_weighted_flux = .FALSE.
   logical :: debug_stocks = .FALSE.
@@ -560,8 +561,8 @@ module flux_exchange_mod
   logical :: do_forecast = .false.
   integer :: nblocks = 1
 
-  logical :: partition_fprec_from_lprec = .FALSE.  !< option for ATM override experiments where liquid+frozen precip are combined
-  !! This option will convert liquid precip to snow when t_ref is less than
+  logical :: partition_fprec_from_lprec = .FALSE.  !< option for ATM override experiments where liquid+frozen precip are
+  !! combined. This option will convert liquid precip to snow when t_ref is less than
   !! tfreeze parameter
   real, parameter    :: tfreeze = 273.15
   logical :: scale_precip_2d = .false.
@@ -661,12 +662,17 @@ contains
     ! COMPLETELY allocated here and in subroutines called from here;
     ! NO pointer components should have been allocated before entry if the
     ! derived type has intent(OUT) otherwise they may be lost.
-    type(atmos_ice_boundary_type),     intent(inout) :: atmos_ice_boundary !< A derived data type to specify properties and fluxes passed from atmosphere to ice
-    type(land_ice_atmos_boundary_type),intent(inout) :: land_ice_atmos_boundary !< A derived data type to specify properties and fluxes passed from exchange grid to
-    !! the atmosphere, land and ice
-    type(land_ice_boundary_type),      intent(inout) :: land_ice_boundary !< A derived data type to specify properties and fluxes passed from land to ice
-    type(ice_ocean_boundary_type),     intent(inout) :: ice_ocean_boundary !< A derived data type to specify properties and fluxes passed from ice to ocean
-    type(ocean_ice_boundary_type),     intent(inout) :: ocean_ice_boundary !< A derived data type to specify properties and fluxes passed from ocean to ice
+    type(atmos_ice_boundary_type),     intent(inout) :: atmos_ice_boundary !< A derived data type to specify properties
+                                                                           !! and fluxes passed from atmosphere to ice
+    type(land_ice_atmos_boundary_type),intent(inout) :: land_ice_atmos_boundary !< A derived data type to specify
+                                                                   !! properties and fluxes passed from exchange grid to
+                                                                   !! the atmosphere, land and ice
+    type(land_ice_boundary_type),      intent(inout) :: land_ice_boundary !< A derived data type to specify properties
+                                                                          !! and fluxes passed from land to ice
+    type(ice_ocean_boundary_type),     intent(inout) :: ice_ocean_boundary !< A derived data type to specify properties
+                                                                           !! and fluxes passed from ice to ocean
+    type(ocean_ice_boundary_type),     intent(inout) :: ocean_ice_boundary !< A derived data type to specify properties
+                                                                           !! and fluxes passed from ocean to ice
     logical,                           intent(in)    :: do_ocean
     integer, dimension(:),             intent(in)    :: slow_ice_ocean_pelist
     integer, optional,                 intent(in)    :: dt_atmos !< Atmosphere time step in seconds
@@ -745,7 +751,7 @@ contains
 
     call fms_mpp_set_current_pelist()
     call ice_ocean_flux_exchange_init(Time, Ice, Ocean, Ocean_state,ice_ocean_boundary, ocean_ice_boundary, &
-         Dt_cpl, debug_stocks, do_area_weighted_flux, ex_gas_fields_ice, ex_gas_fluxes, do_ocean, slow_ice_ocean_pelist )
+         Dt_cpl, debug_stocks, do_area_weighted_flux, ex_gas_fields_ice, ex_gas_fluxes, do_ocean, slow_ice_ocean_pelist)
 
     !---- done ----
     do_init = .false.
@@ -1023,7 +1029,8 @@ contains
        end do
        deallocate(tmpx, tmpy)
     else
-       call fms_mpp_error(FATAL, 'atm_land_ice_flux_exchange_mod: both AREA_ATMxOCN and ocn_mosaic_file does not exist in '//trim(grid_file))
+       call fms_mpp_error(FATAL, &
+            'atm_land_ice_flux_exchange_mod: both AREA_ATMxOCN and ocn_mosaic_file does not exist in '//trim(grid_file))
     end if
 
     call fms2_io_close_file(grid_file_obj)

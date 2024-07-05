@@ -161,7 +161,8 @@ contains
                     & calc_kw(tsurf(i),&
                     & gas_fields_atm%bc(n)%field(fms_coupler_ind_psurf)%values(i),&
                     & gas_fields_atm%bc(n)%field(fms_coupler_ind_u10)%values(i),&
-                    & 101325./(rdgas*wtmair*1e-3*tsurf(i)*max(gas_fields_ice%bc(n)%field(fms_coupler_ind_alpha)%values(i),epsln)),&
+                    & 101325./(rdgas*wtmair*1e-3*tsurf(i)* &
+                               max(gas_fields_ice%bc(n)%field(fms_coupler_ind_alpha)%values(i),epsln)),&
                     & gas_fluxes%bc(n)%param(2),&
                     & gas_fluxes%bc(n)%param(1),&
                     & gas_fields_ice%bc(n)%field(fms_coupler_ind_sc_no)%values(i))

@@ -57,39 +57,39 @@ logical :: use_annual_ice           = .false.
 logical :: use_climo_sst            = .false.
 logical :: use_annual_sst           = .false.
 character(len=64) :: ice_method = 'prognostic' ! none, uniform, or prognostic
-character(len=64) :: sst_method = 'specified'  ! specified, uniform, or mixed_layer
-                                               ! Additional sst specifications: 'aqua_planet_#' test cases are derived
-                                               ! from the 2000 paper by Neale and Hoskins, 'A standard test for AGCMs including
-                                               ! their physical parameterizations: I. The proposal, Atmospheric Science Letters'.
-                                               ! The 'aqua_planet_1' testcase corresponds to the 'Control' SST test case and
-                                               ! provides the pattern which is shifted for the subsequent cases.
-                                               ! The test cases Control, and aqua_planet_5N-aqua_planet_60N were documented and used
-                                               ! in Burnett et al., 2021, GRL,  https://doi.org/10.1029/2020GL091980
-                                               !   aqua_planet_1   = Control profile
-                                               !   aqua_planet_2   = Peaked
-                                               !   aqua_planet_3   = Flat
-                                               !   aqua_planet_4   = Qobs
-                                               !   aqua_planet_5   = Control shifted by 5N
-                                               !   aqua_planet_6   = 1KEQ
-                                               !   aqua_planet_7   = 3KEQ
-                                               !   aqua_planet_8   = 3KW1
-                                               !   aqua_planet_10N = Control shifted by 10N
-                                               !   aqua_planet_15N = Control shifted by 15N
-                                               !   aqua_planet_20N = Control shifted by 20N
-                                               !   aqua_planet_25N = Control shifted by 25N
-                                               !   aqua_planet_30N = Control shifted by 20N
-                                               !   aqua_planet_35N = Control shifted by 35N
-                                               !   aqua_planet_40N = Control shifted by 30N
-                                               !   aqua_planet_45N = Control shifted by 45N
-                                               !   aqua_planet_50N = Control shifted by 50N
-                                               !   aqua_planet_55N = Control shifted by 55N
-                                               !   aqua_planet_60N = Control shifted by 60N
-                                               !   aqua_planet_65N = Control shifted by 65N
-                                               !   aqua_planet_70N = Control shifted by 70N
-                                               !   aqua_planet_75N = Control shifted by 75N
-                                               !   aqua_planet_80N = Control shifted by 80N
-                                               !   aqua_planet_85N = Control shifted by 85N
-                                               !   aqua_planet_90N = Control shifted by 90N
+character(len=64) :: sst_method = 'specified'  !> specified, uniform, or mixed_layer
+                                  !! Additional sst specifications: 'aqua_planet_#' test cases are derived
+                                  !! from the 2000 paper by Neale and Hoskins, 'A standard test for AGCMs including
+                                  !! their physical parameterizations: I. The proposal, Atmospheric Science Letters'.
+                                  !! The 'aqua_planet_1' testcase corresponds to the 'Control' SST test case and
+                                  !! provides the pattern which is shifted for the subsequent cases.
+                                  !! The test cases Control, and aqua_planet_5N-aqua_planet_60N were documented and used
+                                  !! in Burnett et al., 2021, GRL,  https://doi.org/10.1029/2020GL091980
+                                  !!   aqua_planet_1   = Control profile
+                                  !!   aqua_planet_2   = Peaked
+                                  !!   aqua_planet_3   = Flat
+                                  !!   aqua_planet_4   = Qobs
+                                  !!   aqua_planet_5   = Control shifted by 5N
+                                  !!   aqua_planet_6   = 1KEQ
+                                  !!   aqua_planet_7   = 3KEQ
+                                  !!   aqua_planet_8   = 3KW1
+                                  !!   aqua_planet_10N = Control shifted by 10N
+                                  !!   aqua_planet_15N = Control shifted by 15N
+                                  !!   aqua_planet_20N = Control shifted by 20N
+                                  !!   aqua_planet_25N = Control shifted by 25N
+                                  !!   aqua_planet_30N = Control shifted by 20N
+                                  !!   aqua_planet_35N = Control shifted by 35N
+                                  !!   aqua_planet_40N = Control shifted by 30N
+                                  !!   aqua_planet_45N = Control shifted by 45N
+                                  !!   aqua_planet_50N = Control shifted by 50N
+                                  !!   aqua_planet_55N = Control shifted by 55N
+                                  !!   aqua_planet_60N = Control shifted by 60N
+                                  !!   aqua_planet_65N = Control shifted by 65N
+                                  !!   aqua_planet_70N = Control shifted by 70N
+                                  !!   aqua_planet_75N = Control shifted by 75N
+                                  !!   aqua_planet_80N = Control shifted by 80N
+                                  !!   aqua_planet_85N = Control shifted by 85N
+                                  !!   aqua_planet_90N = Control shifted by 90N
 real              :: temp_ice = 270.      ! used when ice_method = 'uniform'
 real              :: temp_sst = 280.      ! used when sst_method = 'uniform'
 real              :: sst_anom = 0.        ! sst perturbation used for sensitivity experiments
@@ -1104,7 +1104,8 @@ endif
       endif
   endif
 
-print *, 'pe,count(ice,all,ocean)=',fms_mpp_pe(),count(Ice%ice_mask),count(Ice%mask),count(Ice%mask .and. .not.Ice%ice_mask)
+print *, 'pe,count(ice,all,ocean)=',fms_mpp_pe(),count(Ice%ice_mask),count(Ice%mask), &
+          count(Ice%mask .and. .not.Ice%ice_mask)
 
 ! add on non-zero sea surface temperature perturbation (namelist option)
 ! this perturbation may be useful in accessing model sensitivities
