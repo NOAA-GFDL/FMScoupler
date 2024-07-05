@@ -356,7 +356,7 @@
 !!                         Atm%Surf_Diff%delta_q & ! increment ((i+1) = (i-1) for leapfrog) in specific humidity of
 !!                                                 ! lowest atmospheric layer (nondimensional -- Kg/Kg)
 !!                         Atm%Surf_Diff%dflux_t & ! derivative of implicit part of downward temperature flux at top of
-!!                                                 ! lowestatmospheric layer with respect to temperature
+!!                                                 ! lowest atmospheric layer with respect to temperature
 !!                                                 ! of lowest atmospheric layer (Kg/(m2 s))
 !!                         Atm%Surf_Diff%dflux_q   ! derivative of implicit part of downward moisture flux at top of
 !!                                                 ! lowest atmospheric layer with respect to specific humidity of
