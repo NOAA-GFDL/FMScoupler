@@ -10,3 +10,5 @@ jobs:
         uses: actions/checkout@v2
       - name: Run linter
         uses: NOAA-GFDL/simple_lint@f5aa1fe976bd4c231db0536ba00cbfdc26708253
+        with:
+          ftn_line_len: 121
