@@ -155,7 +155,8 @@ sequential patch number (starting from `01`).
     were written by default.
   - FMS2_io does not do this. Users can specify real long_names and units by calling register_variable_attribute.
 ### Removed
-- FMS_io was almost completely removed from FMScoupler and replaced with fms2_io.
+- FMS_io was almost completely removed from FMScoupler and replaced with fms2_io
+	- The only remaining usage is `fms_io_exit` calls. These calls are made at the end of each coupler driver and only called if the CPP macro `use_deprecated_io` is set.
 ### Tag Commit Hashes
 - 2021.02-alpha1 (c1c8044a6c3efb8ddbbd01a3769bbf2610b34937)
 - 2021.02-alpha2 (c1c8044a6c3efb8ddbbd01a3769bbf2610b34937)
