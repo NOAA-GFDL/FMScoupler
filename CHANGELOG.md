@@ -6,6 +6,42 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2024.02] - 2024-07-11
+
+### Known Issues
+- SPEAR errors have been reported due to a string length being exceeded during the `fredb` section of the code in the full coupler before initialization. (#136)
+
+### Added
+- SIMPLE: Adds option to obtain concurrent drag and heat transfer coefficents via `monin_obukhov` functions. To control the new option, new namelist options have been added to the `surface_flux_nml`. The `rough_scheme_ocean` in `ocean_rough_nml` must be set to `hwrf17` for the options to be effective. (#113)
+	- `do_iter_monin_obukhov` controls whether to iterate over ocean with updated roughness length
+	- `niter_monin_obukhov` controls the number of times to iterate
+	- `use_u10_neutral` if true uses 10m neutral wind rather than the standard 10m wind to obtain `rough_mom`, `rough_heat`, and `rough_moist`
+
+### Changed
+- FULL: A number of changes have been made as part of a refactorization effort for the full coupler.
+	- A module `full_coupler_mod` has been added and contains routines and imports previously included in the `coupler_main.F90` file. (#104)
+	- A new type, `coupler_clock type`, has been added to handle the usage of any clocks used in the full coupler. This will cause changes in the output order of clock statistics (#106)
+	- Updates the written version number to use the version in `file_version.h` (#109)
+	- Refactors `atmos_ice_land_chksum` and `ocean_chksum` calls into new routines in `full_coupler_mod` (#114)
+	- Refactors `flux_ocean_to_ice` and `flux_ice_to_ocean` calls into new routines in `full_coupler_mod` (#117)
+	- Refactors exchange updates for ice as well as setting ice surface fields and unpacking ocean ice boundary into new routines (#118)
+	- Refactors ice surface exchange grid generation into a new routine (#119)
+	- Adds a `coupler_chksum_type` used to compute checksums when `do_chksum` is true and adds wrapper routines for `atmos_tracer_driver_gather_data` and `sfc_boundary_layer` (#123)
+	- Refactors `update_atmos_model_dynamics`, `update_atmos_model_radiation`, `update_atmos_model_down`, and `flux_down_from_atmos` into new routines (#124)
+	- Refactors `update_land_model_fast`, `update_ice_model_fast`, `update_atmos_model_up`, `flux_up_to_atmos`, and `update_atmos_model_state` into new routines (#125)
+	- Refactors `unpack_land_ice_boundary`, `update_ice_model_slow_and_stocks`, and `update_ocean_model` into new routines (#127)
+	- Refactors routines for writing intermediate restarts and summarizing timesteps (#128)
+- SHIELD: `data_override` has been enabled for nest domains (#102)
+
+### Removed
+- FULL: Two variables that enabled bugged behaviour from past releases have been removed, `ex_u_star_smooth_bug` and `sw1way_bug`. (#99)
+
+### Tag Commit Hashes
+- 2024.02-alpha1 eda97dd590c7c83f3664fbbacf22a76f3234251d
+- 2024.02-alpha2 2b59f6d4e52e1c7c50f6fba09918f4a0b4ad5741
+- 2024.02-beta1  2a51893473d84a106e95da33e0f05225ca49a3db
+- 2024.02-beta2  0b2c91402236e49d586dd5151c98d329e97f9e57
+
 ## [2024.01] - 2024-05-03
 
 ### Added
