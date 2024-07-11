@@ -8,6 +8,9 @@ sequential patch number (starting from `01`).
 
 ## [2024.02] - 2024-07-11
 
+### Known Issues
+- SPEAR errors have been reported due to a string length being exceeded during the `fredb` section of the code in the full coupler before initialization. (#136)
+
 ### Added
 - SIMPLE: Adds option to obtain concurrent drag and heat transfer coefficents via `monin_obukhov` functions. To control the new option, new namelist options have been added to the `surface_flux_nml`. The `rough_scheme_ocean` in `ocean_rough_nml` must be set to `hwrf17` for the options to be effective. (#113)
 	- `do_iter_monin_obukhov` controls whether to iterate over ocean with updated roughness length
