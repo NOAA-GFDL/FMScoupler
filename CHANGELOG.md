@@ -6,7 +6,7 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
-## [2024.02] - 2024-07-?
+## [2024.02] - 2024-07-11
 
 ### Added
 - SIMPLE: Adds option to obtain concurrent drag and heat transfer coefficents via `monin_obukhov` functions. To control the new option, new namelist options have been added to the `surface_flux_nml`. The `rough_scheme_ocean` in `ocean_rough_nml` must be set to `hwrf17` for the options to be effective. (#113)
@@ -18,7 +18,7 @@ sequential patch number (starting from `01`).
 - FULL: A number of changes have been made as part of a refactorization effort for the full coupler.
 	- A module `full_coupler_mod` has been added and contains routines and imports previously included in the `coupler_main.F90` file. (#104)
 	- A new type, `coupler_clock type`, has been added to handle the usage of any clocks used in the full coupler. This will cause changes in the output order of clock statistics (#106)
-	- Updates the setting of version number to be accurate (#109)
+	- Updates the written version number to use the version in `file_version.h` (#109)
 	- Refactors `atmos_ice_land_chksum` and `ocean_chksum` calls into new routines in `full_coupler_mod` (#114)
 	- Refactors `flux_ocean_to_ice` and `flux_ice_to_ocean` calls into new routines in `full_coupler_mod` (#117)
 	- Refactors exchange updates for ice as well as setting ice surface fields and unpacking ocean ice boundary into new routines (#118)
