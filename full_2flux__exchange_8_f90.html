@@ -74,7 +74,7 @@ $(function() {
 <div class="title">flux_exchange.F90 File Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
-<h3 class="version">(c71088c3a2928a196d028c93190ded3e3bda78cd)</h3>
+<h3 class="version">(e8a3bc093b8018b0a28a5a3405728a0d3b82441f)</h3>
 <p>The flux_exchange module provides interfaces to couple the following component models: atmosphere, ocean, land, and ice. All interpolation between physically distinct model grids is handled by the exchange grid (xgrid_mod) with the interpolated quantities being conserved.  
 <a href="#details">More...</a></p>
 <table class="memberdecls">
@@ -120,11 +120,6 @@ Variables</h2></td></tr>
 <tr class="memitem:a2dea7a4b0778ca1121bda4c7c6be8a9b"><td class="memItemLeft" align="right" valign="top">real&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a2dea7a4b0778ca1121bda4c7c6be8a9b">flux_exchange_mod::z_ref_mom</a> = 10.</td></tr>
 <tr class="memdesc:a2dea7a4b0778ca1121bda4c7c6be8a9b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)  <a href="namespaceflux__exchange__mod.html#a2dea7a4b0778ca1121bda4c7c6be8a9b">More...</a><br /></td></tr>
 <tr class="separator:a2dea7a4b0778ca1121bda4c7c6be8a9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a26ddd89d98ccfd23f971ae2e9152a977"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a26ddd89d98ccfd23f971ae2e9152a977">flux_exchange_mod::ex_u_star_smooth_bug</a> = .false.</td></tr>
-<tr class="memdesc:a26ddd89d98ccfd23f971ae2e9152a977"><td class="mdescLeft">&#160;</td><td class="mdescRight">By default, the global exchange grid <code>u_star</code> will not be interpolated from atmospheric grid, this is different from Jakarta behavior and will change answers. So to preserve Jakarta behavior and reproduce answers explicitly set this namelist variable to .true. in input.nml.  <a href="namespaceflux__exchange__mod.html#a26ddd89d98ccfd23f971ae2e9152a977">More...</a><br /></td></tr>
-<tr class="separator:a26ddd89d98ccfd23f971ae2e9152a977"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1731b0c1ba2addb0cd311ea19c4da077"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a1731b0c1ba2addb0cd311ea19c4da077">flux_exchange_mod::sw1way_bug</a> = .false.</td></tr>
-<tr class="separator:a1731b0c1ba2addb0cd311ea19c4da077"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afb7b20d6cf50c73ac40939c022fddb32"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#afb7b20d6cf50c73ac40939c022fddb32">flux_exchange_mod::do_area_weighted_flux</a> = .FALSE.</td></tr>
 <tr class="separator:afb7b20d6cf50c73ac40939c022fddb32"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a85a4e48184ac3df1924a4da5b3678836"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a85a4e48184ac3df1924a4da5b3678836">flux_exchange_mod::debug_stocks</a> = .FALSE.</td></tr>
@@ -489,7 +484,7 @@ Ocean</h2>
 </div><!-- fragment --> </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jun 20 2024 16:26:25 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Thu Jul 11 2024 19:06:12 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

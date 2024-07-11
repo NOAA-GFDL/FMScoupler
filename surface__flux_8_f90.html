@@ -75,7 +75,7 @@ $(function() {
 <div class="title">surface_flux.F90 File Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
-<h3 class="version">(c71088c3a2928a196d028c93190ded3e3bda78cd)</h3>
+<h3 class="version">(e8a3bc093b8018b0a28a5a3405728a0d3b82441f)</h3>
 <p>Handles calculation of fluxes on the exchange grids, see module page for more information.  
 <a href="#details">More...</a></p>
 <table class="memberdecls">
@@ -108,6 +108,9 @@ Functions/Subroutines</h2></td></tr>
 <tr class="memitem:a43e1175ff9bf4096208baf7053b2669c"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a43e1175ff9bf4096208baf7053b2669c">surface_flux_mod::ncar_ocean_fluxes_multilevel</a> (u_del, t, ts, q, qs, zu, zt, zq, avail, cd, ch, ce, ustar, bstar)</td></tr>
 <tr class="memdesc:a43e1175ff9bf4096208baf7053b2669c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Over-ocean fluxes following Large and Yeager (used in NCAR models) !  <a href="namespacesurface__flux__mod.html#a43e1175ff9bf4096208baf7053b2669c">More...</a><br /></td></tr>
 <tr class="separator:a43e1175ff9bf4096208baf7053b2669c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae6fbd060ae720e05102effeb8b044d30"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#ae6fbd060ae720e05102effeb8b044d30">surface_flux_mod::iter_monin_obukhov_ocean</a> (z_atm, u_atm, v_atm, w_atm, thv_atm, q_atm, u_surf, v_surf, thv_surf, q_surf0, rough_mom, rough_heat, rough_moist, cd_m, cd_t, cd_q, u_star, b_star, avail, seawater)</td></tr>
+<tr class="memdesc:ae6fbd060ae720e05102effeb8b044d30"><td class="mdescLeft">&#160;</td><td class="mdescRight">Update air-sea flux variables to be consistent with the concurrent atmospheric states.  <a href="namespacesurface__flux__mod.html#ae6fbd060ae720e05102effeb8b044d30">More...</a><br /></td></tr>
+<tr class="separator:ae6fbd060ae720e05102effeb8b044d30"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
@@ -129,6 +132,9 @@ Variables</h2></td></tr>
 <tr class="separator:a4d5ccaf8614f916474bf664f17c9f4c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8d4afc63f10ef27e817f2af153991783"><td class="memItemLeft" align="right" valign="top">real&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a8d4afc63f10ef27e817f2af153991783">surface_flux_mod::d608</a> = d378/d622</td></tr>
 <tr class="separator:a8d4afc63f10ef27e817f2af153991783"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a430407a9f1208154bcfacbd357e883fb"><td class="memItemLeft" align="right" valign="top">character(len=32)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a430407a9f1208154bcfacbd357e883fb">surface_flux_mod::rough_scheme_ocean</a></td></tr>
+<tr class="memdesc:a430407a9f1208154bcfacbd357e883fb"><td class="mdescLeft">&#160;</td><td class="mdescRight">ocean roughness length scheme to be read from ocean_rough_nml  <a href="namespacesurface__flux__mod.html#a430407a9f1208154bcfacbd357e883fb">More...</a><br /></td></tr>
+<tr class="separator:a430407a9f1208154bcfacbd357e883fb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a20a47247f850d8adec96fd50382ff353"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a20a47247f850d8adec96fd50382ff353">surface_flux_mod::no_neg_q</a> = .false.</td></tr>
 <tr class="memdesc:a20a47247f850d8adec96fd50382ff353"><td class="mdescLeft">&#160;</td><td class="mdescRight">If a_atm_in (specific humidity) is negative (because of numerical truncation), then override with 0.0.  <a href="namespacesurface__flux__mod.html#a20a47247f850d8adec96fd50382ff353">More...</a><br /></td></tr>
 <tr class="separator:a20a47247f850d8adec96fd50382ff353"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -159,6 +165,12 @@ Variables</h2></td></tr>
 <tr class="memitem:a7a001b64a7af7de49f02b3386b29207e"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a7a001b64a7af7de49f02b3386b29207e">surface_flux_mod::ncar_ocean_flux_multilevel</a> = .false.</td></tr>
 <tr class="memdesc:a7a001b64a7af7de49f02b3386b29207e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.  <a href="namespacesurface__flux__mod.html#a7a001b64a7af7de49f02b3386b29207e">More...</a><br /></td></tr>
 <tr class="separator:a7a001b64a7af7de49f02b3386b29207e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6b3f019016c57aa487b01d3304625f41"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a6b3f019016c57aa487b01d3304625f41">surface_flux_mod::do_iter_monin_obukhov</a> = .false.</td></tr>
+<tr class="memdesc:a6b3f019016c57aa487b01d3304625f41"><td class="mdescLeft">&#160;</td><td class="mdescRight">If .TRUE, call monin obukhov funtcions a couple of times to update rough_mom, rough_heat, rough_moist, cd, ch, b_star, u_star.  <a href="namespacesurface__flux__mod.html#a6b3f019016c57aa487b01d3304625f41">More...</a><br /></td></tr>
+<tr class="separator:a6b3f019016c57aa487b01d3304625f41"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0dde12495da696d1c077ac6ecb7c6714"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a0dde12495da696d1c077ac6ecb7c6714">surface_flux_mod::use_u10_neutral</a> = .false.</td></tr>
+<tr class="memdesc:a0dde12495da696d1c077ac6ecb7c6714"><td class="mdescLeft">&#160;</td><td class="mdescRight">If .TRUE., use 10m neutral wind rather than the standard 10m wind to obtain rough_mom, rough_heat, rough_moist.  <a href="namespacesurface__flux__mod.html#a0dde12495da696d1c077ac6ecb7c6714">More...</a><br /></td></tr>
+<tr class="separator:a0dde12495da696d1c077ac6ecb7c6714"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae9006d4cf180672ab7b529b22c3dbac8"><td class="memItemLeft" align="right" valign="top">real&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#ae9006d4cf180672ab7b529b22c3dbac8">surface_flux_mod::bulk_zu</a> = 10.</td></tr>
 <tr class="memdesc:ae9006d4cf180672ab7b529b22c3dbac8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reference height for wind speed (meters)  <a href="namespacesurface__flux__mod.html#ae9006d4cf180672ab7b529b22c3dbac8">More...</a><br /></td></tr>
 <tr class="separator:ae9006d4cf180672ab7b529b22c3dbac8"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -173,13 +185,16 @@ Variables</h2></td></tr>
 <tr class="separator:a20457ec53d55f2819c2109515b92a79f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a430e1f667917e25d8428390a7b4a3733"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a430e1f667917e25d8428390a7b4a3733">surface_flux_mod::do_simple</a> = .false.</td></tr>
 <tr class="separator:a430e1f667917e25d8428390a7b4a3733"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aedbfeff1dd91e58e9795a6c9d16d936a"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#aedbfeff1dd91e58e9795a6c9d16d936a">surface_flux_mod::niter_monin_obukhov</a> = 5</td></tr>
+<tr class="memdesc:aedbfeff1dd91e58e9795a6c9d16d936a"><td class="mdescLeft">&#160;</td><td class="mdescRight">iteration times to call iter_monin_obukhov_ocean. Typically 3-5 times should converge  <a href="namespacesurface__flux__mod.html#aedbfeff1dd91e58e9795a6c9d16d936a">More...</a><br /></td></tr>
+<tr class="separator:aedbfeff1dd91e58e9795a6c9d16d936a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Handles calculation of fluxes on the exchange grids, see module page for more information. </p>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jun 20 2024 16:26:25 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Thu Jul 11 2024 19:06:12 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

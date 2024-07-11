@@ -75,7 +75,7 @@ $(function() {
 <div class="title">atm_land_ice_flux_exchange.F90 File Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
-<h3 class="version">(c71088c3a2928a196d028c93190ded3e3bda78cd)</h3>
+<h3 class="version">(e8a3bc093b8018b0a28a5a3405728a0d3b82441f)</h3>
 <p>Performs flux calculations and exchange grid operations for atmosphere, land and ice.  
 <a href="#details">More...</a></p>
 <table class="memberdecls">
@@ -95,9 +95,9 @@ Modules</h2></td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
 Functions/Subroutines</h2></td></tr>
-<tr class="memitem:aba2bb7b88d4a32a62dccb9da6379bc80"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#aba2bb7b88d4a32a62dccb9da6379bc80">atm_land_ice_flux_exchange_mod::atm_land_ice_flux_exchange_init</a> (Time, Atm, Land, Ice, atmos_ice_boundary, land_ice_atmos_boundary, Dt_atm_in, Dt_cpl_in, z_ref_heat_in, z_ref_mom_in, ex_u_star_smooth_bug_in, sw1way_bug_in, do_area_weighted_flux_in, do_forecast_in, partition_fprec_from_lprec_in, scale_precip_2d_in, nblocks_in, cplClock_in, ex_gas_fields_atm_in, ex_gas_fields_ice_in, ex_gas_fluxes_in)</td></tr>
-<tr class="memdesc:aba2bb7b88d4a32a62dccb9da6379bc80"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialization routine.  <a href="namespaceatm__land__ice__flux__exchange__mod.html#aba2bb7b88d4a32a62dccb9da6379bc80">More...</a><br /></td></tr>
-<tr class="separator:aba2bb7b88d4a32a62dccb9da6379bc80"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab8675556ecdbebfb8b3093fadbe11cde"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#ab8675556ecdbebfb8b3093fadbe11cde">atm_land_ice_flux_exchange_mod::atm_land_ice_flux_exchange_init</a> (Time, Atm, Land, Ice, atmos_ice_boundary, land_ice_atmos_boundary, Dt_atm_in, Dt_cpl_in, z_ref_heat_in, z_ref_mom_in, do_area_weighted_flux_in, do_forecast_in, partition_fprec_from_lprec_in, scale_precip_2d_in, nblocks_in, cplClock_in, ex_gas_fields_atm_in, ex_gas_fields_ice_in, ex_gas_fluxes_in)</td></tr>
+<tr class="memdesc:ab8675556ecdbebfb8b3093fadbe11cde"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialization routine.  <a href="namespaceatm__land__ice__flux__exchange__mod.html#ab8675556ecdbebfb8b3093fadbe11cde">More...</a><br /></td></tr>
+<tr class="separator:ab8675556ecdbebfb8b3093fadbe11cde"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae7a53520e8a084f5fa930c5c18c85b54"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#ae7a53520e8a084f5fa930c5c18c85b54">atm_land_ice_flux_exchange_mod::sfc_boundary_layer</a> (dt, Time, Atm, Land, Ice, Land_Ice_Atmos_Boundary)</td></tr>
 <tr class="memdesc:ae7a53520e8a084f5fa930c5c18c85b54"><td class="mdescLeft">&#160;</td><td class="mdescRight">Computes explicit fluxes as well as derivatives that will be used to compute an implicit flux correction.  <a href="namespaceatm__land__ice__flux__exchange__mod.html#ae7a53520e8a084f5fa930c5c18c85b54">More...</a><br /></td></tr>
 <tr class="separator:ae7a53520e8a084f5fa930c5c18c85b54"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -344,11 +344,6 @@ Variables</h2></td></tr>
 <tr class="memitem:a102b456a413634905a3287946d8d3789"><td class="memItemLeft" align="right" valign="top">real&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a102b456a413634905a3287946d8d3789">atm_land_ice_flux_exchange_mod::z_ref_mom</a> = 10.</td></tr>
 <tr class="memdesc:a102b456a413634905a3287946d8d3789"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)  <a href="namespaceatm__land__ice__flux__exchange__mod.html#a102b456a413634905a3287946d8d3789">More...</a><br /></td></tr>
 <tr class="separator:a102b456a413634905a3287946d8d3789"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1cfa907ed236e8d626194e9adca9a885"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a1cfa907ed236e8d626194e9adca9a885">atm_land_ice_flux_exchange_mod::ex_u_star_smooth_bug</a> = .false.</td></tr>
-<tr class="memdesc:a1cfa907ed236e8d626194e9adca9a885"><td class="mdescLeft">&#160;</td><td class="mdescRight">By default, the global exchange grid <code>u_star</code> will not be interpolated from atmospheric grid, this is different from Jakarta behavior and will change answers. So to preserve Jakarta behavior and reproduce answers explicitly set this namelist variable to .true. in input.nml.  <a href="namespaceatm__land__ice__flux__exchange__mod.html#a1cfa907ed236e8d626194e9adca9a885">More...</a><br /></td></tr>
-<tr class="separator:a1cfa907ed236e8d626194e9adca9a885"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a10b2bf983409ff9ef96029374b31c0e7"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a10b2bf983409ff9ef96029374b31c0e7">atm_land_ice_flux_exchange_mod::sw1way_bug</a> = .false.</td></tr>
-<tr class="separator:a10b2bf983409ff9ef96029374b31c0e7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad202bbf87044b1eec5805f6875857910"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#ad202bbf87044b1eec5805f6875857910">atm_land_ice_flux_exchange_mod::do_area_weighted_flux</a> = .FALSE.</td></tr>
 <tr class="separator:ad202bbf87044b1eec5805f6875857910"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae5ba0610f8d66c3fea1c7f593aa87d2d"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#ae5ba0610f8d66c3fea1c7f593aa87d2d">atm_land_ice_flux_exchange_mod::do_forecast</a> = .false.</td></tr>
@@ -568,7 +563,7 @@ Variables</h2></td></tr>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jun 20 2024 16:26:25 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Thu Jul 11 2024 19:06:12 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

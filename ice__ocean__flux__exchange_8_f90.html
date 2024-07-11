@@ -74,7 +74,7 @@ $(function() {
 <div class="title">ice_ocean_flux_exchange.F90 File Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
-<h3 class="version">(c71088c3a2928a196d028c93190ded3e3bda78cd)</h3>
+<h3 class="version">(e8a3bc093b8018b0a28a5a3405728a0d3b82441f)</h3>
 <p>Handles flux calculations and exchange grids for ice and ocean.  
 <a href="#details">More...</a></p>
 <table class="memberdecls">
@@ -87,14 +87,14 @@ Modules</h2></td></tr>
 Functions/Subroutines</h2></td></tr>
 <tr class="memitem:a63be7a22389a38bfd7f7e8aafc2f81d3"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__ocean__flux__exchange__mod.html#a63be7a22389a38bfd7f7e8aafc2f81d3">ice_ocean_flux_exchange_mod::ice_ocean_flux_exchange_init</a> (Time, Ice, Ocean, Ocean_state, ice_ocean_boundary, ocean_ice_boundary, Dt_cpl_in, debug_stocks_in, do_area_weighted_flux_in, ex_gas_fields_ice, ex_gas_fluxes, do_ocean, slow_ice_ocean_pelist_in)</td></tr>
 <tr class="separator:a63be7a22389a38bfd7f7e8aafc2f81d3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab37a2812f0b5b2b91b9a15d75f3cf628"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__ocean__flux__exchange__mod.html#ab37a2812f0b5b2b91b9a15d75f3cf628">ice_ocean_flux_exchange_mod::flux_ice_to_ocean</a> (Time, Ice, Ocean, Ice_Ocean_Boundary)</td></tr>
-<tr class="separator:ab37a2812f0b5b2b91b9a15d75f3cf628"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afcc66b7731a985e1916e5ac4a303df37"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__ocean__flux__exchange__mod.html#afcc66b7731a985e1916e5ac4a303df37">ice_ocean_flux_exchange_mod::flux_ice_to_ocean</a> (Ice, Ocean, Ice_Ocean_Boundary)</td></tr>
+<tr class="separator:afcc66b7731a985e1916e5ac4a303df37"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a1f894795596097d716f953bbfdb9dc80"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__ocean__flux__exchange__mod.html#a1f894795596097d716f953bbfdb9dc80">ice_ocean_flux_exchange_mod::flux_ice_to_ocean_finish</a> (Time, Ice_Ocean_Boundary)</td></tr>
 <tr class="memdesc:a1f894795596097d716f953bbfdb9dc80"><td class="mdescLeft">&#160;</td><td class="mdescRight">flux_ice_to_ocean_finish carrries out a final set of tasks that should only occur on the ocean processors, including data override and perhaps saving diagnostics.  <a href="namespaceice__ocean__flux__exchange__mod.html#a1f894795596097d716f953bbfdb9dc80">More...</a><br /></td></tr>
 <tr class="separator:a1f894795596097d716f953bbfdb9dc80"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7713aa59bd9acc619ef9616ac522de4b"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__ocean__flux__exchange__mod.html#a7713aa59bd9acc619ef9616ac522de4b">ice_ocean_flux_exchange_mod::flux_ocean_to_ice</a> (Time, Ocean, Ice, Ocean_Ice_Boundary)</td></tr>
-<tr class="memdesc:a7713aa59bd9acc619ef9616ac522de4b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Takes the ocean model state and interpolates it onto the bottom of the ice.  <a href="namespaceice__ocean__flux__exchange__mod.html#a7713aa59bd9acc619ef9616ac522de4b">More...</a><br /></td></tr>
-<tr class="separator:a7713aa59bd9acc619ef9616ac522de4b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5270f15d181575b7559f4664afcd987a"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__ocean__flux__exchange__mod.html#a5270f15d181575b7559f4664afcd987a">ice_ocean_flux_exchange_mod::flux_ocean_to_ice</a> (Ocean, Ice, Ocean_Ice_Boundary)</td></tr>
+<tr class="memdesc:a5270f15d181575b7559f4664afcd987a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Takes the ocean model state and interpolates it onto the bottom of the ice.  <a href="namespaceice__ocean__flux__exchange__mod.html#a5270f15d181575b7559f4664afcd987a">More...</a><br /></td></tr>
+<tr class="separator:a5270f15d181575b7559f4664afcd987a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2af0c159f5b00bd98d7f8339761df29e"><td class="memItemLeft" align="right" valign="top">subroutine, public&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceice__ocean__flux__exchange__mod.html#a2af0c159f5b00bd98d7f8339761df29e">ice_ocean_flux_exchange_mod::flux_ocean_to_ice_finish</a> (Time, Ice, Ocean_Ice_Boundary)</td></tr>
 <tr class="memdesc:a2af0c159f5b00bd98d7f8339761df29e"><td class="mdescLeft">&#160;</td><td class="mdescRight">flux_ocean_to_ice_finish carrries out a final set of tasks that should only occur on the slow-ice processors, including data override and perhaps saving diagnostics.  <a href="namespaceice__ocean__flux__exchange__mod.html#a2af0c159f5b00bd98d7f8339761df29e">More...</a><br /></td></tr>
 <tr class="separator:a2af0c159f5b00bd98d7f8339761df29e"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -142,7 +142,7 @@ Variables</h2></td></tr>
 </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jun 20 2024 16:26:25 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Thu Jul 11 2024 19:06:12 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

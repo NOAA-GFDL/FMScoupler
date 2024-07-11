@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['tracer_5fexch_5find_5ftype_431',['tracer_exch_ind_type',['../structatm__land__ice__flux__exchange__mod_1_1tracer__exch__ind__type.html',1,'atm_land_ice_flux_exchange_mod']]],
-  ['tracer_5find_5ftype_432',['tracer_ind_type',['../structatm__land__ice__flux__exchange__mod_1_1tracer__ind__type.html',1,'atm_land_ice_flux_exchange_mod']]]
+  ['surface_5fflux_546',['surface_flux',['../interfacesurface__flux__mod_1_1surface__flux.html',1,'surface_flux_mod']]]
 ];

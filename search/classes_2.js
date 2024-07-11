@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['put_5flogical_5fto_5freal_429',['put_logical_to_real',['../interfaceatm__land__ice__flux__exchange__mod_1_1put__logical__to__real.html',1,'atm_land_ice_flux_exchange_mod']]]
+  ['ice_5fdata_5ftype_544',['ice_data_type',['../structice__model__mod_1_1ice__data__type.html',1,'ice_model_mod']]]
 ];

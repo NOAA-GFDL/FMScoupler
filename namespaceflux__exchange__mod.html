@@ -123,11 +123,6 @@ Variables</h2></td></tr>
 <tr class="memitem:a2dea7a4b0778ca1121bda4c7c6be8a9b"><td class="memItemLeft" align="right" valign="top">real&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a2dea7a4b0778ca1121bda4c7c6be8a9b">z_ref_mom</a> = 10.</td></tr>
 <tr class="memdesc:a2dea7a4b0778ca1121bda4c7c6be8a9b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)  <a href="namespaceflux__exchange__mod.html#a2dea7a4b0778ca1121bda4c7c6be8a9b">More...</a><br /></td></tr>
 <tr class="separator:a2dea7a4b0778ca1121bda4c7c6be8a9b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a26ddd89d98ccfd23f971ae2e9152a977"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a26ddd89d98ccfd23f971ae2e9152a977">ex_u_star_smooth_bug</a> = .false.</td></tr>
-<tr class="memdesc:a26ddd89d98ccfd23f971ae2e9152a977"><td class="mdescLeft">&#160;</td><td class="mdescRight">By default, the global exchange grid <code>u_star</code> will not be interpolated from atmospheric grid, this is different from Jakarta behavior and will change answers. So to preserve Jakarta behavior and reproduce answers explicitly set this namelist variable to .true. in input.nml.  <a href="namespaceflux__exchange__mod.html#a26ddd89d98ccfd23f971ae2e9152a977">More...</a><br /></td></tr>
-<tr class="separator:a26ddd89d98ccfd23f971ae2e9152a977"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1731b0c1ba2addb0cd311ea19c4da077"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a1731b0c1ba2addb0cd311ea19c4da077">sw1way_bug</a> = .false.</td></tr>
-<tr class="separator:a1731b0c1ba2addb0cd311ea19c4da077"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afb7b20d6cf50c73ac40939c022fddb32"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#afb7b20d6cf50c73ac40939c022fddb32">do_area_weighted_flux</a> = .FALSE.</td></tr>
 <tr class="separator:afb7b20d6cf50c73ac40939c022fddb32"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a85a4e48184ac3df1924a4da5b3678836"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a85a4e48184ac3df1924a4da5b3678836">debug_stocks</a> = .FALSE.</td></tr>
@@ -456,31 +451,31 @@ Variables</h2></td></tr>
         <tr>
           <td class="memname">subroutine, public flux_exchange_mod::flux_check_stocks </td>
           <td>(</td>
-          <td class="paramtype">type(fmstime_type)&#160;</td>
+          <td class="paramtype">type(fmstime_type), intent(in)&#160;</td>
           <td class="paramname"><em>Time</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">type(atmos_data_type), optional&#160;</td>
+          <td class="paramtype">type(atmos_data_type), intent(inout), optional&#160;</td>
           <td class="paramname"><em>Atm</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">type(land_data_type), optional&#160;</td>
+          <td class="paramtype">type(land_data_type), intent(inout), optional&#160;</td>
           <td class="paramname"><em>Lnd</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">type(<a class="el" href="structice__model__mod_1_1ice__data__type.html">ice_data_type</a>), optional&#160;</td>
+          <td class="paramtype">type(<a class="el" href="structice__model__mod_1_1ice__data__type.html">ice_data_type</a>), intent(inout), optional&#160;</td>
           <td class="paramname"><em>Ice</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">type(ocean_state_type), optional, pointer&#160;</td>
+          <td class="paramtype">type(ocean_state_type), intent(inout), optional, pointer&#160;</td>
           <td class="paramname"><em>Ocn_state</em>&#160;</td>
         </tr>
         <tr>
@@ -1061,19 +1056,19 @@ Variables</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">real, dimension(:,:), intent(in)&#160;</td>
+          <td class="paramtype">real, dimension(:,:), intent(inout)&#160;</td>
           <td class="paramname"><em>rough_mom</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">real, dimension(:,:), intent(in)&#160;</td>
+          <td class="paramtype">real, dimension(:,:), intent(inout)&#160;</td>
           <td class="paramname"><em>rough_heat</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">real, dimension(:,:), intent(in)&#160;</td>
+          <td class="paramtype">real, dimension(:,:), intent(inout)&#160;</td>
           <td class="paramname"><em>rough_moist</em>, </td>
         </tr>
         <tr>
@@ -2015,30 +2010,6 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 
 <p>A structure for exchanging gas or tracer fluxes between the atmosphere and ocean, defined by the field table, as well as a place holder of intermediate calculations, such as piston velocities, and parameters that impact the fluxes. </p>
-
-</div>
-</div>
-<a id="a26ddd89d98ccfd23f971ae2e9152a977"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a26ddd89d98ccfd23f971ae2e9152a977">&#9670;&nbsp;</a></span>ex_u_star_smooth_bug</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">logical flux_exchange_mod::ex_u_star_smooth_bug = .false.</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p>By default, the global exchange grid <code>u_star</code> will not be interpolated from atmospheric grid, this is different from Jakarta behavior and will change answers. So to preserve Jakarta behavior and reproduce answers explicitly set this namelist variable to .true. in input.nml. </p>
 
 </div>
 </div>
@@ -3850,28 +3821,6 @@ Variables</h2></td></tr>
 
 </div>
 </div>
-<a id="a1731b0c1ba2addb0cd311ea19c4da077"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1731b0c1ba2addb0cd311ea19c4da077">&#9670;&nbsp;</a></span>sw1way_bug</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">logical flux_exchange_mod::sw1way_bug = .false.</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-</div>
-</div>
 <a id="a9ca37680c8e8fcbf1c7cb165299cc6d5"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a9ca37680c8e8fcbf1c7cb165299cc6d5">&#9670;&nbsp;</a></span>t_ca</h2>
 
@@ -4121,7 +4070,7 @@ Variables</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jun 20 2024 16:26:25 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Thu Jul 11 2024 19:06:12 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

@@ -97,6 +97,9 @@ Functions/Subroutines</h2></td></tr>
 <tr class="memitem:a43e1175ff9bf4096208baf7053b2669c"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a43e1175ff9bf4096208baf7053b2669c">ncar_ocean_fluxes_multilevel</a> (u_del, t, ts, q, qs, zu, zt, zq, avail, cd, ch, ce, ustar, bstar)</td></tr>
 <tr class="memdesc:a43e1175ff9bf4096208baf7053b2669c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Over-ocean fluxes following Large and Yeager (used in NCAR models) !  <a href="namespacesurface__flux__mod.html#a43e1175ff9bf4096208baf7053b2669c">More...</a><br /></td></tr>
 <tr class="separator:a43e1175ff9bf4096208baf7053b2669c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae6fbd060ae720e05102effeb8b044d30"><td class="memItemLeft" align="right" valign="top">subroutine&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#ae6fbd060ae720e05102effeb8b044d30">iter_monin_obukhov_ocean</a> (z_atm, u_atm, v_atm, w_atm, thv_atm, q_atm, u_surf, v_surf, thv_surf, q_surf0, rough_mom, rough_heat, rough_moist, cd_m, cd_t, cd_q, u_star, b_star, avail, seawater)</td></tr>
+<tr class="memdesc:ae6fbd060ae720e05102effeb8b044d30"><td class="mdescLeft">&#160;</td><td class="mdescRight">Update air-sea flux variables to be consistent with the concurrent atmospheric states.  <a href="namespacesurface__flux__mod.html#ae6fbd060ae720e05102effeb8b044d30">More...</a><br /></td></tr>
+<tr class="separator:ae6fbd060ae720e05102effeb8b044d30"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
 Variables</h2></td></tr>
@@ -118,6 +121,9 @@ Variables</h2></td></tr>
 <tr class="separator:a4d5ccaf8614f916474bf664f17c9f4c8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8d4afc63f10ef27e817f2af153991783"><td class="memItemLeft" align="right" valign="top">real&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a8d4afc63f10ef27e817f2af153991783">d608</a> = <a class="el" href="namespacesurface__flux__mod.html#a081d7ae26d8ea3d5d1dc439c4a3be90c">d378</a>/<a class="el" href="namespacesurface__flux__mod.html#a0e3ae511121a67f2b3ac5da1f97c379a">d622</a></td></tr>
 <tr class="separator:a8d4afc63f10ef27e817f2af153991783"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a430407a9f1208154bcfacbd357e883fb"><td class="memItemLeft" align="right" valign="top">character(len=32)&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a430407a9f1208154bcfacbd357e883fb">rough_scheme_ocean</a></td></tr>
+<tr class="memdesc:a430407a9f1208154bcfacbd357e883fb"><td class="mdescLeft">&#160;</td><td class="mdescRight">ocean roughness length scheme to be read from ocean_rough_nml  <a href="namespacesurface__flux__mod.html#a430407a9f1208154bcfacbd357e883fb">More...</a><br /></td></tr>
+<tr class="separator:a430407a9f1208154bcfacbd357e883fb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a20a47247f850d8adec96fd50382ff353"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a20a47247f850d8adec96fd50382ff353">no_neg_q</a> = .false.</td></tr>
 <tr class="memdesc:a20a47247f850d8adec96fd50382ff353"><td class="mdescLeft">&#160;</td><td class="mdescRight">If a_atm_in (specific humidity) is negative (because of numerical truncation), then override with 0.0.  <a href="namespacesurface__flux__mod.html#a20a47247f850d8adec96fd50382ff353">More...</a><br /></td></tr>
 <tr class="separator:a20a47247f850d8adec96fd50382ff353"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -148,6 +154,12 @@ Variables</h2></td></tr>
 <tr class="memitem:a7a001b64a7af7de49f02b3386b29207e"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a7a001b64a7af7de49f02b3386b29207e">ncar_ocean_flux_multilevel</a> = .false.</td></tr>
 <tr class="memdesc:a7a001b64a7af7de49f02b3386b29207e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Use NCAR climate model turbulent flux calculation described by Large and Yeager, allows for different reference height for wind, temp and spec. hum.  <a href="namespacesurface__flux__mod.html#a7a001b64a7af7de49f02b3386b29207e">More...</a><br /></td></tr>
 <tr class="separator:a7a001b64a7af7de49f02b3386b29207e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6b3f019016c57aa487b01d3304625f41"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a6b3f019016c57aa487b01d3304625f41">do_iter_monin_obukhov</a> = .false.</td></tr>
+<tr class="memdesc:a6b3f019016c57aa487b01d3304625f41"><td class="mdescLeft">&#160;</td><td class="mdescRight">If .TRUE, call monin obukhov funtcions a couple of times to update rough_mom, rough_heat, rough_moist, cd, ch, b_star, u_star.  <a href="namespacesurface__flux__mod.html#a6b3f019016c57aa487b01d3304625f41">More...</a><br /></td></tr>
+<tr class="separator:a6b3f019016c57aa487b01d3304625f41"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a0dde12495da696d1c077ac6ecb7c6714"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a0dde12495da696d1c077ac6ecb7c6714">use_u10_neutral</a> = .false.</td></tr>
+<tr class="memdesc:a0dde12495da696d1c077ac6ecb7c6714"><td class="mdescLeft">&#160;</td><td class="mdescRight">If .TRUE., use 10m neutral wind rather than the standard 10m wind to obtain rough_mom, rough_heat, rough_moist.  <a href="namespacesurface__flux__mod.html#a0dde12495da696d1c077ac6ecb7c6714">More...</a><br /></td></tr>
+<tr class="separator:a0dde12495da696d1c077ac6ecb7c6714"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ae9006d4cf180672ab7b529b22c3dbac8"><td class="memItemLeft" align="right" valign="top">real&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#ae9006d4cf180672ab7b529b22c3dbac8">bulk_zu</a> = 10.</td></tr>
 <tr class="memdesc:ae9006d4cf180672ab7b529b22c3dbac8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Reference height for wind speed (meters)  <a href="namespacesurface__flux__mod.html#ae9006d4cf180672ab7b529b22c3dbac8">More...</a><br /></td></tr>
 <tr class="separator:ae9006d4cf180672ab7b529b22c3dbac8"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -162,10 +174,190 @@ Variables</h2></td></tr>
 <tr class="separator:a20457ec53d55f2819c2109515b92a79f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a430e1f667917e25d8428390a7b4a3733"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a430e1f667917e25d8428390a7b4a3733">do_simple</a> = .false.</td></tr>
 <tr class="separator:a430e1f667917e25d8428390a7b4a3733"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aedbfeff1dd91e58e9795a6c9d16d936a"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#aedbfeff1dd91e58e9795a6c9d16d936a">niter_monin_obukhov</a> = 5</td></tr>
+<tr class="memdesc:aedbfeff1dd91e58e9795a6c9d16d936a"><td class="mdescLeft">&#160;</td><td class="mdescRight">iteration times to call iter_monin_obukhov_ocean. Typically 3-5 times should converge  <a href="namespacesurface__flux__mod.html#aedbfeff1dd91e58e9795a6c9d16d936a">More...</a><br /></td></tr>
+<tr class="separator:aedbfeff1dd91e58e9795a6c9d16d936a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Module for the calculation of fluxes on the exchange grids. </p>
 </div><h2 class="groupheader">Function/Subroutine Documentation</h2>
+<a id="ae6fbd060ae720e05102effeb8b044d30"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae6fbd060ae720e05102effeb8b044d30">&#9670;&nbsp;</a></span>iter_monin_obukhov_ocean()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">subroutine surface_flux_mod::iter_monin_obukhov_ocean </td>
+          <td>(</td>
+          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>z_atm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>u_atm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>v_atm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>w_atm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>thv_atm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>q_atm</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>u_surf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>v_surf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>thv_surf</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>q_surf0</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(inout)&#160;</td>
+          <td class="paramname"><em>rough_mom</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(inout)&#160;</td>
+          <td class="paramname"><em>rough_heat</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(inout)&#160;</td>
+          <td class="paramname"><em>rough_moist</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(inout)&#160;</td>
+          <td class="paramname"><em>cd_m</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(inout)&#160;</td>
+          <td class="paramname"><em>cd_t</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(inout)&#160;</td>
+          <td class="paramname"><em>cd_q</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(inout)&#160;</td>
+          <td class="paramname"><em>u_star</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">real, dimension(:), intent(inout)&#160;</td>
+          <td class="paramname"><em>b_star</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">logical, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>avail</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">logical, dimension(:), intent(in)&#160;</td>
+          <td class="paramname"><em>seawater</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">private</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Update air-sea flux variables to be consistent with the concurrent atmospheric states. </p>
+<dl class="section note"><dt>Note</dt><dd>Right now, it is only effective when ocean_rough = 'hwrf17', but this can be expanded if necessarily to incorporate other roughness schemies contact: <a href="#" onclick="location.href='mai'+'lto:'+'Kun'+'.G'+'ao@'+'no'+'aa.'+'go'+'v'; return false;">Kun.G<span style="display: none;">.nosp@m.</span>ao@n<span style="display: none;">.nosp@m.</span>oaa.g<span style="display: none;">.nosp@m.</span>ov</a>; <a href="#" onclick="location.href='mai'+'lto:'+'Bao'+'qi'+'ang'+'.X'+'ian'+'g@'+'noa'+'a.'+'gov'; return false;">Baoqi<span style="display: none;">.nosp@m.</span>ang.<span style="display: none;">.nosp@m.</span>Xiang<span style="display: none;">.nosp@m.</span>@noa<span style="display: none;">.nosp@m.</span>a.gov</a> </dd></dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramdir">[in]</td><td class="paramname">q_surf0</td><td>Surface air humidity </td></tr>
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">b_star</td><td>Turbulent buoyant scale </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">seawater</td><td>Indicates where liquid ocean water exists (.TRUE. if exchange cell is on liquid ocean water) </td></tr>
+  </table>
+  </dd>
+</dl>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">z_atm</td><td>Height at the lowest atmospheric level </td></tr>
+    <tr><td class="paramname">u_atm</td><td>Zonal wind velocity at the lowest atmospheric level </td></tr>
+    <tr><td class="paramname">v_atm</td><td>Meridional wind velocity at the lowest atmospheric level </td></tr>
+    <tr><td class="paramname">w_atm</td><td>Absolute wind at the lowest atmospheric level </td></tr>
+    <tr><td class="paramname">thv_atm</td><td>Surface air theta_v </td></tr>
+    <tr><td class="paramname">q_atm</td><td>Mixing ratio at lowest atmospheric level (kg/kg) </td></tr>
+    <tr><td class="paramname">u_surf</td><td>Zonal wind velocity at the Earth's surface </td></tr>
+    <tr><td class="paramname">v_surf</td><td>Meridional wind velocity at the Earth's surface </td></tr>
+    <tr><td class="paramname">thv_surf</td><td>Surface theta_v </td></tr>
+    <tr><td class="paramname">rough_mom</td><td>Momentum roughness length </td></tr>
+    <tr><td class="paramname">rough_heat</td><td>Heat roughness length </td></tr>
+    <tr><td class="paramname">rough_moist</td><td>Moisture roughness length </td></tr>
+    <tr><td class="paramname">cd_m</td><td>Momentum exchange coefficient </td></tr>
+    <tr><td class="paramname">cd_t</td><td>Heat exchange coefficient </td></tr>
+    <tr><td class="paramname">cd_q</td><td>Moisture exchange coefficient </td></tr>
+    <tr><td class="paramname">u_star</td><td>Turbulent velocity scale </td></tr>
+    <tr><td class="paramname">avail</td><td>.TRUE. where the exchange cell is active </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
 <a id="a4e53abf6229db4a6b3025f5333fe764d"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a4e53abf6229db4a6b3025f5333fe764d">&#9670;&nbsp;</a></span>ncar_ocean_fluxes()</h2>
 
@@ -792,19 +984,19 @@ Variables</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramtype">real, dimension(:), intent(inout)&#160;</td>
           <td class="paramname"><em>rough_mom</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramtype">real, dimension(:), intent(inout)&#160;</td>
           <td class="paramname"><em>rough_heat</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">real, dimension(:), intent(in)&#160;</td>
+          <td class="paramtype">real, dimension(:), intent(inout)&#160;</td>
           <td class="paramname"><em>rough_moist</em>, </td>
         </tr>
         <tr>
@@ -992,7 +1184,7 @@ Variables</h2></td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">avail</td><td>.TRUE. where the exchange cell is active</td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">gust</td><td>Gustiness factor</td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">cd_q</td><td>Moisture exchange coefficient</td></tr>
-    <tr><td class="paramdir">[in,out]</td><td class="paramname">q_surf</td><td>Mixing ratio at the Earth's surface (kg/kg)</td></tr>
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">rough_moist</td><td>Moisture roughness length</td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">dt</td><td>Time step (it is not used presently) </td></tr>
   </table>
   </dd>
@@ -1008,11 +1200,11 @@ Variables</h2></td></tr>
     <tr><td class="paramname">p_surf</td><td>Pressure at the Earth's surface </td></tr>
     <tr><td class="paramname">t_surf</td><td>Temp at the Earth's surface </td></tr>
     <tr><td class="paramname">t_ca</td><td>Air temp at the canopy </td></tr>
+    <tr><td class="paramname">q_surf</td><td>Mixing ratio at the Earth's surface (kg/kg) </td></tr>
     <tr><td class="paramname">u_surf</td><td>Zonal wind velocity at the Earth's surface </td></tr>
     <tr><td class="paramname">v_surf</td><td>Meridional wind velocity at the Earth's surface </td></tr>
     <tr><td class="paramname">rough_mom</td><td>Momentum roughness length </td></tr>
     <tr><td class="paramname">rough_heat</td><td>Heat roughness length </td></tr>
-    <tr><td class="paramname">rough_moist</td><td>Moisture roughness length </td></tr>
     <tr><td class="paramname">rough_scale</td><td>Scale factor used to topographic roughness calculation </td></tr>
     <tr><td class="paramname">flux_t</td><td>Sensible heat flux </td></tr>
     <tr><td class="paramname">flux_q</td><td>Evaporative water flux </td></tr>
@@ -1124,19 +1316,19 @@ Variables</h2></td></tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">real, dimension(:,:), intent(in)&#160;</td>
+          <td class="paramtype">real, dimension(:,:), intent(inout)&#160;</td>
           <td class="paramname"><em>rough_mom</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">real, dimension(:,:), intent(in)&#160;</td>
+          <td class="paramtype">real, dimension(:,:), intent(inout)&#160;</td>
           <td class="paramname"><em>rough_heat</em>, </td>
         </tr>
         <tr>
           <td class="paramkey"></td>
           <td></td>
-          <td class="paramtype">real, dimension(:,:), intent(in)&#160;</td>
+          <td class="paramtype">real, dimension(:,:), intent(inout)&#160;</td>
           <td class="paramname"><em>rough_moist</em>, </td>
         </tr>
         <tr>
@@ -1324,7 +1516,7 @@ Variables</h2></td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">avail</td><td>.TRUE. where the exchange cell is active</td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">gust</td><td>Gustiness factor</td></tr>
     <tr><td class="paramdir">[out]</td><td class="paramname">cd_q</td><td>Moisture exchange coefficient</td></tr>
-    <tr><td class="paramdir">[in,out]</td><td class="paramname">q_surf</td><td>Mixing ratio at the Earth's surface (kg/kg)</td></tr>
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">rough_moist</td><td>Moisture roughness length</td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">dt</td><td>Time step (it is not used presently) </td></tr>
   </table>
   </dd>
@@ -1340,11 +1532,11 @@ Variables</h2></td></tr>
     <tr><td class="paramname">p_surf</td><td>Pressure at the Earth's surface </td></tr>
     <tr><td class="paramname">t_surf</td><td>Temp at the Earth's surface </td></tr>
     <tr><td class="paramname">t_ca</td><td>Air temp at the canopy </td></tr>
+    <tr><td class="paramname">q_surf</td><td>Mixing ratio at the Earth's surface (kg/kg) </td></tr>
     <tr><td class="paramname">u_surf</td><td>Zonal wind velocity at the Earth's surface </td></tr>
     <tr><td class="paramname">v_surf</td><td>Meridional wind velocity at the Earth's surface </td></tr>
     <tr><td class="paramname">rough_mom</td><td>Momentum roughness length </td></tr>
     <tr><td class="paramname">rough_heat</td><td>Heat roughness length </td></tr>
-    <tr><td class="paramname">rough_moist</td><td>Moisture roughness length </td></tr>
     <tr><td class="paramname">rough_scale</td><td>Scale factor used to topographic roughness calculation </td></tr>
     <tr><td class="paramname">flux_t</td><td>Sensible heat flux </td></tr>
     <tr><td class="paramname">flux_q</td><td>Evaporative water flux </td></tr>
@@ -1548,6 +1740,30 @@ Variables</h2></td></tr>
   </tr>
 </table>
 </div><div class="memdoc">
+
+</div>
+</div>
+<a id="a6b3f019016c57aa487b01d3304625f41"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6b3f019016c57aa487b01d3304625f41">&#9670;&nbsp;</a></span>do_iter_monin_obukhov</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">logical surface_flux_mod::do_iter_monin_obukhov = .false.</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">private</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>If .TRUE, call monin obukhov funtcions a couple of times to update rough_mom, rough_heat, rough_moist, cd, ch, b_star, u_star. </p>
 
 </div>
 </div>
@@ -1781,6 +1997,30 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a id="aedbfeff1dd91e58e9795a6c9d16d936a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aedbfeff1dd91e58e9795a6c9d16d936a">&#9670;&nbsp;</a></span>niter_monin_obukhov</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">integer surface_flux_mod::niter_monin_obukhov = 5</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">private</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>iteration times to call iter_monin_obukhov_ocean. Typically 3-5 times should converge </p>
+
+</div>
+</div>
 <a id="a20a47247f850d8adec96fd50382ff353"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a20a47247f850d8adec96fd50382ff353">&#9670;&nbsp;</a></span>no_neg_q</h2>
 
@@ -1853,6 +2093,30 @@ Variables</h2></td></tr>
 
 </div>
 </div>
+<a id="a430407a9f1208154bcfacbd357e883fb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a430407a9f1208154bcfacbd357e883fb">&#9670;&nbsp;</a></span>rough_scheme_ocean</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">character(len=32) surface_flux_mod::rough_scheme_ocean</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">private</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>ocean roughness length scheme to be read from ocean_rough_nml </p>
+
+</div>
+</div>
 <a id="a9a34cdd6148cf5dcdf01aa7020bf1973"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a9a34cdd6148cf5dcdf01aa7020bf1973">&#9670;&nbsp;</a></span>tagname</h2>
 
@@ -1896,6 +2160,30 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 
 <p>An option to provide capability to run the Manabe Climate form of the surface flux (coded for legacy purposes). </p>
+
+</div>
+</div>
+<a id="a0dde12495da696d1c077ac6ecb7c6714"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a0dde12495da696d1c077ac6ecb7c6714">&#9670;&nbsp;</a></span>use_u10_neutral</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">logical surface_flux_mod::use_u10_neutral = .false.</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">private</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>If .TRUE., use 10m neutral wind rather than the standard 10m wind to obtain rough_mom, rough_heat, rough_moist. </p>
 
 </div>
 </div>
@@ -1948,7 +2236,7 @@ Variables</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jun 20 2024 16:26:25 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Thu Jul 11 2024 19:06:12 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>
