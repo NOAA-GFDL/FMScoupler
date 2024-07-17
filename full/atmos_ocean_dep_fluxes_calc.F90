@@ -31,8 +31,10 @@ contains
   !> \brief atmos_ocean_dep_fluxes_calc
   !
   !! \throw FATAL, "Number of gas fluxes not zero"
-  !! \throw FATAL, "atmos_ocean_dep_fluxes_calc: Bad parameter ([gas_fluxes%bc(n)%param(1)]) for air_sea_deposition for [gas_fluxes%bc(n)%name]"
-  !! \throw FATAL, "atmos_ocean_dep_fluxes_calc: Unknown implementation ([gas_fluxes%bc(n)%implementation] for [gas_fluxes%bc(n)%name]"
+  !! \throw FATAL, "atmos_ocean_dep_fluxes_calc: Bad parameter ([gas_fluxes%bc(n)%param(1)]) for air_sea_deposition for
+  !! [gas_fluxes%bc(n)%name]"
+  !! \throw FATAL, "atmos_ocean_dep_fluxes_calc: Unknown implementation ([gas_fluxes%bc(n)%implementation] for
+  !! [gas_fluxes%bc(n)%name]"
   subroutine atmos_ocean_dep_fluxes_calc(gas_fields_atm, gas_fields_ice, gas_fluxes, seawater)
     type(FmsCoupler1dBC_type), intent(in)    :: gas_fields_atm !< Structure containing atmospheric surface
                                                               !! variables that are used in the calculation

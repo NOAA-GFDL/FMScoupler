@@ -130,13 +130,13 @@ sequential patch number (starting from `01`).
 ### Changed
 - Changes routine names used for constants in order to compile with recent constants changes to FMS
 ### Fixed
-- FULL: Replaced a deprecated OpenMP routine causing warnings  
+- FULL: Replaced a deprecated OpenMP routine causing warnings
 - SIMPLE: Fixed a missing variable allocation that was causing failures with certain compilers
 
 ### Tag Commit Hashes
 2022.02-alpha1 de3e3cbca349021a545a500f5ba1af6af22acfae
 2022.02-alpha2 c23b6f3ff1f902adf1fa43f8a5c9d2307bd01106
-2022.02-beta1  2bb8f35e2f579e738b58c610c35ca9afd7e36358 
+2022.02-beta1  2bb8f35e2f579e738b58c610c35ca9afd7e36358
 
 ## [2022.01] - 2022-03-25
 ### Added
@@ -157,8 +157,8 @@ sequential patch number (starting from `01`).
 ### Added
 - FMS2_IO was implemented to the full coupler:
 	- The coupler restart files are now read with fms2_io's ascii_read
-	- Ascii writes are now done with fortran's open, close, and write. They are wrapped in an if, so that only the root pe does the io, newunit ensures that the unit number is unique for each file. 
-	- The variables named `unit` have been renamed to avoid fortran conflicts. 
+	- Ascii writes are now done with fortran's open, close, and write. They are wrapped in an if, so that only the root pe does the io, newunit ensures that the unit number is unique for each file.
+	- The variables named `unit` have been renamed to avoid fortran conflicts.
 	- The coupler type restarts are now written with fms2_io.
 	- The grid file is now read with fms2_io in: full/flux_exchange.F90:check_atm_grid
 - FMS2_IO was implemented to the simple coupler:
@@ -166,7 +166,7 @@ sequential patch number (starting from `01`).
 	- Removed the native formatted restart file code
 	- Fms2_io ascii_read is used to read to the coupler_restart
 	- Fotran's `open`, `close`, and `write` are used to write the coupler_restart
-	- Removed the read_grid_data and get_grid_size subroutines from simple/ice_model.F90. These are never used. 
+	- Removed the read_grid_data and get_grid_size subroutines from simple/ice_model.F90. These are never used.
 - Test cases added for varying the latitude of SST maximum in the simple coupler ice model.
 ### Changed
 - Changes all imports from FMS to use the global `FMS` module and the `FMSconstants` module
@@ -191,7 +191,8 @@ sequential patch number (starting from `01`).
     were written by default.
   - FMS2_io does not do this. Users can specify real long_names and units by calling register_variable_attribute.
 ### Removed
-- FMS_io was almost completely removed from FMScoupler and replaced with fms2_io. 
+- FMS_io was almost completely removed from FMScoupler and replaced with fms2_io
+	- The only remaining usage is `fms_io_exit` calls. These calls are made at the end of each coupler driver and only called if the CPP macro `use_deprecated_io` is set.
 ### Tag Commit Hashes
 - 2021.02-alpha1 (c1c8044a6c3efb8ddbbd01a3769bbf2610b34937)
 - 2021.02-alpha2 (c1c8044a6c3efb8ddbbd01a3769bbf2610b34937)
@@ -204,7 +205,7 @@ sequential patch number (starting from `01`).
 - SURFACE_FLUX: Adds a new functionality to enable using NCAR surface fluxes in experiments
 
 ### Fixed
-- SIMPLE_COUPLER: Fixed issue with simpler coupler not calling data_override_init during initialization, will now call if the data_table file exists 
+- SIMPLE_COUPLER: Fixed issue with simpler coupler not calling data_override_init during initialization, will now call if the data_table file exists
 
 ## Tag Commit Hashes
 - 2021.01-beta1 (7e7212c6db62aa7916af0f6ada59c5a83355c1b8)

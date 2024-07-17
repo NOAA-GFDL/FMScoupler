@@ -1,4 +1,4 @@
-name: FMScoupler update doxygen site 
+name: FMScoupler update doxygen site
 
 on: [release, workflow_dispatch]
 

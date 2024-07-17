@@ -63,8 +63,10 @@ contains
     type(ice_data_type),           intent(inout) :: Ice !< A derived data type to specify ice boundary data
     type(ocean_public_type),       intent(inout) :: Ocean !< A derived data type to specify ocean boundary data
     type(ocean_state_type),        pointer       :: Ocean_state
-    type(ice_ocean_boundary_type), intent(inout) :: ice_ocean_boundary !< A derived data type to specify properties and fluxes passed from ice to ocean
-    type(ocean_ice_boundary_type), intent(inout) :: ocean_ice_boundary !< A derived data type to specify properties and fluxes passed from ocean to ice
+    type(ice_ocean_boundary_type), intent(inout) :: ice_ocean_boundary !< A derived data type to specify properties and
+                                                                       !! fluxes passed from ice to ocean
+    type(ocean_ice_boundary_type), intent(inout) :: ocean_ice_boundary !< A derived data type to specify properties and
+                                                                       !! fluxes passed from ocean to ice
     real,                          intent(in)    :: Dt_cpl_in
     logical,                       intent(in)    :: debug_stocks_in
     logical,                       intent(in)    :: do_area_weighted_flux_in
@@ -228,8 +230,8 @@ contains
 
     type(ice_data_type),             intent(in)  :: Ice  !< A derived data type to specify ice boundary data
     type(ocean_public_type),         intent(in)  :: Ocean !< A derived data type to specify ocean boundary data
-    type(ice_ocean_boundary_type), intent(inout) :: Ice_Ocean_Boundary !< A derived data type to specify properties and fluxes
-                                                         !! passed from ice to ocean
+    type(ice_ocean_boundary_type), intent(inout) :: Ice_Ocean_Boundary !< A derived data type to specify properties and
+                                                         !! fluxes passed from ice to ocean
 
     integer       :: m
     integer       :: n
@@ -322,8 +324,8 @@ contains
   subroutine flux_ice_to_ocean_finish ( Time, Ice_Ocean_Boundary )
 
     type(FmsTime_type),                 intent(in)  :: Time !< Current time
-    type(ice_ocean_boundary_type), intent(inout) :: Ice_Ocean_Boundary !< A derived data type to specify properties and fluxes
-                                                         !! passed from ice to ocean
+    type(ice_ocean_boundary_type), intent(inout) :: Ice_Ocean_Boundary !< A derived data type to specify properties and
+                                                         !! fluxes passed from ice to ocean
 
     call fms_data_override('OCN', 'u_flux',    Ice_Ocean_Boundary%u_flux   , Time )
     call fms_data_override('OCN', 'v_flux',    Ice_Ocean_Boundary%v_flux   , Time )
@@ -379,8 +381,8 @@ contains
 
     type(ocean_public_type),         intent(in)  :: Ocean !< A derived data type to specify ocean boundary data
     type(ice_data_type),             intent(in)  :: Ice   !< A derived data type to specify ice boundary data
-    type(ocean_ice_boundary_type), intent(inout) :: Ocean_Ice_Boundary !< A derived data type to specify properties and fluxes
-                                                          !! passed from ocean to ice
+    type(ocean_ice_boundary_type), intent(inout) :: Ocean_Ice_Boundary !< A derived data type to specify properties and
+                                                          !! fluxes passed from ocean to ice
     real, allocatable, dimension(:,:) :: tmp
     integer       :: m
     integer       :: n
@@ -421,7 +423,8 @@ contains
             call fms_mpp_domains_redistribute(Ocean%Domain, Ocean%s_surf, Ice%slow_Domain_NH, Ocean_Ice_Boundary%s)
 
        if( ASSOCIATED(Ocean_Ice_Boundary%sea_level) )             &
-            call fms_mpp_domains_redistribute(Ocean%Domain, Ocean%sea_lev, Ice%slow_Domain_NH, Ocean_Ice_Boundary%sea_level)
+            call fms_mpp_domains_redistribute(Ocean%Domain, Ocean%sea_lev, Ice%slow_Domain_NH, &
+                                              Ocean_Ice_Boundary%sea_level)
 
        if( ASSOCIATED(Ocean_Ice_Boundary%frazil) ) then
           if(do_area_weighted_flux) then
@@ -434,7 +437,7 @@ contains
                call divide_by_area(data=Ocean_Ice_Boundary%frazil, area=Ice%area)
              if (Ocean%is_ocean_pe) deallocate(tmp)
           else
-             call fms_mpp_domains_redistribute(Ocean%Domain, Ocean%frazil, Ice%slow_Domain_NH, Ocean_Ice_Boundary%frazil)
+             call fms_mpp_domains_redistribute(Ocean%Domain,Ocean%frazil, Ice%slow_Domain_NH, Ocean_Ice_Boundary%frazil)
           endif
        endif
 
@@ -457,8 +460,8 @@ contains
 
     type(FmsTime_type),                 intent(in)  :: Time  !< Current time
     type(ice_data_type),             intent(in)  :: Ice   !< A derived data type to specify ice boundary data
-    type(ocean_ice_boundary_type), intent(inout) :: Ocean_Ice_Boundary !< A derived data type to specify properties and fluxes
-                                                          !! passed from ocean to ice
+    type(ocean_ice_boundary_type), intent(inout) :: Ocean_Ice_Boundary !< A derived data type to specify properties and
+                                                          !! fluxes passed from ocean to ice
     real          :: from_dq
 
     call fms_data_override('ICE', 'u',         Ocean_Ice_Boundary%u,         Time)
@@ -474,8 +477,10 @@ contains
 
     ! frazil (already in J/m^2 so no need to multiply by Dt_cpl)
     from_dq = SUM( Ice%area * Ocean_Ice_Boundary%frazil )
-    fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
-    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
+    fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = &
+            fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
+    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
 
   end subroutine flux_ocean_to_ice_finish
 
@@ -495,33 +500,43 @@ contains
 
     ! precip - evap
     from_dq = Dt_cpl * SUM( Ice%area * (Ice%lprec+Ice%fprec-Ice%flux_q) )
-    fms_stock_constants_ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = fms_stock_constants_ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
-    fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) = fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) + from_dq
+    fms_stock_constants_ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = &
+            fms_stock_constants_ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
+    fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) + from_dq
 
     ! river
     from_dq = Dt_cpl * SUM( Ice%area * (Ice%runoff + Ice%calving) )
-    fms_stock_constants_ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = fms_stock_constants_ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
-    fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) = fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) + from_dq
+    fms_stock_constants_ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = &
+            fms_stock_constants_ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
+    fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) + from_dq
 
     ! sensible heat + shortwave + longwave + latent heat
     from_dq = Dt_cpl * SUM( Ice%area * ( &
          &   Ice%flux_sw_vis_dir+Ice%flux_sw_vis_dif &
          & + Ice%flux_sw_nir_dir+Ice%flux_sw_nir_dif + Ice%flux_lw &
          & - (Ice%fprec + Ice%calving)*HLF - Ice%flux_t - Ice%flux_q*HLV) )
-    fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
-    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
+    fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = &
+            fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
+    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
 
     ! heat carried by river + pme (assuming reference temperature of 0 degC and river/pme temp = surface temp)
     ! Note: it does not matter what the ref temperature is but it must be consistent with that in OCN and ICE
     from_dq = Dt_cpl * SUM( Ice%area * ( &
          & (Ice%lprec+Ice%fprec-Ice%flux_q + Ice%runoff+Ice%calving)*CP_OCEAN*Ice%SST_C(:,:)) )
-    fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
-    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
+    fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = &
+            fms_stock_constants_ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
+    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
 
     !SALT flux
     from_dq = Dt_cpl* SUM( Ice%area * ( -Ice%flux_salt ))
-    fms_stock_constants_ice_stock(ISTOCK_SALT)%dq(ISTOCK_BOTTOM) = fms_stock_constants_ice_stock(ISTOCK_SALT)%dq(ISTOCK_BOTTOM) - from_dq
-    fms_stock_constants_ocn_stock(ISTOCK_SALT)%dq(ISTOCK_TOP   ) = fms_stock_constants_ocn_stock(ISTOCK_SALT)%dq(ISTOCK_TOP   ) + from_dq
+    fms_stock_constants_ice_stock(ISTOCK_SALT)%dq(ISTOCK_BOTTOM) = &
+            fms_stock_constants_ice_stock(ISTOCK_SALT)%dq(ISTOCK_BOTTOM) - from_dq
+    fms_stock_constants_ocn_stock(ISTOCK_SALT)%dq(ISTOCK_TOP   ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_SALT)%dq(ISTOCK_TOP   ) + from_dq
 
 
   end subroutine flux_ice_to_ocean_stocks
@@ -530,10 +545,10 @@ contains
   !> \brief  Updates Ocean stocks due to input that the Ocean model gets.
   !!
   !! This subroutine updates the stocks of Ocean by the amount of input that the Ocean gets from Ice component.
-  !! Unlike subroutine flux_ice_to_ocean_stocks() that uses Ice%fluxes to update the stocks due to the amount of output from Ice
-  !! this subroutine uses Ice_Ocean_boundary%fluxes to calculate the amount of input to the Ocean. These fluxes are the ones
-  !! that Ocean model uses internally to calculate its budgets. Hence there should be no difference between this input and what
-  !! Ocean model internal diagnostics uses.
+  !! Unlike subroutine flux_ice_to_ocean_stocks() that uses Ice%fluxes to update the stocks due to the amount of output
+  !! from Ice,this subroutine uses Ice_Ocean_boundary%fluxes to calculate the amount of input to the Ocean. These fluxes
+  !! are the ones that Ocean model uses internally to calculate its budgets. Hence there should be no difference between
+  !! this input and what Ocean model internal diagnostics uses.
   !! This bypasses the possible mismatch in cell areas between Ice and Ocean in diagnosing the stocks of Ocean
   !! and should report a conserving Ocean component regardless of the glitches in fluxes.
   !!
@@ -562,11 +577,13 @@ contains
     ! fluxes from ice -> ocean, integrate over surface and in time
 
     ! precip - evap
-    from_dq = SUM( ocean_cell_area * wet * (Ice_Ocean_Boundary%lprec+Ice_Ocean_Boundary%fprec-Ice_Ocean_Boundary%q_flux) )
-    fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq_IN(ISTOCK_TOP   ) = fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq_IN(ISTOCK_TOP   ) + from_dq * Dt_cpl
+    from_dq = SUM(ocean_cell_area * wet * (Ice_Ocean_Boundary%lprec+Ice_Ocean_Boundary%fprec-Ice_Ocean_Boundary%q_flux))
+    fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq_IN(ISTOCK_TOP   ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq_IN(ISTOCK_TOP   ) + from_dq * Dt_cpl
 
     from_dq = SUM( ocean_cell_area * wet * (Ice_Ocean_Boundary%runoff+Ice_Ocean_Boundary%calving) )
-    fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq_IN(ISTOCK_SIDE  ) = fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq_IN(ISTOCK_SIDE  ) + from_dq * Dt_cpl
+    fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq_IN(ISTOCK_SIDE  ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_WATER)%dq_IN(ISTOCK_SIDE  ) + from_dq * Dt_cpl
 
     ! sensible heat + shortwave + longwave + latent heat
 
@@ -576,7 +593,8 @@ contains
          - (Ice_Ocean_Boundary%fprec + Ice_Ocean_Boundary%calving)*HLF &
          - Ice_Ocean_Boundary%t_flux - Ice_Ocean_Boundary%q_flux*HLV ))
 
-    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE  ) = fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE  ) + from_dq * Dt_cpl
+    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE  ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE  ) + from_dq * Dt_cpl
 
     ! heat carried by river + pme (assuming reference temperature of 0 degC and river/pme temp = surface temp)
     ! Note: it does not matter what the ref temperature is but it must be consistent with that in OCN and ICE
@@ -586,21 +604,25 @@ contains
          +Ice_Ocean_Boundary%calving * t_calving &
          +Ice_Ocean_Boundary%runoff  * t_runoff  ))
 
-    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE  ) = fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE ) + from_dq * Dt_cpl
+    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE  ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE ) + from_dq * Dt_cpl
 
     !   Bottom heat flux
     from_dq = - SUM( ocean_cell_area * wet * btfHeat)
 
-    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN( ISTOCK_BOTTOM ) = fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_BOTTOM ) + from_dq * Dt_cpl
+    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN( ISTOCK_BOTTOM ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_BOTTOM ) + from_dq * Dt_cpl
 
     !   Frazil heat
 
     from_dq =  SUM( ocean_cell_area *wet * Ocean%frazil )
-    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE  ) = fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE ) + from_dq
+    fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE  ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_HEAT)%dq_IN(ISTOCK_SIDE ) + from_dq
 
     !SALT flux
     from_dq = SUM( ocean_cell_area * wet * ( -Ice_Ocean_Boundary%salt_flux))
-    fms_stock_constants_ocn_stock(ISTOCK_SALT)%dq_IN(ISTOCK_TOP  ) = fms_stock_constants_ocn_stock(ISTOCK_SALT)%dq_IN(ISTOCK_TOP   ) + from_dq  * Dt_cpl
+    fms_stock_constants_ocn_stock(ISTOCK_SALT)%dq_IN(ISTOCK_TOP  ) = &
+            fms_stock_constants_ocn_stock(ISTOCK_SALT)%dq_IN(ISTOCK_TOP   ) + from_dq  * Dt_cpl
 
 
   end subroutine flux_ocean_from_ice_stocks
