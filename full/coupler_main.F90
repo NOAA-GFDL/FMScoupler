@@ -336,7 +336,6 @@ program coupler_main
   use FMS
   use full_coupler_mod
 
-  use iso_fortran_env
   implicit none
 
   !> model defined types.
