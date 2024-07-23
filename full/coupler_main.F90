@@ -523,7 +523,7 @@ program coupler_main
 !$OMP&    SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
 !$OMP&    SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&    SHARED(Ocean_ice_boundary) &
-!$OMP&    SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
+!$OMP&    SHARED(do_debug, do_flux, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
 !$OMP&    SHARED(coupler_clocks, current_timestep, coupler_chksum_obj)
 !$      if (omp_get_thread_num() == 0) then
 !$OMP     PARALLEL &
@@ -533,7 +533,7 @@ program coupler_main
 !$OMP&      SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
 !$OMP&      SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&      SHARED(Ocean_ice_boundary) &
-!$OMP&      SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
+!$OMP&      SHARED(do_debug, do_flux, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
 !$OMP&      SHARED(coupler_clocks, current_timestep, coupler_chksum_obj)
 !$        call omp_set_num_threads(atmos_nthreads)
 !$        dsec=omp_get_wtime()
@@ -553,7 +553,7 @@ program coupler_main
                                                              current_timestep, coupler_chksum_obj, coupler_clocks)
 
           !> checksums are computed if do_chksum=.True.
-          call coupler_flux_down_from_atmos(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, &
+          if (do_flux) call coupler_flux_down_from_atmos(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, &
               Atmos_ice_boundary, Time_atmos, current_timestep, coupler_clocks, coupler_chksum_obj)
 
           !--------------------------------------------------------------
@@ -568,13 +568,13 @@ program coupler_main
 
           !--------------------------------------------------------------
           !> atmosphere up
-          call coupler_flux_up_to_atmos(Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary,&
+          if (do_flux) call coupler_flux_up_to_atmos(Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary,&
                                         Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
 
           if (do_atmos) call coupler_update_atmos_model_up(Atm, Land_ice_atmos_boundary, current_timestep, &
                                                            coupler_chksum_obj, coupler_clocks)
 
-          call coupler_flux_atmos_to_ocean(Atm, Atmos_ice_boundary, Ice, Time_atmos)
+          if (do_flux) call coupler_flux_atmos_to_ocean(Atm, Atmos_ice_boundary, Ice, Time_atmos)
 
           !--------------
           if (do_concurrent_radiation) call fms_mpp_clock_end(coupler_clocks%concurrent_atmos)
