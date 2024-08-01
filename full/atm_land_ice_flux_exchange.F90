@@ -72,7 +72,7 @@ module atm_land_ice_flux_exchange_mod
 !! FMS
 use FMS
 use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
-                        PI, CP_OCEAN, WTMCO2, WTMC, EPSLN, GRAV
+                        PI, CP_OCEAN, WTMCO2, WTMC, EPSLN, GRAV, WTMH2O
 
   implicit none
   include 'netcdf.inc'
@@ -157,6 +157,7 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
                                             !! change answers.  So to preserve Jakarta behavior and reproduce answers
                                             !! explicitly set this namelist variable to .true. in input.nml.
   logical :: sw1way_bug = .false.
+  logical :: ocn_atm_flux_vmr_bug
   logical :: do_area_weighted_flux = .FALSE.
   logical :: do_forecast = .false.
   integer :: nblocks = 1
@@ -239,16 +240,16 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
   type :: tracer_ind_type
      integer :: atm, ice, lnd !< indices of the tracer in the respective models
   end type tracer_ind_type
-  type(tracer_ind_type), allocatable :: tr_table(:) !< table of tracer indices
+  type(tracer_ind_type), allocatable :: tr_table(:) !< table of tracers passed through flux exchange
   type :: tracer_exch_ind_type
      integer :: exch = 0  !< exchange grid index
      integer :: ice = 0   !< ice model index
      integer :: lnd = 0   !< land model index
   end type tracer_exch_ind_type
   type(tracer_exch_ind_type), allocatable :: tr_table_map(:) !< map atm tracers to exchange, ice and land variables
-  integer :: isphum = NO_TRACER       !< index of specific humidity tracer in tracer table
-  integer :: ico2   = NO_TRACER       !< index of co2 tracer in tracer table
-  integer :: inh3   = NO_TRACER       !< index of nh3 tracer in tracer table
+  integer :: isphum = NO_TRACER       !< index of specific humidity tracer in the array of tracers passed through flux exchange (tr_table)
+  integer :: ico2   = NO_TRACER       !< index of co2 tracer in the array of tracers passed through flux exchange (tr_table)
+  integer :: inh3   = NO_TRACER       !< index of nh3 tracer in the array of tracers passed through flux exchange (tr_table)
   type(FmsCoupler1dBC_type), pointer :: ex_gas_fields_atm=>NULL() !< gas fields in atm
                                                                  !< Place holder for various atmospheric fields.
   type(FmsCoupler1dBC_type), pointer :: ex_gas_fields_ice=>NULL() ! gas fields on ice
@@ -296,6 +297,7 @@ contains
                                              Dt_atm_in, Dt_cpl_in, z_ref_heat_in, z_ref_mom_in,                 &
                                              ex_u_star_smooth_bug_in, sw1way_bug_in, do_area_weighted_flux_in,  &
                                              do_forecast_in, partition_fprec_from_lprec_in, scale_precip_2d_in, &
+                                             ocn_atm_flux_vmr_bug_in, &
                                              nblocks_in, cplClock_in, ex_gas_fields_atm_in, &
                                              ex_gas_fields_ice_in, ex_gas_fluxes_in)
     type(FmsTime_type),                   intent(in)    :: Time !< The model's current time
@@ -309,7 +311,7 @@ contains
     real,                 intent(in)    :: Dt_cpl_in !< Coupled time step in seconds
     real,                 intent(in)    :: z_ref_heat_in, z_ref_mom_in
     logical,              intent(in)    :: ex_u_star_smooth_bug_in, scale_precip_2d_in
-    logical,              intent(in)    :: sw1way_bug_in, do_area_weighted_flux_in
+    logical,              intent(in)    :: sw1way_bug_in, do_area_weighted_flux_in, ocn_atm_flux_vmr_bug_in
     logical,              intent(in)    :: do_forecast_in, partition_fprec_from_lprec_in
     integer,              intent(in)    :: nblocks_in
     integer,              intent(in)    :: cplClock_in
@@ -334,6 +336,7 @@ contains
     z_ref_mom = z_ref_mom_in
     ex_u_star_smooth_bug = ex_u_star_smooth_bug_in
     sw1way_bug = sw1way_bug_in
+    ocn_atm_flux_vmr_bug = ocn_atm_flux_vmr_bug_in
     do_area_weighted_flux = do_area_weighted_flux_in
     do_forecast = do_forecast_in
     partition_fprec_from_lprec = partition_fprec_from_lprec_in
@@ -1324,8 +1327,13 @@ contains
                 if (ex_seawater(i)>0.0) then
                    if (fms_mpp_lowercase(trim(tr_units)).eq."vmr") then
                       ! in mol/m2/s but from land model it should be in vmr * kg/m2/s
-                      ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) * WTMAIR*1.0e-3 &
+                      if (ocn_atm_flux_vmr_bug) then
+                           ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) * WTMAIR*1.0e-3 &
                            / (1.-ex_tr_atm(i,isphum))
+                      else
+                         ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) * 1.0e-3*WTMAIR*WTMH2O/((1.-ex_tr_atm(i,isphum))*WTMH2O+ex_tr_atm(i,isphum)*WTMAIR)
+
+                      end if
                    else
                    ! jgj: convert to kg co2/m2/sec for atm
                    ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) * ex_gas_fluxes%bc(n)%mol_wt * 1.0e-03
@@ -3123,9 +3131,16 @@ contains
           if (id_tr_mol_flux(tr) > 0 .and. fms_mpp_lowercase(trim(tr_name))=='co2') then
                used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
     !sometimes in 2018 f1p for vmr tracers
-           elseif (id_tr_mol_flux(tr) > 0 .and. fms_mpp_lowercase(trim(tr_units)).eq."vmr") then
-              call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
-              used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMAIR, Time)
+            elseif (id_tr_mol_flux(tr) > 0 .and. fms_mpp_lowercase(trim(tr_units)).eq."vmr") then
+               if (ocn_atm_flux_vmr_bug) then
+                  call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
+                  used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMAIR, Time)                  
+               else
+                  !flux is in vmr * kg/m2/s. Divide by MW_air
+                  call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr)*((1.-ex_tr_surf_new(:,isphum))*WTMH2O+ex_tr_surf_new(:,isphum)*WTMAIR)/(1e-3*WTMAIR*WTMH2O) , xmap_sfc)
+                  used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm, Time)
+               end if
+
            endif
         endif
         if ( id_tr_con_atm(tr) > 0 ) then
@@ -3154,8 +3169,14 @@ contains
              if (fms_mpp_lowercase(trim(tr_name))=='co2') then
                 call send_tile_data (id_tr_mol_flux_land(tr), diag_land*1000./WTMCO2)
              elseif (fms_mpp_lowercase(trim(tr_units)).eq.'vmr') then
-                call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
-                call send_tile_data (id_tr_mol_flux_land(tr), diag_atm*1000./WTMAIR )
+                if (ocn_atm_flux_vmr_bug) then
+                   call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
+                   call send_tile_data (id_tr_mol_flux_land(tr), diag_land*1000./WTMAIR )
+                else                   
+                  !flux is in vmr * kg/m2/s. Divide by MW_air
+                  call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', ex_flux_tr(:,tr)*((1.-ex_tr_surf_new(:,isphum))*WTMH2O+ex_tr_surf_new(:,isphum)*WTMAIR)/(1e-3*WTMAIR*WTMH2O) , xmap_sfc)
+                  call send_tile_data ( id_tr_mol_flux_land(tr), diag_land)
+               end if
              endif
           endif
        endif
@@ -3725,6 +3746,7 @@ contains
        allocate(id_tr_mol_flux_land(n_exch_tr))
        allocate(id_tr_con_atm_land(n_exch_tr))
        allocate(id_tr_con_ref_land(n_exch_tr))
+       allocate(id_tr_ref_land(n_exch_tr))
 
        do tr = 1, n_exch_tr
           call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, name, longname, units )
@@ -3743,6 +3765,13 @@ contains
              id_tr_mol_flux_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_mol_flux', Land_axes, Time, &
                   'flux of '//trim(longname), 'mol/(m2 s)', missing_value=-1.0 )
           endif
+          ! we skip sphum because it is already available as flux_land/q_ref
+          if ( tr .ne. isphum ) then
+             id_tr_ref_land(tr) = register_tiled_diag_field( 'flux_land', trim(name)//'_ref', Land_axes, Time, &
+                  trim(longname)//' at '//trim(label_zh)//' over land', trim(units),missing_value=-1.0)
+          else
+             id_tr_ref_land(tr) = -1
+          end if
        enddo
 #else
        id_t_ref_land = &
@@ -3813,14 +3842,13 @@ contains
     allocate(id_tr_con_atm(n_exch_tr))
     allocate(id_tr_con_ref(n_exch_tr))
     allocate(id_tr_ref(n_exch_tr))
-    allocate(id_tr_ref_land(n_exch_tr))
 
     do tr = 1, n_exch_tr
        call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, name, longname, units )
 
-       id_tr_con_atm(tr) = register_tiled_diag_field( mod_name, trim(name)//'_tot_con_atm', atmos_axes, Time, &
+       id_tr_con_atm(tr) = fms_diag_register_diag_field( mod_name, trim(name)//'_tot_con_atm', atmos_axes, Time, &
             'vd of '//trim(longname), 'm/s', missing_value=-1.0 )
-       id_tr_con_ref(tr) = register_tiled_diag_field( mod_name, trim(name)//'_tot_con_ref', atmos_axes, Time, &
+       id_tr_con_ref(tr) = fms_diag_register_diag_field( mod_name, trim(name)//'_tot_con_ref', atmos_axes, Time, &
             'vd of '//trim(longname)//' at '//trim(label_zh), 'm/s', missing_value=-1.0 )
 
        id_tr_atm(tr) = fms_diag_register_diag_field (mod_name, trim(name)//'_atm', atmos_axes, Time, &
@@ -3832,11 +3860,8 @@ contains
        if ( tr .ne. isphum ) then
           id_tr_ref(tr) = fms_diag_register_diag_field (mod_name, trim(name)//'_ref',  atmos_axes, Time, &
                trim(longname)//' at '//trim(label_zh), trim(units),missing_value=-1.0)
-          id_tr_ref_land(tr) = fms_diag_register_diag_field ('flux_land', trim(name)//'_ref_land', land_axes, Time, &
-               trim(longname)//' at '//trim(label_zh)//' over land', trim(units),missing_value=-1.0)
        else
           id_tr_ref(tr) = -1
-          id_tr_ref_land(tr) = -1
        end if
        !! add dryvmr co2_surf and co2_atm
        if ( fms_mpp_lowercase(trim(name))=='co2') then
