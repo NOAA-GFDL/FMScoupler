@@ -324,7 +324,7 @@ contains
 
 !-----------------------------------------------------------------------
 !----- write time stamps (for start time and end time) ------
-    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() )
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) &
       open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
 
     month = fms_time_manager_month_name(date(2))
