@@ -533,8 +533,9 @@ program coupler_main
 
           !--------------------------------------------------------------
           !> atmosphere up
-          if (do_flux) call coupler_flux_up_to_atmos(Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary,&
-                                        Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
+          if (do_flux) call coupler_flux_up_to_atmos(Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, &
+                                        Atmos_ice_boundary, Time_atmos, current_timestep, coupler_chksum_obj, &
+                                        coupler_clocks)
 
           if (do_atmos) call coupler_update_atmos_model_up(Atm, Land_ice_atmos_boundary, current_timestep, &
                                                            coupler_chksum_obj, coupler_clocks)
