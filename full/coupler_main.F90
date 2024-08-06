@@ -461,7 +461,7 @@ program coupler_main
       !> begin atm_clock_1
       call fms_mpp_clock_begin(coupler_clocks%atm)
 
-      call coupler_generate_sfc_xgrid(Land, Ice, coupler_clocks)
+      if (do_flux) call coupler_generate_sfc_xgrid(Land, Ice, coupler_clocks)
       call send_ice_mask_sic(Time)
 
       !-----------------------------------------------------------------------

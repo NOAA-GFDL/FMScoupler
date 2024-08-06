@@ -1047,7 +1047,7 @@ contains
     endif
 
     call fms_mpp_clock_begin(coupler_clocks%flux_exchange_init)
-    call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
+    if(do_flux) call flux_exchange_init ( Time, Atm, Land, Ice, Ocean, Ocean_state,&
              atmos_ice_boundary, land_ice_atmos_boundary, &
              land_ice_boundary, ice_ocean_boundary, ocean_ice_boundary, &
          do_ocean, slow_ice_ocean_pelist, dt_atmos=dt_atmos, dt_cpld=dt_cpld)
