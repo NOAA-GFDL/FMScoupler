@@ -31,6 +31,7 @@ use atmos_model_mod, only: atmos_model_init, atmos_model_end,  &
                            update_atmos_radiation_physics,     &
                            update_atmos_model_state,           &
                            atmos_data_type, atmos_model_restart
+use platform_mod,    only: r4_kind, r8_kind
 !--- FMS old io
 #ifdef use_deprecated_io
 use fms_io_mod, only: fms_io_exit!< This can't be removed until fms_io is not used at all
@@ -70,15 +71,16 @@ implicit none
 
 ! ----- namelist -----
    integer, dimension(6) :: current_date = (/ 0, 0, 0, 0, 0, 0 /) !< The date that the current integration starts with
-   character(len=17) :: calendar = '                 '  !< The calendar type used by the current integration.  Valid values are
-                                                        !! consistent with the time_manager module: 'gregorian', 'julian',
-                                                        !! 'noleap', or 'thirty_day'. The value 'no_calendar' cannot be used
-                                                        !! because the time_manager's date !! functions are used.
+   character(len=17) :: calendar = '                 '  !< The calendar type used by the current integration.
+                                                        !! Valid values are consistent with the time_manager module:
+                                                        !! 'gregorian', 'julian', 'noleap', or 'thirty_day'. The value
+                                                        !! 'no_calendar' cannot be used
+                                                        !! because the time_manager's date functions are used.
                                                         !! All values must be lower case.
-   logical :: force_date_from_namelist = .false.  !< Flag that determines whether the namelist variable current_date should override
-                                                  !! the date in the restart file `INPUT/coupler.res`.  If the restart file does not
-                                                  !! exist then force_date_from_namelist has no effect, the value of current_date
-                                                  !! will be used.
+   logical :: force_date_from_namelist = .false.  !< Flag that determines whether the namelist variable current_date
+                                                  !! should override the date in the restart file `INPUT/coupler.res`.
+                                                  !! If the restart file does not exist then force_date_from_namelist
+                                                  !! has no effect, the value of current_date will be used.
    integer :: years=0    !< Number of years the current integration will be run
    integer :: months=0   !< Number of months the current integration will be run
    integer :: days=0     !< Number of days the current integration will be run
@@ -322,7 +324,8 @@ contains
 
 !-----------------------------------------------------------------------
 !----- write time stamps (for start time and end time) ------
-    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
+    if ( fms_mpp_pe().EQ.fms_mpp_root_pe() ) &
+      open(newunit = time_stamp_unit, file='time_stamp.out', status='replace', form='formatted')
 
     month = fms_time_manager_month_name(date(2))
     if ( fms_mpp_pe() == fms_mpp_root_pe() ) write (time_stamp_unit,20) date, month(1:3)
@@ -389,7 +392,8 @@ contains
     call fms_memutils_print_memuse_stats('after atmos model init')
 
 !------ initialize data_override -----
-    call fms_data_override_init (Atm_domain_in  = Atm%domain)
+    call fms_data_override_init (Atm_domain_in  = Atm%domain, mode=r4_kind)
+    call fms_data_override_init (Atm_domain_in  = Atm%domain, mode=r8_kind)
 
 !-----------------------------------------------------------------------
 !---- open and close dummy file in restart dir to check if dir exists --

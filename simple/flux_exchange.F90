@@ -617,10 +617,6 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
      Boundary%dt_tr(:,:,isphum) = f_q_delt_n  + dt_t_surf*e_q_n
   endwhere
 
-!print *, 'PE,dt_t(L)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_t,mask=Land%mask(:,:,1)),maxval(Boundary%dt_t,mask=Land%mask(:,:,1))
-!print *, 'PE,dt_q(L)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_q,mask=Land%mask(:,:,1)),maxval(Boundary%dt_q,mask=Land%mask(:,:,1))
-!print *, 'PE,dt_t(I)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_t,mask=Ice%mask),maxval(Boundary%dt_t,mask=Ice%mask)
-!print *, 'PE,dt_q(I)(mn,mx)=',fms_mpp_pe(),minval(Boundary%dt_q,mask=Ice%mask),maxval(Boundary%dt_q,mask=Ice%mask)
 
 !=======================================================================
 !-------------------- diagnostics section ------------------------------
@@ -1204,7 +1200,7 @@ subroutine surface_flux_2d (                                           &
        thv_atm,   thv_surf,                                  &
        cd_m,      cd_t,       cd_q
   real, intent(inout), dimension(:,:) :: q_surf, rough_mom,  &
-       rough_heat, rough_moist 
+       rough_heat, rough_moist
   real, intent(in) :: dt
 
   ! ---- local vars -----------------------------------------------------------

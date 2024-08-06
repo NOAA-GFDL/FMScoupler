@@ -336,7 +336,6 @@ program coupler_main
   use FMS
   use full_coupler_mod
 
-  use iso_fortran_env
   implicit none
 
   !> model defined types.
@@ -378,40 +377,6 @@ program coupler_main
   integer, allocatable :: slow_ice_ocean_pelist(:)
   integer :: conc_nthreads = 1
   real :: dsec, omp_sec(2)=0.0, imb_sec(2)=0.0
-
-  !> FREDB_ID related variables
-  INTEGER :: i, status, arg_count
-  CHARACTER(len=256) :: executable_name, arg, fredb_id
-
-#ifdef FREDB_ID
-#define xstr(s) str(s)
-#define str(s) #s
-  fredb_id = xstr(FREDB_ID)
-#else
-#warning "FREDB_ID not defined. Continuing as normal."
-  fredb_id = 'FREDB_ID was not defined (e.g. -DFREDB_ID=...) during preprocessing'
-#endif
-
-  arg_count = command_argument_count()
-  DO i=0, arg_count
-    CALL get_command_argument(i, arg, status=status)
-    if (status .ne. 0) then
-      write (error_unit,*) 'get_command_argument failed: status = ', status, ' arg = ', i
-      stop 1
-    end if
-
-    if (i .eq. 0) then
-      executable_name = arg
-    else if (arg == '--fredb_id') then
-      write (output_unit,*) TRIM(fredb_id)
-      stop
-    end if
-  END DO
-
-  if (arg_count .ge. 1) then
-    write (error_unit,*) 'Usage: '//TRIM(executable_name)//' [--fredb_id]'
-    stop 1
-  end if
 
   call fms_mpp_init()
 
@@ -532,7 +497,7 @@ program coupler_main
 !$OMP&    SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
 !$OMP&    SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&    SHARED(Ocean_ice_boundary) &
-!$OMP&    SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
+!$OMP&    SHARED(do_debug, do_flux, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
 !$OMP&    SHARED(coupler_clocks, current_timestep, coupler_chksum_obj)
 !$      if (omp_get_thread_num() == 0) then
 !$OMP     PARALLEL &
@@ -542,7 +507,7 @@ program coupler_main
 !$OMP&      SHARED(atmos_nthreads, radiation_nthreads, nc, na, num_atmos_calls, atmos_npes, land_npes, ice_npes) &
 !$OMP&      SHARED(Time_atmos, Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary) &
 !$OMP&      SHARED(Ocean_ice_boundary) &
-!$OMP&      SHARED(do_debug, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
+!$OMP&      SHARED(do_debug, do_flux, do_chksum, do_atmos, do_land, do_ice, do_concurrent_radiation, omp_sec, imb_sec) &
 !$OMP&      SHARED(coupler_clocks, current_timestep, coupler_chksum_obj)
 !$        call omp_set_num_threads(atmos_nthreads)
 !$        dsec=omp_get_wtime()
@@ -562,7 +527,7 @@ program coupler_main
                                                              current_timestep, coupler_chksum_obj, coupler_clocks)
 
           !> checksums are computed if do_chksum=.True.
-          call coupler_flux_down_from_atmos(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, &
+          if (do_flux) call coupler_flux_down_from_atmos(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, &
               Atmos_ice_boundary, Time_atmos, current_timestep, coupler_clocks, coupler_chksum_obj)
 
           !--------------------------------------------------------------
@@ -577,13 +542,14 @@ program coupler_main
 
           !--------------------------------------------------------------
           !> atmosphere up
-          call coupler_flux_up_to_atmos(Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, Atmos_ice_boundary,&
-                                        Time_atmos, current_timestep, coupler_chksum_obj, coupler_clocks)
+          if (do_flux) call coupler_flux_up_to_atmos(Land, Ice, Land_ice_atmos_boundary, Atmos_land_boundary, &
+                                        Atmos_ice_boundary, Time_atmos, current_timestep, coupler_chksum_obj, &
+                                        coupler_clocks)
 
           if (do_atmos) call coupler_update_atmos_model_up(Atm, Land_ice_atmos_boundary, current_timestep, &
                                                            coupler_chksum_obj, coupler_clocks)
 
-          call coupler_flux_atmos_to_ocean(Atm, Atmos_ice_boundary, Ice, Time_atmos)
+          if (do_flux) call coupler_flux_atmos_to_ocean(Atm, Atmos_ice_boundary, Ice, Time_atmos)
 
           !--------------
           if (do_concurrent_radiation) call fms_mpp_clock_end(coupler_clocks%concurrent_atmos)
@@ -597,7 +563,7 @@ program coupler_main
 !$OMP&      NUM_THREADS(1) &
 !$OMP&      DEFAULT(NONE) &
 !$OMP&      PRIVATE(dsec) &
-!$OMP&      SHARED(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Ocean_ice_boundary, Atmos_land_boundary) &
+!$OMP&      SHARED(Atm, Land, Ice, Land_ice_atmos_boundary, Atmos_ice_boundary, Ocean_ice_boundary,Atmos_land_boundary)&
 !$OMP&      SHARED(do_chksum, do_debug, omp_sec, num_atmos_calls, na, radiation_nthreads) &
 !$OMP&      SHARED(coupler_clocks)
 !$          call omp_set_num_threads(radiation_nthreads)
@@ -692,18 +658,18 @@ program coupler_main
         if (do_chksum) call coupler_chksum_obj%get_ocean_chksums('update_ocean_model-', nc)
         ! update_ocean_model since fluxes don't change here
         if (do_ocean) call coupler_update_ocean_model(Ocean, Ocean_state, Ice_ocean_boundary,&
-                      Time_ocean, Time_step_cpld, current_timestep, coupler_chksum_obj)
+                      Time_ocean, Time_step_cpld, nc, coupler_chksum_obj)
       end if
 
       ! Get stocks from "Ice_ocean_boundary" and add them to Ocean stocks.
       ! This call is just for record keeping of stocks transfer and
       ! does not modify either Ocean or Ice_ocean_boundary
       call flux_ocean_from_ice_stocks(Ocean_state, Ocean, Ice_ocean_boundary)
-      
+
       call fms_diag_send_complete(Time_step_cpld)
       Time_ocean = Time_ocean +  Time_step_cpld
       Time = Time_ocean
-      
+
       call fms_mpp_clock_end(coupler_clocks%ocean)
     endif
 
@@ -712,7 +678,7 @@ program coupler_main
         call coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_state, Ocn_bc_restart, Ice_bc_restart, &
                                           Time, Time_restart, Time_restart_current, Time_start)
 
-    call coupler_summarize_timestep(current_timestep, num_cpld_calls, coupler_chksum_obj, Atm%pe, omp_sec, imb_sec)
+    call coupler_summarize_timestep(nc, num_cpld_calls, coupler_chksum_obj, Atm%pe, omp_sec, imb_sec)
 
     omp_sec(:)=0.
     imb_sec(:)=0.
