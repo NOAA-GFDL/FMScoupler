@@ -436,7 +436,8 @@ program coupler_main
     end if
 
     ! needs to sit here rather than at the end of the coupler loop.
-    if (check_stocks > 0 .and. do_flux) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
+    if (check_stocks > 0 .and. do_flux) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, &
+                                                                       coupler_clocks)
 
     if (do_ice .and. Ice%pe) then
       if (Ice%slow_ice_pe) call coupler_unpack_ocean_ice_boundary(nc, Time_flux_ocean_to_ice, Ice, Ocean_ice_boundary,&
