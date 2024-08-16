@@ -142,8 +142,9 @@ contains
     allocate( ice_ocean_boundary%sw_flux_vis_dif  (is:ie,js:je) ) ; ice_ocean_boundary%sw_flux_vis_dif = 0.0
     allocate( ice_ocean_boundary%sw_flux_nir_dir  (is:ie,js:je) ) ; ice_ocean_boundary%sw_flux_nir_dir = 0.0
     allocate( ice_ocean_boundary%sw_flux_nir_dif  (is:ie,js:je) ) ; ice_ocean_boundary%sw_flux_nir_dif = 0.0
-    allocate( ice_ocean_boundary%lprec    (is:ie,js:je) ) ;         ice_ocean_boundary%lprec = 0.0
-    allocate( ice_ocean_boundary%fprec    (is:ie,js:je) ) ;         ice_ocean_boundary%fprec = 0.0
+    allocate( ice_ocean_boundary%lprec       (is:ie,js:je) ) ;         ice_ocean_boundary%lprec = 0.0
+    allocate( ice_ocean_boundary%fprec       (is:ie,js:je) ) ;         ice_ocean_boundary%fprec = 0.0
+    allocate( ice_ocean_boundary%seaice_melt (is:ie,js:je) ) ;         ice_ocean_boundary%seaice_melt = 0.0
     allocate( ice_ocean_boundary%runoff   (is:ie,js:je) ) ;         ice_ocean_boundary%runoff = 0.0
     allocate( ice_ocean_boundary%calving  (is:ie,js:je) ) ;         ice_ocean_boundary%calving = 0.0
     allocate( ice_ocean_boundary%runoff_hflx   (is:ie,js:je) ) ;    ice_ocean_boundary%runoff_hflx = 0.0
@@ -231,6 +232,7 @@ contains
   !!                  time step (Kg/m2)
   !!        fprec = mass of frozen precipitation since last
   !!                  time step (Kg/m2)
+  !!  seaice_melt = mass of sea ice melt since last time step (Kg/m2)
   !!       runoff = mass of runoff since last time step (Kg/m2)
   !!       runoff = mass of calving since last time step (Kg/m2)
   !!       p_surf = surface pressure (Pa)
@@ -299,6 +301,9 @@ contains
     if(ASSOCIATED(Ice_Ocean_Boundary%fprec) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
          Ice%fprec, Ice_Ocean_Boundary%fprec, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
 
+     if(ASSOCIATED(Ice_Ocean_Boundary%seaice_melt) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
+         Ice%seaice_melt, Ice_Ocean_Boundary%seaice_melt, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
+
     if(ASSOCIATED(Ice_Ocean_Boundary%runoff) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
          Ice%runoff, Ice_Ocean_Boundary%runoff, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
 
@@ -347,8 +352,9 @@ contains
     call data_override('OCN', 'sw_flux_nir_dif', Ice_Ocean_Boundary%sw_flux_nir_dif, Time )
     call data_override('OCN', 'sw_flux_vis_dir', Ice_Ocean_Boundary%sw_flux_vis_dir, Time )
     call data_override('OCN', 'sw_flux_vis_dif', Ice_Ocean_Boundary%sw_flux_vis_dif, Time )
-    call data_override('OCN', 'lprec',     Ice_Ocean_Boundary%lprec    , Time )
-    call data_override('OCN', 'fprec',     Ice_Ocean_Boundary%fprec    , Time )
+    call data_override('OCN', 'lprec',       Ice_Ocean_Boundary%lprec      , Time )
+    call data_override('OCN', 'fprec',       Ice_Ocean_Boundary%fprec      , Time )
+    call data_override('OCN', 'seaice_melt', Ice_Ocean_Boundary%seaice_melt, Time )
     call data_override('OCN', 'runoff',    Ice_Ocean_Boundary%runoff   , Time )
     call data_override('OCN', 'calving',   Ice_Ocean_Boundary%calving  , Time )
     call data_override('OCN', 'runoff_hflx',    Ice_Ocean_Boundary%runoff_hflx   , Time )
@@ -506,12 +512,12 @@ contains
 
     ! fluxes from ice -> ocean, integrate over surface and in time
 
-    ! precip - evap
-    from_dq = Dt_cpl * SUM( Ice%area * (Ice%lprec+Ice%fprec-Ice%flux_q) )
+    ! precip + sea ice melt - evap
+    from_dq = Dt_cpl * SUM( Ice%area * (Ice%lprec+Ice%seaice_melt+Ice%fprec-Ice%flux_q) )
     Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) = Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_TOP   ) + from_dq
 
-    ! river
+    ! rivers + icebergs
     from_dq = Dt_cpl * SUM( Ice%area * (Ice%runoff + Ice%calving) )
     Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_WATER)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_WATER)%dq(ISTOCK_SIDE  ) + from_dq
@@ -527,7 +533,7 @@ contains
     ! heat carried by river + pme (assuming reference temperature of 0 degC and river/pme temp = surface temp)
     ! Note: it does not matter what the ref temperature is but it must be consistent with that in OCN and ICE
     from_dq = Dt_cpl * SUM( Ice%area * ( &
-         & (Ice%lprec+Ice%fprec-Ice%flux_q + Ice%runoff+Ice%calving)*CP_OCEAN*Ice%SST_C(:,:)) )
+         & (Ice%lprec+Ice%seaice_melt+Ice%fprec-Ice%flux_q + Ice%runoff+Ice%calving)*CP_OCEAN*Ice%SST_C(:,:)) )
     Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) = Ice_stock(ISTOCK_HEAT)%dq(ISTOCK_BOTTOM) - from_dq
     Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) = Ocn_stock(ISTOCK_HEAT)%dq(ISTOCK_SIDE  ) + from_dq
 
@@ -575,7 +581,10 @@ contains
     ! fluxes from ice -> ocean, integrate over surface and in time
 
     ! precip - evap
-    from_dq = SUM( ocean_cell_area * wet * (Ice_Ocean_Boundary%lprec+Ice_Ocean_Boundary%fprec-Ice_Ocean_Boundary%q_flux) )
+    from_dq = SUM( ocean_cell_area * wet * (Ice_Ocean_Boundary%lprec &
+                                           +Ice_Ocean_Boundary%fprec &
+                                           +Ice_Ocean_Boundary%seaice_melt &
+                                           -Ice_Ocean_Boundary%q_flux) )
     Ocn_stock(ISTOCK_WATER)%dq_IN(ISTOCK_TOP   ) = Ocn_stock(ISTOCK_WATER)%dq_IN(ISTOCK_TOP   ) + from_dq * Dt_cpl
 
     from_dq = SUM( ocean_cell_area * wet * (Ice_Ocean_Boundary%runoff+Ice_Ocean_Boundary%calving) )
@@ -595,7 +604,10 @@ contains
     ! Note: it does not matter what the ref temperature is but it must be consistent with that in OCN and ICE
 
     from_dq = SUM( ocean_cell_area * wet * cp_ocn *&
-         ((Ice_Ocean_Boundary%lprec+Ice_Ocean_Boundary%fprec-Ice_Ocean_Boundary%q_flux)*t_pme &
+         ((Ice_Ocean_Boundary%lprec &
+          +Ice_Ocean_Boundary%fprec &
+          +Ice_Ocean_Boundary%seaice_melt &
+          -Ice_Ocean_Boundary%q_flux)*t_pme &
          +Ice_Ocean_Boundary%calving * t_calving &
          +Ice_Ocean_Boundary%runoff  * t_runoff  ))
 
