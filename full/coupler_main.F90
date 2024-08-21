@@ -278,6 +278,14 @@
 !!       the slow sea-ice processes are on the same PEs as the fast sea-ice.</td>
 !!   </tr>
 !!   <tr>
+!!     <td>calve_ice_shelf_bergs</td>
+!!     <td>logical</td>
+!!     <td>.FALSE.</td>
+!!      <td> If true, the ice sheet flux through a fixed ice-shelf front is
+!!           converted to icebergs, rather than initializing icebergs from frozen
+!!           freshwater discharge.</td>
+!!   </tr>
+!!   <tr>
 !!     <td>restart_interval</td>
 !!     <td>integer, dimension(6)</td>
 !!     <td>(/0,0,0,0,0,0/)</td>
@@ -450,12 +458,8 @@ program coupler_main
       if (concurrent_ice) then
         !> This call occurs all ice PEs.
         call coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks)
-        !> call fms_mpp_set_current_pelist(Ice%pelist) is called if(.not.Ice%shared_slow_fast_PEs)
-        if (Ice%slow_ice_pe .and. calve_ice_shelf_bergs) then
-          call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_fast)
-          call unpack_ocean_ice_boundary_calved_shelf_bergs(Ice, Ocean_ice_boundary)
-          call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
-        endif
+        if (Ice%slow_ice_pe .and. calve_ice_shelf_bergs) &
+          call coupler_unpack_ocean_ice_boundary_calved_ice_shelf_bergs(Ice, Ocean_ice_boundary, coupler_clocks)
       endif
 
       if (Ice%fast_ice_pe) call coupler_set_ice_surface_fields(Ice, coupler_clocks)
@@ -615,11 +619,8 @@ program coupler_main
       !> This could be a point where the model is serialized; This calls on all ice PEs
       if (.not.concurrent_ice) then
         call coupler_exchange_fast_to_slow_ice(Ice, coupler_clocks, set_ice_current_pelist=.True.)
-        if (Ice%slow_ice_pe .and. calve_ice_shelf_bergs) then
-          call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_fast)
-          call unpack_ocean_ice_boundary_calved_shelf_bergs(Ice, Ocean_ice_boundary)
-          call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
-        endif
+        if (Ice%slow_ice_pe .and. calve_ice_shelf_bergs) &
+          call coupler_unpack_ocean_ice_boundary_calved_ice_shelf_bergs(Ice, Ocean_ice_boundary, coupler_clocks)
       endif
       !> slow-ice model
       !! This call occurs on whichever PEs handle the slow ice processess.

@@ -377,7 +377,7 @@ contains
   !!        v_surf = meridional ocean current/ice motion (m/s)
   !!        v_surf = meridional ocean current/ice motion (m/s)
   !!        sea_lev = sea level used to drive ice accelerations (m)
-  !!        calving = ice-sheet calving flux to ocean (kg m-2 s-1)
+  !!        calving = ice-sheet calving flux to ocean (kg/m2/s)
   !!        calving_hflx = heat flux associated with ice-sheet calving (W/m2)
   !! </pre>
   !!

@@ -101,7 +101,6 @@ module full_coupler_mod
   public :: update_slow_ice_and_ocean
   public :: send_ice_mask_sic
   public :: flux_ice_to_ocean_finish, flux_ice_to_ocean_stocks, flux_ocean_from_ice_stocks
-  public :: unpack_ocean_ice_boundary_calved_shelf_bergs
 
   public :: atmos_model_restart, land_model_restart, ice_model_restart, ocean_model_restart
 
@@ -130,6 +129,7 @@ module full_coupler_mod
 
   public :: coupler_update_land_model_slow, coupler_flux_land_to_ice
   public :: coupler_unpack_land_ice_boundary, coupler_flux_ice_to_ocean
+  public :: coupler_unpack_ocean_ice_boundary_calved_ice_shelf_bergs
   public :: coupler_update_ice_model_slow_and_stocks, coupler_update_ocean_model
 
   public :: coupler_clock_type, coupler_components_type, coupler_chksum_type
@@ -221,8 +221,9 @@ module full_coupler_mod
   logical, public :: do_debug=.FALSE.!< If .TRUE. print additional debugging messages.
   integer, public :: check_stocks = 0 !< -1: never 0: at end of run only n>0: every n coupled steps
   logical, public :: use_hyper_thread = .false.
-  logical, public :: calve_ice_shelf_bergs = .false. !< If true, flux through a static ice front is converted
-                                             !!to point bergs
+  logical, public :: calve_ice_shelf_bergs = .false. !< If true, the ice sheet flux through a fixed ice-shelf front is
+                                                     !! converted to icebergs, rather than initializing icebergs from
+                                                     !! frozen freshwater discharge
 
   namelist /coupler_nml/ current_date, calendar, force_date_from_namelist,         &
                          months, days, hours, minutes, seconds, dt_cpld, dt_atmos, &
@@ -2310,6 +2311,23 @@ contains
     call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_fast)
 
   end subroutine coupler_unpack_land_ice_boundary
+
+  !> This subroutine calls unpack_ocean_ice_boundary_calved_shelf_bergs
+  subroutine coupler_unpack_ocean_ice_boundary_calved_ice_shelf_bergs(Ice, Ocean_ice_boundary, coupler_clocks)
+
+    implicit none
+    type(ice_data_type),          intent(inout) :: Ice                 !< Ice
+    type(ocean_ice_boundary_type), intent(inout) :: Ocean_ice_boundary !< Ocean_ice_boundary
+    type(coupler_clock_type), intent(inout) :: coupler_clocks          !< coupler_clocks
+
+    call fms_mpp_set_current_pelist(Ice%slow_pelist)
+    call fms_mpp_clock_begin(coupler_clocks%update_ice_model_slow_slow)
+
+    call unpack_ocean_ice_boundary_calved_shelf_bergs(Ice, Ocean_ice_boundary)
+
+    call fms_mpp_clock_end(coupler_clocks%update_ice_model_slow_slow)
+
+  end subroutine coupler_unpack_ocean_ice_boundary_calved_ice_shelf_bergs
 
   !> This subroutine calls update_ice_model_slow and flux_ice_to_ocean_stocks
   subroutine coupler_update_ice_model_slow_and_stocks(Ice, coupler_clocks)
