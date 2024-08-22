@@ -6,7 +6,7 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
-## [2024.03] - 2024-08-16
+## [2024.03] - 2024-08-22
 
 ### Fixed
 - FULL: Removes unused FREDB related code that was causing errors with SPEAR (#137)
