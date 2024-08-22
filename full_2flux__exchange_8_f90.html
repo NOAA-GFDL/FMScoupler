@@ -74,7 +74,7 @@ $(function() {
 <div class="title">flux_exchange.F90 File Reference</div>  </div>
 </div><!--header-->
 <div class="contents">
-<h3 class="version">(e8a3bc093b8018b0a28a5a3405728a0d3b82441f)</h3>
+<h3 class="version">(e84cf65f1622c31f3143a793c11378f050398907)</h3>
 <p>The flux_exchange module provides interfaces to couple the following component models: atmosphere, ocean, land, and ice. All interpolation between physically distinct model grids is handled by the exchange grid (xgrid_mod) with the interpolated quantities being conserved.  
 <a href="#details">More...</a></p>
 <table class="memberdecls">
@@ -134,7 +134,7 @@ Variables</h2></td></tr>
 <tr class="memitem:a130755a7de1ad93566db2496df4f09a8"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a130755a7de1ad93566db2496df4f09a8">flux_exchange_mod::nblocks</a> = 1</td></tr>
 <tr class="separator:a130755a7de1ad93566db2496df4f09a8"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2a3ce00fb63574459609d6b3ad334acb"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a2a3ce00fb63574459609d6b3ad334acb">flux_exchange_mod::partition_fprec_from_lprec</a> = .FALSE.</td></tr>
-<tr class="memdesc:a2a3ce00fb63574459609d6b3ad334acb"><td class="mdescLeft">&#160;</td><td class="mdescRight">option for ATM override experiments where liquid+frozen precip are combined This option will convert liquid precip to snow when t_ref is less than tfreeze parameter  <a href="namespaceflux__exchange__mod.html#a2a3ce00fb63574459609d6b3ad334acb">More...</a><br /></td></tr>
+<tr class="memdesc:a2a3ce00fb63574459609d6b3ad334acb"><td class="mdescLeft">&#160;</td><td class="mdescRight">option for ATM override experiments where liquid+frozen precip are combined. This option will convert liquid precip to snow when t_ref is less than tfreeze parameter  <a href="namespaceflux__exchange__mod.html#a2a3ce00fb63574459609d6b3ad334acb">More...</a><br /></td></tr>
 <tr class="separator:a2a3ce00fb63574459609d6b3ad334acb"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7ddeb5da1f6b84553155a11fc11131c4"><td class="memItemLeft" align="right" valign="top">real, parameter&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceflux__exchange__mod.html#a7ddeb5da1f6b84553155a11fc11131c4">flux_exchange_mod::tfreeze</a> = 273.15</td></tr>
 <tr class="separator:a7ddeb5da1f6b84553155a11fc11131c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -374,17 +374,17 @@ Atmosphere</h2>
 </div><!-- fragment --><p>The following five fields are gathered into a data type for convenience in passing this information through the different levels of the atmospheric model &ndash; these fields are rlated to the simultaneous implicit time steps in the atmosphere and surface models &ndash; they are described more fully in flux_exchange.tech.ps and in the documntation for vert_diff_mod</p>
 <div class="fragment"><div class="line"><span class="keywordtype">type</span> (surf_diff_type) :: Atm%Surf_Diff</div>
 <div class="line"> </div>
-<div class="line"><span class="keywordtype">real</span>, <span class="keywordtype">dimension(:,:)</span> :: Atm%Surf_Diff%dtmass  &amp; <span class="comment">! dt/mass where dt = atmospheric time step ((i+1) = (i-1) for leapfrog) (s)</span></div>
+<div class="line"><span class="keywordtype">real</span>, <span class="keywordtype">dimension(:,:)</span> :: Atm%Surf_Diff%dtmass  &amp; <span class="comment">!dt/mass where dt=atmospheric time step ((i+1)=(i-1) for leapfrog)(s)</span></div>
 <div class="line">                                                <span class="comment">! mass = mass per unit area of lowest atmosphehic layer  (Kg/m2))</span></div>
 <div class="line">                        atm%Surf_Diff%delta_t &amp; <span class="comment">! increment ((i+1) = (i-1) for leapfrog) in temperature of</span></div>
 <div class="line">                                                <span class="comment">! lowest atmospheric layer  (K)</span></div>
 <div class="line">                        atm%Surf_Diff%delta_q &amp; <span class="comment">! increment ((i+1) = (i-1) for leapfrog) in specific humidity of</span></div>
 <div class="line">                                                <span class="comment">! lowest atmospheric layer (nondimensional -- Kg/Kg)</span></div>
-<div class="line">                        atm%Surf_Diff%dflux_t &amp; <span class="comment">! derivative of implicit part of downward temperature flux at top of lowest</span></div>
-<div class="line">                                                <span class="comment">! atmospheric layer with respect to temperature</span></div>
+<div class="line">                        atm%Surf_Diff%dflux_t &amp; <span class="comment">! derivative of implicit part of downward temperature flux at top of</span></div>
+<div class="line">                                                <span class="comment">! lowest atmospheric layer with respect to temperature</span></div>
 <div class="line">                                                <span class="comment">! of lowest atmospheric layer (Kg/(m2 s))</span></div>
-<div class="line">                        atm%Surf_Diff%dflux_q   <span class="comment">! derivative of implicit part of downward moisture flux at top of lowest</span></div>
-<div class="line">                                                <span class="comment">! atmospheric layer with respect to specific humidity of</span></div>
+<div class="line">                        atm%Surf_Diff%dflux_q   <span class="comment">! derivative of implicit part of downward moisture flux at top of</span></div>
+<div class="line">                                                <span class="comment">! lowest atmospheric layer with respect to specific humidity of</span></div>
 <div class="line">                                                ! of lowest atmospheric layer(kg/(m2 s))</div>
 </div><!-- fragment --><h2><a class="anchor" id="Land"></a>
 Land</h2>
@@ -484,7 +484,7 @@ Ocean</h2>
 </div><!-- fragment --> </div></div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jul 11 2024 19:06:18 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Thu Aug 22 2024 18:31:15 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

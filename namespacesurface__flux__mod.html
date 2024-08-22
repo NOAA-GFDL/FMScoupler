@@ -131,7 +131,7 @@ Variables</h2></td></tr>
 <tr class="memdesc:a0fdcdb1d11f52c4fbe51fe6def24ea2b"><td class="mdescLeft">&#160;</td><td class="mdescRight">If .TRUE., use virtual potential temp to calculate the stability of the surface layer. If .FALSE., use potential temp.  <a href="namespacesurface__flux__mod.html#a0fdcdb1d11f52c4fbe51fe6def24ea2b">More...</a><br /></td></tr>
 <tr class="separator:a0fdcdb1d11f52c4fbe51fe6def24ea2b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a338fa27e4d5045147ebf3ee908c60e98"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a338fa27e4d5045147ebf3ee908c60e98">alt_gustiness</a> = .false.</td></tr>
-<tr class="memdesc:a338fa27e4d5045147ebf3ee908c60e98"><td class="mdescLeft">&#160;</td><td class="mdescRight">An alternaive formulation for gustiness calculation. A minimum bound on the wind speed used influx calculations, with the bound equal to gust_const.  <a href="namespacesurface__flux__mod.html#a338fa27e4d5045147ebf3ee908c60e98">More...</a><br /></td></tr>
+<tr class="memdesc:a338fa27e4d5045147ebf3ee908c60e98"><td class="mdescLeft">&#160;</td><td class="mdescRight">An alternaive formulation for gustiness calculation. A minimum bound on the wind speed used influx calculations,with the bound equal to gust_const.  <a href="namespacesurface__flux__mod.html#a338fa27e4d5045147ebf3ee908c60e98">More...</a><br /></td></tr>
 <tr class="separator:a338fa27e4d5045147ebf3ee908c60e98"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a4004ece732cedb0fd110aacdb208ff87"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespacesurface__flux__mod.html#a4004ece732cedb0fd110aacdb208ff87">old_dtaudv</a> = .false.</td></tr>
 <tr class="memdesc:a4004ece732cedb0fd110aacdb208ff87"><td class="mdescLeft">&#160;</td><td class="mdescRight">The derivative of surface wind stress with respect to the zonal wind and meridional wind are approximated by the same tendency.  <a href="namespacesurface__flux__mod.html#a4004ece732cedb0fd110aacdb208ff87">More...</a><br /></td></tr>
@@ -890,10 +890,10 @@ Variables</h2></td></tr>
     <tr><td class="paramname">drdt_surf_0</td><td>Radiative energy flux temperature sensitivity </td></tr>
     <tr><td class="paramname">dhdt_atm_0</td><td>Derivative of sensible heat flux over temp at the lowest atmos level </td></tr>
     <tr><td class="paramname">dedq_atm_0</td><td>Derivative of water vapor flux over temp at the lowest atmos level </td></tr>
-    <tr><td class="paramname">dtaudu_atm_0</td><td>Derivative of zonal wind stress with respect to the lowest level zonal wind speed of the atmos </td></tr>
-    <tr><td class="paramname">dtaudv_atm_0</td><td>Derivative of meridional wind stress with respect to the lowest level meridional wind speed of the atmos </td></tr>
+    <tr><td class="paramname">dtaudu_atm_0</td><td>Derivative of zonal wind stress with respect to the lowest level zonal wind </td></tr>
+    <tr><td class="paramname">dtaudv_atm_0</td><td>Derivative of meridional wind stress with respect to the lowest level </td></tr>
     <tr><td class="paramname">land_0</td><td>Indicates where land exists (.TRUE. if exchange cell is on land </td></tr>
-    <tr><td class="paramname">seawater_0</td><td>Indicates where liquid ocean water exists (.TRUE. if exchange cell is on liquid ocean water) </td></tr>
+    <tr><td class="paramname">seawater_0</td><td>Indicates where liquid ocean water exists </td></tr>
   </table>
   </dd>
 </dl>
@@ -1222,10 +1222,10 @@ Variables</h2></td></tr>
     <tr><td class="paramname">drdt_surf</td><td>Radiative energy flux temperature sensitivity </td></tr>
     <tr><td class="paramname">dhdt_atm</td><td>Derivative of sensible heat flux over temp at the lowest atmos level </td></tr>
     <tr><td class="paramname">dedq_atm</td><td>Derivative of water vapor flux over temp at the lowest atmos level </td></tr>
-    <tr><td class="paramname">dtaudu_atm</td><td>Derivative of zonal wind stress with respect to the lowest level zonal wind speed of the atmos </td></tr>
-    <tr><td class="paramname">dtaudv_atm</td><td>Derivative of meridional wind stress with respect to the lowest level meridional wind speed of the atmos </td></tr>
+    <tr><td class="paramname">dtaudu_atm</td><td>Derivative of zonal wind stress with respect to the lowest level </td></tr>
+    <tr><td class="paramname">dtaudv_atm</td><td>Derivative of meridional wind stress with respect to the lowest </td></tr>
     <tr><td class="paramname">land</td><td>Indicates where land exists (.TRUE. if exchange cell is on land </td></tr>
-    <tr><td class="paramname">seawater</td><td>Indicates where liquid ocean water exists (.TRUE. if exchange cell is on liquid ocean water) </td></tr>
+    <tr><td class="paramname">seawater</td><td>Indicates where liquid ocean water exists </td></tr>
   </table>
   </dd>
 </dl>
@@ -1552,12 +1552,12 @@ Variables</h2></td></tr>
     <tr><td class="paramname">dedt_surf</td><td>Moisture flux temperature sensitivity </td></tr>
     <tr><td class="paramname">dedq_surf</td><td>Moisture flux humidity sensitivity </td></tr>
     <tr><td class="paramname">drdt_surf</td><td>Radiative energy flux temperature sensitivity </td></tr>
-    <tr><td class="paramname">dhdt_atm</td><td>Derivative of sensible heat flux over temp at the lowest atmos level </td></tr>
+    <tr><td class="paramname">dhdt_atm</td><td>Derivative of sensible heat flux over temp at the lowest </td></tr>
     <tr><td class="paramname">dedq_atm</td><td>Derivative of water vapor flux over temp at the lowest atmos level </td></tr>
-    <tr><td class="paramname">dtaudu_atm</td><td>Derivative of zonal wind stress with respect to the lowest level zonal wind speed of the atmos </td></tr>
-    <tr><td class="paramname">dtaudv_atm</td><td>Derivative of meridional wind stress with respect to the lowest level meridional wind speed of the atmos </td></tr>
+    <tr><td class="paramname">dtaudu_atm</td><td>Derivative of zonal wind stress with respect to the lowest level </td></tr>
+    <tr><td class="paramname">dtaudv_atm</td><td>Derivative of meridional wind stress with respect to the lowest </td></tr>
     <tr><td class="paramname">land</td><td>Indicates where land exists (.TRUE. if exchange cell is on land </td></tr>
-    <tr><td class="paramname">seawater</td><td>Indicates where liquid ocean water exists (.TRUE. if exchange cell is on liquid ocean water) </td></tr>
+    <tr><td class="paramname">seawater</td><td>Indicates where liquid ocean water exists </td></tr>
   </table>
   </dd>
 </dl>
@@ -1601,7 +1601,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p>An alternaive formulation for gustiness calculation. A minimum bound on the wind speed used influx calculations, with the bound equal to gust_const. </p>
+<p>An alternaive formulation for gustiness calculation. A minimum bound on the wind speed used influx calculations,with the bound equal to gust_const. </p>
 
 </div>
 </div>
@@ -2236,7 +2236,7 @@ Variables</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jul 11 2024 19:06:18 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Thu Aug 22 2024 18:31:15 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

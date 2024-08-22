@@ -408,7 +408,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Updates Ocean stocks due to input that the Ocean model gets. </p>
-<p>This subroutine updates the stocks of Ocean by the amount of input that the Ocean gets from Ice component. Unlike subroutine <a class="el" href="namespaceice__ocean__flux__exchange__mod.html#ac7d12dcdb5b25d4a1bb38935360cceab" title="Updates Ice and Ocean stocks.">flux_ice_to_ocean_stocks()</a> that uses Icefluxes to update the stocks due to the amount of output from Ice this subroutine uses Ice_Ocean_boundaryfluxes to calculate the amount of input to the Ocean. These fluxes are the ones that Ocean model uses internally to calculate its budgets. Hence there should be no difference between this input and what Ocean model internal diagnostics uses. This bypasses the possible mismatch in cell areas between Ice and Ocean in diagnosing the stocks of Ocean and should report a conserving Ocean component regardless of the glitches in fluxes.</p>
+<p>This subroutine updates the stocks of Ocean by the amount of input that the Ocean gets from Ice component. Unlike subroutine <a class="el" href="namespaceice__ocean__flux__exchange__mod.html#ac7d12dcdb5b25d4a1bb38935360cceab" title="Updates Ice and Ocean stocks.">flux_ice_to_ocean_stocks()</a> that uses Icefluxes to update the stocks due to the amount of output from Ice,this subroutine uses Ice_Ocean_boundaryfluxes to calculate the amount of input to the Ocean. These fluxes are the ones that Ocean model uses internally to calculate its budgets. Hence there should be no difference between this input and what Ocean model internal diagnostics uses. This bypasses the possible mismatch in cell areas between Ice and Ocean in diagnosing the stocks of Ocean and should report a conserving Ocean component regardless of the glitches in fluxes.</p>
 <p>The use of this subroutine in conjunction with subroutine <a class="el" href="namespaceice__ocean__flux__exchange__mod.html#ac7d12dcdb5b25d4a1bb38935360cceab" title="Updates Ice and Ocean stocks.">flux_ice_to_ocean_stocks()</a> will also allow to directly diagnose the amount "stocks lost in exchange" between Ice and Ocean </p>
 
 </div>
@@ -842,7 +842,7 @@ Variables</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jul 11 2024 19:06:18 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Thu Aug 22 2024 18:31:15 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>

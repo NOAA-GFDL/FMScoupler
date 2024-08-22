@@ -338,7 +338,7 @@ Variables</h2></td></tr>
 <tr class="memitem:a3b94aaeafe989d18f0e844a6a58018c7"><td class="memItemLeft" align="right" valign="top">integer&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a3b94aaeafe989d18f0e844a6a58018c7">nblocks</a> = 1</td></tr>
 <tr class="separator:a3b94aaeafe989d18f0e844a6a58018c7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a514ebadfb8dcb7ae7bf696f6e3eae11a"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#a514ebadfb8dcb7ae7bf696f6e3eae11a">partition_fprec_from_lprec</a> = .FALSE.</td></tr>
-<tr class="memdesc:a514ebadfb8dcb7ae7bf696f6e3eae11a"><td class="mdescLeft">&#160;</td><td class="mdescRight">option for ATM override experiments where liquid+frozen precip are combined This option will convert liquid precip to snow when t_ref is less than tfreeze parameter  <a href="namespaceatm__land__ice__flux__exchange__mod.html#a514ebadfb8dcb7ae7bf696f6e3eae11a">More...</a><br /></td></tr>
+<tr class="memdesc:a514ebadfb8dcb7ae7bf696f6e3eae11a"><td class="mdescLeft">&#160;</td><td class="mdescRight">option for ATM override experiments where liquid+frozen precip are combined. This option will convert liquid precip to snow when t_ref is less than tfreeze parameter  <a href="namespaceatm__land__ice__flux__exchange__mod.html#a514ebadfb8dcb7ae7bf696f6e3eae11a">More...</a><br /></td></tr>
 <tr class="separator:a514ebadfb8dcb7ae7bf696f6e3eae11a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aff59028b168f9a123112151e3f9c082b"><td class="memItemLeft" align="right" valign="top">logical&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceatm__land__ice__flux__exchange__mod.html#aff59028b168f9a123112151e3f9c082b">scale_precip_2d</a> = .false.</td></tr>
 <tr class="separator:aff59028b168f9a123112151e3f9c082b"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -951,7 +951,7 @@ Variables</h2></td></tr>
     <tr><td class="paramdir">[in,out]</td><td class="paramname">atm</td><td>A derived data type to specify atmosphere boundary data </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">land</td><td>A derived data type to specify land boundary data </td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">ice</td><td>A derived data type to specify ice boundary data </td></tr>
-    <tr><td class="paramdir">[in]</td><td class="paramname">atmos_boundary</td><td>A derived data type to specify properties and fluxes passed from exchange grid to the atmosphere, land and ice </td></tr>
+    <tr><td class="paramdir">[in]</td><td class="paramname">atmos_boundary</td><td>A derived data type to specify properties and fluxes passed from exchange grid to the atmosphere land and ice </td></tr>
     <tr><td class="paramdir">[in,out]</td><td class="paramname">land_boundary</td><td>A derived data type to specify properties and fluxes passed from atmosphere to land </td></tr>
     <tr><td class="paramdir">[in,out]</td><td class="paramname">ice_boundary</td><td>A derived data type to specify properties and fluxes passed from atmosphere to ice </td></tr>
   </table>
@@ -1036,7 +1036,7 @@ Variables</h2></td></tr>
     <tr><td class="paramdir">[in]</td><td class="paramname">time</td><td>Current time </td></tr>
     <tr><td class="paramdir">[in,out]</td><td class="paramname">land</td><td>A derived data type to specify ice boundary data </td></tr>
     <tr><td class="paramdir">[in,out]</td><td class="paramname">ice</td><td>A derived data type to specify ice boundary data </td></tr>
-    <tr><td class="paramdir">[in,out]</td><td class="paramname">land_ice_atmos_boundary</td><td>A derived data type to specify properties and fluxed passed from exchange grid to the atmosphere, land and ice </td></tr>
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">land_ice_atmos_boundary</td><td>A derived data type to specify properties and fluxes passed from exchange grid to the atmosphere, land and ice </td></tr>
   </table>
   </dd>
 </dl>
@@ -5172,7 +5172,7 @@ Variables</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p>option for ATM override experiments where liquid+frozen precip are combined This option will convert liquid precip to snow when t_ref is less than tfreeze parameter </p>
+<p>option for ATM override experiments where liquid+frozen precip are combined. This option will convert liquid precip to snow when t_ref is less than tfreeze parameter </p>
 
 </div>
 </div>
@@ -5561,7 +5561,7 @@ Variables</h2></td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Thu Jul 11 2024 19:06:18 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
+Generated on Thu Aug 22 2024 18:31:15 for FMS Coupler by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1
 </small></address>
 </body>
 </html>
