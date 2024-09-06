@@ -585,10 +585,11 @@ module flux_exchange_mod
   !! tfreeze parameter
   real, parameter    :: tfreeze = 273.15
   logical :: scale_precip_2d = .false.
+  logical :: ocn_atm_flux_vmr_bug = .true.  !set to .true.  to reproduce old (erroneous) conversion for flux of vmr tracers between ocean and atm
 
   namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom, ex_u_star_smooth_bug, sw1way_bug,&
        & do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks,&
-       & partition_fprec_from_lprec, scale_precip_2d
+       & partition_fprec_from_lprec, scale_precip_2d, ocn_atm_flux_vmr_bug
 
   logical :: gas_fluxes_initialized = .false.  ! This is set to true when the following types are initialized.
   type(FmsCoupler1dBC_type), target :: ex_gas_fields_atm  ! gas fields in atm
@@ -757,7 +758,7 @@ contains
        call atm_land_ice_flux_exchange_init(Time, Atm, Land, Ice, atmos_ice_boundary, land_ice_atmos_boundary, &
             Dt_atm, Dt_cpl, z_ref_heat, z_ref_mom, ex_u_star_smooth_bug,  &
             sw1way_bug, do_area_weighted_flux, do_forecast,  &
-            partition_fprec_from_lprec, scale_precip_2d, nblocks, cplClock, &
+            partition_fprec_from_lprec, scale_precip_2d, ocn_atm_flux_vmr_bug,  nblocks, cplClock, &
             ex_gas_fields_atm, ex_gas_fields_ice, ex_gas_fluxes)
 
        call land_ice_flux_exchange_init(Land, Ice, land_ice_boundary, Dt_cpl, do_runoff, cplClock)

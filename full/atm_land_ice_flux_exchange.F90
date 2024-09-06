@@ -72,7 +72,7 @@ module atm_land_ice_flux_exchange_mod
 !! FMS
 use FMS
 use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
-                        PI, CP_OCEAN, WTMCO2, WTMC, EPSLN, GRAV
+                        PI, CP_OCEAN, WTMCO2, WTMC, EPSLN, GRAV, WTMH2O
 
 !gex
 use gex_mod, only : gex_get_n_ex
@@ -160,6 +160,7 @@ use gex_mod, only : gex_get_n_ex
                                             !! change answers.  So to preserve Jakarta behavior and reproduce answers
                                             !! explicitly set this namelist variable to .true. in input.nml.
   logical :: sw1way_bug = .false.
+  logical :: ocn_atm_flux_vmr_bug
   logical :: do_area_weighted_flux = .FALSE.
   logical :: do_forecast = .false.
   integer :: nblocks = 1
@@ -301,6 +302,7 @@ contains
                                              Dt_atm_in, Dt_cpl_in, z_ref_heat_in, z_ref_mom_in,                 &
                                              ex_u_star_smooth_bug_in, sw1way_bug_in, do_area_weighted_flux_in,  &
                                              do_forecast_in, partition_fprec_from_lprec_in, scale_precip_2d_in, &
+                                             ocn_atm_flux_vmr_bug_in, &
                                              nblocks_in, cplClock_in, ex_gas_fields_atm_in, &
                                              ex_gas_fields_ice_in, ex_gas_fluxes_in)
     type(FmsTime_type),                   intent(in)    :: Time !< The model's current time
@@ -314,7 +316,7 @@ contains
     real,                 intent(in)    :: Dt_cpl_in !< Coupled time step in seconds
     real,                 intent(in)    :: z_ref_heat_in, z_ref_mom_in
     logical,              intent(in)    :: ex_u_star_smooth_bug_in, scale_precip_2d_in
-    logical,              intent(in)    :: sw1way_bug_in, do_area_weighted_flux_in
+    logical,              intent(in)    :: sw1way_bug_in, do_area_weighted_flux_in, ocn_atm_flux_vmr_bug_in
     logical,              intent(in)    :: do_forecast_in, partition_fprec_from_lprec_in
     integer,              intent(in)    :: nblocks_in
     integer,              intent(in)    :: cplClock_in
@@ -339,6 +341,7 @@ contains
     z_ref_mom = z_ref_mom_in
     ex_u_star_smooth_bug = ex_u_star_smooth_bug_in
     sw1way_bug = sw1way_bug_in
+    ocn_atm_flux_vmr_bug = ocn_atm_flux_vmr_bug_in
     do_area_weighted_flux = do_area_weighted_flux_in
     do_forecast = do_forecast_in
     partition_fprec_from_lprec = partition_fprec_from_lprec_in
@@ -1334,8 +1337,13 @@ contains
                 if (ex_seawater(i)>0.0) then
                    if (fms_mpp_lowercase(trim(tr_units)).eq."vmr") then
                       ! in mol/m2/s but from land model it should be in vmr * kg/m2/s
-                      ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) * WTMAIR*1.0e-3 &
+                      if (ocn_atm_flux_vmr_bug) then
+                           ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) * WTMAIR*1.0e-3 &
                            / (1.-ex_tr_atm(i,isphum))
+                      else
+                         ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) * 1.0e-3*WTMAIR*WTMH2O/((1.-ex_tr_atm(i,isphum))*WTMH2O+ex_tr_atm(i,isphum)*WTMAIR)
+
+                      end if
                    else
                    ! jgj: convert to kg co2/m2/sec for atm
                    ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) * ex_gas_fluxes%bc(n)%mol_wt * 1.0e-03
@@ -3152,9 +3160,16 @@ contains
           if (id_tr_mol_flux(tr) > 0 .and. fms_mpp_lowercase(trim(tr_name))=='co2') then
                used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
     !sometimes in 2018 f1p for vmr tracers
-           elseif (id_tr_mol_flux(tr) > 0 .and. fms_mpp_lowercase(trim(tr_units)).eq."vmr") then
-              call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
-              used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMAIR, Time)
+            elseif (id_tr_mol_flux(tr) > 0 .and. fms_mpp_lowercase(trim(tr_units)).eq."vmr") then
+               if (ocn_atm_flux_vmr_bug) then
+                  call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
+                  used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMAIR, Time)                  
+               else
+                  !flux is in vmr * kg/m2/s. Divide by MW_air
+                  call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_flux_tr(:,tr)*((1.-ex_tr_surf_new(:,isphum))*WTMH2O+ex_tr_surf_new(:,isphum)*WTMAIR)/(1e-3*WTMAIR*WTMH2O) , xmap_sfc)
+                  used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm, Time)
+               end if
+
            endif
         endif
         if ( id_tr_con_atm(tr) > 0 ) then
@@ -3183,8 +3198,14 @@ contains
              if (fms_mpp_lowercase(trim(tr_name))=='co2') then
                 call send_tile_data (id_tr_mol_flux_land(tr), diag_land*1000./WTMCO2)
              elseif (fms_mpp_lowercase(trim(tr_units)).eq.'vmr') then
-                call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
-                call send_tile_data (id_tr_mol_flux_land(tr), diag_land*1000./WTMAIR )
+                if (ocn_atm_flux_vmr_bug) then
+                   call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
+                   call send_tile_data (id_tr_mol_flux_land(tr), diag_land*1000./WTMAIR )
+                else                   
+                  !flux is in vmr * kg/m2/s. Divide by MW_air
+                  call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', ex_flux_tr(:,tr)*((1.-ex_tr_surf_new(:,isphum))*WTMH2O+ex_tr_surf_new(:,isphum)*WTMAIR)/(1e-3*WTMAIR*WTMH2O) , xmap_sfc)
+                  call send_tile_data ( id_tr_mol_flux_land(tr), diag_land)
+               end if
              endif
           endif
        endif
