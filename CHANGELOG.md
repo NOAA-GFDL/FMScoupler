@@ -6,6 +6,25 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2024.03.01] - 2024-09-06
+
+## Fixed
+- FULL: Adds conditionals to bypass `coupler_generate_sfc_xgrid`, `flux_exchange_init`, and flux exchange related stock routines.
+
+### Tag Commit Hashes
+- 2024.03.01 e357d8ffc44c2808628ec7912c827d2ad41978b7
+
+## [2024.03] - 2024-08-22
+
+### Fixed
+- FULL: Removes unused FREDB related code that was causing errors with SPEAR (#137)
+- SHIELD: Fixed compile error from missing `&` in SHiELD coupler_main (#140)
+- FULL: Fixes crashes when the `do_flux` namelist flag is false by adding conditionals for calls to `coupler_flux_down_from_atmos`, `coupler_flux_up_to_atmos` and `coupler_flux_atmos_to_ocean` (#134)
+- SHIELD: Fixed a bug where `data_override` was not working correctly due to missing an argument during initialization. (#131)
+
+### Tag Commit Hashes
+- 2024.03-beta1 8dc6eff18b67ca9ab83916e2326af797818bf463
+
 ## [2024.02] - 2024-07-11
 
 ### Known Issues
