@@ -412,7 +412,7 @@ program coupler_main
 !-----------------------------------------------------------------------
 !> ocean/slow-ice integration loop
 
-  if (check_stocks >= 0) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
+  if (check_stocks >= 0 .and. do_flux) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, init_stocks=.True.)
 
   !> ocean/slow-ice integration loop
@@ -444,7 +444,8 @@ program coupler_main
     end if
 
     ! needs to sit here rather than at the end of the coupler loop.
-    if (check_stocks > 0) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, coupler_clocks)
+    if (check_stocks > 0 .and. do_flux) call coupler_flux_check_stocks(nc, Time, Atm, Land, Ice, Ocean_state, &
+                                                                       coupler_clocks)
 
     if (do_ice .and. Ice%pe) then
       if (Ice%slow_ice_pe) call coupler_unpack_ocean_ice_boundary(nc, Time_flux_ocean_to_ice, Ice, Ocean_ice_boundary,&
@@ -474,7 +475,7 @@ program coupler_main
       !> begin atm_clock_1
       call fms_mpp_clock_begin(coupler_clocks%atm)
 
-      call coupler_generate_sfc_xgrid(Land, Ice, coupler_clocks)
+      if (do_flux) call coupler_generate_sfc_xgrid(Land, Ice, coupler_clocks)
       call send_ice_mask_sic(Time)
 
       !-----------------------------------------------------------------------
@@ -687,7 +688,7 @@ program coupler_main
   enddo coupled_timestep_loop
 
   !-----------------------------------------------------------------------
-  if( check_stocks >=0 ) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
+  if(check_stocks >=0 .and. do_flux) call coupler_flux_init_finish_stocks(Time, Atm, Land, Ice, Ocean_state, &
                                                               coupler_clocks, finish_stocks=.True.)
 
   call fms_mpp_set_current_pelist()

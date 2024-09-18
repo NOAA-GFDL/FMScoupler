@@ -6,7 +6,15 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
-## [2024.03] - 2024-08-16
+## [2024.03.01] - 2024-09-06
+
+## Fixed
+- FULL: Adds conditionals to bypass `coupler_generate_sfc_xgrid`, `flux_exchange_init`, and flux exchange related stock routines.
+
+### Tag Commit Hashes
+- 2024.03.01 e357d8ffc44c2808628ec7912c827d2ad41978b7
+
+## [2024.03] - 2024-08-22
 
 ### Fixed
 - FULL: Removes unused FREDB related code that was causing errors with SPEAR (#137)
