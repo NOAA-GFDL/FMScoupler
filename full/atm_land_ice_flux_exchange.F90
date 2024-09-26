@@ -1428,7 +1428,8 @@ contains
     enddo
 
     ! [6.2] put relevant quantities onto atmospheric boundary
-    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%t_ocean,         'ATM', ex_t_surf ,  xmap_sfc, complete=.false.) !joseph
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%t_ocean,           'ATM',   &
+         ex_t_surf ,  xmap_sfc, complete=.false.) !joseph
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%t,         'ATM', ex_t_surf4  ,  xmap_sfc, complete=.false.)
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%frac_open_sea,'ATM',ex_frac_open_sea, xmap_sfc)
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%albedo,    'ATM', ex_albedo   ,  xmap_sfc, complete=.false.)
@@ -1441,7 +1442,8 @@ contains
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%albedo_nir_dif,    'ATM',   &
          ex_albedo_nir_dif   ,  xmap_sfc, complete=.false.)
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%rough_mom, 'ATM', ex_rough_mom,  xmap_sfc, complete=.false.)
-    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%rough_heat,'ATM', ex_rough_heat, xmap_sfc, complete=.false.) !kgao
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%rough_heat,'ATM',           &
+         ex_rough_heat, xmap_sfc, complete=.false.) !kgao
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%land_frac, 'ATM', ex_land_frac,  xmap_sfc, complete=.false.)
 
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%u_flux,    'ATM', ex_flux_u,     xmap_sfc, complete=.false.)
@@ -1457,8 +1459,8 @@ contains
 
 ! kgao: for shield+mom6 coupling; used by shield pbl schemes (am5 with tke-edmf should do the same)
 #ifndef use_AM3_physics
-    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%shflx,     'ATM', ex_flux_t    , xmap_sfc, complete=.false.)
-    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%lhflx,     'ATM', ex_flux_tr(:,isphum), xmap_sfc, complete=.true.)
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%shflx,'ATM', ex_flux_t    , xmap_sfc, complete=.false.)
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%lhflx,'ATM', ex_flux_tr(:,isphum), xmap_sfc, complete=.true.)
 #endif
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%wind,      'ATM', ex_wind      , xmap_sfc)
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%thv_atm,   'ATM', ex_thv_atm   , xmap_sfc)
