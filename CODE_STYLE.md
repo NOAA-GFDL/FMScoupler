@@ -30,12 +30,14 @@
   if(file_exists(fileName)) call open_file(fileObj,fileName, is_restart=.false)
   ```
 * Avoid the use of `GOTO` statements
-* Avoid the use of Fortran reserved words as variables (e.g. `DATA`, `NAME`)
+* Avoid the use of 
+[Fortran keywords](https://fortranwiki.org/fortran/show/Keywords) 
+as variables including `NAME` (e.g. `DATA`)
 * Avoid the use of `COMMON` blocks
 
 ### Derived types
 
-* Type names must be in CapitalWord format.
+* Type names must be in CapitalWord format and end in either _t or _type.
 * Variables names must be in underscore_word format.
 * All member variables must be private.
 * Doxygen description on the line before the type definition.

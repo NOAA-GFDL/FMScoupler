@@ -1,4 +1,4 @@
-# Contributing To libFMS
+# Contributing To FMScoupler
 
 Thank you for taking time to contribute.
 
@@ -13,11 +13,11 @@ please review the [code style guidelines](CODE_STYLE.md).
 ## High Bar for Contribution
 
 Because the FMScoupler is used by all of the models and all of the model 
-components at GFDL, updates face more scrutiny and require more justification 
-and testing.  The additional step of setting up a meeting with Modeling Systems 
-Division (MSD) is required for all updates to ensure that the updates are 
-required at the coupler level.  MSD will reject updates that should/could be 
-made in a component model.
+components at GFDL, updates face enhanced scrutiny and require enhanced 
+justification and testing.  The additional step of setting up a meeting 
+with Modeling Systems Division (MSD) is required for all updates to ensure 
+that the updates are required at the coupler level.  MSD will reject updates 
+that should/could be made in a component model.
 
 
 Table of Contents
@@ -46,7 +46,7 @@ uphold this code. Please report unacceptable behavior to
 4. Update the tests and code
 5. Push the commits to your fork
 6. Submit a [pull request](#pull-requests) to the `main` branch
-7. **Set up a meeting with GFDL Modeling Systems Division to scientifically justify the need to make updates at the coupler level**
+7. **Set up a meeting with GFDL Modeling Systems Division and any other itnerested parties to scientifically justify the need to make updates at the coupler level**.
 8. Fulfill requests for changes
 
 Note: Step 7 is an extra necessary step.
@@ -71,7 +71,8 @@ The issue title should be short and descriptive.  The issue description should
 be clear and concise.  Include enough information to help others reproduce the
 issue, or understand the change requested.  Use
 [GitHub flavored markdown](https://guides.github.com/features/mastering-markdown/)
-to format the message, and include links to references.
+to format the message, and include links to references. Any downstream code 
+updates required for changes should be included in the issue.
 
 ## Pull Requests
 
@@ -81,6 +82,12 @@ GFDL schedule that addresses the needs of the GFDL scientists.  We follow the
 [GitHub fork-pull request workflow](https://guides.github.com/activities/forking/)
 workflow, briefly described in the [Quick Start Workflow](#quick-start-workflow)
 section.
+
+Any changes that are required for a PR in the FMScoupler should be linked.  Merges
+should take place downstream first in order to ensure new dependencies are 
+available.  Changes made to componenet models that change calls in the 
+FMScoupler must include changes to corresponding null/data models in order to 
+maintain the automated build tests.
 
 Please keep the changes in a single pull to be as small as possible to help
 reviewer(s) quickly evaluate changes.  If you do have a large update, try to
