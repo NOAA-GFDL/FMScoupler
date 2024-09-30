@@ -20,7 +20,7 @@ that the updates are required at the coupler level.  MSD will reject updates
 that should/could be made in a component model.
 
 
-Table of Contents
+## Table of Contents
 * [High Bar for Contribution](*high-bar-for-contribution)
 * [Code of Conduct](#code-of-conduct)
 * [Quick Start Workflow](#quick-start-workflow)
@@ -58,9 +58,9 @@ as descriptive as possible.  See the [Issues](#issues) section for more details.
 
 Support for this project is primarily accomplished via this project’s community.
 Additional support may be offered from related communities
-(e.g. [MOM6](https://github.com/NOAA-GFDL/MOM6) or by members of the GFDL
+(e.g. [MOM6](https://github.com/NOAA-GFDL/MOM6)) or by members of the GFDL
 [Modeling Systems](https://www.gfdl.noaa.gov/modeling-systems) Group.  The
-members of the Modeling Systems group are the main developers and maintainers of
+members of the Modeling Systems group are the main maintainers of
 this project.  Modeling Systems is a small group, and our ability to offer
 support is limited.  Please be patient when requesting support.
 
