@@ -37,8 +37,8 @@ as variables including `NAME` (e.g. `DATA`)
 
 ### Derived types
 
-* Type names must be in CapitalWord format and end in either _t or _type.
-* Variables names must be in underscore_word format.
+* Type names with more than one word must be in CapitalWord format and end in either _t or _type.
+* Variables names with more than one word must be in underscore_word format.
 * All member variables must be private.
 * Doxygen description on the line before the type definition.
 * Inline doxygen descriptions for all member variables.
