@@ -2208,7 +2208,7 @@ contains
 !!$  endif
 
     do n_gex=1,n_gex_atm2lnd
-       call fms_xgrid_put_to_xgrid (Atm%gex_atm2lnd(:,:,n), 'ATM', ex_gex_atm2lnd(:,n),xmap_sfc,  complete=.false.)
+       call fms_xgrid_put_to_xgrid (Atm%gex_atm2lnd(:,:,n_gex), 'ATM', ex_gex_atm2lnd(:,n_gex),xmap_sfc,  complete=.false.)
     end do
 
     call fms_xgrid_put_to_xgrid (Atm%coszen,  'ATM', ex_coszen, xmap_sfc, complete=.true.)
@@ -2469,7 +2469,7 @@ contains
 
     if (associated(Land_boundary%gex_fields)) then    
        do n_gex=1,n_gex_atm2lnd       
-          call fms_xgrid_get_from_xgrid_ug (Land_boundary%gex_fields(:,:,n),   'LND', ex_gex_atm2lnd(:,n),     xmap_sfc)
+          call fms_xgrid_get_from_xgrid_ug (Land_boundary%gex_fields(:,:,n_gex),   'LND', ex_gex_atm2lnd(:,n_gex),     xmap_sfc)
           !add data_override here
        end do
     end if
@@ -2499,7 +2499,7 @@ contains
 
     if associated(Land_boundary%gex_fields) then
        do n_gex=1,n_gex_atm2lnd       
-          call fms_xgrid_get_from_xgrid (Land_boundary%gex_fields(:,:,n),   'LND', ex_gex_atm2lnd(:,n),     xmap_sfc)
+          call fms_xgrid_get_from_xgrid (Land_boundary%gex_fields(:,:,n_gex),   'LND', ex_gex_atm2lnd(:,n_gex),     xmap_sfc)
        end do
     end if
     
