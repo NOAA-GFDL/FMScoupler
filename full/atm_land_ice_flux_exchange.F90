@@ -2088,7 +2088,7 @@ contains
     real, dimension(n_xgrid_sfc) :: ex_gamma  , ex_dtmass,  &
          ex_delta_t, ex_delta_u, ex_delta_v, ex_dflux_t
 
-   real, dimension(n_xgrid_sfc,n_gex_atm2lnd) ::  ex_gex_atm2lnd       
+    real, dimension(n_xgrid_sfc,n_gex_atm2lnd) ::  ex_gex_atm2lnd       
 
     real, dimension(n_xgrid_sfc,n_exch_tr) :: &
          ex_delta_tr, & ! tracer tendencies
@@ -2103,6 +2103,7 @@ contains
     character(32) :: tr_name ! name of the tracer
     integer :: tr, n, m ! tracer indices
     integer :: is, ie, l, i
+    integer :: n_gex
 
     !Balaji
     call fms_mpp_clock_begin(cplClock)
@@ -2164,8 +2165,9 @@ contains
     end if
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_flux_sw_dir, &
     !$OMP                                  ex_flux_sw_vis_dir,ex_flux_sw_dif,ex_delta_u,    &
-    !$OMP                                  ex_flux_sw_vis_dif,ex_flux_lwd,ex_delta_v )      &
-    !$OMP                          private(is,ie)
+    !$OMP                                  ex_flux_sw_vis_dif,ex_flux_lwd,ex_delta_v,       &
+    !$OMP                                  ex_gex_atm2lnd,n_gex_atm2lnd)                    &
+    !$OMP                          private(is,ie,n_gex)
     do l = 1, my_nblocks
        is=block_start(l)
        ie=block_end(l)
@@ -2178,6 +2180,11 @@ contains
           ex_delta_u(i)         = 0.0
           ex_delta_v(i)         = 0.0
        enddo
+       do n_gex=1,n_gex_atm2lnd          
+          do i = is, ie
+             ex_gex_atm2lnd(i,n_gex)   = 0.0
+          end do
+       end do
     enddo
     call fms_xgrid_put_to_xgrid (Atm%flux_sw_dir, 'ATM', ex_flux_sw_dir, xmap_sfc, complete=.false.)
     call fms_xgrid_put_to_xgrid (Atm%flux_sw_vis_dir, 'ATM', ex_flux_sw_vis_dir, xmap_sfc, complete=.false.)
@@ -2200,10 +2207,9 @@ contains
     call fms_xgrid_put_to_xgrid (Atm%t_bot,   'ATM', ex_tprec, xmap_sfc, complete=.false.)
 !!$  endif
 
-    do n=1,n_gex_atm2lnd
+    do n_gex=1,n_gex_atm2lnd
        call fms_xgrid_put_to_xgrid (Atm%gex_atm2lnd(:,:,n), 'ATM', ex_gex_atm2lnd(:,n),xmap_sfc,  complete=.false.)
-   end do
-
+    end do
 
     call fms_xgrid_put_to_xgrid (Atm%coszen,  'ATM', ex_coszen, xmap_sfc, complete=.true.)
 
@@ -2461,11 +2467,12 @@ contains
        call fms_xgrid_get_from_xgrid_ug (Land_boundary%con_atm, 'LND', ex_con_atm, xmap_sfc)
     end if
 
-    do n=1,n_gex_atm2lnd       
-       call fms_xgrid_get_from_xgrid_ug (Land_boundary%gex_fields(:,:,n),   'LND', ex_gex_atm2lnd(:,n),     xmap_sfc)
-       !add data_override here
-    end do
-    
+    if (associated(Land_boundary%gex_fields)) then    
+       do n_gex=1,n_gex_atm2lnd       
+          call fms_xgrid_get_from_xgrid_ug (Land_boundary%gex_fields(:,:,n),   'LND', ex_gex_atm2lnd(:,n),     xmap_sfc)
+          !add data_override here
+       end do
+    end if
 #else
     call fms_xgrid_get_from_xgrid (Land_boundary%t_flux,  'LND', ex_flux_t,    xmap_sfc)
     call fms_xgrid_get_from_xgrid (Land_boundary%sw_flux, 'LND', ex_flux_sw,   xmap_sfc)
@@ -2490,11 +2497,12 @@ contains
     call fms_xgrid_get_from_xgrid (Land_boundary%fprec,   'LND', ex_fprec,     xmap_sfc)
     call fms_xgrid_get_from_xgrid (Land_boundary%tprec,   'LND', ex_tprec,     xmap_sfc)
 
+    if associated(Land_boundary%gex_fields) then
+       do n_gex=1,n_gex_atm2lnd       
+          call fms_xgrid_get_from_xgrid (Land_boundary%gex_fields(:,:,n),   'LND', ex_gex_atm2lnd(:,n),     xmap_sfc)
+       end do
+    end if
     
-    do n=1,n_gex_atm2lnd       
-       call fms_xgrid_get_from_xgrid (Land_boundary%gex_fields(:,:,n),   'LND', ex_gex_atm2lnd(:,n),     xmap_sfc)
-    end do
-
 !!$  if(do_area_weighted_flux) then
 !!$     ! evap goes here???
 !!$     do k = 1, size(Land_boundary%lprec, dim=3)
