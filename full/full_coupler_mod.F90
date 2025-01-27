@@ -86,7 +86,7 @@ module full_coupler_mod
   use atmos_tracer_driver_mod, only: atmos_tracer_driver_gather_data
 
   use gex_mod,                 only: gex_init
-  
+
   use iso_fortran_env
 
   implicit none
@@ -886,7 +886,7 @@ contains
                        //trim(walldate)//' '//trim(walltime)
     endif
 
-!   Initialize atm/land exchange (not for tracers)    
+!   Initialize atm/land exchange (not for tracers)
     call gex_init()
 
 !-----------------------------------------------------------------------

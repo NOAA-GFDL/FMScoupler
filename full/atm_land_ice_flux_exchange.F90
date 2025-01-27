@@ -2116,7 +2116,7 @@ contains
          ex_delta_t, ex_delta_u, ex_delta_v, ex_dflux_t
 
     real, dimension(n_xgrid_sfc,n_gex_atm2lnd) ::  ex_gex_atm2lnd
-    
+
     real, dimension(n_xgrid_sfc,n_exch_tr) :: &
          ex_delta_tr, & ! tracer tendencies
          ex_dflux_tr    ! fracer flux change
