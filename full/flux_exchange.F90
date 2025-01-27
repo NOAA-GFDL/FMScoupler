@@ -566,7 +566,8 @@ module flux_exchange_mod
   !! tfreeze parameter
   real, parameter    :: tfreeze = 273.15
   logical :: scale_precip_2d = .false.
-  logical :: ocn_atm_flux_vmr_bug = .true.  !set to .true.  to reproduce old (erroneous) conversion for flux of vmr tracers between ocean and atm
+  logical :: ocn_atm_flux_vmr_bug = .true.  !set to .true. to reproduce old (erroneous) conversion
+                                            !for flux of vmr tracers between ocean and atm
 
   namelist /flux_exchange_nml/ z_ref_heat, z_ref_mom,&
        & do_area_weighted_flux, debug_stocks, divert_stocks_report, do_runoff, do_forecast, nblocks,&
