@@ -122,7 +122,8 @@ use gex_mod, only : gex_get_n_ex
 ! 2017/08/15 jgj added
   integer :: id_co2_bot, id_co2_flux_pcair_atm, id_o2_flux_pcair_atm
 
-  integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:), id_tr_ref(:), id_tr_ref_land(:)
+  integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), &
+                          id_tr_mol_flux(:), id_tr_ref(:), id_tr_ref_land(:)
   integer, allocatable :: id_tr_mol_flux0(:) !f1p
   integer, allocatable :: id_tr_flux_land(:), id_tr_mol_flux_land(:)
   integer, allocatable :: id_tr_con_atm_land(:), & !< deposition velocity at bottom level (land)
@@ -251,9 +252,9 @@ use gex_mod, only : gex_get_n_ex
   end type tracer_exch_ind_type
   !map atm tracers to exchange, ice and land variables
   type(tracer_exch_ind_type), allocatable :: tr_table_map(:)
-  integer :: isphum = NO_TRACER       !< specific humidity index 
+  integer :: isphum = NO_TRACER       !< specific humidity index
   integer :: ico2   = NO_TRACER       !< co2 tracer index
-  integer :: inh3   = NO_TRACER       !< nh3 tracer index 
+  integer :: inh3   = NO_TRACER       !< nh3 tracer index
   type(FmsCoupler1dBC_type), pointer :: ex_gas_fields_atm=>NULL() !< gas fields in atm
                                                                  !< Place holder for various atmospheric fields.
   type(FmsCoupler1dBC_type), pointer :: ex_gas_fields_ice=>NULL() ! gas fields on ice
