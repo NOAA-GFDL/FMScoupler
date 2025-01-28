@@ -127,8 +127,8 @@ use gex_mod, only : gex_get_n_ex
   integer, allocatable :: id_tr_flux_land(:), id_tr_mol_flux_land(:)
   integer, allocatable :: id_tr_con_atm_land(:), & !< deposition velocity at bottom level (land)
                           id_tr_con_ref_land(:)    !< deposition velocity at reference height (land)
-  integer, allocatable :: id_tr_con_atm(:), !< deposition velocity at bottom level (atm)
-                          id_tr_con_ref(:)  !< deposition velocity at ref height (atm)
+  integer, allocatable :: id_tr_con_atm(:), & !< deposition velocity at bottom level (atm)
+                          id_tr_con_ref(:)    !< deposition velocity at ref height (atm)
 
   ! id's for cmip specific fields
   integer :: id_tas, id_uas, id_vas, id_ts, id_psl, &
