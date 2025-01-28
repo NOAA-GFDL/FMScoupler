@@ -74,7 +74,6 @@ use FMS
 use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
                         PI, CP_OCEAN, WTMCO2, WTMC, EPSLN, GRAV, WTMH2O
 
-!gex
 use gex_mod, only : gex_get_n_ex
 
   implicit none
@@ -126,8 +125,10 @@ use gex_mod, only : gex_get_n_ex
   integer, allocatable :: id_tr_atm(:), id_tr_surf(:), id_tr_flux(:), id_tr_mol_flux(:), id_tr_ref(:), id_tr_ref_land(:)
   integer, allocatable :: id_tr_mol_flux0(:) !f1p
   integer, allocatable :: id_tr_flux_land(:), id_tr_mol_flux_land(:)
-  integer, allocatable :: id_tr_con_atm_land(:), id_tr_con_ref_land(:)
-  integer, allocatable :: id_tr_con_atm(:), id_tr_con_ref(:)
+  integer, allocatable :: id_tr_con_atm_land(:), & !< deposition velocity at bottom level (land)
+                          id_tr_con_ref_land(:)    !< deposition velocity at reference height (land)
+  integer, allocatable :: id_tr_con_atm(:), !< deposition velocity at bottom level (atm)
+                          id_tr_con_ref(:)  !< deposition velocity at ref height (atm)
 
   ! id's for cmip specific fields
   integer :: id_tas, id_uas, id_vas, id_ts, id_psl, &
@@ -155,7 +156,8 @@ use gex_mod, only : gex_get_n_ex
   real    :: z_ref_heat =  2. !< Reference height (meters) for temperature and relative humidity diagnostics
                               !! (t_ref, rh_ref, del_h, del_q)
   real    :: z_ref_mom  = 10. !< Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)
-  logical :: ocn_atm_flux_vmr_bug
+  logical :: ocn_atm_flux_vmr_bug !< set to .true. to reproduce old (erroneous) conversion
+                                  !! for VMR tracers exchanges with the ocean
   logical :: do_area_weighted_flux = .FALSE.
   logical :: do_forecast = .false.
   integer :: nblocks = 1
@@ -220,8 +222,8 @@ use gex_mod, only : gex_get_n_ex
        ex_e_tr_n,     & !< coefficient in implicit scheme
        ex_f_tr_delt_n   !< coefficient in implicit scheme
 
-  !deposition velocity at reference height and atmospheric height
-  real, allocatable, dimension(:,:) :: ex_tr_con_ref, ex_tr_con_atm
+  real, allocatable, dimension(:,:) :: ex_tr_con_ref, & !< deposition velocity at reference height
+                                       ex_tr_con_atm    !< deposition velocity at atmospheric height
 
   logical, allocatable, dimension(:) :: &
        ex_avail,     &   !< true where data on exchange grid are available
@@ -249,10 +251,9 @@ use gex_mod, only : gex_get_n_ex
   end type tracer_exch_ind_type
   !map atm tracers to exchange, ice and land variables
   type(tracer_exch_ind_type), allocatable :: tr_table_map(:)
-  !index of tracers in the array of tracers passed through flux exchange (tr_table)
-  integer :: isphum = NO_TRACER       !< specific humidity
-  integer :: ico2   = NO_TRACER       !< co2 tracer
-  integer :: inh3   = NO_TRACER       !< nh3 tracer
+  integer :: isphum = NO_TRACER       !< specific humidity index 
+  integer :: ico2   = NO_TRACER       !< co2 tracer index
+  integer :: inh3   = NO_TRACER       !< nh3 tracer index 
   type(FmsCoupler1dBC_type), pointer :: ex_gas_fields_atm=>NULL() !< gas fields in atm
                                                                  !< Place holder for various atmospheric fields.
   type(FmsCoupler1dBC_type), pointer :: ex_gas_fields_ice=>NULL() ! gas fields on ice
@@ -318,7 +319,8 @@ contains
     real,                 intent(in)    :: z_ref_heat_in, z_ref_mom_in
     logical,              intent(in)    :: scale_precip_2d_in
     logical,              intent(in)    :: do_area_weighted_flux_in
-    logical,              intent(in)    :: ocn_atm_flux_vmr_bug_in
+    logical,              intent(in)    :: ocn_atm_flux_vmr_bug_in !< set to .true. to reproduce old (erroneous) conversion
+                                                                   !! for VMR tracers exchanges with the ocean
     logical,              intent(in)    :: do_forecast_in, partition_fprec_from_lprec_in
     integer,              intent(in)    :: nblocks_in
     integer,              intent(in)    :: cplClock_in
@@ -724,7 +726,8 @@ contains
          ex_frac_open_sea
 
     real :: rho
-    real, dimension(n_xgrid_sfc,n_exch_tr) :: ex_tr_atm, ex_tr_ref
+    real, dimension(n_xgrid_sfc,n_exch_tr) :: ex_tr_atm, & !< concentration of tracer at bottom level
+                                              ex_tr_ref    !< concentration of tracer at reference height
     ! jgj: added for co2_atm diagnostic
     real, dimension(n_xgrid_sfc)           :: ex_co2_atm_dvmr
     real, dimension(size(Land_Ice_Atmos_Boundary%t,1),size(Land_Ice_Atmos_Boundary%t,2)) :: diag_atm
