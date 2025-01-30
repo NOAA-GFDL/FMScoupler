@@ -6,6 +6,15 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
+## [2025.01] - 2025-01-30
+
+## Added
+- FULL: Added ocean temperature and rough heat variables to `land_ice_atmos_boundary` to be used and populated on the exchange grid from ocean variables in `sfc_boundary_layer`, before running the atmos physics for shield coupling. (#143)
+
+### Tag Commit Hashes
+- 2025.01-beta1  008399dcf1a7a2d8b4733cded744d9a72ca14f10
+- 2025.01-alpha1 008399dcf1a7a2d8b4733cded744d9a72ca14f10
+
 ## [2024.03.01] - 2024-09-06
 
 ## Fixed
