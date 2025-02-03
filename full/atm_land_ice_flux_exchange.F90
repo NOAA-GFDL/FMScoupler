@@ -320,8 +320,9 @@ contains
     real,                 intent(in)    :: z_ref_heat_in, z_ref_mom_in
     logical,              intent(in)    :: scale_precip_2d_in
     logical,              intent(in)    :: do_area_weighted_flux_in
-    logical,              intent(in)    :: ocn_atm_flux_vmr_bug_in !< set to .true. to reproduce old (erroneous) conversion
-                                                                   !! for VMR tracers exchanges with the ocean
+    logical,              intent(in)    :: ocn_atm_flux_vmr_bug_in !< set to .true. to reproduce old (erroneous)
+                                                                   !! conversion for VMR tracers exchanges
+                                                                   !!with the ocean
     logical,              intent(in)    :: do_forecast_in, partition_fprec_from_lprec_in
     integer,              intent(in)    :: nblocks_in
     integer,              intent(in)    :: cplClock_in
