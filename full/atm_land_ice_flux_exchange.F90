@@ -74,8 +74,6 @@ use FMS
 use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, &
                         PI, CP_OCEAN, WTMCO2, WTMC, EPSLN, GRAV, WTMH2O
 
-use gex_mod, only : gex_get_n_ex
-
   implicit none
   include 'netcdf.inc'
   private
@@ -392,7 +390,7 @@ contains
     !
 
     !generic exchange
-    n_gex_atm2lnd = gex_get_n_ex(MODEL_ATMOS,MODEL_LAND)
+    n_gex_atm2lnd = fms_gex_get_n_ex(MODEL_ATMOS,MODEL_LAND)
     if (fms_mpp_root_pe().eq.fms_mpp_pe()) write(*,*) 'atm_land_ice_flux_exchange_init [gex]',n_gex_atm2lnd
 
     do n = 1, ex_gas_fluxes%num_bcs  !{
