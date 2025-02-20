@@ -206,6 +206,7 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
        ex_z_atm,     &
        ex_con_atm
 
+
 #ifdef SCM
   real, allocatable, dimension(:) :: &
        ex_dhdt_surf_forland, &
@@ -236,7 +237,8 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
   integer :: n_lnd_tr  !< number of prognostic tracers in the land model
   integer :: n_lnd_tr_tot  !< number of prognostic tracers in the land model
   integer :: n_exch_tr !< number of tracers exchanged between models
-  integer :: n_gex_atm2lnd !< number of gex fields between land and atmosphere
+  integer :: n_gex_atm2lnd !< number of gex fields exchanged between land and atmosphere
+  integer :: n_gex_lnd2atm !< number of gex fields exchanged between atmosphere and land
 
 
   type :: tracer_ind_type
@@ -392,6 +394,8 @@ contains
     !generic exchange
     n_gex_atm2lnd = fms_gex_get_n_ex(MODEL_ATMOS,MODEL_LAND)
     if (fms_mpp_root_pe().eq.fms_mpp_pe()) write(*,*) 'atm_land_ice_flux_exchange_init [gex]',n_gex_atm2lnd
+    n_gex_lnd2atm = fms_gex_get_n_ex(MODEL_LAND,MODEL_ATMOS)
+    if (fms_mpp_root_pe().eq.fms_mpp_pe()) write(*,*) 'atm_land_ice_flux_exchange_init [gex]',n_gex_lnd2atm
 
     do n = 1, ex_gas_fluxes%num_bcs  !{
        if (ex_gas_fluxes%bc(n)%atm_tr_index .gt. 0) then  !{
@@ -601,6 +605,8 @@ contains
     allocate( land_ice_atmos_boundary%rough_mom(is:ie,js:je) )
     allocate( land_ice_atmos_boundary%rough_heat(is:ie,js:je) ) ! Kun
     allocate( land_ice_atmos_boundary%frac_open_sea(is:ie,js:je) )
+    allocate( land_ice_atmos_boundary%gex_lnd2atm(is:ie,js:je,n_gex_lnd2atm) )
+
     ! initialize boundary values for override experiments (mjh)
     land_ice_atmos_boundary%t=273.0
     land_ice_atmos_boundary%t_ocean=200.0
@@ -623,6 +629,8 @@ contains
     land_ice_atmos_boundary%u_star=0.0
     land_ice_atmos_boundary%b_star=0.0
     land_ice_atmos_boundary%q_star=0.0
+    land_ice_atmos_boundary%gex_lnd2atm=0.0
+
 #ifndef use_AM3_physics
     land_ice_atmos_boundary%shflx=0.0
     land_ice_atmos_boundary%lhflx=0.0
@@ -750,6 +758,9 @@ contains
     integer :: i
     integer :: is,ie,l,j
     integer :: isc,iec,jsc,jec
+    integer :: n_gex
+
+    real, dimension(n_xgrid_sfc,n_gex_lnd2atm) ::  ex_gex_lnd2atm
 
     ! [1] check that the module was initialized
     if (do_init) call error_mesg ('atm_land_ice_flux_exchange_mod',  &
@@ -855,8 +866,8 @@ contains
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_surf,ex_u_surf, &
     !$OMP                                  ex_v_surf,ex_albedo,ex_albedo_vis_dir,ex_albedo_nir_dir, &
     !$OMP                                  ex_albedo_vis_dif,ex_albedo_nir_dif,ex_cd_t,ex_cd_m,  &
-    !$OMP                                  ex_cd_q,ex_frac_open_sea)                             &
-    !$OMP                          private(is,ie)
+    !$OMP                                  ex_cd_q,ex_frac_open_sea,n_gex_lnd2atm,ex_gex_lnd2atm) &
+    !$OMP                          private(is,ie,n_gex)
     do l = 1, my_nblocks
        is=block_start(l)
        ie=block_end(l)
@@ -875,6 +886,11 @@ contains
           ex_cd_m(i) = 0.0
           ex_cd_q(i) = 0.0
           ex_frac_open_sea(i) =0.
+       end do
+       do n_gex=1,n_gex_lnd2atm
+         do i = is,ie
+               ex_gex_lnd2atm(i,n_gex)   = 0.0
+         enddo
        enddo
     enddo
     !-----------------------------------------------------------------------
@@ -1130,6 +1146,11 @@ contains
     ex_rough_scale = ex_rough_mom
     call fms_xgrid_put_to_xgrid_ug(Land%rough_scale, 'LND', ex_rough_scale, xmap_sfc)
 
+    do n_gex=1,n_gex_lnd2atm
+      call fms_xgrid_put_to_xgrid_ug (Land%gex_lnd2atm(:,:,n_gex),'LND', &
+                                   ex_gex_lnd2atm(:,n_gex),xmap_sfc)
+    end do
+
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
        if(n /= NO_TRACER ) then
@@ -1159,6 +1180,11 @@ contains
     call fms_xgrid_put_to_xgrid (Land%albedo_nir_dif,     'LND', ex_albedo_nir_dif,   xmap_sfc)
     ex_rough_scale = ex_rough_mom
     call fms_xgrid_put_to_xgrid(Land%rough_scale, 'LND', ex_rough_scale, xmap_sfc)
+
+    do n_gex=1,n_gex_lnd2atm
+      call fms_xgrid_put_to_xgrid (Land%gex_lnd2atm(:,:,n_gex),'LND', &
+                                   ex_gex_lnd2atm(:,n_gex),xmap_sfc)
+    end do
 
     do tr = 1,n_exch_tr
        n = tr_table(tr)%lnd
@@ -1497,6 +1523,11 @@ contains
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%u_star,    'ATM', ex_u_star    , xmap_sfc, complete=.false.)
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%b_star,    'ATM', ex_b_star    , xmap_sfc, complete=.false.)
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%q_star,    'ATM', ex_q_star    , xmap_sfc, complete=.true.)
+
+    do n_gex=1,n_gex_lnd2atm
+      call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%gex_lnd2atm(:,:,n_gex),  'ATM', ex_gex_lnd2atm(:,n_gex), &
+                                     xmap_sfc, complete=.false.)
+    end do
 
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%u_ref, 'ATM', ex_ref_u     , xmap_sfc, complete=.false.) !bqx
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%v_ref, 'ATM', ex_ref_v     , xmap_sfc, complete=.true.) !bqx
@@ -2468,9 +2499,9 @@ contains
        call fms_xgrid_get_from_xgrid_ug (Land_boundary%con_atm, 'LND', ex_con_atm, xmap_sfc)
     end if
 
-    if (associated(Land_boundary%gex_fields)) then
+    if (associated(Land_boundary%gex_atm2lnd)) then
        do n_gex=1,n_gex_atm2lnd
-          call fms_xgrid_get_from_xgrid_ug (Land_boundary%gex_fields(:,:,n_gex),'LND',ex_gex_atm2lnd(:,n_gex),xmap_sfc)
+          call fms_xgrid_get_from_xgrid_ug (Land_boundary%gex_atm2lnd(:,:,n_gex),'LND',ex_gex_atm2lnd(:,n_gex),xmap_sfc)
           !add data_override here
        end do
     end if
