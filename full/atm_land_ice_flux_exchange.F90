@@ -1748,8 +1748,11 @@ contains
        !cjg          id_q_ref > 0 .or. id_q_ref_land >0 ) then
        do i = is,ie
           ex_ref(i) = 1.0e-06
-          if (ex_avail(i)) &
-               ex_ref(i)   = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i)
+          ! KGao fix for coupled SHiELD
+          if ( ex_avail(i) .and. ex_rough_moist(i) > 1e-9 ) & 
+                ex_ref(i) = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i) 
+          !if (ex_avail(i)) &
+          !     ex_ref(i)   = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i)
        enddo
     enddo
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%q_ref, 'ATM', ex_ref,   xmap_sfc)  ! cjg
@@ -1772,7 +1775,7 @@ contains
 #endif
     endif
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
-    !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
+    !$OMP                                  ex_rough_heat,ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
     !$OMP                                  ex_ref,ex_qs_ref_cmip,ex_ref2 ) &
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
@@ -1780,8 +1783,20 @@ contains
        ie=block_end(l)
        do i = is,ie
           ex_t_ref(i) = 200.
-          if(ex_avail(i)) &
+          ! KGao fix for coupled SHiELD
+          !if ( ex_avail(i) ) then
+          !   if ( ex_rough_heat(i) < 1e-9) then
+          !      ex_t_ref(i) = ex_t_atm(i)
+          !   else
+          !      ex_t_ref(i) = ex_t_ca(i) + (ex_t_atm(i)-ex_t_ca(i)) * ex_del_h(i)
+          !   endif
+          !endif
+
+          if ( ex_avail(i) .and. ex_rough_heat(i) > 1e-9 ) &
                ex_t_ref(i) = ex_t_ca(i) + (ex_t_atm(i)-ex_t_ca(i)) * ex_del_h(i)
+
+          !if(ex_avail(i)) &
+          !     ex_t_ref(i) = ex_t_ca(i) + (ex_t_atm(i)-ex_t_ca(i)) * ex_del_h(i)
        enddo
        call fms_sat_vapor_pres_compute_qs (ex_t_ref(is:ie), ex_p_surf(is:ie), ex_qs_ref(is:ie), q = ex_ref(is:ie))
        call fms_sat_vapor_pres_compute_qs (ex_t_ref(is:ie), ex_p_surf(is:ie), ex_qs_ref_cmip(is:ie),  &
