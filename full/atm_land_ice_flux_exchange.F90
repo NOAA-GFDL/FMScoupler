@@ -1748,7 +1748,7 @@ contains
        !cjg          id_q_ref > 0 .or. id_q_ref_land >0 ) then
        do i = is,ie
           ex_ref(i) = 1.0e-06
-          ! KGao fix for coupled SHiELD
+          ! KGao fix: preventing the use of invalid ex_del_q
           if ( ex_avail(i) .and. ex_rough_moist(i) > 1e-9 ) & 
                 ex_ref(i) = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i) 
           !if (ex_avail(i)) &
@@ -1783,15 +1783,7 @@ contains
        ie=block_end(l)
        do i = is,ie
           ex_t_ref(i) = 200.
-          ! KGao fix for coupled SHiELD
-          !if ( ex_avail(i) ) then
-          !   if ( ex_rough_heat(i) < 1e-9) then
-          !      ex_t_ref(i) = ex_t_atm(i)
-          !   else
-          !      ex_t_ref(i) = ex_t_ca(i) + (ex_t_atm(i)-ex_t_ca(i)) * ex_del_h(i)
-          !   endif
-          !endif
-
+          ! KGao fix: preventing the use of invalid ex_del_h
           if ( ex_avail(i) .and. ex_rough_heat(i) > 1e-9 ) &
                ex_t_ref(i) = ex_t_ca(i) + (ex_t_atm(i)-ex_t_ca(i)) * ex_del_h(i)
 
