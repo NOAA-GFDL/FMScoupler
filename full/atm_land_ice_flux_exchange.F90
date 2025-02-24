@@ -1749,8 +1749,8 @@ contains
        do i = is,ie
           ex_ref(i) = 1.0e-06
           ! KGao fix: preventing the use of invalid ex_del_q
-          if ( ex_avail(i) .and. ex_rough_moist(i) > 1e-9 ) & 
-                ex_ref(i) = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i) 
+          if ( ex_avail(i) .and. ex_rough_moist(i) > 1e-9 ) &
+                ex_ref(i) = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i)
           !if (ex_avail(i)) &
           !     ex_ref(i)   = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i)
        enddo
@@ -1786,7 +1786,6 @@ contains
           ! KGao fix: preventing the use of invalid ex_del_h
           if ( ex_avail(i) .and. ex_rough_heat(i) > 1e-9 ) &
                ex_t_ref(i) = ex_t_ca(i) + (ex_t_atm(i)-ex_t_ca(i)) * ex_del_h(i)
-
           !if(ex_avail(i)) &
           !     ex_t_ref(i) = ex_t_ca(i) + (ex_t_atm(i)-ex_t_ca(i)) * ex_del_h(i)
        enddo
