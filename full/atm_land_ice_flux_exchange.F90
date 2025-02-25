@@ -155,8 +155,6 @@ use FMSconstants, only: rdgas, rvgas, cp_air, stefan, WTMAIR, HLV, HLF, Radius, 
   real    :: z_ref_heat =  2. !< Reference height (meters) for temperature and relative humidity diagnostics
                               !! (t_ref, rh_ref, del_h, del_q)
   real    :: z_ref_mom  = 10. !< Reference height (meters) for mementum diagnostics (u_ref, v_ref, del_m)
-  logical :: ocn_atm_flux_vmr_bug !< set to .true. to reproduce old (erroneous) conversion
-                                  !! for VMR tracers exchanges with the ocean
   logical :: do_area_weighted_flux = .FALSE.
   logical :: do_forecast = .false.
   integer :: nblocks = 1
@@ -302,7 +300,6 @@ contains
                                              Dt_atm_in, Dt_cpl_in, z_ref_heat_in, z_ref_mom_in,                 &
                                              do_area_weighted_flux_in,  &
                                              do_forecast_in, partition_fprec_from_lprec_in, scale_precip_2d_in, &
-                                             ocn_atm_flux_vmr_bug_in, &
                                              nblocks_in, cplClock_in, ex_gas_fields_atm_in, &
                                              ex_gas_fields_ice_in, ex_gas_fluxes_in)
     type(FmsTime_type),                   intent(in)    :: Time !< The model's current time
@@ -320,9 +317,6 @@ contains
     real,                 intent(in)    :: z_ref_heat_in, z_ref_mom_in
     logical,              intent(in)    :: scale_precip_2d_in
     logical,              intent(in)    :: do_area_weighted_flux_in
-    logical,              intent(in)    :: ocn_atm_flux_vmr_bug_in !< set to .true. to reproduce old (erroneous)
-                                                                   !! conversion for VMR tracers exchanges
-                                                                   !!with the ocean
     logical,              intent(in)    :: do_forecast_in, partition_fprec_from_lprec_in
     integer,              intent(in)    :: nblocks_in
     integer,              intent(in)    :: cplClock_in
@@ -345,7 +339,6 @@ contains
     Dt_cpl = Dt_cpl_in
     z_ref_heat = z_ref_heat_in
     z_ref_mom = z_ref_mom_in
-    ocn_atm_flux_vmr_bug = ocn_atm_flux_vmr_bug_in
     do_area_weighted_flux = do_area_weighted_flux_in
     do_forecast = do_forecast_in
     partition_fprec_from_lprec = partition_fprec_from_lprec_in
@@ -1377,15 +1370,17 @@ contains
                 if (ex_seawater(i)>0.0) then
                    if (fms_mpp_lowercase(trim(tr_units)).eq."vmr") then
                       ! in mol/m2/s but from land model it should be in vmr * kg/m2/s
-                      if (ocn_atm_flux_vmr_bug) then
-                         ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i)  &
-                              * WTMAIR*1.0e-3 &
-                              / (1.-ex_tr_atm(i,isphum))
-                      else
-                         ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) &
-                              * 1.0e-3*WTMAIR*WTMH2O/((1.-ex_tr_atm(i,isphum))*WTMH2O+ex_tr_atm(i,isphum)*WTMAIR)
+                      ! This was converting to dry vmr (as opposed to ambient vmr)
+                      !    ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i)  &
+                      !         * WTMAIR*1.0e-3 &
+                      !         / (1.-ex_tr_atm(i,isphum))
+                      !
+                      ! vmr * kg/m2/s = mol(X)/[m2 s] [1/mol(air) * mol(air)] * WTM(air)
+                      !
+                      ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) &
+                           * 1.0e-3*WTMAIR*WTMH2O/((1.-ex_tr_atm(i,isphum))*WTMH2O+ex_tr_atm(i,isphum)*WTMAIR)
 
-                      end if
+                      !end if
                    else
                    ! jgj: convert to kg co2/m2/sec for atm
                    ex_flux_tr(i,m)    = ex_gas_fluxes%bc(n)%field(fms_coupler_ind_flux)%values(i) * &
@@ -3210,19 +3205,17 @@ contains
                used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMCO2, Time)
     !sometimes in 2018 f1p for vmr tracers
             elseif (id_tr_mol_flux(tr) > 0 .and. fms_mpp_lowercase(trim(tr_units)).eq."vmr") then
-               if (ocn_atm_flux_vmr_bug) then
-                  call fms_xgrid_get_from_xgrid (diag_atm, 'ATM',  &
-                       ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
-                  used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMAIR, Time)
-               else
-                  !flux is in vmr * kg/m2/s. Divide by MW_air
-                  call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', &
-                       ex_flux_tr(:,tr)*((1.-ex_tr_surf_new(:,isphum))*WTMH2O+ex_tr_surf_new(:,isphum)*WTMAIR) &
-                       / (1e-3*WTMAIR*WTMH2O) , &
-                       xmap_sfc)
-                  used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm, Time)
-               end if
-
+               ! if (ocn_atm_flux_vmr_bug) then
+               !    call fms_xgrid_get_from_xgrid (diag_atm, 'ATM',  &
+               !         ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
+               !    used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm*1000./WTMAIR, Time)
+               ! else
+               !flux is in vmr * kg/m2/s. Divide by MW_air
+               call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', &
+                    ex_flux_tr(:,tr)*((1.-ex_tr_surf_new(:,isphum))*WTMH2O+ex_tr_surf_new(:,isphum)*WTMAIR) &
+                    / (1e-3*WTMAIR*WTMH2O) , &
+                    xmap_sfc)
+               used = fms_diag_send_data ( id_tr_mol_flux(tr), diag_atm, Time)
            endif
         endif
         if ( id_tr_con_atm(tr) > 0 ) then
@@ -3251,18 +3244,12 @@ contains
              if (fms_mpp_lowercase(trim(tr_name))=='co2') then
                 call send_tile_data (id_tr_mol_flux_land(tr), diag_land*1000./WTMCO2)
              elseif (fms_mpp_lowercase(trim(tr_units)).eq.'vmr') then
-                if (ocn_atm_flux_vmr_bug) then
-                   call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', &
-                        ex_flux_tr(:,tr)*(1.-ex_tr_surf_new(:,isphum)), xmap_sfc)
-                   call send_tile_data (id_tr_mol_flux_land(tr), diag_land*1000./WTMAIR )
-                else
-                  !flux is in vmr * kg/m2/s. Divide by MW_air
-                   call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', &
-                        ex_flux_tr(:,tr)*((1.-ex_tr_surf_new(:,isphum))*WTMH2O+ex_tr_surf_new(:,isphum)*WTMAIR) &
-                        /(1e-3*WTMAIR*WTMH2O) , &
-                        xmap_sfc)
-                  call send_tile_data ( id_tr_mol_flux_land(tr), diag_land)
-               end if
+                !flux is in vmr * kg/m2/s. Divide by MW_air
+                call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', &
+                     ex_flux_tr(:,tr)*((1.-ex_tr_surf_new(:,isphum))*WTMH2O+ex_tr_surf_new(:,isphum)*WTMAIR) &
+                     /(1e-3*WTMAIR*WTMH2O) , &
+                     xmap_sfc)
+                call send_tile_data ( id_tr_mol_flux_land(tr), diag_land)
              endif
           endif
        endif
