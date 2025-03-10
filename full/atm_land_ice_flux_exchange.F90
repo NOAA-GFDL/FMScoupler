@@ -2524,9 +2524,9 @@ contains
     call fms_xgrid_get_from_xgrid (Land_boundary%fprec,   'LND', ex_fprec,     xmap_sfc)
     call fms_xgrid_get_from_xgrid (Land_boundary%tprec,   'LND', ex_tprec,     xmap_sfc)
 
-    if (associated(Land_boundary%gex_fields)) then
+    if (associated(Land_boundary%gex_atm2lnd)) then
        do n_gex=1,n_gex_atm2lnd
-          call fms_xgrid_get_from_xgrid (Land_boundary%gex_fields(:,:,n_gex), 'LND', ex_gex_atm2lnd(:,n_gex), xmap_sfc)
+          call fms_xgrid_get_from_xgrid (Land_boundary%gex_atm2lnd(:,:,n_gex), 'LND', ex_gex_atm2lnd(:,n_gex), xmap_sfc)
        end do
     end if
 
