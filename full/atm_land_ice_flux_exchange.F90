@@ -1870,11 +1870,12 @@ contains
        end if
 
        if(id_tr_ref_land(tr) > 0) then
+#ifndef _USE_LEGACY_LAND_          
           call fms_xgrid_get_from_xgrid_ug (diag_land, 'LND', ex_tr_ref(:,tr), xmap_sfc)
           !duplicate send_tile_data. We may remove id_q_ref_land in the future.
-#ifndef _USE_LEGACY_LAND_
           call send_tile_data (id_tr_ref_land(tr), diag_land)
 #else
+          call fms_xgrid_get_from_xgrid (diag_land, 'LND', ex_tr_ref(:,tr), xmap_sfc)          
           used = fms_diag_send_tile_averaged_data(id_tr_ref_land(tr), diag_land, &
                Land%tile_size, Time, mask=Land%mask)
 #endif
