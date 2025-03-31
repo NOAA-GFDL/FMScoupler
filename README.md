@@ -2,6 +2,11 @@
 
 # Flexible Modeling System (FMS) Coupler
 
+Instructions for contribuing to this project can be found in the 
+[Contribution Guidelines](CONTRIBUTING.md).  Contributing to the FMScoupler involves a higher 
+level of scrutiny and justification.
+
+
 The Flexible Modeling System (FMS) is a software framework for supporting the
 efficient development, construction, execution, and scientific interpretation
 of atmospheric, oceanic, and climate system models.
