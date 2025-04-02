@@ -152,6 +152,7 @@ implicit none
    call fms_init
    call fmsconstants_init
    call fms_affinity_init
+   call fms_gex_init
 
    call coupler_init
    if (do_chksum) call coupler_chksum('coupler_init+', 0)
