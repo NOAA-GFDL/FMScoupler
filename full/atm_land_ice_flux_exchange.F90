@@ -3891,6 +3891,10 @@ contains
             standard_name='specific_humidity', missing_value=-1.0 )
        allocate(id_tr_flux_land(n_exch_tr))
        allocate(id_tr_mol_flux_land(n_exch_tr))
+       allocate(id_tr_con_atm_land(n_exch_tr)); id_tr_con_atm_land(:)=-1
+       allocate(id_tr_con_ref_land(n_exch_tr)); id_tr_con_ref_land(:)=-1
+       allocate(id_tr_ref_land(n_exch_tr)); id_tr_ref_land(:)=-1
+
        do tr = 1, n_exch_tr
           call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, name, longname, units )
           id_tr_flux_land(tr) = fms_diag_register_diag_field( 'flux_land', trim(name)//'_flux', Land_axes, Time, &
