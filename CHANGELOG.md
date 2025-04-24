@@ -6,7 +6,7 @@ and this project uses `yyyy.rr[.pp]`, where `yyyy` is the year a patch is releas
 `rr` is a sequential release number (starting from `01`), and an optional two-digit
 sequential patch number (starting from `01`).
 
-## [2025.02] - 2025-04-17
+## [2025.02] - 2025-04-28
 ## Added
 - FULL: Added calls to the added generic_exchange(gex) module which was added to FMS for this release. These modifications handle dry deposition on the land side, fix errors in ocean flux diagnositics with vmr tracers for ESM4p5, and pass fluxes between the land and atmosphehere. (#151)
 
