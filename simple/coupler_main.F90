@@ -272,7 +272,7 @@ contains
 !----- for backwards compatibilty read from file coupler.nml -----
 
     read (fms_mpp_input_nml_file, nml=coupler_nml, iostat=io)
-    ierr = check_nml_error(io, 'coupler_nml')
+    ierr = fms_check_nml_error(io, 'coupler_nml')
 
 !----- write namelist to logfile -----
 
@@ -300,7 +300,7 @@ contains
     if ( force_date_from_namelist ) then
 
       if ( sum(current_date) <= 0 ) then
-        call error_mesg ('program coupler',  &
+        call fms_error_mesg ('program coupler',  &
              'no namelist value for current_date', FATAL)
       else
         date      = current_date
@@ -368,7 +368,7 @@ contains
 !   (NOTE: if run length in months then starting day must be <= 28)
 
     if ( months > 0 .and. date(3) > 28 )     &
-       call error_mesg ('program coupler',  &
+       call fms_error_mesg ('program coupler',  &
             'if run length in months then starting day must be <= 28', FATAL)
 
     Time_end = Time_atmos
@@ -417,19 +417,19 @@ contains
 
 !----- initial time cannot be greater than current time -------
 
-    if ( Time_init > Time_atmos ) call error_mesg ('program coupler',  &
+    if ( Time_init > Time_atmos ) call fms_error_mesg ('program coupler',  &
                     'initial time is greater than current time', FATAL)
 
 !----- make sure run length is a multiple of ocean time step ------
 
     if ( num_cpld_calls * Time_step_ocean /= Run_length )  &
-         call error_mesg ('program coupler',  &
+         call fms_error_mesg ('program coupler',  &
          'run length must be multiple of ocean time step', FATAL)
 
 ! ---- make sure cpld time step is a multiple of atmos time step ----
 
     if ( num_atmos_calls * Time_step_atmos /= Time_step_ocean )  &
-         call error_mesg ('program coupler',   &
+         call fms_error_mesg ('program coupler',   &
          'atmos time step is not a multiple of the ocean time step', FATAL)
 
 
@@ -495,7 +495,7 @@ contains
 
 !----- check time versus expected ending time ----
 
-    if (Time_atmos /= Time_end) call error_mesg ('program coupler',  &
+    if (Time_atmos /= Time_end) call fms_error_mesg ('program coupler',  &
             'final time does not match expected ending time', WARNING)
 
 !----- write restart file ------
