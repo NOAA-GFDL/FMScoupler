@@ -1823,7 +1823,7 @@ contains
        do i = is,ie
           ex_ref(i) = 1.0e-06
           ex_tr_ref(i,:) = 1.e-20
-          if (ex_avail(i)) then
+          if (ex_avail(i) .and. ex_rough_moist(i) > 0.) then
                ex_ref(i)   = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i)
                rho         = ex_p_surf(i)/(rdgas * ex_t_atm(i)*(1.0+d608*ex_tr_atm(i,isphum)))
                do tr=1,n_exch_tr
@@ -1883,7 +1883,7 @@ contains
     end do
 
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
-    !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
+    !$OMP                                  ex_rough_heat,ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
     !$OMP                                  ex_ref,ex_qs_ref_cmip,ex_ref2 ) &
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
@@ -1891,7 +1891,7 @@ contains
        ie=block_end(l)
        do i = is,ie
           ex_t_ref(i) = 200.
-          if(ex_avail(i)) &
+          if ( ex_avail(i) .and. ex_rough_heat(i) > 0. ) &
                ex_t_ref(i) = ex_t_ca(i) + (ex_t_atm(i)-ex_t_ca(i)) * ex_del_h(i)
        enddo
        call fms_sat_vapor_pres_compute_qs (ex_t_ref(is:ie), ex_p_surf(is:ie), ex_qs_ref(is:ie), q = ex_ref(is:ie))
