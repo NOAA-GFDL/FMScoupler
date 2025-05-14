@@ -162,7 +162,7 @@ real :: zrefm, zrefh
 
 !-----------------------------------------------------------------------
 
-   if (do_init) call error_mesg ('sfc_boundary_layer',  &
+   if (do_init) call fms_error_mesg ('sfc_boundary_layer',  &
                  'must call simple_surface_init first', FATAL)
 
 !-----------------------------------------------------------------------
@@ -694,13 +694,13 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
                             num_prog=n_atm_tr)
    isphum = fms_tracer_manager_get_tracer_index( MODEL_ATMOS, 'sphum' )
    if (isphum==NO_TRACER) &
-      call error_mesg('flux_exchange_mod', 'Cannot find water vapor in ATM tracer table', FATAL)
+      call fms_error_mesg('flux_exchange_mod', 'Cannot find water vapor in ATM tracer table', FATAL)
 !-----------------------------------------------------------------------
 !------ allocate atmos_land_boundary ------
 
    call fms_mpp_domains_get_compute_domain ( Land%Domain, isc, iec, jsc, jec )
    if (isc /= is .or. iec /= ie .or. jsc /= js .or. jec /= je ) &
-         call error_mesg ('flux_exchange_init', 'land model '// &
+         call fms_error_mesg ('flux_exchange_init', 'land model '// &
                 'domain does not match atmosphere domain', FATAL)
    kd = size(Land%mask,3) ! must be 1 (should check)
  ! allocate( atmos_land_boundary%t_flux (is:ie,js:je,kd) )
@@ -744,7 +744,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
 
    call fms_mpp_domains_get_compute_domain ( Ice%Domain, isc, iec, jsc, jec )
    if (isc /= is .or. iec /= ie .or. jsc /= js .or. jec /= je ) &
-          call error_mesg ('flux_exchange_init', 'ice model '// &
+          call fms_error_mesg ('flux_exchange_init', 'ice model '// &
                 'domain does not match atmosphere domain', FATAL)
 
    allocate( atmos_ice_boundary%u_star(is:ie,js:je) )
@@ -852,7 +852,7 @@ subroutine flux_up_to_atmos (Time, Land, Ice, Boundary )
  integer :: ierr, io
 
    read (fms_mpp_input_nml_file, nml=flux_exchange_nml, iostat=io)
-   ierr = check_nml_error(io, 'flux_exchange_nml')
+   ierr = fms_check_nml_error(io, 'flux_exchange_nml')
 
    do_read_nml = .false.
 
@@ -1079,7 +1079,7 @@ subroutine diag_field_init ( Time, atmos_axes )
     !    needed for cmorizing various diagnostics.
     !--------------------------------------------------------------------
     area_id = fms_diag_get_field_id ('dynamics', 'area')
-    if (area_id .eq. DIAG_FIELD_NOT_FOUND) call error_mesg &
+    if (area_id .eq. DIAG_FIELD_NOT_FOUND) call fms_error_mesg &
          ('diag_field_init in atm_land_ice_flux_exchange_mod', &
          'diagnostic field "dynamics", "area" is not in the diag_table', NOTE)
     !-----------------------------------------------------------------------

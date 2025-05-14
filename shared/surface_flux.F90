@@ -734,7 +734,7 @@ subroutine surface_flux_init
 
   ! read namelist
   read (fms_mpp_input_nml_file, surface_flux_nml, iostat=io)
-  ierr = check_nml_error(io,'surface_flux_nml')
+  ierr = fms_check_nml_error(io,'surface_flux_nml')
 
   ! read rough_scheme_ocean from ocean_rough namelist
   ! Note that we should not use the variable 'rough_scheme' directly from ocean_rough,
