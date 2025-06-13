@@ -316,6 +316,11 @@ module full_coupler_mod
   !> coupled model initial date
   integer :: date_init(6) = (/ 0, 0, 0, 0, 0, 0 /)
 
+#ifdef CHEAT_MODE_DIR
+  logical, public :: cheatmode_on !> Whether to extract (true) or generate (false) a results tarball
+  character(:), allocatable, public :: cheatmode_file !> Filename of the results tarball
+#endif
+
 contains
 
 !#######################################################################
@@ -1149,6 +1154,23 @@ contains
       write(errunit,*) 'Exiting coupler_init at '&
                        //trim(walldate)//' '//trim(walltime)
     endif
+
+!-----------------------------------------------------------------------
+
+#ifdef CHEAT_MODE_DIR
+#define QUOTE(x) #x
+    allocate (character(len(QUOTE(CHEAT_MODE_DIR)) + 26) :: cheatmode_file)
+    write (cheatmode_file, '(A,"/",I0.4,"-",I0.2,"-",I0.2,"_",I0.4,"-",I0.2,"-",I0.2,".tar")') &
+          QUOTE(CHEAT_MODE_DIR), date_init(1), date_init(2), date_init(3), date(1), date(2), date(3)
+    inquire (file=cheatmode_file, exist=cheatmode_on)
+
+    if (cheatmode_on) then
+      num_cpld_calls = 0
+      call fms_error_mesg("cheat mode", "Results tarball will be extracted: " // cheatmode_file, NOTE)
+    else
+      call fms_error_mesg("cheat mode", "Results tarball will be created: " // cheatmode_file, NOTE)
+    endif
+#endif
 
   end subroutine coupler_init
 
