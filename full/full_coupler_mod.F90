@@ -1158,9 +1158,10 @@ contains
 !-----------------------------------------------------------------------
 
 #ifdef CHEAT_MODE_DIR
-    allocate (character(len(CHEAT_MODE_DIR) + 26) :: cheatmode_file)
+#define QUOTE(x) #x
+    allocate (character(len(QUOTE(CHEAT_MODE_DIR)) + 26) :: cheatmode_file)
     write (cheatmode_file, '(A,"/",I0.4,"-",I0.2,"-",I0.2,"_",I0.4,"-",I0.2,"-",I0.2,".tar")') &
-          CHEAT_MODE_DIR, date_init(1), date_init(2), date_init(3), date(1), date(2), date(3)
+          QUOTE(CHEAT_MODE_DIR), date_init(1), date_init(2), date_init(3), date(1), date(2), date(3)
     inquire (file=cheatmode_file, exist=cheatmode_on)
 
     if (cheatmode_on) then
