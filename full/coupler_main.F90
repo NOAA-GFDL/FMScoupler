@@ -690,10 +690,8 @@ program coupler_main
 #ifdef CHEAT_MODE_DIR
   if (fms_mpp_pe().eq.fms_mpp_root_pe()) then
     if (cheatmode_on) then
-      call fms_error_mesg("cheat mode", "Extracting results tarball: " // cheatmode_file, NOTE)
       call execute_command_line("tar -xf " // cheatmode_file // " --touch --overwrite")
     else
-      call fms_error_mesg("cheat mode", "Generating results tarball: " // cheatmode_file, NOTE)
       call execute_command_line("tar -cf " // cheatmode_file // " `find . -type f -newer input.nml | xargs`")
     endif
   endif
