@@ -1166,9 +1166,9 @@ contains
 
     if (cheatmode_on) then
       num_cpld_calls = 0
-      call error_mesg("cheat mode", "Results tarball exists: Cheat mode is ON", NOTE)
+      call fms_error_mesg("cheat mode", "Results tarball exists: Cheat mode is ON", NOTE)
     else
-      call error_mesg("cheat mode", "Results tarball does not exist: Cheat mode is OFF", NOTE)
+      call fms_error_mesg("cheat mode", "Results tarball does not exist: Cheat mode is OFF", NOTE)
     endif
 #endif
 
