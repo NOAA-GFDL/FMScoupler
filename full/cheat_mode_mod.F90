@@ -51,10 +51,10 @@ contains
   subroutine cheat_mode_init(year0, month0, day0, year1, month1, day1)
     integer, intent(in) :: year0, month0, day0 !< Initial year, month, and day of the current segment
     integer, intent(in) :: year1, month1, day1 !< Final year, month, and day of the current segment
-    integer :: io_status, ierr
+    integer :: io_status
 
-    read (input_nml_file, cheat_mode_nml, iostat=io_status)
-    ierr = check_nml_error(io_status, "cheat_mode_nml")
+    read (fms_input_nml_file, cheat_mode_nml, iostat=io_status)
+    io_status = fms_check_nml_error(io_status, "cheat_mode_nml")
 
     allocate (character(len(dir) + 22) :: cheat_mode_tarball_path)
     write (cheat_mode_tarball_path, '(A,"/",I0.4,I0.2,I0.2,"_",I0.4,I0.2,I0.2,".tar")') &
