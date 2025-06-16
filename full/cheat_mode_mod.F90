@@ -53,7 +53,7 @@ contains
     integer, intent(in) :: year1, month1, day1 !< Final year, month, and day of the current segment
     integer :: io_status
 
-    read (fms_input_nml_file, cheat_mode_nml, iostat=io_status)
+    read (fms_mpp_input_nml_file, cheat_mode_nml, iostat=io_status)
     io_status = fms_check_nml_error(io_status, "cheat_mode_nml")
 
     allocate (character(len(dir) + 22) :: cheat_mode_tarball_path)
