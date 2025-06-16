@@ -336,6 +336,10 @@ program coupler_main
   use FMS
   use full_coupler_mod
 
+#ifdef CHEAT_MODE
+  use cheat_mode_mod, only: cheat_mode_invoke
+#endif
+
   implicit none
 
   !> model defined types.
@@ -687,13 +691,9 @@ program coupler_main
 
 !-----------------------------------------------------------------------
 
-#ifdef CHEAT_MODE_DIR
+#ifdef CHEAT_MODE
   if (fms_mpp_pe().eq.fms_mpp_root_pe()) then
-    if (cheatmode_on) then
-      call execute_command_line("tar -xf " // cheatmode_file // " --touch --overwrite")
-    else
-      call execute_command_line("tar -cf " // cheatmode_file // " `find . -type f -newer input.nml | xargs`")
-    endif
+    call cheat_mode_invoke
   endif
 #endif
 
