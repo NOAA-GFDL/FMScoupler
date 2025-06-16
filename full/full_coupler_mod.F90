@@ -1160,10 +1160,10 @@ contains
     call cheat_mode_init(date_init(1), date_init(2), date_init(3), date(1), date(2), date(3))
 
     if (cheat_mode_tarball_exists) then
-      call fms_error_mesg("cheat mode", "Results tarball will be extracted: " // cheat_mode_tarball_path, NOTE)
+      call fms_error_mesg("cheat mode", "Results tarball will be extracted: " // trim(cheat_mode_tarball_path), NOTE)
       num_cpld_calls = 0
     else
-      call fms_error_mesg("cheat mode", "Results tarball will be created: " // cheat_mode_tarball_path, NOTE)
+      call fms_error_mesg("cheat mode", "Results tarball will be created: " // trim(cheat_mode_tarball_path), NOTE)
     endif
 #endif
 

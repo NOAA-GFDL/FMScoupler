@@ -30,14 +30,15 @@
 
 module cheat_mode_mod
   use FMS
+  use platform_mod, only: FMS_PATH_LEN
   implicit none
   private
 
   public :: cheat_mode_tarball_exists, cheat_mode_tarball_path, cheat_mode_init, cheat_mode_invoke
 
   logical :: cheat_mode_tarball_exists !< Whether to extract (true) or generate (false) a tarball
-  character(:), allocatable :: cheat_mode_tarball_path !< Path to the tarball to be extracted or created
-  character(:), allocatable :: dir !< Directory containing the tarballs
+  character(FMS_PATH_LEN) :: cheat_mode_tarball_path !< Path to the tarball to be extracted or created
+  character(FMS_PATH_LEN) :: dir !< Directory containing the tarballs
 
   namelist /cheat_mode_nml/ dir
 
@@ -56,19 +57,26 @@ contains
     read (fms_mpp_input_nml_file, cheat_mode_nml, iostat=io_status)
     io_status = fms_check_nml_error(io_status, "cheat_mode_nml")
 
-    allocate (character(len(dir) + 22) :: cheat_mode_tarball_path)
     write (cheat_mode_tarball_path, '(A,"/",I0.4,I0.2,I0.2,"_",I0.4,I0.2,I0.2,".tar")') &
-          dir, year0, month0, day0, year1, month1, day1
-    inquire (file=cheat_mode_tarball_path, exist=cheat_mode_tarball_exists)
+          trim(dir), year0, month0, day0, year1, month1, day1
+    inquire (file=trim(cheat_mode_tarball_path), exist=cheat_mode_tarball_exists)
   end subroutine
 
   !> Invoke the tar command to either create or extract the tarball. This subroutine
   !! should only be called by the root PE.
   subroutine cheat_mode_invoke
+    integer :: exitstat
+
     if (cheat_mode_tarball_exists) then
-      call execute_command_line("tar -xf " // cheat_mode_tarball_path // " --touch --overwrite")
+      call execute_command_line("tar -xf " // trim(cheat_mode_tarball_path) // &
+                                " --touch --overwrite", exitstat=exitstat)
     else
-      call execute_command_line("tar -cf " // cheat_mode_tarball_path // " `find . -type f -newer input.nml | xargs`")
+      call execute_command_line("tar -cf " // trim(cheat_mode_tarball_path) // &
+                                " `find . -type f -newer input.nml | xargs`", exitstat=exitstat)
+    endif
+
+    if (exitstat.ne.0) then
+      call fms_error_mesg("cheat mode", "tar command failed", FATAL)
     endif
   end subroutine cheat_mode_invoke
 end module cheat_mode_mod
