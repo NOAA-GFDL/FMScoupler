@@ -360,8 +360,7 @@ program coupler_main
   type(FmsTime_type) :: Time_atmos, Time_ocean
   type(FmsTime_type) :: Time_flux_ice_to_ocean, Time_flux_ocean_to_ice
 
-  integer :: num_atmos_calls, na
-  integer :: num_cpld_calls, nc
+  integer :: nc, na
   integer :: current_timestep
 
   type(FmsNetcdfDomainFile_t), dimension(:), pointer :: Ice_bc_restart => NULL()
@@ -392,8 +391,8 @@ program coupler_main
     Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary,          &
     Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, &
     conc_nthreads, coupler_clocks, coupler_components_obj, coupler_chksum_obj, &
-    Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, num_cpld_calls,   &
-    num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
+    Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean, Time, Time_start, &
+    Time_end, Time_restart, Time_restart_current)
 
   if (do_chksum) call coupler_chksum_obj%get_coupler_chksums('coupler_init+', 0)
 
@@ -664,7 +663,7 @@ program coupler_main
         call coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_state, Ocn_bc_restart, Ice_bc_restart, &
                                           Time, Time_restart, Time_restart_current, Time_start)
 
-    call coupler_summarize_timestep(nc, num_cpld_calls, coupler_chksum_obj, Atm%pe, omp_sec, imb_sec)
+    call coupler_summarize_timestep(nc, coupler_chksum_obj, Atm%pe, omp_sec, imb_sec)
 
     omp_sec(:)=0.
     imb_sec(:)=0.

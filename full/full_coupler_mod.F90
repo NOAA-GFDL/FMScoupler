@@ -176,6 +176,9 @@ module full_coupler_mod
   integer, public :: ocean_nthreads=1 !< Number of OpenMP threads to use in the ocean
   integer, public :: radiation_nthreads=1 !< Number of threads to use for the radiation.
 
+  integer, public :: num_cpld_calls !< Number of iterations in the ocean/slow-ice loop
+  integer, public :: num_atmos_calls !< Number of iterations in the atmos/fast-land/fast-ice loop
+
   !> Indicates if this component should be executed.  If .FALSE., then execution is skipped.
   !! This is used when ALL the output fields sent by this component to the coupler have been
   !! overridden  using the data_override feature.  This is for advanced users only.
@@ -325,7 +328,7 @@ contains
       Ocean_ice_boundary, Ice_ocean_boundary, Land_ice_atmos_boundary, Land_ice_boundary,              &
       Ice_ocean_driver_CS, Ice_bc_restart, Ocn_bc_restart, ensemble_pelist, slow_ice_ocean_pelist, conc_nthreads, &
       coupler_clocks, coupler_components_obj, coupler_chksum_obj, Time_step_cpld, Time_step_atmos, Time_atmos, &
-      Time_ocean, num_cpld_calls, num_atmos_calls, Time, Time_start, Time_end, Time_restart, Time_restart_current)
+      Time_ocean, Time, Time_start, Time_end, Time_restart, Time_restart_current)
 
     implicit none
 
@@ -354,7 +357,6 @@ contains
     type(FMSTime_type), intent(inout) :: Time_step_cpld, Time_step_atmos, Time_atmos, Time_ocean
     type(FMSTime_type), intent(inout) :: Time, Time_start, Time_end, Time_restart, Time_restart_current
 
-    integer, intent(inout) :: num_cpld_calls, num_atmos_calls
 !
 !-----------------------------------------------------------------------
 !     local parameters
@@ -2390,12 +2392,10 @@ contains
 
   !> This subroutine mainly prints out the current timestep in the stdout.
   !! Chksum is computed if do_chksum = .True.
-  subroutine coupler_summarize_timestep(current_timestep, num_cpld_calls, coupler_chksum_obj, &
-                                        is_atmos_pe, omp_sec, imb_sec)
+  subroutine coupler_summarize_timestep(current_timestep, coupler_chksum_obj, is_atmos_pe, omp_sec, imb_sec)
 
     implicit none
     integer, intent(in) :: current_timestep  !< current_timestep, nc
-    integer, intent(in) :: num_cpld_calls    !< total number of outerloop timestep
     type(coupler_chksum_type), intent(in) :: coupler_chksum_obj  !< coupler_chksum_obj
     logical, intent(in)               :: is_atmos_pe             !< Atm%pe
     real, dimension(:), intent(inout) :: omp_sec, imb_sec        !< from omp computation
