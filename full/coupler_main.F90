@@ -398,6 +398,11 @@ program coupler_main
 
   call fms_mpp_set_current_pelist()
   call fms_mpp_clock_end(coupler_clocks%initialization) !end initialization
+
+#ifdef COUPLER_MAIN_LOOP_PRE_HOOK
+  call COUPLER_MAIN_LOOP_PRE_HOOK
+#endif
+
   call fms_mpp_clock_begin(coupler_clocks%main)         !begin main loop
 
 !-----------------------------------------------------------------------
@@ -685,5 +690,9 @@ program coupler_main
   call fms_end
 
 !-----------------------------------------------------------------------
+
+#ifdef COUPLER_POST_HOOK
+  call COUPLER_POST_HOOK
+#endif
 
 end program coupler_main
