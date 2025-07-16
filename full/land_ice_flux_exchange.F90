@@ -77,11 +77,13 @@ contains
 
     !allocate land_ice_boundary
     allocate( land_ice_boundary%runoff(is:ie,js:je) )
+    allocate( land_ice_boundary%runoff_carbon(is:ie,js:je) )
     allocate( land_ice_boundary%calving(is:ie,js:je) )
     allocate( land_ice_boundary%runoff_hflx(is:ie,js:je) )
     allocate( land_ice_boundary%calving_hflx(is:ie,js:je) )
     ! initialize values for override experiments (mjh)
     land_ice_boundary%runoff=0.0
+    land_ice_boundary%runoff_carbon=0.0
     land_ice_boundary%calving=0.0
     land_ice_boundary%runoff_hflx=0.0
     land_ice_boundary%calving_hflx=0.0
@@ -109,7 +111,7 @@ contains
                                                                     !! fluxes passed from land to ice
 
     integer                         :: ier
-    real, dimension(n_xgrid_runoff) :: ex_runoff, ex_calving, ex_runoff_hflx, ex_calving_hflx
+    real, dimension(n_xgrid_runoff) :: ex_runoff, ex_calving, ex_runoff_hflx, ex_calving_hflx, ex_runoff_DOC
     real, dimension(size(Land_Ice_Boundary%runoff,1),size(Land_Ice_Boundary%runoff,2),1) :: ice_buf
 
     !Balaji
@@ -121,11 +123,14 @@ contains
 
     if (do_runoff) then
        call fms_xgrid_put_to_xgrid ( Land%discharge,      'LND', ex_runoff,  xmap_runoff)
+       call fms_xgrid_put_to_xgrid ( Land%discharge_DOC,  'LND', ex_runoff_DOC, xmap_runoff)
        call fms_xgrid_put_to_xgrid ( Land%discharge_snow, 'LND', ex_calving, xmap_runoff)
        call fms_xgrid_put_to_xgrid ( Land%discharge_heat,      'LND', ex_runoff_hflx,  xmap_runoff)
        call fms_xgrid_put_to_xgrid ( Land%discharge_snow_heat, 'LND', ex_calving_hflx, xmap_runoff)
        call fms_xgrid_get_from_xgrid (ice_buf, 'OCN', ex_runoff,  xmap_runoff)
        Land_Ice_Boundary%runoff = ice_buf(:,:,1);
+       call fms_xgrid_get_from_xgrid (ice_buf, 'OCN', ex_runoff_DOC, xmap_runoff)
+       Land_Ice_Boundary%runoff_carbon = ice_buf(:,:,1);
        call fms_xgrid_get_from_xgrid (ice_buf, 'OCN', ex_calving, xmap_runoff)
        Land_Ice_Boundary%calving = ice_buf(:,:,1);
        call fms_xgrid_get_from_xgrid (ice_buf, 'OCN', ex_runoff_hflx,  xmap_runoff)
@@ -134,6 +139,7 @@ contains
        Land_Ice_Boundary%calving_hflx = ice_buf(:,:,1);
        !Balaji
        call fms_data_override('ICE', 'runoff' , Land_Ice_Boundary%runoff , Time)
+       call fms_data_override('ICE', 'runoff_DOC' , Land_Ice_Boundary%runoff_carbon , Time)
        call fms_data_override('ICE', 'calving', Land_Ice_Boundary%calving, Time)
        call fms_data_override('ICE', 'runoff_hflx' , Land_Ice_Boundary%runoff_hflx , Time)
        call fms_data_override('ICE', 'calving_hflx', Land_Ice_Boundary%calving_hflx, Time)
