@@ -1280,7 +1280,7 @@ contains
 
 
     !  call mpp_clock_end(fluxClock)
-    zrefm = 10.0
+    zrefm = z_ref_mom
     zrefh = z_ref_heat
     !      ---- optimize calculation ----
     !$OMP parallel do default(shared) private(is,ie)
@@ -1794,8 +1794,6 @@ contains
     !       id_rh_ref_cmip >0 .or. &
     !       id_u_ref_land > 0 .or. id_v_ref_land  > 0 ) then
 
-    zrefm = z_ref_mom
-    zrefh = z_ref_heat
     !      ---- optimize calculation ----
     !cjg     if ( id_t_ref <= 0 ) zrefh = zrefm
 
