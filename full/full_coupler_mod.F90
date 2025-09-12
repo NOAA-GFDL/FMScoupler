@@ -964,7 +964,7 @@ contains
       call ice_model_init(Ice, Time_init, Time, Time_step_atmos, &
                            Time_step_cpld, Verona_coupler=.false., &
                           concurrent_ice=concurrent_ice, &
-                          gas_fluxes=gas_fluxes, gas_fields_ocn=gas_fields_ocn )
+                          gas_fluxes=gas_fluxes, gas_fields_ocn=gas_fields_ocn, do_waves=do_waves)
       call fms_mpp_clock_end(coupler_clocks%ice_model_init)
 
       ! This must be called using the union of the ice PE_lists.
@@ -994,7 +994,7 @@ contains
 
       call fms_mpp_clock_begin(coupler_clocks%ocean_model_init)
       call ocean_model_init( Ocean, Ocean_state, Time_init, Time, &
-                             gas_fields_ocn=gas_fields_ocn  )
+                             gas_fields_ocn=gas_fields_ocn, do_waves=do_waves)
       call fms_mpp_clock_end(coupler_clocks%ocean_model_init)
 
       if (concurrent) then
