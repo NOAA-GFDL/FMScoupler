@@ -571,6 +571,8 @@ contains
     allocate( land_ice_atmos_boundary%t_ocean(is:ie,js:je) )! Joseph: surf ocean temp
     allocate( land_ice_atmos_boundary%u_ref(is:ie,js:je) )  ! bqx
     allocate( land_ice_atmos_boundary%v_ref(is:ie,js:je) )  ! bqx
+    allocate( land_ice_atmos_boundary%un_ref(is:ie,js:je) ) ! Biao
+    allocate( land_ice_atmos_boundary%vn_ref(is:ie,js:je) ) ! Biao
     allocate( land_ice_atmos_boundary%t_ref(is:ie,js:je) )  ! cjg: PBL depth mods
     allocate( land_ice_atmos_boundary%q_ref(is:ie,js:je) )  ! cjg: PBL depth mods
     allocate( land_ice_atmos_boundary%albedo(is:ie,js:je) )
@@ -605,6 +607,8 @@ contains
     land_ice_atmos_boundary%t_ocean=200.0
     land_ice_atmos_boundary%u_ref=0.0   ! bqx
     land_ice_atmos_boundary%v_ref=0.0   ! bqx
+    land_ice_atmos_boundary%un_ref=0.0   ! Biao
+    land_ice_atmos_boundary%vn_ref=0.0   ! Biao
     land_ice_atmos_boundary%t_ref=273.0   ! cjg: PBL depth mods
     land_ice_atmos_boundary%q_ref=0.0     ! cjg: PBL depth mods
     land_ice_atmos_boundary%albedo=0.0
@@ -717,6 +721,7 @@ contains
          ex_thv_atm, ex_thv_surf, &
          ex_cd_q,       &
          ex_ref, ex_ref_u, ex_ref_v, ex_u10, &
+         ex_ref_un, ex_ref_vn,  &
          ex_ref2,       &
          ex_t_ref,      &
          ex_qs_ref,     &
@@ -1297,6 +1302,9 @@ contains
              ex_ref_u(i) = ex_u_surf(i) + (ex_u_atm(i)-ex_u_surf(i)) * ex_del_m(i)
              ex_ref_v(i) = ex_v_surf(i) + (ex_v_atm(i)-ex_v_surf(i)) * ex_del_m(i)
              ex_u10(i) = sqrt(ex_ref_u(i)**2 + ex_ref_v(i)**2)
+             ! neutral wind speed at zrefm, added by Biao
+             ex_ref_un(i) = ex_ref_u(i)*ex_u_star(i)/VONKARM *log(zrefm/ex_rough_mom(i))/ex_u10(i)
+             ex_ref_vn(i) = ex_ref_v(i)*ex_u_star(i)/VONKARM *log(zrefm/ex_rough_mom(i))/ex_u10(i)
           endif
        enddo
        do n = 1, ex_gas_fields_atm%num_bcs  !{
@@ -1525,7 +1533,9 @@ contains
     end do
 
     call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%u_ref, 'ATM', ex_ref_u     , xmap_sfc, complete=.false.) !bqx
-    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%v_ref, 'ATM', ex_ref_v     , xmap_sfc, complete=.true.) !bqx
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%v_ref, 'ATM', ex_ref_v     , xmap_sfc, complete=.false.) !bqx
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%un_ref,'ATM', ex_ref_un    , xmap_sfc, complete=.false.)
+    call fms_xgrid_get_from_xgrid (Land_Ice_Atmos_Boundary%vn_ref,'ATM', ex_ref_vn    , xmap_sfc, complete=.true.)
 
 ! kgao: for shield+mom6 coupling; used by shield pbl schemes (am5 with tke-edmf should do the same)
 #ifndef use_AM3_physics
