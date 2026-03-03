@@ -475,7 +475,8 @@ contains
                call divide_by_area(data=Ocean_Ice_Boundary%calving, area=Ice%area)
              if (Ocean%is_ocean_pe) deallocate(tmp)
           else
-             call fms_mpp_domains_redistribute(Ocean%Domain, Ocean%calving, Ice%slow_Domain_NH, Ocean_Ice_Boundary%calving)
+             call fms_mpp_domains_redistribute(Ocean%Domain, Ocean%calving, Ice%slow_Domain_NH, &
+                                               Ocean_Ice_Boundary%calving)
           endif
        endif
        if( ASSOCIATED(Ocean_Ice_Boundary%calving_hflx) ) then
@@ -489,7 +490,8 @@ contains
                call divide_by_area(data=Ocean_Ice_Boundary%calving_hflx, area=Ice%area)
              if (Ocean%is_ocean_pe) deallocate(tmp)
           else
-             call fms_mpp_domains_redistribute(Ocean%Domain, Ocean%calving_hflx, Ice%slow_Domain_NH, Ocean_Ice_Boundary%calving_hflx)
+             call fms_mpp_domains_redistribute(Ocean%Domain, Ocean%calving_hflx, Ice%slow_Domain_NH, &
+                                               Ocean_Ice_Boundary%calving_hflx)
           endif
        endif
 
