@@ -429,7 +429,7 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
 
  !< Read the namelist
  read (fms_mpp_input_nml_file, nml=ice_model_nml, iostat=io)
- ierr = check_nml_error(io, 'ice_model_nml')
+ ierr = fms_check_nml_error(io, 'ice_model_nml')
 
  do_netcdf_restart = .true. !< Always do netcdf!
 
@@ -442,7 +442,7 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
 
   if ( trim(ice_method) /= 'none'    .and. &
        trim(ice_method) /= 'uniform' .and. &
-       trim(ice_method) /= 'prognostic' ) call error_mesg &
+       trim(ice_method) /= 'prognostic' ) call fms_error_mesg &
      ('ice_model_init', 'namelist variable ice_method has invalid value', FATAL)
 
   if ( trim(sst_method) /= 'specified'            .and. &
@@ -478,7 +478,7 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
        trim(sst_method) /= 'aqua_walker_guass_b'  .and. &
        trim(sst_method) /= 'aqua_walker_guass_c'  .and. &
        trim(sst_method) /= 'aqua_walker_guass_d'  .and. &
-       trim(sst_method) /= 'mixed_layer' ) call error_mesg &
+       trim(sst_method) /= 'mixed_layer' ) call fms_error_mesg &
      ('ice_model_init', 'namelist variable sst_method has invalid value', FATAL)
 
 !----------------------------------------------------------
@@ -594,13 +594,13 @@ real :: lon0, lond, latd, amp, t_control, dellon, dom_wid, siggy, tempi
 need_ic = .false.
 
 if (fms2_io_open_file(ice_restart_fileobj, 'INPUT/ice_model.res.nc', 'read', Ice%domain, is_restart=.true.)) then
-   if (fms_mpp_pe() == fms_mpp_root_pe()) call error_mesg ('ice_model_mod', &
+   if (fms_mpp_pe() == fms_mpp_root_pe()) call fms_error_mesg ('ice_model_mod', &
             'Reading NetCDF formatted restart file: INPUT/ice_model.res.nc', NOTE)
 
    call fms2_io_read_data(ice_restart_fileobj, 'mlon', mlon)
    call fms2_io_read_data(ice_restart_fileobj, 'mlat', mlat)
    if (mlon /= nlon .or. mlat /= nlat )  &
-        call error_mesg ('ice_model_init',           &
+        call fms_error_mesg ('ice_model_init',           &
                         'incorrect resolution on restart', FATAL)
 
    call ice_register_restart(ice_restart_fileobj, Ice)
@@ -1074,7 +1074,7 @@ endif
                          Ice%mask(:,:), interp_method = interp_method, &
                     use_climo=use_climo_ice, use_annual=use_annual_ice )
       else
-          call error_mesg ('ice_model_init', 'interp_method should be '// &
+          call fms_error_mesg ('ice_model_init', 'interp_method should be '// &
                            'conservative or bilinear', FATAL)
       endif
       ! initialize ice (if needed)
@@ -1095,7 +1095,7 @@ endif
                          Ice%mask(:,:), interp_method = interp_method, &
                     use_climo=use_climo_sst, use_annual=use_annual_sst )
       else
-          call error_mesg ('ice_model_init', 'interp_method should be '// &
+          call fms_error_mesg ('ice_model_init', 'interp_method should be '// &
                            'conservative or bilinear', FATAL)
       endif
       ! initialize sst (if needed)
@@ -1166,7 +1166,7 @@ print *, 'pe,count(ice,all,ocean)=',fms_mpp_pe(),count(Ice%ice_mask),count(Ice%m
  if( do_netcdf_restart) then
 
     if(fms_mpp_pe() == fms_mpp_root_pe() ) then
-       call error_mesg ('ice_model_mod', 'Writing NetCDF formatted restart file: RESTART/ice_model.res.nc', NOTE)
+       call fms_error_mesg ('ice_model_mod', 'Writing NetCDF formatted restart file: RESTART/ice_model.res.nc', NOTE)
     endif
 
     if (fms2_io_open_file(ice_restart_fileobj, fname, 'overwrite', Ice%domain, is_restart=.true.)) then

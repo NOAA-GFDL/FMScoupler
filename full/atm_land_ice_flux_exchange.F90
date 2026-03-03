@@ -442,12 +442,12 @@ contains
     enddo
 
     if (isphum==NO_TRACER) then
-       call error_mesg('atm_land_ice_flux_exchange_mod',&
+       call fms_error_mesg('atm_land_ice_flux_exchange_mod',&
             'tracer "sphum" must be present in the atmosphere', FATAL )
     endif
 
     if (ico2==NO_TRACER) then
-       call error_mesg('atm_land_ice_flux_exchange_mod',&
+       call fms_error_mesg('atm_land_ice_flux_exchange_mod',&
             'tracer "co2" not present in the atmosphere', NOTE )
     endif
 
@@ -756,7 +756,7 @@ contains
     real, dimension(n_xgrid_sfc,n_gex_lnd2atm) ::  ex_gex_lnd2atm
 
     ! [1] check that the module was initialized
-    if (do_init) call error_mesg ('atm_land_ice_flux_exchange_mod',  &
+    if (do_init) call fms_error_mesg ('atm_land_ice_flux_exchange_mod',  &
          'must call atm_land_ice_flux_exchange_init first', FATAL)
     !Balaji
     call fms_mpp_clock_begin(cplClock)
@@ -1823,7 +1823,7 @@ contains
        do i = is,ie
           ex_ref(i) = 1.0e-06
           ex_tr_ref(i,:) = 1.e-20
-          if (ex_avail(i)) then
+          if (ex_avail(i) .and. ex_rough_moist(i) > 0.) then
                ex_ref(i)   = ex_tr_surf(i,isphum) + (ex_tr_atm(i,isphum)-ex_tr_surf(i,isphum)) * ex_del_q(i)
                rho         = ex_p_surf(i)/(rdgas * ex_t_atm(i)*(1.0+d608*ex_tr_atm(i,isphum)))
                do tr=1,n_exch_tr
@@ -1883,7 +1883,7 @@ contains
     end do
 
     !$OMP parallel do default(none) shared(my_nblocks,block_start,block_end,ex_t_ref,ex_avail, &
-    !$OMP                                  ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
+    !$OMP                                  ex_rough_heat,ex_t_ca,ex_t_atm,ex_p_surf,ex_qs_ref,ex_del_h,      &
     !$OMP                                  ex_ref,ex_qs_ref_cmip,ex_ref2 ) &
     !$OMP                          private(is,ie)
     do l = 1, my_nblocks
@@ -1891,7 +1891,7 @@ contains
        ie=block_end(l)
        do i = is,ie
           ex_t_ref(i) = 200.
-          if(ex_avail(i)) &
+          if ( ex_avail(i) .and. ex_rough_heat(i) > 0. ) &
                ex_t_ref(i) = ex_t_ca(i) + (ex_t_atm(i)-ex_t_ca(i)) * ex_del_h(i)
        enddo
        call fms_sat_vapor_pres_compute_qs (ex_t_ref(is:ie), ex_p_surf(is:ie), ex_qs_ref(is:ie), q = ex_ref(is:ie))
@@ -3891,6 +3891,10 @@ contains
             standard_name='specific_humidity', missing_value=-1.0 )
        allocate(id_tr_flux_land(n_exch_tr))
        allocate(id_tr_mol_flux_land(n_exch_tr))
+       allocate(id_tr_con_atm_land(n_exch_tr)); id_tr_con_atm_land(:)=-1
+       allocate(id_tr_con_ref_land(n_exch_tr)); id_tr_con_ref_land(:)=-1
+       allocate(id_tr_ref_land(n_exch_tr)); id_tr_ref_land(:)=-1
+
        do tr = 1, n_exch_tr
           call fms_tracer_manager_get_tracer_names( MODEL_ATMOS, tr_table(tr)%atm, name, longname, units )
           id_tr_flux_land(tr) = fms_diag_register_diag_field( 'flux_land', trim(name)//'_flux', Land_axes, Time, &
@@ -3983,7 +3987,7 @@ contains
     !    needed for cmorizing various diagnostics.
     !--------------------------------------------------------------------
     area_id = fms_diag_get_field_id ('dynamics', 'area')
-    if (area_id .eq. DIAG_FIELD_NOT_FOUND) call error_mesg &
+    if (area_id .eq. DIAG_FIELD_NOT_FOUND) call fms_error_mesg &
          ('diag_field_init in atm_land_ice_flux_exchange_mod', &
          'diagnostic field "dynamics", "area" is not in the diag_table', NOTE)
 
