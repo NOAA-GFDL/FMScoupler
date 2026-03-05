@@ -660,9 +660,9 @@ program coupler_main
     endif
 
     !> write out intermediate restart file when needead.
-    if (Time >= Time_restart) &
+    if ((Time >= Time_restart) .or. (nc == 1 .and. restart_first_time_step)) &
         call coupler_intermediate_restart(Atm, Ice, Ocean, Ocean_state, Ocn_bc_restart, Ice_bc_restart, &
-                                          Time, Time_restart, Time_restart_current, Time_start)
+                                          Time, Time_restart, Time_restart_current, Time_start, nc)
 
     call coupler_summarize_timestep(nc, num_cpld_calls, coupler_chksum_obj, Atm%pe, omp_sec, imb_sec)
 
