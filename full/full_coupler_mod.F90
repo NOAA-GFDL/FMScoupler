@@ -177,7 +177,6 @@ module full_coupler_mod
   integer, public :: atmos_nthreads=1 !< Number of OpenMP threads to use in the atmosphere
   integer, public :: ocean_nthreads=1 !< Number of OpenMP threads to use in the ocean
   integer, public :: radiation_nthreads=1 !< Number of threads to use for the radiation.
-  integer, public :: iau_offset = 0 !< IAU window length in hours
 
   !> Indicates if this component should be executed.  If .FALSE., then execution is skipped.
   !! This is used when ALL the output fields sent by this component to the coupler have been
@@ -234,7 +233,7 @@ module full_coupler_mod
                          check_stocks, restart_interval, do_debug, do_chksum,      &
                          use_hyper_thread, concurrent_ice, slow_ice_with_ocean,    &
                          do_endpoint_chksum, combined_ice_and_ocean,               &
-                         iau_offset, restart_start, restart_first_time_step
+                         restart_start, restart_first_time_step
 
   !> coupler_clock_type derived type consist of all clock ids that will be set and used
   !! in full coupler_main.
@@ -917,7 +916,6 @@ contains
         endif
 
         call fms_mpp_clock_begin(coupler_clocks%atmos_model_init)
-        Atm%iau_offset = iau_offset
         call atmos_model_init( Atm, Time_init, Time, Time_step_atmos, &
                                do_concurrent_radiation)
         call fms_mpp_clock_end(coupler_clocks%atmos_model_init)
