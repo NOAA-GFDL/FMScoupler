@@ -151,6 +151,9 @@ contains
     if (associated(Ice%mass_berg)) then
       allocate( ice_ocean_boundary%mass_berg  (is:ie,js:je) ) ;     ice_ocean_boundary%mass_berg = 0.0
     endif
+    if (associated(Ice%salt_left_behind)) then
+      allocate( ice_ocean_boundary%excess_salt(is:ie,js:je) ) ;     ice_ocean_boundary%excess_salt = 0.0
+    endif
     ! Copy the stagger indication variables from the ice processors the ocean
     ! PEs and vice versa.  The defaults are large negative numbers, so the
     ! global max here picks out only values that have been set on active PEs.
@@ -312,6 +315,9 @@ contains
 
     if(ASSOCIATED(Ice_Ocean_Boundary%q_flux) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
          Ice%flux_q, Ice_Ocean_Boundary%q_flux, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
+
+    if(ASSOCIATED(Ice_Ocean_Boundary%excess_salt) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
+         Ice%salt_left_behind, Ice_Ocean_Boundary%excess_salt, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
 
     call fms_mpp_clock_end(fluxIceOceanClock)
     call fms_mpp_clock_end(cplOcnClock)
