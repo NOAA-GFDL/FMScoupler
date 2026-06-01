@@ -35,21 +35,21 @@ FetchContent_Declare(
   SOURCE_DIR ${EXTERNAL_SOURCE_DIR}/FMS
 )
 FetchContent_MakeAvailable(FMS)
-message(STATUS "FMS clone complete. FMS source is available at ${FMS_SOURCE_DIR}")
+message(STATUS "FMS cloned to ${FMS_SOURCE_DIR}")
 
 # set variables for component repos 
 set(COMPONENTS
-  ocean_null
-  atmos_null
-  land_null
+  ocean
+  atmos
+  land
   ice_param
-  ice_null
+  ice
 )
-set(ocean_null_URL https://github.com/NOAA-GFDL/ocean_null.git)
-set(atmos_null_URL https://github.com/NOAA-GFDL/atmos_null.git)
-set(land_null_URL https://github.com/NOAA-GFDL/land_null.git)
+set(ocean_URL https://github.com/NOAA-GFDL/ocean_null.git)
+set(atmos_URL https://github.com/NOAA-GFDL/atmos_null.git)
+set(land_URL https://github.com/NOAA-GFDL/land_null.git)
 set(ice_param_URL https://github.com/NOAA-GFDL/ice_param.git)
-set(ice_null_URL https://github.com/NOAA-GFDL/ice_null.git)
+set(ice_URL https://github.com/NOAA-GFDL/ice_null.git)
 
 # clone each component repo
 foreach(component_name IN LISTS COMPONENTS)
@@ -61,6 +61,7 @@ foreach(component_name IN LISTS COMPONENTS)
     GIT_TAG main
   )
   FetchContent_MakeAvailable(${component_name})
+  message(STATUS "Cloning ${${component_name}_URL} to ${EXTERNAL_SOURCE_DIR}/${component_name}")
 endforeach()
 
 # Build libraries for each external component
@@ -79,9 +80,9 @@ foreach(component_name IN LISTS COMPONENTS)
 endforeach()
 
 # ice_null has additional dependencies instead of just fms
-target_link_libraries(ice_null PRIVATE FMS::fms ocean_null ice_param)
-target_include_directories(ice_null PRIVATE
-	"${CMAKE_CURRENT_BINARY_DIR}/ocean_null_mods"
+target_link_libraries(ice PRIVATE FMS::fms ocean ice_param)
+target_include_directories(ice PRIVATE
+	"${CMAKE_CURRENT_BINARY_DIR}/ocean_mods"
 	"${CMAKE_CURRENT_BINARY_DIR}/ice_param_mods"
 )
 
@@ -111,16 +112,16 @@ set_target_properties(coupler_shared_simple PROPERTIES
 set_target_properties(coupler_shared_simple PROPERTIES COMPILE_FLAGS "-fdefault-real-8")
 target_compile_definitions(coupler_shared_simple PUBLIC use_AM3_physics _USE_LEGACY_LAND_)
 target_include_directories(coupler_shared_simple PUBLIC
-	${CMAKE_CURRENT_BINARY_DIR}/ocean_null_mods
-	${CMAKE_CURRENT_BINARY_DIR}/atmos_null_mods
-	${CMAKE_CURRENT_BINARY_DIR}/land_null_mods
+	${CMAKE_CURRENT_BINARY_DIR}/ocean_mods
+	${CMAKE_CURRENT_BINARY_DIR}/atmos_mods
+	${CMAKE_CURRENT_BINARY_DIR}/land_mods
 	${CMAKE_CURRENT_BINARY_DIR}/ice_param_mods
 )
 target_link_libraries(coupler_shared_simple PRIVATE
   FMS::fms
-  ocean_null
-  atmos_null
-  land_null
+  ocean
+  atmos
+  land
   ice_param
 )
 
@@ -133,19 +134,19 @@ set_target_properties(coupler_shared_full PROPERTIES COMPILE_FLAGS "-fdefault-re
 target_compile_definitions(coupler_shared_full PUBLIC use_AM3_physics _USE_LEGACY_LAND_)
 target_include_directories(coupler_shared_full PUBLIC
 	${CMAKE_SOURCE_DIR}/full
-	${CMAKE_CURRENT_BINARY_DIR}/ocean_null_mods
-	${CMAKE_CURRENT_BINARY_DIR}/atmos_null_mods
-	${CMAKE_CURRENT_BINARY_DIR}/land_null_mods
+	${CMAKE_CURRENT_BINARY_DIR}/ocean_mods
+	${CMAKE_CURRENT_BINARY_DIR}/atmos_mods
+	${CMAKE_CURRENT_BINARY_DIR}/land_mods
 	${CMAKE_CURRENT_BINARY_DIR}/ice_param_mods
-	${CMAKE_CURRENT_BINARY_DIR}/ice_null_mods
+	${CMAKE_CURRENT_BINARY_DIR}/ice_mods
 )
 target_link_libraries(coupler_shared_full PRIVATE
   FMS::fms
-  ocean_null
-  atmos_null
-  land_null
+  ocean
+  atmos
+  land
   ice_param
-  ice_null
+  ice
 )
 
 
@@ -154,17 +155,17 @@ add_executable(coupler_simple ${COUPLER_SIMPLE_SRCS} ${CMAKE_SOURCE_DIR}/simple/
 set_target_properties(coupler_simple PROPERTIES COMPILE_FLAGS "-fdefault-real-8")
 target_include_directories(coupler_simple PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}/simple_coupler_mods
-	${CMAKE_CURRENT_BINARY_DIR}/ocean_null_mods
-	${CMAKE_CURRENT_BINARY_DIR}/atmos_null_mods
-	${CMAKE_CURRENT_BINARY_DIR}/land_null_mods
+	${CMAKE_CURRENT_BINARY_DIR}/ocean_mods
+	${CMAKE_CURRENT_BINARY_DIR}/atmos_mods
+	${CMAKE_CURRENT_BINARY_DIR}/land_mods
 	${CMAKE_CURRENT_BINARY_DIR}/ice_param_mods
 )
 target_link_libraries(coupler_simple PRIVATE
   coupler_shared_simple
   FMS::fms
-  ocean_null
-  atmos_null
-  land_null
+  ocean
+  atmos
+  land
   ice_param
 )
 set_target_properties(coupler_simple PROPERTIES RUNTIME_OUTPUT_NAME "coupler_simple.x")
@@ -175,19 +176,19 @@ set_target_properties(coupler_full PROPERTIES COMPILE_FLAGS "-fdefault-real-8")
 target_include_directories(coupler_full PUBLIC
 	${CMAKE_SOURCE_DIR}/full
   ${CMAKE_CURRENT_BINARY_DIR}/full_coupler_mods
-	${CMAKE_CURRENT_BINARY_DIR}/ocean_null_mods
-	${CMAKE_CURRENT_BINARY_DIR}/atmos_null_mods
-	${CMAKE_CURRENT_BINARY_DIR}/land_null_mods
+	${CMAKE_CURRENT_BINARY_DIR}/ocean_mods
+	${CMAKE_CURRENT_BINARY_DIR}/atmos_mods
+	${CMAKE_CURRENT_BINARY_DIR}/land_mods
 	${CMAKE_CURRENT_BINARY_DIR}/ice_param_mods
-	${CMAKE_CURRENT_BINARY_DIR}/ice_null_mods
+	${CMAKE_CURRENT_BINARY_DIR}/ice_mods
 )
 target_link_libraries(coupler_full PRIVATE
   coupler_shared_full
   FMS::fms
-  ocean_null
-  atmos_null
-  land_null
+  ocean
+  atmos
+  land
   ice_param
-  ice_null
+  ice
 )
 set_target_properties(coupler_full PROPERTIES RUNTIME_OUTPUT_NAME "coupler_full.x")
