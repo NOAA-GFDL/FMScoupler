@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 #
-# Run script for a simple test run using the null_model 
+# Run script for a simple test run using the null_model
 # This is the same run done in null_model_build.sh, just without any building steps
 rundir=$PWD
 

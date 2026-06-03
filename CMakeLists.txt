@@ -107,9 +107,9 @@ foreach(component_name IN LISTS COMPONENTS)
   else()
     set(component_path ${${component_name}_path} )
     message(STATUS "Creating symlink in ${EXTERNAL_SOURCE_DIR} for ${component_path}")
-    file(CREATE_LINK 
+    file(CREATE_LINK
       "${component_path}"
-      "${EXTERNAL_SOURCE_DIR}/${component_name}" 
+      "${EXTERNAL_SOURCE_DIR}/${component_name}"
       SYMBOLIC
     )
   endif()
@@ -239,7 +239,7 @@ target_link_libraries(coupler_full PRIVATE
 )
 set_target_properties(coupler_full PROPERTIES RUNTIME_OUTPUT_NAME "coupler_full.x")
 
-# simple test run, only intended for null_model builds 
+# simple test run, only intended for null_model builds
 enable_testing()
 
 add_test(NAME null_model_run
