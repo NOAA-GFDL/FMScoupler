@@ -29,6 +29,49 @@ The coupling between the models is designed to conserve fluxes. For coupled mode
 specification file is used to initialize the model grids and perform exchanges between the models.
 The next sections describe how this file and associated grids are used in the coupler.
 
+### Software Structure and Build System
+
+The FMScoupler repository contains 2 distinct "driver" programs, "full" and "simple", which serve as the executable
+program to run GFDL developed climate models. It also contains a collection of helper modules that define routines used
+in the drivers, which are split between the shared/ and the full/simple subdirectories.
+
+The "full" coupler has 5 direct dependencies: FMS[github.com/noaa-gfdl/fms], "ice_model_mod", "land_model_mod",
+"atmos_model_mod", "ocean_model_mod". The "simple" coupler differs in that in does not require a ocean model, and
+includes its own ice_model module, rather than using an external repository. "ice_param" is a dependency of the simple
+ice_model, so is also included in the build. It is commonly used by GFDL ice models as well, so will be linked with
+the ice component by default.
+
+The component modules can be provided by a number of different repositories that define the
+physical calculations performed in each component.
+
+A cmake build is available to build the coupler and component libraries. It is currently only tested with the null model
+and supports either locally cloned repositories or automagically cloning components during configuration.
+
+To build using local components, all source code must be cloned in a single directory:
+
+```{shell}
+[Ryan.Mulhall@lscamd50-d example-build-dir]$ ls
+atmos_null  FMScoupler  FMS  ice_null  ice_param  land_null  ocean_null
+```
+Which then can be built/tested with:
+
+```{shell}
+cmake FMScoupler/
+make -j
+make test
+```
+
+To have cmake clone all dependencies, build the null model, and run a test with cmake:
+
+```{shell}
+mkdir build
+cd build
+cmake -DFETCH_FMS=on -DFETCH_COMPONENTS=on ..
+make -j
+make test
+```
+
+
 ### Grid Specification Files
 At runtime, the coupled model sets up its grid using a given `grid_spec.nc` file that it reads from
 the INPUT subdirectory. This NetCDF file contains grid information for all of the component models
