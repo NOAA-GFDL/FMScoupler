@@ -118,7 +118,6 @@ module surface_flux_mod
 use FMS
 use FMSconstants, only: cp_air, hlv, stefan, rdgas, rvgas, grav, vonkarm
 use ocean_rough_mod, only: cal_z0_hwrf17, cal_zt_hwrf17, read_ocean_rough_scheme
-use constants_mod, only: vonkarm
 use fms_mod, only: mpp_pe, mpp_root_pe, stdout
 
 
