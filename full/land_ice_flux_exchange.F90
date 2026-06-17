@@ -114,7 +114,6 @@ contains
     real, dimension(n_xgrid_runoff) :: ex_runoff, ex_calving, ex_runoff_hflx, ex_calving_hflx, ex_runoff_DOC
     real, dimension(size(Land_Ice_Boundary%runoff,1),size(Land_Ice_Boundary%runoff,2),1) :: ice_buf
 
-    !Balaji
     call fms_mpp_clock_begin(cplClock)
     call fms_mpp_clock_begin(fluxLandIceClock)
 
