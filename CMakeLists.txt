@@ -35,7 +35,7 @@ set(land_path			  "${CMAKE_SOURCE_DIR}/../land_null"  CACHE STRING "Path to loca
 set(ice_path			  "${CMAKE_SOURCE_DIR}/../ice_null"   CACHE STRING "Path to local ice component repository")
 set(ice_param_path  "${CMAKE_SOURCE_DIR}/../ice_param"  CACHE STRING "Path to local ice_param component repository")
 
-# Options for cloning depedencies
+# Options for cloning dependencies
 option(FETCH_FMS				"Clone FMS repository for building" OFF)
 option(FETCH_COMPONENTS "Clone model component repositories for building" OFF)
 set(fms_tag 			"main" CACHE STRING "Branch/Tag name for FMS. Only used if -DFETCH_FMS=on")
@@ -80,6 +80,7 @@ if(FETCH_FMS)
   message(STATUS "FMS cloned to ${FMS_SOURCE_DIR}")
 else()
   add_subdirectory(${fms_path} ${CMAKE_CURRENT_BINARY_DIR}/fms_build)
+  set(FMS_SOURCE_DIR "${fms_path}")
 endif()
 
 # set variables for component repos
@@ -101,12 +102,13 @@ foreach(component_name IN LISTS COMPONENTS)
       ${component_name}
       GIT_REPOSITORY ${component_url}
       SOURCE_DIR ${EXTERNAL_SOURCE_DIR}/${component_name}
-      GIT_TAG main
+      GIT_TAG ${${component_name}_tag}
     )
     FetchContent_MakeAvailable(${component_name})
   else()
     set(component_path ${${component_name}_path} )
     message(STATUS "Creating symlink in ${EXTERNAL_SOURCE_DIR} for ${component_path}")
+    file(REMOVE_RECURSE "${EXTERNAL_SOURCE_DIR}/${component_name}")
     file(CREATE_LINK
       "${component_path}"
       "${EXTERNAL_SOURCE_DIR}/${component_name}"
@@ -117,13 +119,13 @@ endforeach()
 
 # Build libraries for each external component
 foreach(component_name IN LISTS COMPONENTS)
-  file(GLOB_RECURSE component_srcs ${EXTERNAL_SOURCE_DIR}/${component_name}/*.F90)
+file(GLOB_RECURSE CONFIGURE_DEPENDS component_srcs ${EXTERNAL_SOURCE_DIR}/${component_name}/*.F90)
   # TODO if/when cmake is added to component libraries, this should use add_subdirectory instead
   add_library(${component_name} STATIC ${component_srcs})
   target_include_directories(${component_name} PUBLIC ${EXTERNAL_SOURCE_DIR}/FMS)
   target_link_libraries(${component_name} PUBLIC FMS::fms)
   target_compile_definitions(${component_name} PUBLIC INTERNAL_FILE_NML)
-  set_target_properties(${component_name} PROPERTIES COMPILE_FLAGS "-fdefault-real-8")
+target_compile_options(${component_name} PRIVATE $<$<Fortran_COMPILER_ID:GNU>:-fdefault-real-8>)
 	set_target_properties(${component_name} PROPERTIES
     Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_mods"
 	)
