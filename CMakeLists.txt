@@ -76,6 +76,7 @@ else()
   message(NOTICE "Expecting repositories for each component locally available in
                   '${CMAKE_SOURCE_DIR}/..'. Use -DCLONE_NULL_MODEL=on to clone components instead.")
   add_subdirectory(${fms_path} ${CMAKE_CURRENT_BINARY_DIR}/fms_build)
+  set(FMS_SOURCE_DIR "${fms_path}")
 endif()
 
 # set variables for component repos
@@ -97,7 +98,7 @@ foreach(component_name IN LISTS COMPONENTS)
       ${component_name}
       GIT_REPOSITORY ${component_url}
       SOURCE_DIR ${EXTERNAL_SOURCE_DIR}/${component_name}
-      GIT_TAG main
+      GIT_TAG ${${component_name}_tag}
     )
     FetchContent_MakeAvailable(${component_name})
   else()
@@ -106,6 +107,7 @@ foreach(component_name IN LISTS COMPONENTS)
       message(FATAL_ERROR "${component_name} path not found: ${component_path}")
     endif()
     message(STATUS "Creating symlink in ${EXTERNAL_SOURCE_DIR} for ${component_path}")
+    file(REMOVE_RECURSE "${EXTERNAL_SOURCE_DIR}/${component_name}")
     file(CREATE_LINK
       "${component_path}"
       "${EXTERNAL_SOURCE_DIR}/${component_name}"
@@ -116,13 +118,13 @@ endforeach()
 
 # Build libraries for each external component
 foreach(component_name IN LISTS COMPONENTS)
-  file(GLOB_RECURSE component_srcs ${EXTERNAL_SOURCE_DIR}/${component_name}/*.F90)
+file(GLOB_RECURSE CONFIGURE_DEPENDS component_srcs ${EXTERNAL_SOURCE_DIR}/${component_name}/*.F90)
   # TODO if/when cmake is added to component libraries, this should use add_subdirectory instead
   add_library(${component_name} STATIC ${component_srcs})
   target_include_directories(${component_name} PUBLIC ${EXTERNAL_SOURCE_DIR}/FMS)
   target_link_libraries(${component_name} PUBLIC FMS::fms)
   target_compile_definitions(${component_name} PUBLIC INTERNAL_FILE_NML)
-  set_target_properties(${component_name} PROPERTIES COMPILE_FLAGS "-fdefault-real-8")
+target_compile_options(${component_name} PRIVATE $<$<Fortran_COMPILER_ID:GNU>:-fdefault-real-8>)
 	set_target_properties(${component_name} PROPERTIES
     Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_mods"
 	)
