@@ -27,49 +27,43 @@ include(FetchContent)
 set(EXTERNAL_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external)
 file(MAKE_DIRECTORY ${EXTERNAL_SOURCE_DIR})
 
-# Options for local dependencies
-set(fms_path 			  "${CMAKE_SOURCE_DIR}/../FMS"        CACHE STRING "Path to local fms repository")
-set(atmos_path			"${CMAKE_SOURCE_DIR}/../atmos_null" CACHE STRING "Path to local atmospere component repository")
-set(ocean_path			"${CMAKE_SOURCE_DIR}/../ocean_null" CACHE STRING "Path to local ocean component repository")
-set(land_path			  "${CMAKE_SOURCE_DIR}/../land_null"  CACHE STRING "Path to local land component repository")
-set(ice_path			  "${CMAKE_SOURCE_DIR}/../ice_null"   CACHE STRING "Path to local ice component repository")
+# Option to build null model
+option(CLONE_NULL_MODEL "Clone dependencies for the null model, which uses placeholder code for calculations" OFF)
+# Option to add run tests (only works if building null_model)
+option(TEST_NULL_MODEL  "Enable a simple runtime test intended for the null model build" OFF)
+# Option to enable CPP macros required by the null model
+option(NULL_MODEL_MACROS "Enable CPP macros required by the null model" OFF)
+
+# cloning null components implies we can run the test and should use the null model macros
+if(CLONE_NULL_MODEL)
+  set(TEST_NULL_MODEL ON CACHE BOOL "Enabling null model test (-DCLONE_NULL_MODEL=on)" FORCE)
+  set(NULL_MODEL_MACROS ON CACHE BOOL "Enabling null model macros (-DCLONE_NULL_MODEL=on)" FORCE)
+endif()
+
+# Options for local dependencies, can be set on command line (-Dfms_path="")
+set(fms_path        "${CMAKE_SOURCE_DIR}/../FMS"        CACHE STRING "Path to local fms repository")
+set(atmos_path      "${CMAKE_SOURCE_DIR}/../atmos_null" CACHE STRING "Path to local atmospere component repository")
+set(ocean_path      "${CMAKE_SOURCE_DIR}/../ocean_null" CACHE STRING "Path to local ocean component repository")
+set(land_path       "${CMAKE_SOURCE_DIR}/../land_null"  CACHE STRING "Path to local land component repository")
+set(ice_path        "${CMAKE_SOURCE_DIR}/../ice_null"   CACHE STRING "Path to local ice component repository")
 set(ice_param_path  "${CMAKE_SOURCE_DIR}/../ice_param"  CACHE STRING "Path to local ice_param component repository")
 
-# Options for cloning depedencies
-option(FETCH_FMS				"Clone FMS repository for building" OFF)
-option(FETCH_COMPONENTS "Clone model component repositories for building" OFF)
-set(fms_tag 			"main" CACHE STRING "Branch/Tag name for FMS. Only used if -DFETCH_FMS=on")
-set(atmos_tag 		"main" CACHE STRING "Branch/Tag name for atmosphere component. Only used if -DFETCH_COMPONENTS=on")
-set(ocean_tag 		"main" CACHE STRING "Branch/Tag name for ocean component. Only used if -DFETCH_COMPONENTS=on")
-set(land_tag 			"main" CACHE STRING "Branch/Tag name for land component. Only used if -DFETCH_COMPONENTS=on")
-set(ice_tag 			"main" CACHE STRING "Branch/Tag name for ice component. Only used if -DFETCH_COMPONENTS=on")
-set(ice_param_tag	"main" CACHE STRING "Branch/Tag name for ice_param component. Only used if -DFETCH_COMPONENTS=on")
-set(fms_repo "https://github.com/noaa-gfdl/fms.git"
-	CACHE STRING "Repository URL for FMS. Only used if -DFETCH_FMS=on")
-set(atmos_repo "https://github.com/noaa-gfdl/atmos_null.git"
-	CACHE STRING "Repository URL for atmosphere component. Only used if -DFETCH_COMPONENTS=on")
-set(ocean_repo "https://github.com/noaa-gfdl/ocean_null.git"
-	CACHE STRING "Repository URL for ocean component. Only used if -DFETCH_COMPONENTS=on")
-set(land_repo "https://github.com/noaa-gfdl/land_null.git"
-	CACHE STRING "Repository URL for land component. Only used if -DFETCH_COMPONENTS=on")
-set(ice_repo "https://github.com/noaa-gfdl/ice_null.git"
-	CACHE STRING "Repository URL for ice component. Only used if -DFETCH_COMPONENTS=on")
-set(ice_param_repo "https://github.com/noaa-gfdl/ice_param.git"
-	CACHE STRING "Repository URL for ice_param component. Only used if -DFETCH_COMPONENTS=on")
-
-# TODO some more error checking here to ensure fetching/local options make sense
-if(NOT FETCH_FMS)
-  message(NOTICE "-DFETCH_FMS=off - expecting local FMS repository at ${fms_path}.")
-endif()
-
-if(NOT FETCH_COMPONENTS)
-  message(NOTICE
-    "-DFETCH_COMPONENTS=off - expecting components locally available in ${CMAKE_SOURCE_DIR}/.. if path not specified"
-  )
-endif()
+# These are only used when using -DCLONE_NULL_MODEL, cannot be set manually 
+set(fms_tag         "main") 
+set(atmos_null_tag  "main")
+set(ocean_null_tag  "main")
+set(land_null_tag   "main")
+set(ice_null_tag    "main")
+set(ice_param_tag   "main")
+set(fms_repo        "https://github.com/noaa-gfdl/fms.git")
+set(atmos_null_repo "https://github.com/noaa-gfdl/atmos_null.git")
+set(ocean_null_repo "https://github.com/noaa-gfdl/ocean_null.git")
+set(land_null_repo  "https://github.com/noaa-gfdl/land_null.git")
+set(ice_null_repo   "https://github.com/noaa-gfdl/ice_null.git")
+set(ice_param_repo  "https://github.com/noaa-gfdl/ice_param.git")
 
 # build FMS, cloning if -DFETCH_FMS=on, otherwise expects a local path provided
-if(FETCH_FMS)
+if(CLONE_NULL_MODEL)
   FetchContent_Declare(
     FMS
     GIT_REPOSITORY ${fms_repo}
@@ -79,6 +73,8 @@ if(FETCH_FMS)
   FetchContent_MakeAvailable(FMS)
   message(STATUS "FMS cloned to ${FMS_SOURCE_DIR}")
 else()
+  message(NOTICE "Expecting repositories for each component locally available in
+                  '${CMAKE_SOURCE_DIR}/..'. Use -DCLONE_NULL_MODEL=on to clone components instead.")
   add_subdirectory(${fms_path} ${CMAKE_CURRENT_BINARY_DIR}/fms_build)
 endif()
 
@@ -94,7 +90,7 @@ set(COMPONENTS
 )
 # clone or symlink each component repo
 foreach(component_name IN LISTS COMPONENTS)
-  if(FETCH_COMPONENTS)
+  if(CLONE_NULL_MODEL)
     set(component_url ${${component_name}_repo})
     message(STATUS "Cloning ${component_url} to ${EXTERNAL_SOURCE_DIR}/${component_name}")
     FetchContent_Declare(
@@ -106,6 +102,9 @@ foreach(component_name IN LISTS COMPONENTS)
     FetchContent_MakeAvailable(${component_name})
   else()
     set(component_path ${${component_name}_path} )
+    if(NOT EXISTS ${component_path})
+      message(FATAL_ERROR "${component_name} path not found: ${component_path}")
+    endif()
     message(STATUS "Creating symlink in ${EXTERNAL_SOURCE_DIR} for ${component_path}")
     file(CREATE_LINK
       "${component_path}"
@@ -160,7 +159,10 @@ set_target_properties(coupler_shared_simple PROPERTIES
     Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/simple_coupler_mods"
 )
 set_target_properties(coupler_shared_simple PROPERTIES COMPILE_FLAGS "-fdefault-real-8")
-target_compile_definitions(coupler_shared_simple PUBLIC use_AM3_physics _USE_LEGACY_LAND_)
+
+if(NULL_MODEL_MACROS)
+  target_compile_definitions(coupler_shared_simple PUBLIC use_AM3_physics)
+endif()
 target_include_directories(coupler_shared_simple PUBLIC
 	${CMAKE_CURRENT_BINARY_DIR}/ocean_mods
 	${CMAKE_CURRENT_BINARY_DIR}/atmos_mods
@@ -181,7 +183,9 @@ set_target_properties(coupler_shared_full PROPERTIES
     Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/full_coupler_mods"
 )
 set_target_properties(coupler_shared_full PROPERTIES COMPILE_FLAGS "-fdefault-real-8")
-target_compile_definitions(coupler_shared_full PUBLIC use_AM3_physics _USE_LEGACY_LAND_)
+if(NULL_MODEL_MACROS)
+  target_compile_definitions(coupler_shared_full PUBLIC use_AM3_physics _USE_LEGACY_LAND_)
+endif()
 target_include_directories(coupler_shared_full PUBLIC
 	${CMAKE_SOURCE_DIR}/full
 	${CMAKE_CURRENT_BINARY_DIR}/ocean_mods
@@ -240,7 +244,11 @@ target_link_libraries(coupler_full PRIVATE
 set_target_properties(coupler_full PROPERTIES RUNTIME_OUTPUT_NAME "coupler_full.x")
 
 # simple test run, only intended for null_model builds
-enable_testing()
+if(TEST_NULL_MODEL)
+  enable_testing()
+  add_test(NAME full_coupler_null_model_run
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/t/test_full.sh)
+  add_test(NAME simple_coupler_null_model_run
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/t/test_simple.sh)
+endif()
 
-add_test(NAME null_model_run
-  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/t/test_run.sh)

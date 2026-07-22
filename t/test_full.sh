@@ -29,22 +29,3 @@ else
   echo "::error title=Run Failed - full coupler:: Full coupler null model run failed execution."
   exit 1
 fi
-
-# Using the same run directory, setup for the simple coupler
-# Clear out the RESTART directory
-mv RESTART RESTART_full
-mkdir RESTART
-# Get the simple namelist
-rm input.nml
-ln -s input-simple.nml input.nml
-# Run the null simple coupler test
-mpiexec -n 1 ${rundir}/coupler_simple.x
-
-# Report on the status of the run with the simple coupler
-if [ $? -eq 0 ]
-then
-  echo "::note title=Run Succeeded - simple coupler:: simple coupler null model ran successfully"
-else
-  echo "::error title=Run Failed - simple coupler:: simple coupler null model run failed execution."
-  exit 1
-fi
