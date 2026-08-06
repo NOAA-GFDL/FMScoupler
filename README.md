@@ -2,8 +2,8 @@
 
 # Flexible Modeling System (FMS) Coupler
 
-Instructions for contribuing to this project can be found in the 
-[Contribution Guidelines](CONTRIBUTING.md).  Contributing to the FMScoupler involves a higher 
+Instructions for contribuing to this project can be found in the
+[Contribution Guidelines](CONTRIBUTING.md).  Contributing to the FMScoupler involves a higher
 level of scrutiny and justification.
 
 
@@ -31,18 +31,18 @@ The next sections describe how this file and associated grids are used in the co
 
 ### Software Structure and Build System
 
-The FMScoupler repository contains 2 distinct "driver" programs, "full" and "simple", which serve as the executable
-program to run GFDL developed climate models. It also contains a collection of helper modules that define routines used
-in the drivers, which are split between the shared/ and the full/simple subdirectories.
+The FMSCoupler repository consists of
+1.  `full` subdirectory containing the main driver program and flux exchange modules for fully coupled GFDL models.
+2.  `simple` subdirectory containing the main driver program, a simpler flux exchange module, and a simpler ice model
+for coupled models only consisting of atmosphere, land, and the simpler ice;
+3.  `shared` subdirectory containing the surface_flux module shared between `full` and `simple`.
 
-The "full" coupler has 5 direct dependencies: [FMS](https://github.com/noaa-gfdl/fms), `ice_model_mod`, `land_model_mod`,
-`atmos_model_mod`, and `ocean_model_mod`. The "simple" coupler differs in that it does not require an ocean model and
-includes its own `ice_model` module rather than using an external repository. `ice_param` is a dependency of the simple
-`ice_model`, so it is also included in the build. It is commonly used by GFDL ice models as well, so it will be linked with
-the ice component by default.
+The "full" coupler has 5 external dependencies: [FMS](https://github.com/noaa-gfdl/fms), `ice_model_mod`,
+`land_model_mod`, `atmos_model_mod`, and `ocean_model_mod`.
 
-The component modules can be provided by a number of different repositories that define the
-physical calculations performed in each component.
+ The "simple" coupler does not require `ocean_model_mod` and uses its own internal `ice_model_mod` that depends on the
+ external `ice_param` library. Thus, the "simple" coupler has the following external dependencies:
+ [FMS](https://github.com/noaa-gfdl/fms), `ice_model_mod`, `land_model_mod`, `atmos_model_mod` and `ice_param`
 
 A cmake build is available to build the coupler and component libraries. It is currently only tested with the null model
 and supports either locally cloned repositories or automagically cloning components during configuration.
@@ -66,7 +66,7 @@ To have cmake clone all dependencies, build the null model, and run a test with 
 ```{shell}
 mkdir build
 cd build
-cmake -DFETCH_FMS=on -DFETCH_COMPONENTS=on ..
+cmake -DCLONE_NULL_MODEL=on ..
 make -j
 make test
 ```
