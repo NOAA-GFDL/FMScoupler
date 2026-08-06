@@ -48,8 +48,8 @@ set(land_path       "${CMAKE_SOURCE_DIR}/../land_null"  CACHE STRING "Path to lo
 set(ice_path        "${CMAKE_SOURCE_DIR}/../ice_null"   CACHE STRING "Path to local ice component repository")
 set(ice_param_path  "${CMAKE_SOURCE_DIR}/../ice_param"  CACHE STRING "Path to local ice_param component repository")
 
-# These are only used when using -DCLONE_NULL_MODEL, cannot be set manually 
-set(fms_tag         "main") 
+# These are only used when using -DCLONE_NULL_MODEL, cannot be set manually
+set(fms_tag         "main")
 set(atmos_null_tag  "main")
 set(ocean_null_tag  "main")
 set(land_null_tag   "main")
