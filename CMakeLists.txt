@@ -26,11 +26,11 @@
 # - FMS (Flexible Modeling System)
 # - Atmosphere Model (e.g. atmos_drivers, usually combined with GFDL_atmos_cubed_sphere)
 # - Ocean Model (e.g. MOM6, etc.)
-# - Land Model (e.g. LM4, etc.)
+# - Land Model (e.g. LM4, land_lad2, etc.)
 # - Ice Model (e.g. SIS2, etc.)
-# - Atmosphere Physics Library (e.g. AM4 physics, etc.) - usually required but optional if using atmos_null
+# - Atmosphere Physics Library (e.g. atmos_phys, am5_phys, etc.) - usually required but optional if using atmos_null
 #
-# These dependencies can be provided by multiple different code repositories, and are usually compiled alongside the 
+# These dependencies can be provided by multiple different code repositories, and are usually compiled alongside the
 # libraries they use. The one exception is the atmosphere physics library, which is usually compiled as a separate
 # library and linked to the atmosphere model.
 
@@ -40,16 +40,15 @@ project(fmscoupler LANGUAGES Fortran)
 include(FetchContent)
 
 # define some file locations
-set(EXTERNAL_SOURCE_DIR ${CMAKE_SOURCE_DIR}/external)
-file(MAKE_DIRECTORY ${EXTERNAL_SOURCE_DIR})
+# (removed EXTERNAL_SOURCE_DIR symlinking)
 
 # Option to pick between simple and full coupler builds
 set(COUPLER_TYPE "full" CACHE STRING "Determines which coupler executable to build with. Options are 'simple' or 'full'.")
 
-# Set source paths for each component. Model paths are semicolon-separated CMake lists.
+# Set source paths for each component. Model paths should be semicolon-separated lists.
 # These will typically be set by fre-cli from its compile.yaml file,
 # but can also be set manually with -D flags to cmake
-set(fms_path                     "" CACHE PATH   "Path to FMS source code")
+set(fms_paths                    "" CACHE PATH   "Path to FMS source code")
 set(atmos_model_paths            "" CACHE STRING "Paths to Atmosphere Model source code")
 set(ocean_model_paths            "" CACHE STRING "Paths to Ocean Model source code")
 set(land_model_paths             "" CACHE STRING "Paths to Land Model source code")
@@ -61,7 +60,7 @@ set(atmos_physics_library_paths  "" CACHE STRING "Paths to Atmosphere Physics li
 set(fms_macros                   "" CACHE STRING "Macro definitions for FMS as a semicolon separated list")
 set(atmos_model_macros           "" CACHE STRING "Macro definitions for Atmosphere Model as a semicolon separated list")
 set(ocean_model_macros           "" CACHE STRING "Macro definitions for Ocean Model as a semicolon separated list")
-set(land_macros                  "" CACHE STRING "Macro definitions for Land Model as a semicolon separated list")
+set(land_model_macros            "" CACHE STRING "Macro definitions for Land Model as a semicolon separated list")
 set(ice_model_macros             "" CACHE STRING "Macro definitions for Ice Model as a semicolon separated list")
 set(atmos_physics_library_macros "" CACHE STRING "Macro definitions for Atmosphere Physics library as a semicolon separated list")
 
@@ -69,13 +68,13 @@ set(atmos_physics_library_macros "" CACHE STRING "Macro definitions for Atmosphe
 set(fms_flags                   "" CACHE STRING "Compile flags for FMS")
 set(atmos_model_flags           "" CACHE STRING "Compile flags for Atmosphere Model")
 set(ocean_model_flags           "" CACHE STRING "Compile flags for Ocean Model")
-set(land_flags                  "" CACHE STRING "Compile flags for Land Model")
+set(land_model_flags                  "" CACHE STRING "Compile flags for Land Model")
 set(ice_model_flags             "" CACHE STRING "Compile flags for Ice Model")
 set(atmos_physics_library_flags "" CACHE STRING "Compile flags for Atmosphere Physics library")
 
 # Error checking for required paths.
-if(NOT fms_path)
-  message(FATAL_ERROR "FMS path not set, use -Dfms_path=PATH")
+if(NOT fms_paths)
+  message(FATAL_ERROR "FMS path not set, use -Dfms_paths=PATH")
 endif()
 if(NOT atmos_model_paths)
   message(FATAL_ERROR "Atmosphere model paths not set, use -Datmos_model_paths=PATH[;PATH...]")
@@ -91,8 +90,8 @@ if(NOT ice_model_paths)
 endif()
 
 # fms has its own CMakeLists.txt, so we can just add it as a subdirectory unlike the other components
-add_subdirectory(${fms_path} ${CMAKE_CURRENT_BINARY_DIR}/fms_build)
-set(FMS_SOURCE_DIR "${fms_path}")
+add_subdirectory(${fms_paths} ${CMAKE_CURRENT_BINARY_DIR}/fms_build)
+set(FMS_SOURCE_DIR "${fms_paths}")
 
 # set variables for component repos, if atmos physics library path is not set, it will be skipped
 set(COMPONENTS
@@ -105,47 +104,128 @@ if(atmos_physics_library_paths)
   list(APPEND COMPONENTS atmos_physics_library)
 endif()
 
-# Check paths and symlink each component repo, this is a bit of a hack to get
-# the external components into the coupler source tree.
-# TODO look into alternatives
+# Collect source files and include directories from paths for each component
+# TODO: add optional support for embedded CMake builds in every component if desired
 foreach(component_name IN LISTS COMPONENTS)
-  file(REMOVE_RECURSE "${EXTERNAL_SOURCE_DIR}/${component_name}")
-  foreach(component_path IN LISTS ${component_name}_paths)
-    if(NOT EXISTS ${component_path})
-      message(FATAL_ERROR "${component_name} path not found: ${component_path}")
-    endif()
-    get_filename_component(component_dir_name "${component_path}" NAME)
-    set(component_link "${EXTERNAL_SOURCE_DIR}/${component_name}/${component_dir_name}")
-    if(EXISTS "${component_link}")
-      message(FATAL_ERROR "Duplicate ${component_name} source directory name: ${component_dir_name}")
-    endif()
-    message(STATUS "Creating symlink in ${EXTERNAL_SOURCE_DIR} for ${component_path}")
-    file(CREATE_LINK "${component_path}" "${component_link}" SYMBOLIC)
-  endforeach()
-endforeach()
+  set(component_srcs "")
 
-# Create libraries for each external component
-foreach(component_name IN LISTS COMPONENTS)
-  file(GLOB_RECURSE CONFIGURE_DEPENDS component_srcs ${EXTERNAL_SOURCE_DIR}/${component_name}/*.F90)
+  foreach(component_path IN LISTS ${component_name}_paths)
+    if(NOT EXISTS "${component_path}")
+      message(WARNING "${component_name} path not found: ${component_path}")
+      continue()
+    endif()
+    # if directory, search for source and header files
+    if(IS_DIRECTORY "${component_path}")
+      file(GLOB_RECURSE dir_srcs CONFIGURE_DEPENDS
+        "${component_path}/*.F90"
+        "${component_path}/*.f90"
+        "${component_path}/*.F"
+        "${component_path}/*.f"
+        "${component_path}/*.c"
+        "${component_path}/*.C"
+      )
+      file(GLOB_RECURSE dir_headers CONFIGURE_DEPENDS
+        "${component_path}/*.h"
+        "${component_path}/*.H"
+      )
+      foreach(src_file IN LISTS dir_srcs)
+        if(EXISTS "${src_file}")
+          list(APPEND component_srcs "${src_file}")
+        endif()
+      endforeach()
+      foreach(header_file IN LISTS dir_headers)
+        if(EXISTS "${header_file}")
+          get_filename_component(header_dir "${header_file}" DIRECTORY)
+          list(APPEND component_headers "${header_dir}")
+        endif()
+      endforeach()
+
+    else()
+      if(EXISTS "${component_path}")
+        list(APPEND component_srcs "${component_path}")
+      endif()
+    endif()
+  endforeach()
+
+  if(component_srcs)
+    list(REMOVE_DUPLICATES component_srcs)
+  else()
+    message(FATAL_ERROR "No source files found for ${component_name} in ${${component_name}_paths}")
+  endif()
+
+  if(component_headers)
+    list(REMOVE_DUPLICATES component_headers)
+  endif()
+  if(component_name STREQUAL "land_model")
+    list(FILTER component_srcs EXCLUDE REGEX "/t/")
+  endif()
+  list(APPEND component_headers "${FMS_SOURCE_DIR}/include")
+  list(APPEND component_headers "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_mods")
+
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_paths.txt" "${component_name} sources: ${component_srcs}")
+  file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_paths.txt" "\n${component_name} headers: ${component_headers}")
+
+  # Create libraries for each external component
   add_library(${component_name} STATIC ${component_srcs})
-  target_include_directories(${component_name} PUBLIC ${EXTERNAL_SOURCE_DIR}/FMS)
+  if(component_name STREQUAL "land_model")
+    set_property(TARGET ${component_name} PROPERTY Fortran_COMPILER_LAUNCHER
+      "${CMAKE_SOURCE_DIR}/../../misc/land_fortran_cpp_launcher")
+  endif()
+  target_include_directories(${component_name} PUBLIC ${component_headers})
   target_link_libraries(${component_name} PUBLIC FMS::fms)
   target_compile_definitions(${component_name} PUBLIC ${${component_name}_macros})
-  target_compile_options(${component_name} PUBLIC ${${component_name}_flags})
-	set_target_properties(${component_name} PROPERTIES
+  # -fdefault-real-8 must match the coupler targets, otherwise components built at single precision
+  # cause REAL(4)/REAL(8) argument mismatches when linked against double-precision FMS/coupler code.
+  # -fcray-pointer/-fallow-argument-mismatch/-ffree-line-length-none match FMS's own GNU flags,
+  # required by legacy code (Cray pointers, mismatched implicit-interface calls, long lines).
+  target_compile_options(${component_name} PUBLIC
+    ${${component_name}_flags}
+    -fdefault-real-8
+    -fcray-pointer
+    -fallow-argument-mismatch
+    -ffree-line-length-none
+  )
+  set_target_properties(${component_name} PROPERTIES
     Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_mods"
-	)
+  )
 endforeach()
 
+# SIS2 (ice_model) uses MOM6 modules, which are only compiled as part of ocean_model.
+if(TARGET ice_model AND TARGET ocean_model)
+  target_link_libraries(ice_model PUBLIC ocean_model)
+endif()
+
+# atmos_model uses modules from the atmosphere physics library, when it's being built.
+if(TARGET atmos_model AND TARGET atmos_physics_library)
+  target_link_libraries(atmos_model PUBLIC atmos_physics_library)
+endif()
+
+# Aliases for convenience
+if(TARGET ocean_model)
+  add_library(ocean ALIAS ocean_model)
+endif()
+if(TARGET atmos_model)
+  add_library(atmos ALIAS atmos_model)
+endif()
+if(TARGET land_model)
+  add_library(land ALIAS land_model)
+endif()
+if(TARGET ice_model)
+  add_library(ice ALIAS ice_model)
+endif()
 
 # Select type-specific sources and dependencies. The target definitions below are shared.
 set(SHARED_MOD_SRCS ${CMAKE_SOURCE_DIR}/shared/surface_flux.F90)
 set(COUPLER_COMMON_INCLUDE_DIRS
-  ${CMAKE_CURRENT_BINARY_DIR}/ocean_mods
-  ${CMAKE_CURRENT_BINARY_DIR}/atmos_mods
-  ${CMAKE_CURRENT_BINARY_DIR}/land_mods
+  ${CMAKE_CURRENT_BINARY_DIR}/ocean_model_mods
+  ${CMAKE_CURRENT_BINARY_DIR}/atmos_model_mods
+  ${CMAKE_CURRENT_BINARY_DIR}/land_model_mods
 )
-set(COUPLER_COMMON_LIBRARIES FMS::fms ocean atmos land)
+set(COUPLER_COMMON_LIBRARIES FMS::fms ocean_model atmos_model land_model)
+if(TARGET atmos_physics_library)
+  list(APPEND COUPLER_COMMON_LIBRARIES atmos_physics_library)
+  list(APPEND COUPLER_COMMON_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/atmos_physics_library_mods)
+endif()
 
 if(COUPLER_TYPE STREQUAL "simple")
   set(COUPLER_MOD_SRCS
@@ -153,8 +233,8 @@ if(COUPLER_TYPE STREQUAL "simple")
     ${CMAKE_SOURCE_DIR}/simple/ice_model.F90
   )
   set(COUPLER_EXEC_SRC ${CMAKE_SOURCE_DIR}/simple/coupler_main.F90)
-  list(APPEND COUPLER_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/ice_param_mods)
-  list(APPEND COUPLER_SHARED_LIBRARIES ice_param)
+  list(APPEND COUPLER_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/ice_model_mods)
+  list(APPEND COUPLER_SHARED_LIBRARIES ice_model)
   set(COUPLER_NULL_MODEL_MACROS use_AM3_physics)
 elseif(COUPLER_TYPE STREQUAL "full")
   set(COUPLER_MOD_SRCS
@@ -169,11 +249,10 @@ elseif(COUPLER_TYPE STREQUAL "full")
   set(COUPLER_EXEC_SRC ${CMAKE_SOURCE_DIR}/full/coupler_main.F90)
   list(APPEND COUPLER_INCLUDE_DIRS
     ${CMAKE_SOURCE_DIR}/full
-    ${CMAKE_CURRENT_BINARY_DIR}/ice_mods
-    ${CMAKE_CURRENT_BINARY_DIR}/ice_param_mods
+    ${CMAKE_CURRENT_BINARY_DIR}/ice_model_mods
   )
-  list(APPEND COUPLER_SHARED_LIBRARIES ice ice_param)
-  list(APPEND COUPLER_EXEC_LIBRARIES ice)
+  list(APPEND COUPLER_SHARED_LIBRARIES ice_model)
+  list(APPEND COUPLER_EXEC_LIBRARIES ice_model)
   set(COUPLER_NULL_MODEL_MACROS use_AM3_physics _USE_LEGACY_LAND_)
 else()
   message(FATAL_ERROR "Invalid COUPLER_TYPE '${COUPLER_TYPE}'. Expected 'simple' or 'full'.")
