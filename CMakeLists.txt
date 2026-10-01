@@ -39,11 +39,12 @@ project(fmscoupler LANGUAGES Fortran)
 
 include(FetchContent)
 
-# define some file locations
-# (removed EXTERNAL_SOURCE_DIR symlinking)
-
-# Option to pick between simple and full coupler builds
+# Option to pick between simple and full coupler executables
 set(COUPLER_TYPE "full" CACHE STRING "Determines which coupler executable to build with. Options are 'simple' or 'full'.")
+
+# this is analagous to using the --use-cpp in mkmf, but will only apply to whatever src is provided for the land_model code
+# preprocessed code will end up in the build directory under 'preprocessed_srcs'
+option(PREPROCESS_LAND "Uses the GNU cpp command instead of the compiler to preprocess the land. This is needed for lm4p to properly handle strings in macro functions")
 
 # Set source paths for each component. Model paths should be semicolon-separated lists.
 # These will typically be set by fre-cli from its compile.yaml file,
@@ -94,6 +95,7 @@ add_subdirectory(${fms_paths} ${CMAKE_CURRENT_BINARY_DIR}/fms_build)
 set(FMS_SOURCE_DIR "${fms_paths}")
 
 # set variables for component repos, if atmos physics library path is not set, it will be skipped
+# since its not needed for all builds
 set(COMPONENTS
   atmos_model
   ocean_model
@@ -105,7 +107,7 @@ if(atmos_physics_library_paths)
 endif()
 
 # Collect source files and include directories from paths for each component
-# TODO: add optional support for embedded CMake builds in every component if desired
+# TODO: add support for embedded CMake builds in every component
 foreach(component_name IN LISTS COMPONENTS)
   set(component_srcs "")
 
@@ -114,7 +116,6 @@ foreach(component_name IN LISTS COMPONENTS)
       message(WARNING "${component_name} path not found: ${component_path}")
       continue()
     endif()
-    # if directory, search for source and header files
     if(IS_DIRECTORY "${component_path}")
       file(GLOB_RECURSE dir_srcs CONFIGURE_DEPENDS
         "${component_path}/*.F90"
@@ -127,6 +128,7 @@ foreach(component_name IN LISTS COMPONENTS)
       file(GLOB_RECURSE dir_headers CONFIGURE_DEPENDS
         "${component_path}/*.h"
         "${component_path}/*.H"
+        "${component_path}/*.inc"
       )
       foreach(src_file IN LISTS dir_srcs)
         if(EXISTS "${src_file}")
@@ -156,38 +158,53 @@ foreach(component_name IN LISTS COMPONENTS)
   if(component_headers)
     list(REMOVE_DUPLICATES component_headers)
   endif()
-  if(component_name STREQUAL "land_model")
-    list(FILTER component_srcs EXCLUDE REGEX "/t/")
-  endif()
   list(APPEND component_headers "${FMS_SOURCE_DIR}/include")
   list(APPEND component_headers "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_mods")
 
+  # TODO these are all compiler-dependent flags for gnu, in the future this will be handled by .cmake files that define the
+  # flags for each compiler vendor when used
+  set(compiler_opts
+    "${${component_name}_flags}"
+    "-fdefault-real-8"
+    "-fcray-pointer"
+    "-fallow-argument-mismatch"
+    "-ffree-line-length-none"
+  )
+  # cmake will do the same thing as mkmf's --use-cpp option here, preprocess directly with cpp and lable the output with DO_NOT_MODIFY
+  # prior to any actual compilation
+  if(component_name STREQUAL "land_model" AND PREPROCESS_LAND)
+    set(processed_srcs "")
+    make_directory(${CMAKE_CURRENT_BINARY_DIR}/preprocessed_srcs)
+    foreach(src ${component_srcs})
+      get_filename_component(fname ${src} NAME_WE)
+      # Run standalone cpp on .F90 source files
+      set(out_file "${CMAKE_CURRENT_BINARY_DIR}/preprocessed_srcs/${fname}_DO_NOT_MODIFY.f90")
+      add_custom_command(
+        OUTPUT ${out_file}
+        COMMAND cpp -nostdinc -C -v -o ${out_file}
+        DEPENDS ${src}
+        COMMENT "Preprocessing ${src} with standalone cpp..."
+        VERBATIM
+      )
+      list(APPEND processed_srcs ${out_file})
+    endforeach()
+    set(component_srcs ${processed_srcs})
+  endif()
+
+  # this writes out our paths for each component, a la list_paths
   file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_paths.txt" "${component_name} sources: ${component_srcs}")
   file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_paths.txt" "\n${component_name} headers: ${component_headers}")
 
   # Create libraries for each external component
   add_library(${component_name} STATIC ${component_srcs})
-  if(component_name STREQUAL "land_model")
-    set_property(TARGET ${component_name} PROPERTY Fortran_COMPILER_LAUNCHER
-      "${CMAKE_SOURCE_DIR}/../../misc/land_fortran_cpp_launcher")
-  endif()
   target_include_directories(${component_name} PUBLIC ${component_headers})
   target_link_libraries(${component_name} PUBLIC FMS::fms)
   target_compile_definitions(${component_name} PUBLIC ${${component_name}_macros})
-  # -fdefault-real-8 must match the coupler targets, otherwise components built at single precision
-  # cause REAL(4)/REAL(8) argument mismatches when linked against double-precision FMS/coupler code.
-  # -fcray-pointer/-fallow-argument-mismatch/-ffree-line-length-none match FMS's own GNU flags,
-  # required by legacy code (Cray pointers, mismatched implicit-interface calls, long lines).
-  target_compile_options(${component_name} PUBLIC
-    ${${component_name}_flags}
-    -fdefault-real-8
-    -fcray-pointer
-    -fallow-argument-mismatch
-    -ffree-line-length-none
-  )
+  target_compile_options(${component_name} PUBLIC ${compiler_opts})
   set_target_properties(${component_name} PROPERTIES
     Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_mods"
   )
+
 endforeach()
 
 # SIS2 (ice_model) uses MOM6 modules, which are only compiled as part of ocean_model.
