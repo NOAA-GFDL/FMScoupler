@@ -44,7 +44,7 @@ set(COUPLER_TYPE "full" CACHE STRING "Determines which coupler executable to bui
 
 # this is analagous to using the --use-cpp in mkmf, but will only apply to whatever src is provided for the land_model code
 # preprocessed code will end up in the build directory under 'preprocessed_srcs'
-option(PREPROCESS_LAND "Uses the GNU cpp command instead of the compiler to preprocess the land. This is needed for lm4p to properly handle strings in macro functions")
+option(PREPROCESS_LAND "Uses the GNU cpp command instead of the compiler to preprocess the land model source code. This is needed for lm4p to properly handle strings in macro functions")
 
 # Set source paths for each component. Model paths should be semicolon-separated lists.
 # These will typically be set by fre-cli from its compile.yaml file,
@@ -69,7 +69,7 @@ set(atmos_physics_library_macros "" CACHE STRING "Macro definitions for Atmosphe
 set(fms_flags                   "" CACHE STRING "Compile flags for FMS")
 set(atmos_model_flags           "" CACHE STRING "Compile flags for Atmosphere Model")
 set(ocean_model_flags           "" CACHE STRING "Compile flags for Ocean Model")
-set(land_model_flags                  "" CACHE STRING "Compile flags for Land Model")
+set(land_model_flags            "" CACHE STRING "Compile flags for Land Model")
 set(ice_model_flags             "" CACHE STRING "Compile flags for Ice Model")
 set(atmos_physics_library_flags "" CACHE STRING "Compile flags for Atmosphere Physics library")
 
@@ -150,6 +150,12 @@ foreach(component_name IN LISTS COMPONENTS)
   endforeach()
 
   if(component_srcs)
+    set(normalized_component_srcs "")
+    foreach(src_file IN LISTS component_srcs)
+      get_filename_component(real_src_file "${src_file}" REALPATH)
+      list(APPEND normalized_component_srcs "${real_src_file}")
+    endforeach()
+    set(component_srcs ${normalized_component_srcs})
     list(REMOVE_DUPLICATES component_srcs)
   else()
     message(FATAL_ERROR "No source files found for ${component_name} in ${${component_name}_paths}")
@@ -174,6 +180,8 @@ foreach(component_name IN LISTS COMPONENTS)
   # prior to any actual compilation
   if(component_name STREQUAL "land_model" AND PREPROCESS_LAND)
     set(processed_srcs "")
+    set(cpp_macros ${${component_name}_macros})
+    list(TRANSFORM cpp_macros PREPEND "-D")
     make_directory(${CMAKE_CURRENT_BINARY_DIR}/preprocessed_srcs)
     foreach(src ${component_srcs})
       get_filename_component(fname ${src} NAME_WE)
@@ -181,13 +189,16 @@ foreach(component_name IN LISTS COMPONENTS)
       set(out_file "${CMAKE_CURRENT_BINARY_DIR}/preprocessed_srcs/${fname}_DO_NOT_MODIFY.f90")
       add_custom_command(
         OUTPUT ${out_file}
-        COMMAND cpp -nostdinc -C -v -o ${out_file}
+        COMMAND cpp -nostdinc -C -v ${cpp_macros} ${${component_name}_flags} -o "${out_file}" "${src}"
         DEPENDS ${src}
         COMMENT "Preprocessing ${src} with standalone cpp..."
         VERBATIM
       )
       list(APPEND processed_srcs ${out_file})
     endforeach()
+    # TODO lm4p has some random test programs that fail to compile, should exclude anything thats not a module from src search 
+    # for now we'll just exclude files that start with "test_"
+    list(FILTER processed_srcs EXCLUDE REGEX "test_.*.f90")
     set(component_srcs ${processed_srcs})
   endif()
 
