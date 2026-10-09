@@ -49,6 +49,8 @@ set(EXECUTABLE_NAME "coupler_${COUPLER_TYPE}.x" CACHE STRING "Name of the couple
 # preprocessed code will end up in the build directory under 'preprocessed_srcs'
 option(PREPROCESS_LAND "Uses the GNU cpp command instead of the compiler to preprocess the land model source code. This is needed for lm4p to properly handle strings in macro functions")
 
+set(coupler_macros "" CACHE STRING "CPP macros to use when compiling the source code contained in the FMScoupler repository")
+
 # Set source paths for each component. Model paths should be semicolon-separated lists.
 # These will typically be set by fre-cli from its compile.yaml file,
 # but can also be set manually with -D flags to cmake
@@ -290,7 +292,6 @@ elseif(COUPLER_TYPE STREQUAL "full")
   )
   list(APPEND COUPLER_SHARED_LIBRARIES ice_model)
   list(APPEND COUPLER_EXEC_LIBRARIES ice_model)
-  set(COUPLER_NULL_MODEL_MACROS use_AM3_physics _USE_LEGACY_LAND_)
 else()
   message(FATAL_ERROR "Invalid COUPLER_TYPE '${COUPLER_TYPE}'. Expected 'simple' or 'full'.")
 endif()
@@ -303,9 +304,6 @@ add_library(${COUPLER_SHARED_TARGET} STATIC ${COUPLER_MOD_SRCS} ${SHARED_MOD_SRC
 set_target_properties(${COUPLER_SHARED_TARGET} PROPERTIES
   Fortran_MODULE_DIRECTORY "${COUPLER_MODULE_DIR}"
 )
-if(NULL_MODEL_MACROS)
-  target_compile_definitions(${COUPLER_SHARED_TARGET} PUBLIC ${COUPLER_NULL_MODEL_MACROS})
-endif()
 target_include_directories(${COUPLER_SHARED_TARGET} PUBLIC
   ${COUPLER_COMMON_INCLUDE_DIRS}
   ${COUPLER_INCLUDE_DIRS}
@@ -330,12 +328,25 @@ target_link_libraries(${COUPLER_EXECUTABLE_TARGET} PRIVATE
   ${COUPLER_EXEC_LIBRARIES}
 )
 
+# add any requested macros for both the executable and coupler modules
+if(coupler_macros)
+  target_compile_definitions(${COUPLER_SHARED_TARGET} PUBLIC ${coupler_macros})
+  target_compile_definitions(${COUPLER_EXECUTABLE_TARGET} PUBLIC ${coupler_macros})
+endif()
+
+# Testing
+
+option(TEST_NULL_MODEL "Enable a simple runtime test via ctest. Intended for the null component build.")
+
 # Test the selected coupler type for null-model builds.
 if(TEST_NULL_MODEL)
   enable_testing()
-  add_test(NAME full_coupler_null_model_run
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/t/test_full.sh)
-  add_test(NAME simple_coupler_null_model_run
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/t/test_simple.sh)
+  if(COUPLER_TYPE STREQUAL "full")
+    add_test(NAME full_coupler_null_model_run
+      COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/t/test_full.sh)
+  elseif()
+    add_test(NAME simple_coupler_null_model_run
+      COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/t/test_simple.sh)
+  endif()
 endif()
 

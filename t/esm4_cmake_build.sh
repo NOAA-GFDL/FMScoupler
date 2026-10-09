@@ -8,9 +8,12 @@ mkdir -p "$workdir"
 srcdir="$workdir/src"
 builddir="$workdir/build_cmake"
 
+# this is just cloning the same source code as the esm4.5 public release branch on github
 if [[ ! -d "$srcdir" ]]; then
   mkdir -p "$srcdir"
   cd "$srcdir"
+  # symlink this repos source code so its with the rest
+  ln -s ${SCRIPT_DIR}/.. FMScoupler
 
   git clone https://github.com/NOAA-GFDL/FMS.git FMS
   git -C FMS checkout 342afcc5080423ced4a7d9f255df12ce37386af5
@@ -45,31 +48,34 @@ if [[ ! -d "$srcdir" ]]; then
 
   git clone https://github.com/NOAA-GFDL/lm4.git lm4p
   git -C lm4p checkout f0fce68dc1c834e086ce7d557e049dd8830c02b8
+  # this little edit is only needed when compiling with gfortran
+  # which requires all strings in array constructors to be the same size
+  sed -i 's/rainfed_Soybean          /rainfed_Soybean         /' lm4p/vegetation/vegn_data.F90
+  sed -i 's/second_season/second_season /' lm4p/vegetation/vegn_data.F90
 
   cd "$workdir"
 else
   echo "$srcdir already exists, skipping checkout"
 fi
 
-# set paths, pre-processor macros and flags for building
 paths_fms="$srcdir/FMS/"
-# ocean
+
 paths_ocean=( "$srcdir/MOM6/"{config_src/infra/FMS2,config_src/memory/dynamic_nonsymmetric,config_src/drivers/FMS_cap,config_src/external/ODA_hooks,config_src/external/database_comms,config_src/external/stochastic_physics,config_src/external/MARBL,config_src/external/drifters,pkg/GSW-Fortran/{modules,toolbox}/,src/{*,*/*}/} "$srcdir/FMS/"{coupler,include} "$srcdir/"{ocean_BGC/generic_tracers,ocean_BGC/mocsy/src} )
 macros_ocean="MAX_FIELDS_=600;NOT_SET_AFFINITY;_USE_MOM6_DIAG;_USE_GENERIC_TRACER;USE_PRECISION=2"
 flags_ocean="-I$srcdir/FMS;-I$srcdir/MOM6;-I$srcdir/MOM6/src/framework/;-I$srcdir/ocean_BGC/mocsy/src"
-# ice
+
 paths_ice=( "$srcdir/SIS2/"{config_src/dynamic,config_src/external/Icepack_interfaces,src} "$srcdir/icebergs/src" "$srcdir/ice_param" )
 macros_ice="USE_FMS2_IO"
 flags_ice="-I$srcdir/FMS;-I$srcdir/MOM6;-I$srcdir/MOM6/src/framework/"
-# land
+
 paths_land=( "$srcdir/lm4p" )
 macros_land=""
 flags_land="-I$srcdir/FMS;-I$srcdir/FMS/include"
-# atmos
+
 paths_atmos=( "$srcdir/GFDL_atmos_cubed_sphere/"{driver/GFDL,model,GFDL_tools,tools} "$srcdir/atmos_drivers/coupled" )
 macros_atmos="CLIMATE_NUDGE;SPMD"
 flags_atmos="-I$srcdir/FMS;-I$srcdir/FMS/include;-I$srcdir/GFDL_atmos_cubed_sphere/tools/"
-# atmos phys
+
 paths_atmos_phys=( "$srcdir/atmos_phys" )
 macros_atmos_phys=""
 flags_atmos_phys="-I$srcdir/FMS;-I$srcdir/FMS/include;-I$srcdir/atmos_phys/atmos_param/cosp"
@@ -77,7 +83,6 @@ flags_atmos_phys="-I$srcdir/FMS;-I$srcdir/FMS/include;-I$srcdir/atmos_phys/atmos
 build_type="${BUILD_TYPE:-Debug}"
 generator="${CMAKE_GENERATOR:-Unix Makefiles}"
 
-# cmake lists are semicolon-separated; this makes "${array[*]}" join with semicolons
 IFS=";"
 
 mkdir -p "$builddir"
