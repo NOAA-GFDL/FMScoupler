@@ -3,8 +3,8 @@
 # called null_model, clones source code and performs a build with cmake
 # Usage:
 # ./null_cmake_build.sh
-# 	[BUILD_TYPE="Prod|Debug|Repro"]
-#   	[CMAKE_GENERATOR="Unix Makefiles|Ninja|etc..."]
+# 	[COUPLER_TYPE="full|simple"]
+#   	[BUILD_TYPE="Release/Prod|Debug|Repro"]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workdir="$SCRIPT_DIR/null_model"
@@ -54,17 +54,20 @@ land_macros="INTERNAL_FILE_NML"
 
 coupler_macros="_USE_LEGACY_LAND_;use_AM3_physics;INTERNAL_FILE_NML"
 
+coupler_type="${COUPLER_TYPE:-full}"
+build_type="${BUILD_TYPE:-Debug}"
+generator="${CMAKE_GENERATOR:-Unix Makefiles}"
+
 # cmake lists are semicolon-separated; this makes "${array[*]}" join with semicolons
 IFS=";"
 
 mkdir -p "$builddir"
 cmake -S "$srcdir/FMScoupler" -B "$builddir" \
-  -DCOUPLER_TYPE="full" \
+  -DCOUPLER_TYPE="$coupler_type" \
   -DEXECUTABLE_NAME="null_model.x" \
   -DCMAKE_BUILD_TYPE="$build_type" \
   -G "$generator" \
-  -DPREPROCESS_LAND=on \
-  -DNULL_MODEL_TEST=on \
+  -DTEST_NULL_MODEL=on \
   -Dfms_paths="$fms_paths" \
   -Docean_model_paths="${ocean_paths[*]}" \
   -Docean_model_macros="$ocean_macros" \
@@ -82,3 +85,4 @@ cmake -S "$srcdir/FMScoupler" -B "$builddir" \
 
 unset IFS
 make -C "$builddir" -j
+make test

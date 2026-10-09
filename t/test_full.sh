@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 #
 # Run script for a simple test run using the null_model
-# This is the same run done in null_model_build.sh, just without any building steps
+# This is the same run done in test_null_mkmf.sh, just without any building steps
 set -eu
 rundir=$(pwd -P)
 
@@ -19,7 +19,7 @@ awk 'NR==22{print "  io_layout = 1, 1"}1' input-full.nml > input-full.nml.tmp &&
 # Get the full namelist
 ln -s input-full.nml input.nml
 # Run the null model with the full coupler
-mpiexec -n 1 ${rundir}/coupler_full.x
+mpiexec -n 1 ${rundir}/null_model.x
 
 # Report on the status of the run with the full coupler
 if [ $? -eq 0 ]

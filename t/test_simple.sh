@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 #
 # Run script for a simple test run using the null_model
-# This is the same run done in null_model_build.sh, just without any building steps
+# This is the same run done in test_null_mkmf.sh, just without any building steps
 rundir=$PWD
 
 # Run the null models test
@@ -17,7 +17,7 @@ tar zxf ${tarFile}
 # Get the simple namelist
 ln -s input-simple.nml input.nml
 # Run the null simple coupler test
-mpiexec -n 1 ${rundir}/coupler_simple.x
+mpiexec -n 1 ${rundir}/null_model.x
 
 # Report on the status of the run with the simple coupler
 if [ $? -eq 0 ]

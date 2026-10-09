@@ -1,5 +1,6 @@
 #!/bin/bash
-# Standalone ESM4.5 cmake build, creates a new directory in t/ subdirectory
+# Standalone ESM4 cmake build using a slightly modified version of the ESM4.5 public release
+# creates a new directory in t/ subdirectory
 # called esm4, clones source code and performs a build with cmake
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
