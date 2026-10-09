@@ -42,6 +42,9 @@ include(FetchContent)
 # Option to pick between simple and full coupler executables
 set(COUPLER_TYPE "full" CACHE STRING "Determines which coupler executable to build with. Options are 'simple' or 'full'.")
 
+# Name of the coupler executable
+set(EXECUTABLE_NAME "coupler_${COUPLER_TYPE}.x" CACHE STRING "Name of the coupler executable, including extensions")
+
 # this is analagous to using the --use-cpp in mkmf, but will only apply to whatever src is provided for the land_model code
 # preprocessed code will end up in the build directory under 'preprocessed_srcs'
 option(PREPROCESS_LAND "Uses the GNU cpp command instead of the compiler to preprocess the land model source code. This is needed for lm4p to properly handle strings in macro functions")
@@ -90,8 +93,21 @@ if(NOT ice_model_paths)
   message(FATAL_ERROR "Ice model paths not set, use -Dice_model_paths=PATH[;PATH...]")
 endif()
 
+# Compiler-specific flags from the mkmf templates. Included before FMS so it inherits them too.
+# This sets the flags using the CMAKE_BUILD_TYPE argument and the detected Fortran compiler
+# Build types correspond to mkmf templates, Release/Prod, Repro, and Debug 
+# CMake builds typically use 'Release' as the default, so Prod is remapped to Release to not mess with cmake's feng shui
+# mkmf bonus "targets" are instead handled as options: -DOPENMP, -DOVERRIDE_LIMITS, -DVERBOSE_FLAGS
+# if using intel you can also set the ISA instruction set flag via -DINTEL_ISA="..."
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/coupler_compiler_flags.cmake)
+
 # fms has its own CMakeLists.txt, so we can just add it as a subdirectory unlike the other components
+# FMS force-resets unknown build types (e.g. Repro) to Release, so give it a local Release value
+if(NOT CMAKE_BUILD_TYPE MATCHES "^(Release|Debug)$")
+  set(CMAKE_BUILD_TYPE "Release")
+endif()
 add_subdirectory(${fms_paths} ${CMAKE_CURRENT_BINARY_DIR}/fms_build)
+unset(CMAKE_BUILD_TYPE)
 set(FMS_SOURCE_DIR "${fms_paths}")
 
 # set variables for component repos, if atmos physics library path is not set, it will be skipped
@@ -167,15 +183,8 @@ foreach(component_name IN LISTS COMPONENTS)
   list(APPEND component_headers "${FMS_SOURCE_DIR}/include")
   list(APPEND component_headers "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_mods")
 
-  # TODO these are all compiler-dependent flags for gnu, in the future this will be handled by .cmake files that define the
-  # flags for each compiler vendor when used
-  set(compiler_opts
-    "${${component_name}_flags}"
-    "-fdefault-real-8"
-    "-fcray-pointer"
-    "-fallow-argument-mismatch"
-    "-ffree-line-length-none"
-  )
+  # compiler-specific flags are set in cmake/coupler_compiler_flags.cmake
+  set(compiler_opts "${${component_name}_flags}")
   # cmake will do the same thing as mkmf's --use-cpp option here, preprocess directly with cpp and lable the output with DO_NOT_MODIFY
   # prior to any actual compilation
   if(component_name STREQUAL "land_model" AND PREPROCESS_LAND)
@@ -189,7 +198,7 @@ foreach(component_name IN LISTS COMPONENTS)
       set(out_file "${CMAKE_CURRENT_BINARY_DIR}/preprocessed_srcs/${fname}_DO_NOT_MODIFY.f90")
       add_custom_command(
         OUTPUT ${out_file}
-        COMMAND cpp -nostdinc -C -v ${cpp_macros} ${${component_name}_flags} -o "${out_file}" "${src}"
+        COMMAND cpp -nostdinc -C ${cpp_macros} ${${component_name}_flags} -o "${out_file}" "${src}"
         DEPENDS ${src}
         COMMENT "Preprocessing ${src} with standalone cpp..."
         VERBATIM
@@ -292,7 +301,6 @@ set(COUPLER_MODULE_DIR "${CMAKE_CURRENT_BINARY_DIR}/${COUPLER_TYPE}_coupler_mods
 
 add_library(${COUPLER_SHARED_TARGET} STATIC ${COUPLER_MOD_SRCS} ${SHARED_MOD_SRCS})
 set_target_properties(${COUPLER_SHARED_TARGET} PROPERTIES
-  COMPILE_FLAGS "-fdefault-real-8"
   Fortran_MODULE_DIRECTORY "${COUPLER_MODULE_DIR}"
 )
 if(NULL_MODEL_MACROS)
@@ -309,8 +317,7 @@ target_link_libraries(${COUPLER_SHARED_TARGET} PRIVATE
 
 add_executable(${COUPLER_EXECUTABLE_TARGET} ${COUPLER_EXEC_SRC})
 set_target_properties(${COUPLER_EXECUTABLE_TARGET} PROPERTIES
-  COMPILE_FLAGS "-fdefault-real-8"
-  RUNTIME_OUTPUT_NAME "coupler_${COUPLER_TYPE}.x"
+  RUNTIME_OUTPUT_NAME "${EXECUTABLE_NAME}"
 )
 target_include_directories(${COUPLER_EXECUTABLE_TARGET} PUBLIC
   ${COUPLER_INCLUDE_DIRS}
