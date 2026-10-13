@@ -95,7 +95,7 @@ if(NOT ice_model_paths)
   message(FATAL_ERROR "Ice model paths not set, use -Dice_model_paths=PATH[;PATH...]")
 endif()
 
-# Compiler-specific flags from the mkmf templates. Included before FMS so it inherits them too.
+# Compiler-specific flags from the mkmf templates are included in cmake/*.cmake. FMS inherits them too.
 # This sets the flags using the CMAKE_BUILD_TYPE argument and the detected Fortran compiler
 # Build types correspond to mkmf templates, Release/Prod, Repro, and Debug 
 # CMake builds typically use 'Release' as the default, so Prod is remapped to Release to not mess with cmake's feng shui
@@ -109,6 +109,9 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "^(Release|Debug)$")
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 add_subdirectory(${fms_paths} ${CMAKE_CURRENT_BINARY_DIR}/fms_build)
+target_compile_definitions(fms PRIVATE ${fms_macros})
+target_compile_options(fms PRIVATE ${fms_flags})
+
 unset(CMAKE_BUILD_TYPE)
 set(FMS_SOURCE_DIR "${fms_paths}")
 
@@ -219,10 +222,10 @@ foreach(component_name IN LISTS COMPONENTS)
 
   # Create libraries for each external component
   add_library(${component_name} STATIC ${component_srcs})
-  target_include_directories(${component_name} PUBLIC ${component_headers})
+  target_include_directories(${component_name} PRIVATE ${component_headers})
   target_link_libraries(${component_name} PUBLIC FMS::fms)
-  target_compile_definitions(${component_name} PUBLIC ${${component_name}_macros})
-  target_compile_options(${component_name} PUBLIC ${compiler_opts})
+  target_compile_definitions(${component_name} PRIVATE ${${component_name}_macros})
+  target_compile_options(${component_name} PRIVATE ${compiler_opts})
   set_target_properties(${component_name} PROPERTIES
     Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_mods"
   )

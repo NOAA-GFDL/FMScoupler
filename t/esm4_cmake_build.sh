@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workdir="$SCRIPT_DIR/esm4"
 mkdir -p "$workdir"
 srcdir="$workdir/src"
-builddir="$workdir/build_cmake"
+builddir="$workdir"
 
 # this is just cloning the same source code as the esm4.5 public release branch on github
 if [[ ! -d "$srcdir" ]]; then
@@ -60,6 +60,7 @@ else
 fi
 
 paths_fms="$srcdir/FMS/"
+macros_fms="use_libMPI;use_netCDF;use_yaml;MAXFIELDMETHODS_=600;MAXXGRID=1e9"
 
 paths_ocean=( "$srcdir/MOM6/"{config_src/infra/FMS2,config_src/memory/dynamic_nonsymmetric,config_src/drivers/FMS_cap,config_src/external/ODA_hooks,config_src/external/database_comms,config_src/external/stochastic_physics,config_src/external/MARBL,config_src/external/drifters,pkg/GSW-Fortran/{modules,toolbox}/,src/{*,*/*}/} "$srcdir/FMS/"{coupler,include} "$srcdir/"{ocean_BGC/generic_tracers,ocean_BGC/mocsy/src} )
 macros_ocean="MAX_FIELDS_=600;NOT_SET_AFFINITY;_USE_MOM6_DIAG;_USE_GENERIC_TRACER;USE_PRECISION=2"
@@ -86,7 +87,6 @@ generator="${CMAKE_GENERATOR:-Unix Makefiles}"
 
 IFS=";"
 
-mkdir -p "$builddir"
 cmake -S "$srcdir/FMScoupler" -B "$builddir" \
   -DCOUPLER_TYPE="full" \
   -DEXECUTABLE_NAME="esm45.x" \
@@ -94,6 +94,7 @@ cmake -S "$srcdir/FMScoupler" -B "$builddir" \
   -G "$generator" \
   -DPREPROCESS_LAND=on \
   -Dfms_paths="$paths_fms" \
+  -Dfms_macros="${macros_fms}" \
   -Docean_model_paths="${paths_ocean[*]}" \
   -Docean_model_macros="$macros_ocean" \
   -Docean_model_flags="$flags_ocean" \

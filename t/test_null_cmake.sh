@@ -4,13 +4,14 @@
 # Usage:
 # ./null_cmake_build.sh
 # 	[COUPLER_TYPE="full|simple"]
-#   	[BUILD_TYPE="Release/Prod|Debug|Repro"]
+#   [BUILD_TYPE="Release/Prod|Debug|Repro"]
+#   [GENERATOR="Unix Makefiles|Ninja|etc.."]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workdir="$SCRIPT_DIR/null_model"
 mkdir -p "$workdir"
 srcdir="$workdir/src"
-builddir="$workdir/build_cmake"
+builddir="$workdir"
 
 build_type="${BUILD_TYPE:-Debug}"
 generator="${CMAKE_GENERATOR:-Unix Makefiles}"
@@ -33,7 +34,6 @@ else
 fi
 
 fms_paths=( "${srcdir}/FMS" )
-# TODO fms macros/flags aren't currently passed in
 fms_macros="use_netCDF;use_libMPI;MAXFIELDS_=200;MAXFIELDMETHODS_=200;INTERNAL_FILE_NML;HAVE_GETTID"
 
 ocean_paths=( "${srcdir}/ocean_null" )
@@ -61,7 +61,6 @@ generator="${CMAKE_GENERATOR:-Unix Makefiles}"
 # cmake lists are semicolon-separated; this makes "${array[*]}" join with semicolons
 IFS=";"
 
-mkdir -p "$builddir"
 cmake -S "$srcdir/FMScoupler" -B "$builddir" \
   -DCOUPLER_TYPE="$coupler_type" \
   -DEXECUTABLE_NAME="null_model.x" \
@@ -85,4 +84,4 @@ cmake -S "$srcdir/FMScoupler" -B "$builddir" \
 
 unset IFS
 make -C "$builddir" -j
-make test
+make -C "$builddir" test
