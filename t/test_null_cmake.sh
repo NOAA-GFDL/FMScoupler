@@ -81,5 +81,5 @@ cmake -S "$srcdir/FMScoupler" -B "$builddir" \
   -Dcoupler_macros="$coupler_macros"
 
 unset IFS
-make -C "$builddir" -j
-make -C "$builddir" test
+cmake --build $builddir -j
+ctest --test-dir "$builddir"

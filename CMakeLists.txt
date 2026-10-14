@@ -110,17 +110,26 @@ endif()
 # if using intel you can also set the ISA instruction set flag via -DINTEL_ISA="..."
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/coupler_compiler_flags.cmake)
 
-# FMS has it's own BUILD_TYPE behavior for Release and Debug, it just sets optimization lvl (and add -g if debug)
-# if its set to Prod/Repro for the coupler, we'll reset it to 'Release' for FMS
-# TODO, flags set by the include above might be getting overriden during the FMS build
-# this is mainly important for optimization flags (-O) because compilers tend to use the last flag provided on
-# the command line. will probably need to be handled on the FMS side
+# FMS has it's own CMAKE_BUILD_TYPE behavior for Release and Debug, it just sets optimization lvl (and add -g if debug)
+# if its set to Prod/Repro for the coupler, we'll reset it to 'Release' for FMS. It'll be overriden by
+# whatever optimization the coupler is using.
 if(NOT CMAKE_BUILD_TYPE MATCHES "^(Release|Debug)$")
   set(CMAKE_BUILD_TYPE "Release")
 endif()
 add_subdirectory(${fms_paths} ${CMAKE_CURRENT_BINARY_DIR}/fms_build)
-target_compile_definitions(fms PRIVATE ${fms_macros})
-target_compile_options(fms PRIVATE ${fms_flags})
+# FMS compiles its sources in OBJECT libraries (fms_f, fms_c, or fms_<kind>_f/_c), which the final fms archive
+# only collects, so macros/flags must be applied to those targets or they are silently ignored.
+# fms_flags is a space-separated string, so SHELL: is used to split it into separate options.
+get_property(_fms_targets DIRECTORY ${fms_paths} PROPERTY BUILDSYSTEM_TARGETS)
+list(FILTER _fms_targets INCLUDE REGEX "^fms(_[a-z0-9]+)?(_[cf])?$")
+foreach(_fms_tgt IN LISTS _fms_targets)
+  if(fms_macros)
+    target_compile_definitions(${_fms_tgt} PRIVATE ${fms_macros})
+  endif()
+  if(fms_flags)
+    target_compile_options(${_fms_tgt} PRIVATE "$<$<COMPILE_LANGUAGE:Fortran>:SHELL:${fms_flags}>")
+  endif()
+endforeach()
 
 unset(CMAKE_BUILD_TYPE)
 set(FMS_SOURCE_DIR "${fms_paths}")
@@ -235,7 +244,9 @@ foreach(component_name IN LISTS COMPONENTS)
   target_include_directories(${component_name} PRIVATE ${component_headers})
   target_link_libraries(${component_name} PUBLIC FMS::fms)
   target_compile_definitions(${component_name} PRIVATE ${${component_name}_macros})
-  target_compile_options(${component_name} PRIVATE ${compiler_opts})
+  if(compiler_opts)
+    target_compile_options(${component_name} PRIVATE "$<$<COMPILE_LANGUAGE:Fortran>:SHELL:${compiler_opts}>")
+  endif()
   set_target_properties(${component_name} PROPERTIES
     Fortran_MODULE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${component_name}_mods"
   )

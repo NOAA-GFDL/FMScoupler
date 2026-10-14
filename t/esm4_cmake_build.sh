@@ -113,4 +113,4 @@ cmake -S "$srcdir/FMScoupler" -B "$builddir" \
   -Datmos_physics_library_flags="$flags_atmos_phys"
 
 unset IFS
-make -C "$builddir" -j
+cmake --build $builddir -j
