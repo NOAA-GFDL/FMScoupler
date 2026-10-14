@@ -1,23 +1,29 @@
-name: FMScoupler build test
+name: FMScoupler null model tests
 
 on: [push, pull_request]
 
 jobs:
-  build:
+  mkmf_null_model:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/noaa-gfdl/fms/fms-ci-rocky-gnu:13.2.0
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.github_token }}
       env:
         CC: mpicc
         FC: mpif90
-        CPPFLAGS: '-I/usr/include -Duse_LARGEFILE -DMAXFIELDMETHODS_=500'
-        FCFLAGS: '-fcray-pointer -fdefault-double-8 -fdefault-real-8 -Waliasing -ffree-line-length-none -fno-range-check'
-        LDFLAGS: '-L/usr/lib'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7
       - name: Run build test
-        run: t/null_model_build.sh
+        run: t/test_null_mkmf.sh
+  cmake_null_model:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        run: sudo apt-get install -y mpich libmpich-dev libnetcdf-dev libnetcdff-dev netcdf-bin libyaml-0-2 libyaml-dev cmake gfortran
+      - name: Run build test
+        env:
+          CC: mpicc
+          FC: mpifort
+        run: t/test_null_cmake.sh

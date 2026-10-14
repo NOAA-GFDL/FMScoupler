@@ -136,6 +136,7 @@ contains
     allocate( ice_ocean_boundary%lprec    (is:ie,js:je) ) ;         ice_ocean_boundary%lprec = 0.0
     allocate( ice_ocean_boundary%fprec    (is:ie,js:je) ) ;         ice_ocean_boundary%fprec = 0.0
     allocate( ice_ocean_boundary%runoff   (is:ie,js:je) ) ;         ice_ocean_boundary%runoff = 0.0
+    allocate( ice_ocean_boundary%runoff_carbon (is:ie,js:je) ) ;    ice_ocean_boundary%runoff_carbon = 0.0
     allocate( ice_ocean_boundary%calving  (is:ie,js:je) ) ;         ice_ocean_boundary%calving = 0.0
     allocate( ice_ocean_boundary%runoff_hflx   (is:ie,js:je) ) ;    ice_ocean_boundary%runoff_hflx = 0.0
     allocate( ice_ocean_boundary%calving_hflx  (is:ie,js:je) ) ;    ice_ocean_boundary%calving_hflx = 0.0
@@ -292,6 +293,9 @@ contains
     if(ASSOCIATED(Ice_Ocean_Boundary%runoff) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
          Ice%runoff, Ice_Ocean_Boundary%runoff, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
 
+    if(ASSOCIATED(Ice_Ocean_Boundary%runoff_carbon) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
+         Ice%runoff_carbon, Ice_Ocean_Boundary%runoff_carbon, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
+
     if(ASSOCIATED(Ice_Ocean_Boundary%calving) ) call flux_ice_to_ocean_redistribute( Ice, Ocean, &
          Ice%calving, Ice_Ocean_Boundary%calving, Ice_Ocean_Boundary%xtype, do_area_weighted_flux )
 
@@ -340,6 +344,7 @@ contains
     call fms_data_override('OCN', 'lprec',     Ice_Ocean_Boundary%lprec    , Time )
     call fms_data_override('OCN', 'fprec',     Ice_Ocean_Boundary%fprec    , Time )
     call fms_data_override('OCN', 'runoff',    Ice_Ocean_Boundary%runoff   , Time )
+    call fms_data_override('OCN', 'runoff_carbon',    Ice_Ocean_Boundary%runoff_carbon   , Time )
     call fms_data_override('OCN', 'calving',   Ice_Ocean_Boundary%calving  , Time )
     call fms_data_override('OCN', 'runoff_hflx',    Ice_Ocean_Boundary%runoff_hflx   , Time )
     call fms_data_override('OCN', 'calving_hflx',   Ice_Ocean_Boundary%calving_hflx  , Time )
