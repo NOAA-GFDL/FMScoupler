@@ -17,7 +17,7 @@ tar zxf ${tarFile}
 # Get the simple namelist
 ln -s input-simple.nml input.nml
 # Run the null simple coupler test
-mpiexec -n 1 ${rundir}/null_model.x
+mpiexec -n 1 ${rundir}/null_model_simple.x
 
 # Report on the status of the run with the simple coupler
 if [ $? -eq 0 ]

@@ -19,7 +19,7 @@ awk 'NR==22{print "  io_layout = 1, 1"}1' input-full.nml > input-full.nml.tmp &&
 # Get the full namelist
 ln -s input-full.nml input.nml
 # Run the null model with the full coupler
-mpiexec -n 1 ${rundir}/null_model.x
+mpiexec -n 1 ${rundir}/null_model_full.x
 
 # Report on the status of the run with the full coupler
 if [ $? -eq 0 ]

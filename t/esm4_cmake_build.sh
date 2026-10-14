@@ -1,7 +1,7 @@
 #!/bin/bash
 # Standalone ESM4 cmake build using a slightly modified version of the ESM4.5 public release
-# creates a new directory in t/ subdirectory
-# called esm4, clones source code and performs a build with cmake
+# Usage:
+# [BUILD_TYPE="Debug|Prod|Repro"] [CMAKE_GENERATOR="Unix Makefiles|Ninja"] ./esm4_cmake_build.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workdir="$SCRIPT_DIR/esm4"
@@ -88,9 +88,10 @@ generator="${CMAKE_GENERATOR:-Unix Makefiles}"
 IFS=";"
 
 cmake -S "$srcdir/FMScoupler" -B "$builddir" \
-  -DCOUPLER_TYPE="full" \
-  -DEXECUTABLE_NAME="esm45.x" \
+  -DBUILD_FULL_COUPLER="on" \
+  -DFULL_COUPLER_EXECUTABLE_NAME="esm45.x" \
   -DCMAKE_BUILD_TYPE="$build_type" \
+  -DWITH_YAML=on \
   -G "$generator" \
   -DPREPROCESS_LAND=on \
   -Dfms_paths="$paths_fms" \

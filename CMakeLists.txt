@@ -39,11 +39,18 @@ project(fmscoupler LANGUAGES Fortran)
 
 include(FetchContent)
 
-# Option to pick between simple and full coupler executables
-set(COUPLER_TYPE "full" CACHE STRING "Determines which coupler executable to build with. Options are 'simple' or 'full'.")
+# Options to enable building the full and/or simple coupler executables. Both can be built in the same
+# configuration, each with their own set of modules/libraries. The full coupler is built by default.
+option(BUILD_FULL_COUPLER "Build the full coupler executable" ON)
+option(BUILD_SIMPLE_COUPLER "Build the simple coupler executable" OFF)
 
-# Name of the coupler executable
-set(EXECUTABLE_NAME "coupler_${COUPLER_TYPE}.x" CACHE STRING "Name of the coupler executable, including extensions")
+if(NOT BUILD_FULL_COUPLER AND NOT BUILD_SIMPLE_COUPLER)
+  message(FATAL_ERROR "At least one of BUILD_FULL_COUPLER or BUILD_SIMPLE_COUPLER must be enabled.")
+endif()
+
+# Names of the coupler executables, including extensions. Only used for the respective coupler type when enabled
+set(FULL_COUPLER_EXECUTABLE_NAME "coupler_full.x" CACHE STRING "Name of the full coupler executable, including extensions")
+set(SIMPLE_COUPLER_EXECUTABLE_NAME "coupler_simple.x" CACHE STRING "Name of the simple coupler executable, including extensions")
 
 # this is analagous to using the --use-cpp in mkmf, but will only apply to whatever src is provided for the land_model code
 # preprocessed code will end up in the build directory under 'preprocessed_srcs'
@@ -97,14 +104,17 @@ endif()
 
 # Compiler-specific flags from the mkmf templates are included in cmake/*.cmake. FMS inherits them too.
 # This sets the flags using the CMAKE_BUILD_TYPE argument and the detected Fortran compiler
-# Build types correspond to mkmf templates, Release/Prod, Repro, and Debug 
+# Build types correspond to mkmf templates, Release/Prod, Repro, and Debug
 # CMake builds typically use 'Release' as the default, so Prod is remapped to Release to not mess with cmake's feng shui
 # mkmf bonus "targets" are instead handled as options: -DOPENMP, -DOVERRIDE_LIMITS, -DVERBOSE_FLAGS
 # if using intel you can also set the ISA instruction set flag via -DINTEL_ISA="..."
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/coupler_compiler_flags.cmake)
 
-# fms has its own CMakeLists.txt, so we can just add it as a subdirectory unlike the other components
-# FMS force-resets unknown build types (e.g. Repro) to Release, so give it a local Release value
+# FMS has it's own BUILD_TYPE behavior for Release and Debug, it just sets optimization lvl (and add -g if debug)
+# if its set to Prod/Repro for the coupler, we'll reset it to 'Release' for FMS
+# TODO, flags set by the include above might be getting overriden during the FMS build
+# this is mainly important for optimization flags (-O) because compilers tend to use the last flag provided on
+# the command line. will probably need to be handled on the FMS side
 if(NOT CMAKE_BUILD_TYPE MATCHES "^(Release|Debug)$")
   set(CMAKE_BUILD_TYPE "Release")
 endif()
@@ -210,7 +220,7 @@ foreach(component_name IN LISTS COMPONENTS)
       )
       list(APPEND processed_srcs ${out_file})
     endforeach()
-    # TODO lm4p has some random test programs that fail to compile, should exclude anything thats not a module from src search 
+    # TODO lm4p has some random test programs that fail to compile, should exclude anything thats not a module from src search
     # for now we'll just exclude files that start with "test_"
     list(FILTER processed_srcs EXCLUDE REGEX "test_.*.f90")
     set(component_srcs ${processed_srcs})
@@ -240,6 +250,7 @@ endif()
 # atmos_model uses modules from the atmosphere physics library, when it's being built.
 if(TARGET atmos_model AND TARGET atmos_physics_library)
   target_link_libraries(atmos_model PUBLIC atmos_physics_library)
+  target_include_directories(atmos_model PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/atmos_physics_library_mods)
 endif()
 
 # Aliases for convenience
@@ -269,87 +280,117 @@ if(TARGET atmos_physics_library)
   list(APPEND COUPLER_COMMON_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/atmos_physics_library_mods)
 endif()
 
-if(COUPLER_TYPE STREQUAL "simple")
-  set(COUPLER_MOD_SRCS
-    ${CMAKE_SOURCE_DIR}/simple/flux_exchange.F90
-    ${CMAKE_SOURCE_DIR}/simple/ice_model.F90
-  )
-  set(COUPLER_EXEC_SRC ${CMAKE_SOURCE_DIR}/simple/coupler_main.F90)
-  list(APPEND COUPLER_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/ice_model_mods)
-  list(APPEND COUPLER_SHARED_LIBRARIES ice_model)
-  set(COUPLER_NULL_MODEL_MACROS use_AM3_physics)
-elseif(COUPLER_TYPE STREQUAL "full")
-  set(COUPLER_MOD_SRCS
-    ${CMAKE_SOURCE_DIR}/full/atm_land_ice_flux_exchange.F90
-    ${CMAKE_SOURCE_DIR}/full/atmos_ocean_dep_fluxes_calc.F90
-    ${CMAKE_SOURCE_DIR}/full/atmos_ocean_fluxes_calc.F90
-    ${CMAKE_SOURCE_DIR}/full/flux_exchange.F90
-    ${CMAKE_SOURCE_DIR}/full/full_coupler_mod.F90
-    ${CMAKE_SOURCE_DIR}/full/ice_ocean_flux_exchange.F90
-    ${CMAKE_SOURCE_DIR}/full/land_ice_flux_exchange.F90
-  )
-  set(COUPLER_EXEC_SRC ${CMAKE_SOURCE_DIR}/full/coupler_main.F90)
-  list(APPEND COUPLER_INCLUDE_DIRS
-    ${CMAKE_SOURCE_DIR}/full
-    ${CMAKE_CURRENT_BINARY_DIR}/ice_model_mods
-  )
-  list(APPEND COUPLER_SHARED_LIBRARIES ice_model)
-  list(APPEND COUPLER_EXEC_LIBRARIES ice_model)
-else()
-  message(FATAL_ERROR "Invalid COUPLER_TYPE '${COUPLER_TYPE}'. Expected 'simple' or 'full'.")
+set(ENABLED_COUPLER_TYPES "")
+if(BUILD_FULL_COUPLER)
+  list(APPEND ENABLED_COUPLER_TYPES "full")
+endif()
+if(BUILD_SIMPLE_COUPLER)
+  list(APPEND ENABLED_COUPLER_TYPES "simple")
 endif()
 
-set(COUPLER_SHARED_TARGET coupler_shared_${COUPLER_TYPE})
-set(COUPLER_EXECUTABLE_TARGET coupler_${COUPLER_TYPE})
-set(COUPLER_MODULE_DIR "${CMAKE_CURRENT_BINARY_DIR}/${COUPLER_TYPE}_coupler_mods")
+# Sets up build for full/simple coupler or both depending on whats requested
+foreach(COUPLER_TYPE IN LISTS ENABLED_COUPLER_TYPES)
+  # reset per-type variables so they don't carry over between loop iterations
+  set(COUPLER_MOD_SRCS "")
+  set(COUPLER_EXEC_SRC "")
+  set(COUPLER_INCLUDE_DIRS "")
+  set(COUPLER_SHARED_LIBRARIES "")
+  set(COUPLER_EXEC_LIBRARIES "")
 
-add_library(${COUPLER_SHARED_TARGET} STATIC ${COUPLER_MOD_SRCS} ${SHARED_MOD_SRCS})
-set_target_properties(${COUPLER_SHARED_TARGET} PROPERTIES
-  Fortran_MODULE_DIRECTORY "${COUPLER_MODULE_DIR}"
-)
-target_include_directories(${COUPLER_SHARED_TARGET} PUBLIC
-  ${COUPLER_COMMON_INCLUDE_DIRS}
-  ${COUPLER_INCLUDE_DIRS}
-)
-target_link_libraries(${COUPLER_SHARED_TARGET} PRIVATE
-  ${COUPLER_COMMON_LIBRARIES}
-  ${COUPLER_SHARED_LIBRARIES}
-)
+  if(COUPLER_TYPE STREQUAL "simple")
+    # The simple coupler provides its own embedded ice model (simple/ice_model.F90, module ice_model_mod),
+    # but still needs utility modules (e.g. ice_albedo_mod, ocean_rough_mod) supplied by the ice_model
+    # component library. Its own Fortran_MODULE_DIRECTORY is searched before the external ice_model_mods
+    # include dir, so the locally-compiled ice_model_mod correctly takes precedence over the external one.
+    set(COUPLER_MOD_SRCS
+      ${CMAKE_SOURCE_DIR}/simple/flux_exchange.F90
+      ${CMAKE_SOURCE_DIR}/simple/ice_model.F90
+    )
+    set(COUPLER_EXEC_SRC ${CMAKE_SOURCE_DIR}/simple/coupler_main.F90)
+    list(APPEND COUPLER_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/ice_model_mods)
+    list(APPEND COUPLER_SHARED_LIBRARIES ice_model)
+    set(COUPLER_EXECUTABLE_NAME "${SIMPLE_COUPLER_EXECUTABLE_NAME}")
+  elseif(COUPLER_TYPE STREQUAL "full")
+    set(COUPLER_MOD_SRCS
+      ${CMAKE_SOURCE_DIR}/full/atm_land_ice_flux_exchange.F90
+      ${CMAKE_SOURCE_DIR}/full/atmos_ocean_dep_fluxes_calc.F90
+      ${CMAKE_SOURCE_DIR}/full/atmos_ocean_fluxes_calc.F90
+      ${CMAKE_SOURCE_DIR}/full/flux_exchange.F90
+      ${CMAKE_SOURCE_DIR}/full/full_coupler_mod.F90
+      ${CMAKE_SOURCE_DIR}/full/ice_ocean_flux_exchange.F90
+      ${CMAKE_SOURCE_DIR}/full/land_ice_flux_exchange.F90
+    )
+    set(COUPLER_EXEC_SRC ${CMAKE_SOURCE_DIR}/full/coupler_main.F90)
+    list(APPEND COUPLER_INCLUDE_DIRS
+      ${CMAKE_SOURCE_DIR}/full
+      ${CMAKE_CURRENT_BINARY_DIR}/ice_model_mods
+    )
+    list(APPEND COUPLER_SHARED_LIBRARIES ice_model)
+    list(APPEND COUPLER_EXEC_LIBRARIES ice_model)
+    set(COUPLER_EXECUTABLE_NAME "${FULL_COUPLER_EXECUTABLE_NAME}")
+  else()
+    message(FATAL_ERROR "Invalid coupler type '${COUPLER_TYPE}'. Expected 'simple' or 'full'.")
+  endif()
 
-add_executable(${COUPLER_EXECUTABLE_TARGET} ${COUPLER_EXEC_SRC})
-set_target_properties(${COUPLER_EXECUTABLE_TARGET} PROPERTIES
-  RUNTIME_OUTPUT_NAME "${EXECUTABLE_NAME}"
-)
-target_include_directories(${COUPLER_EXECUTABLE_TARGET} PUBLIC
-  ${COUPLER_INCLUDE_DIRS}
-  ${COUPLER_MODULE_DIR}
-  ${COUPLER_COMMON_INCLUDE_DIRS}
-)
-target_link_libraries(${COUPLER_EXECUTABLE_TARGET} PRIVATE
-  ${COUPLER_SHARED_TARGET}
-  ${COUPLER_COMMON_LIBRARIES}
-  ${COUPLER_EXEC_LIBRARIES}
-)
+  set(COUPLER_SHARED_TARGET coupler_shared_${COUPLER_TYPE})
+  set(COUPLER_EXECUTABLE_TARGET coupler_${COUPLER_TYPE})
+  set(COUPLER_MODULE_DIR "${CMAKE_CURRENT_BINARY_DIR}/${COUPLER_TYPE}_coupler_mods")
 
-# add any requested macros for both the executable and coupler modules
-if(coupler_macros)
-  target_compile_definitions(${COUPLER_SHARED_TARGET} PUBLIC ${coupler_macros})
-  target_compile_definitions(${COUPLER_EXECUTABLE_TARGET} PUBLIC ${coupler_macros})
-endif()
+  add_library(${COUPLER_SHARED_TARGET} STATIC ${COUPLER_MOD_SRCS} ${SHARED_MOD_SRCS})
+  set_target_properties(${COUPLER_SHARED_TARGET} PROPERTIES
+    Fortran_MODULE_DIRECTORY "${COUPLER_MODULE_DIR}"
+  )
+  # The target's own module directory is listed first so that any modules it compiles itself
+  # (e.g. simple/ice_model.F90's ice_model_mod) take precedence over any identically-named modules
+  # supplied by an external component library (e.g. an ice_model component containing a full ice model).
+  target_include_directories(${COUPLER_SHARED_TARGET} PUBLIC
+    ${COUPLER_MODULE_DIR}
+    ${COUPLER_COMMON_INCLUDE_DIRS}
+    ${COUPLER_INCLUDE_DIRS}
+  )
+  target_link_libraries(${COUPLER_SHARED_TARGET} PRIVATE
+    ${COUPLER_COMMON_LIBRARIES}
+    ${COUPLER_SHARED_LIBRARIES}
+  )
+
+  add_executable(${COUPLER_EXECUTABLE_TARGET} ${COUPLER_EXEC_SRC})
+  set_target_properties(${COUPLER_EXECUTABLE_TARGET} PROPERTIES
+    RUNTIME_OUTPUT_NAME "${COUPLER_EXECUTABLE_NAME}"
+  )
+  # COUPLER_MODULE_DIR (holding coupler_shared's own compiled modules) is listed first so that it takes
+  # precedence over any identically-named modules in an external component (see note above).
+  target_include_directories(${COUPLER_EXECUTABLE_TARGET} PUBLIC
+    ${COUPLER_MODULE_DIR}
+    ${COUPLER_INCLUDE_DIRS}
+    ${COUPLER_COMMON_INCLUDE_DIRS}
+  )
+  target_link_libraries(${COUPLER_EXECUTABLE_TARGET} PRIVATE
+    ${COUPLER_SHARED_TARGET}
+    ${COUPLER_COMMON_LIBRARIES}
+    ${COUPLER_EXEC_LIBRARIES}
+  )
+
+  # add any requested macros for both the executable and coupler modules
+  if(coupler_macros)
+    target_compile_definitions(${COUPLER_SHARED_TARGET} PUBLIC ${coupler_macros})
+    target_compile_definitions(${COUPLER_EXECUTABLE_TARGET} PUBLIC ${coupler_macros})
+  endif()
+endforeach()
 
 # Testing
 
 option(TEST_NULL_MODEL "Enable a simple runtime test via ctest. Intended for the null component build.")
 
-# Test the selected coupler type for null-model builds.
+# Test each enabled coupler type for null-model builds.
 if(TEST_NULL_MODEL)
   enable_testing()
-  if(COUPLER_TYPE STREQUAL "full")
+  if(BUILD_FULL_COUPLER)
     add_test(NAME full_coupler_null_model_run
-      COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/t/test_full.sh)
-  elseif()
+      COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/t/test_full.sh "${FULL_COUPLER_EXECUTABLE_NAME}")
+  endif()
+  if(BUILD_SIMPLE_COUPLER)
     add_test(NAME simple_coupler_null_model_run
-      COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/t/test_simple.sh)
+      COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/t/test_simple.sh "${SIMPLE_COUPLER_EXECUTABLE_NAME}")
   endif()
 endif()
 

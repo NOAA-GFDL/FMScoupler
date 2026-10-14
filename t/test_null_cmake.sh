@@ -7,14 +7,14 @@
 #   [BUILD_TYPE="Release/Prod|Debug|Repro"]
 #   [GENERATOR="Unix Makefiles|Ninja|etc.."]
 
+build_type="${BUILD_TYPE:-Debug}"
+generator="${CMAKE_GENERATOR:-Unix Makefiles}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workdir="$SCRIPT_DIR/null_model"
 mkdir -p "$workdir"
 srcdir="$workdir/src"
 builddir="$workdir"
-
-build_type="${BUILD_TYPE:-Debug}"
-generator="${CMAKE_GENERATOR:-Unix Makefiles}"
 
 # clone null components
 if [[ ! -d "$srcdir" ]]; then
@@ -54,16 +54,14 @@ land_macros="INTERNAL_FILE_NML"
 
 coupler_macros="_USE_LEGACY_LAND_;use_AM3_physics;INTERNAL_FILE_NML"
 
-coupler_type="${COUPLER_TYPE:-full}"
-build_type="${BUILD_TYPE:-Debug}"
-generator="${CMAKE_GENERATOR:-Unix Makefiles}"
-
 # cmake lists are semicolon-separated; this makes "${array[*]}" join with semicolons
 IFS=";"
 
 cmake -S "$srcdir/FMScoupler" -B "$builddir" \
-  -DCOUPLER_TYPE="$coupler_type" \
-  -DEXECUTABLE_NAME="null_model.x" \
+  -DBUILD_FULL_COUPLER="on" \
+  -DBUILD_SIMPLE_COUPLER="on" \
+  -DFULL_COUPLER_EXECUTABLE_NAME="null_model_full.x" \
+  -DSIMPLE_COUPLER_EXECUTABLE_NAME="null_model_simple.x" \
   -DCMAKE_BUILD_TYPE="$build_type" \
   -G "$generator" \
   -DTEST_NULL_MODEL=on \
