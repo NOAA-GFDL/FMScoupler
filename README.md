@@ -122,9 +122,6 @@ The other scripts are used by ctest to do the runtime testing:
 - `t/test_simple.sh` performs the same simple coupler run test as `test_null_mkmf.sh`
 - `t/test_full.sh` performs the same full coupler run test as `test_null_mkmf.sh`
 
-A build script for a full GFDL coupled model is also available. It compiles a slightly modified version of the [ESM4.5 public release](https://github.com/noaa-gfdl/esm4)
-using the cmake build.
-
 ### CMake Build
 
 When compiling with cmake, it is best to set the environment variables `CC`/`FC` to the compiler executables you intend to use. CMake automagically detects compiler vendor

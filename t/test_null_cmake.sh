@@ -2,10 +2,10 @@
 # Standalone null cmake build, creates a new directory in t/ subdirectory
 # called null_model, clones source code and performs a build with cmake
 # Usage:
-# ./null_cmake_build.sh
 # 	[COUPLER_TYPE="full|simple"]
 #   [BUILD_TYPE="Release/Prod|Debug|Repro"]
 #   [GENERATOR="Unix Makefiles|Ninja|etc.."]
+# ./test_null_cmake.sh
 
 build_type="${BUILD_TYPE:-Debug}"
 generator="${CMAKE_GENERATOR:-Unix Makefiles}"
