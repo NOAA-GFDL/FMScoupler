@@ -126,7 +126,7 @@ implicit none
 private
 
 ! ==== public interface ======================================================
-public  surface_flux, surface_flux_init
+public  surface_flux, surface_flux_init, wind_current_coef
 ! ==== end of public interface ===============================================
 
 !> \brief For the calculation of fluxes on the exchange grids.
@@ -189,7 +189,11 @@ logical :: raoult_sat_vap        = .false. !< Reduce saturation vapor pressure t
 logical :: do_simple             = .false.
 integer :: niter_monin_obukhov   = 5       !< iteration times to call iter_monin_obukhov_ocean.
                                            !! Typically 3-5 times should converge
-
+real    :: wind_current_coef     = 1.0     !< Coefficient to multiply surface wind by
+                                           !! when taking difference with atmosphere wind.
+                                           !!  u_dif = (wind_current_coef * u_surf) - u_atm
+                                           !! 1 uses full relative current wind, the default.
+                                           !! 0 uses absolute wind.
 namelist /surface_flux_nml/ no_neg_q,                   &
                             use_virtual_temp,           &
                             alt_gustiness,              &
@@ -207,7 +211,8 @@ namelist /surface_flux_nml/ no_neg_q,                   &
                             do_simple,                  &
                             do_iter_monin_obukhov,      &
                             use_u10_neutral,            &
-                            niter_monin_obukhov
+                            niter_monin_obukhov,        &
+                            wind_current_coef
 
 contains
 
@@ -345,9 +350,9 @@ subroutine surface_flux_1d (                                           &
      thv_atm = tv_atm * p_ratio                ! virt. potential T, using p_surf as reference
      thv_surf= t_surf0 * (1.0 + d608*q_surf0 ) ! surface virtual (potential) T
 !     thv_surf= t_surf0                        ! surface virtual (potential) T -- just for testing tun off the q_surf
-
-     u_dif = u_surf - u_atm                    ! velocity components relative to surface
-     v_dif = v_surf - v_atm
+     ! velocity components relative to surface
+     u_dif = (wind_current_coef * u_surf) - u_atm
+     v_dif = (wind_current_coef * v_surf) - v_atm
   endwhere
 
   if(alt_gustiness) then
@@ -748,6 +753,12 @@ subroutine surface_flux_init
     endif
   endif
 
+  ! Check if the wind/current interaction coefficient is within
+  ! the bounds of 0 (fully absolute winds) and 1 (fully relative winds).
+  if (.not. (wind_current_coef >= 0.0 .and. wind_current_coef <= 1.0)) then
+    call fms_mpp_error(FATAL, "surface_flux_init: wind_current_coef must be within [0, 1]")
+  endif
+
   ! write version number
   call fms_write_version_number(version, tagname)
 
@@ -1105,8 +1116,10 @@ subroutine iter_monin_obukhov_ocean (                      &
      u10(j) = u_star(j)/vonkarm*log(10./rough_mom(j))
     else
      u10(j)   = 0.
-     ref_u(j) = u_surf(j) + (u_atm(j)-u_surf(j)) * del_m(j)
-     ref_v(j) = v_surf(j) + (v_atm(j)-v_surf(j)) * del_m(j)
+     ref_u(j) = (wind_current_coef * u_surf(j)) &
+         + (u_atm(j)-(u_surf(j) * wind_current_coef)) * del_m(j)
+     ref_v(j) = (wind_current_coef * v_surf(j)) &
+         + (v_atm(j)-(v_surf(j) * wind_current_coef)) * del_m(j)
      u10(j)   = sqrt(ref_u(j)**2 + ref_v(j)**2)
     endif
 

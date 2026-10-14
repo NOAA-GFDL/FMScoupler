@@ -30,7 +30,7 @@ module atm_land_ice_flux_exchange_mod
   use   ice_model_mod,    only: atmos_ice_boundary_type, Ice_stock_pe
   use   ice_model_mod,    only: update_ice_atm_deposition_flux
   use    land_model_mod,  only: land_data_type, atmos_land_boundary_type
-  use  surface_flux_mod,  only: surface_flux, surface_flux_init
+  use  surface_flux_mod,  only: surface_flux, surface_flux_init, wind_current_coef
   use land_model_mod,          only: Lnd_stock_pe
   use ocean_model_mod,         only: Ocean_stock_pe
   use atmos_model_mod,         only: Atm_stock_pe
@@ -1294,8 +1294,10 @@ contains
        do i = is,ie
           ex_u10(i) = 0.
           if(ex_avail(i)) then
-             ex_ref_u(i) = ex_u_surf(i) + (ex_u_atm(i)-ex_u_surf(i)) * ex_del_m(i)
-             ex_ref_v(i) = ex_v_surf(i) + (ex_v_atm(i)-ex_v_surf(i)) * ex_del_m(i)
+             ex_ref_u(i) = (wind_current_coef * ex_u_surf(i)) &
+                + (ex_u_atm(i)-(wind_current_coef * ex_u_surf(i))) * ex_del_m(i)
+             ex_ref_v(i) = (wind_current_coef * ex_v_surf(i)) &
+                + (ex_v_atm(i)-(wind_current_coef * ex_v_surf(i))) * ex_del_m(i)
              ex_u10(i) = sqrt(ex_ref_u(i)**2 + ex_ref_v(i)**2)
           endif
        enddo
@@ -1985,7 +1987,7 @@ contains
     !    ------- reference u comp -----------
     if ( id_u_ref > 0 .or. id_u_ref_land > 0 .or. id_uas > 0) then
        where (ex_avail) &
-            ex_ref = ex_u_surf + (ex_u_atm-ex_u_surf) * ex_del_m
+            ex_ref = (wind_current_coef * ex_u_surf) + (ex_u_atm-(wind_current_coef * ex_u_surf)) * ex_del_m
        if ( id_u_ref_land > 0 ) then
 #ifndef _USE_LEGACY_LAND_
           call fms_xgrid_get_from_xgrid_ug ( diag_land, 'LND', ex_ref, xmap_sfc )
@@ -2027,8 +2029,10 @@ contains
     !    ------- reference-level absolute wind -----------
     if ( id_wind_ref > 0 .or. id_sfcWind > 0 ) then
        where (ex_avail) &
-            ex_ref = sqrt((ex_u_surf + (ex_u_atm-ex_u_surf) * ex_del_m)**2 &
-            +(ex_v_surf + (ex_v_atm-ex_v_surf) * ex_del_m)**2)
+           ex_ref = sqrt(((wind_current_coef * ex_u_surf) &
+               + (ex_u_atm-(wind_current_coef * ex_u_surf)) * ex_del_m)**2 &
+               + ((wind_current_coef * ex_v_surf) &
+               + (ex_v_atm-ex_v_surf) * ex_del_m)**2)
        call fms_xgrid_get_from_xgrid (diag_atm, 'ATM', ex_ref, xmap_sfc)
        if ( id_wind_ref > 0 ) used = fms_diag_send_data ( id_wind_ref, diag_atm, Time )
        if ( id_sfcWind  > 0 ) used = fms_diag_send_data ( id_sfcWind, diag_atm, Time )

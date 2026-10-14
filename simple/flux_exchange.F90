@@ -30,7 +30,7 @@ use     ice_model_mod, only:   ice_data_type, atmos_ice_boundary_type
 #ifndef use_AM3_physics
 use atmos_cmip_diag_mod,   only: register_cmip_diag_field_2d
 #endif
-use surface_flux_mod, only: surface_flux, surface_flux_init
+use surface_flux_mod, only: surface_flux, surface_flux_init, wind_current_coef
 
 !! FMS
 use FMS
@@ -385,22 +385,24 @@ real :: zrefm, zrefh
 
      !---- reference u comp ----
       if ( id_u_ref > 0 .or. id_uas > 0) then
-         ref = u_surf + (Atm%u_bot-u_surf) * del_m
+         ref = (wind_current_coef * u_surf) + (Atm%u_bot-(wind_current_coef * u_surf)) * del_m
          used = fms_diag_send_data ( id_u_ref, ref, Time )
       endif
       if ( id_uas > 0 ) used = fms_diag_send_data ( id_uas, ref, Time )
 
      !---- reference v comp ----
       if ( id_v_ref > 0 .or. id_vas > 0) then
-         ref = v_surf + (Atm%v_bot-v_surf) * del_m
+         ref = (wind_current_coef * v_surf) + (Atm%v_bot-(wind_current_coef * v_surf)) * del_m
          used = fms_diag_send_data ( id_v_ref, ref, Time )
       endif
       if ( id_vas > 0 ) used = fms_diag_send_data ( id_vas, ref, Time )
 
       !    ------- reference-level absolute wind -----------
       if ( id_sfcWind > 0 ) then
-              ref = sqrt((u_surf + (Atm%u_bot-u_surf) * del_m)**2 &
-              +(v_surf + (Atm%v_bot-v_surf) * del_m)**2)
+         ref = sqrt(((wind_current_coef * u_surf) &
+            + (Atm%u_bot-(wind_current_coef * u_surf)) * del_m)**2 &
+            + ((wind_current_coef * v_surf) &
+            + (Atm%v_bot-(wind_current_coef * v_surf)) * del_m)**2)
          if ( id_sfcWind  > 0 ) used = fms_diag_send_data ( id_sfcWind, ref , Time )
       endif
 
