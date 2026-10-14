@@ -132,11 +132,14 @@ Options for compiler flags/FMS:
 - `-DWITH_YAML` Enables support for yaml IO in FMS
 
 Options for the coupler's code:
+- `-DOPENMP`                                  Enable openmp directive support in the coupler and components (TODO...)
 - `-DBUILD_FULL_COUPLER`                      build the full coupler executable (default on)
 - `-DBUILD_SIMPLE_COUPLER`                    build the simple coupler executable (default off)
 - `-DFULL_COUPLER_EXECUTABLE_NAME="string"`   name of the full coupler executable (default `coupler_full.x`)
 - `-DSIMPLE_COUPLER_EXECUTABLE_NAME="string"` name of the simple coupler executable (default `coupler_simple.x`)
 - `-DPREPROCESS_LAND`                         enables preprocessing the land model source code with `cpp` explicitly. Preprocessed source code are written to `preprocessed_srcs/` in the build directory. This option also excludes `test_*.F90` files from being collected in the land model source.
+- `-DOVERRIDE_LIMITS`                         Enable overriding internal compiler limits, only applicable for intel compilers (default off)
+- `-DVERBOSE_FLAGS`                           Enable compiler verbosity flags for extra output when compiling
 - `-DTEST_NULL_MODEL`                         enables adding null model runscripts for both couplers to ctest. These can be run using `make test` or `ctest`.
 - `-Dcoupler_macros`                          Preprocessor macro definitions for the coupler source code
 
