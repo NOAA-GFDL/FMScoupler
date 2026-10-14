@@ -753,6 +753,12 @@ subroutine surface_flux_init
     endif
   endif
 
+  ! Check if the wind/current interaction coefficient is within
+  ! the bounds of 0 (fully absolute winds) and 1 (fully relative winds).
+  if (.not. (wind_current_coef >= 0.0 .and. wind_current_coef <= 1.0)) then
+    call fms_mpp_error(FATAL, "surface_flux_init: wind_current_coef must be within [0, 1]")
+  endif
+
   ! write version number
   call fms_write_version_number(version, tagname)
 
