@@ -21,7 +21,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
       - name: Install dependencies
-        run: sudo apt-get install -y mpich libmpich-dev libnetcdf-dev libnetcdff-dev netcdf-bin libyaml libyaml-dev cmake gfortran
+        run: sudo apt-get install -y mpich libmpich-dev libnetcdf-dev libnetcdff-dev netcdf-bin libyaml-0-2 libyaml-dev cmake gfortran
       - name: Run build test
         env:
           CC: mpicc
